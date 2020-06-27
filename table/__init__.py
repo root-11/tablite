@@ -1,10 +1,15 @@
 import json
-import xlrd
 from itertools import count
 from datetime import datetime, date, time
 from functools import lru_cache
 from collections import defaultdict
 from pathlib import Path
+
+try:
+    import xlrd
+    XLRD_ENABLED = True
+except ImportError:
+    XLRD_ENABLED = False
 
 
 class DataTypes(object):
@@ -1464,6 +1469,9 @@ def text_escape(s, escape='"', sep=';'):
 def excel_reader(path):
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
+    if not XLRD_ENABLED:
+        raise ImportError("Please install xlrd to load Excel files.")
+
     sheets = xlrd.open_workbook(str(path), logfile='', on_demand=True)
     assert isinstance(sheets, xlrd.Book)
     tables = []
