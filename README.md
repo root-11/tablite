@@ -1,5 +1,8 @@
 # Tablite 
 
+[![Build Status](https://travis-ci.org/root-11/tablite.svg?branch=master)](https://travis-ci.org/root-11/tablite)
+[![Code coverage](https://codecov.io/gh/root-11/tablite/branch/master/graph/badge.svg)](https://codecov.io/gh/root-11/tablite)
+
 We're all tired of reinventing the wheel when we need to process a bit of data.
 
 - Pandas has a huge memory overhead.
