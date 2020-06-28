@@ -4,7 +4,8 @@ from datetime import datetime, date, time
 from collections import defaultdict
 from pathlib import Path
 
-
+import zipfile
+import tempfile
 import xlrd
 import pyexcel_ods
 
@@ -557,7 +558,8 @@ class Table(object):
     @classmethod
     def from_file(cls, path, **kwargs):
         """ reads path and returns 1 or more tables. """
-        return file_reader(path, **kwargs)
+        for table in file_reader(path, **kwargs):
+            yield table
 
     def check_for_duplicate_header(self, header):
         assert isinstance(header, str)
@@ -1428,7 +1430,7 @@ def text_reader(path, split_sequence=None, sep=None):
                 if n_columns - 1 == len(values):
                     values += ('', )
                 t.add_row(values)
-    return [t]  # file-reader expects a list of tables.
+    yield t
 
 
 def text_escape(s, escape='"', sep=';'):
@@ -1467,15 +1469,14 @@ def excel_reader(path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
     sheets = xlrd.open_workbook(str(path), logfile='', on_demand=True)
     assert isinstance(sheets, xlrd.Book)
-    tables = []
+
     for sheet in sheets.sheets():
         if sheet.nrows == sheet.ncols == 0:
             continue
         else:
             table = excel_sheet_reader(sheet)
             table.metadata['filename'] = path.name
-            tables.append(table)
-    return tables
+            yield table
 
 
 def excel_datetime(value):
@@ -1525,9 +1526,9 @@ def ods_reader(path):
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
     sheets = pyexcel_ods.get_data(str(path))
-    tables = []
+
     for sheet_name, data in sheets.items():
-        if data == [[],[]]:
+        if data == [[], []]:  # no data.
             continue
         table = Table(filename=path.name)
         table.metadata['filename'] = path.name
@@ -1544,14 +1545,29 @@ def ods_reader(path):
                 dtype = str
             values = [dtype(row[ix]) for row in data[1:] if len(row) > ix]
             table.add_column(column_name, dtype, allow_empty, data=values)
-        tables.append(table)
-    return tables
+        yield table
 
 
 def zip_reader(path):
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
-    raise NotImplementedError
+    with tempfile.TemporaryDirectory() as working_dir:
+        directory = Path(working_dir)
+        with zipfile.ZipFile(path, 'r') as zipf:
+            for name in zipf.namelist():
+                zipf.extract(name, working_dir)
+
+                p = directory / name
+                try:
+                    tables = file_reader(p)
+                except Exception as e:  # unknown file type.
+                    print(f'reading {p} resulted in the error:')
+                    print(str(e))
+                    continue
+
+                for table in tables:
+                    yield table
+                p.unlink()
 
 
 def log_reader(path):
@@ -1620,7 +1636,7 @@ def file_reader(path, **kwargs):
         'xlsx': [excel_reader, {}],
         'xlsm': [excel_reader, {}],
         'ods': [ods_reader, {}],
-        'zip': [],
+        'zip': [zip_reader, {}],
         'log': [log_reader, {'sep': False}]
     }
 
@@ -1630,10 +1646,9 @@ def file_reader(path, **kwargs):
     reader, default_kwargs = readers[extension]
     kwargs = {**default_kwargs, **kwargs}
 
-    tables = reader(path, **kwargs)
-    assert isinstance(tables, list), "programmer forgot to return a list of tables."
-    assert all(isinstance(i, Table) for i in tables), "programmer returned something else than a Table"
-    for table in tables:
+    for table in reader(path, **kwargs):
+        assert isinstance(table, Table), "programmer returned something else than a Table"
         find_format(table)
-    return tables
+        yield table
+
 
