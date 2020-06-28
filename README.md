@@ -216,16 +216,25 @@ from pathlib import Path
 from table import filereader
 
 for filename in ['data.csv', 'data.xlsx', 'data.txt', 'data.tsv', 'data.ods']:
-    path = Path(filename
-    tables = filereader(path)
-    assert isinstance(tables, list)
-    assert all(isinstance(t, Table) for t in tables
+    path = Path(filename)
+    for table in filereader(path):
+        assert isinstance(t, Table)
+        ...
 ```
 
 table.filereader currently accepts the following formats:
 
 `csv, tsv, txt, xls, xlsx, xlsm, ods, zip, log.`
- 
+
+And should have some wicked format like:
+
+input: ```19-Sep 02:59:47.153 web_id821 LOG 62.13.11.127 [3] (USER_N) ProcessScannedItem() : Scan[35572] LineNo 201636 scanned 1 of product 2332```
+
+you can provide a split as a keyword:
+
+```
+table = filereader('web.log', split_sequence `" ", " ", " ", " "," [", "] (", ") ", " : ", "LineNo ", " scanned ", "of "`)
+```
 
 
 ----------------
