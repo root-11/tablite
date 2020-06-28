@@ -74,6 +74,21 @@ def test_filereader_book1csv():
     assert len(table) == 45
 
 
+def test_filereader_gdocs1csv():
+    path = Path(__file__).parent / "data" / 'gdocs1.csv'
+    assert path.exists()
+    table = file_reader(path)[0]
+    table.show(slice(0, 10))
+
+    book1_csv = Table(filename=path.name)
+    book1_csv.add_column('a', int)
+    for float_type in list('bcdef'):
+        book1_csv.add_column(float_type, float)
+
+    assert table.compare(book1_csv), table.compare(book1_csv)
+    assert len(table) == 45
+
+
 def test_filereader_book1txt():
     path = Path(__file__).parent / "data" / 'book1.txt'
     assert path.exists()
@@ -87,6 +102,57 @@ def test_filereader_book1txt():
 
     assert table.compare(book1_csv), table.compare(book1_csv)
     assert len(table) == 45
+
+
+def test_filereader_gdocsc1tsv():
+    path = Path(__file__).parent / "data" / 'gdocs1.tsv'
+    assert path.exists()
+    table = file_reader(path)[0]
+    table.show(slice(0, 10))
+
+    book1_csv = Table(filename=path.name)
+    book1_csv.add_column('a', int)
+    for float_type in list('bcdef'):
+        book1_csv.add_column(float_type, float)
+
+    assert table.compare(book1_csv), table.compare(book1_csv)
+    assert len(table) == 45
+
+
+def test_filereader_gdocsc1ods():
+    path = Path(__file__).parent / "data" / 'gdocs1.ods'
+    assert path.exists()
+    tables = file_reader(path)
+
+    sheet1 = Table(filename=path.name, sheet_name='Sheet1')
+    for int_type in list('abcdef'):
+        sheet1.add_column(int_type, int)
+
+    sheet2 = Table(filename=path.name, sheet_name='Sheet2')
+    sheet2.add_column('a', int)
+    for float_type in list('bcdef'):
+        sheet2.add_column(float_type, float)
+
+    sheets = [sheet1, sheet2]
+
+    for sheet, table in zip(sheets, tables):
+        table.compare(sheet)
+        assert len(table) == 45
+
+
+def test_filereader_gdocs1xlsx():
+    path = Path(__file__).parent / "data" / 'gdocs1.xlsx'
+    assert path.exists()
+    table = file_reader(path)[0]
+    table.show(slice(0, 10))
+
+    gdocs1xlsx = Table(filename=path.name, sheet_name='Sheet1')
+    for float_type in list('abcdef'):
+        gdocs1xlsx.add_column(float_type, int)
+
+    assert table.compare(gdocs1xlsx), table.compare(gdocs1xlsx)
+    assert len(table) == 45
+
 
 
 def test_filereader_utf8csv():
