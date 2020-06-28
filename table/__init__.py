@@ -197,7 +197,6 @@ class DataTypes(object):
             raise TypeError(f"The datatype {str(dtype)} is not supported.")
 
     @staticmethod
-    @lru_cache(maxsize=256)
     def infer(v, dtype):
         if v is DataTypes.nones:
             return None
