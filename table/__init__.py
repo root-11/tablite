@@ -1,15 +1,12 @@
 import json
 from itertools import count
 from datetime import datetime, date, time
-from functools import lru_cache
 from collections import defaultdict
 from pathlib import Path
 
-try:
-    import xlrd
-    XLRD_ENABLED = True
-except ImportError:
-    XLRD_ENABLED = False
+
+import xlrd
+import pyexcel_ods
 
 
 class DataTypes(object):
@@ -1468,9 +1465,6 @@ def text_escape(s, escape='"', sep=';'):
 def excel_reader(path):
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
-    if not XLRD_ENABLED:
-        raise ImportError("Please install xlrd to load Excel files.")
-
     sheets = xlrd.open_workbook(str(path), logfile='', on_demand=True)
     assert isinstance(sheets, xlrd.Book)
     tables = []
@@ -1525,6 +1519,33 @@ def excel_sheet_reader(sheet):
             header, dtype, data = str(data[0]), str, [str(v) for v in data[1:]]
         t.add_column(header, dtype, allow_empty, data)
     return t
+
+
+def ods_reader(path):
+    if not isinstance(path, Path):
+        raise ValueError(f"expected pathlib.Path, got {type(path)}")
+    sheets = pyexcel_ods.get_data(str(path))
+    tables = []
+    for sheet_name, data in sheets.items():
+        if data == [[],[]]:
+            continue
+        table = Table(filename=path.name)
+        table.metadata['filename'] = path.name
+        table.metadata['sheet_name'] = sheet_name
+        for ix, column_name in enumerate(data[0]):
+            dtypes = set(type(row[ix]) for row in data[1:] if len(row) > ix)
+            allow_empty = None in dtypes
+            dtypes.discard(None)
+            if len(dtypes) == 1:
+                dtype = dtypes.pop()
+            elif dtypes == {float, int}:
+                dtype = float
+            else:
+                dtype = str
+            values = [dtype(row[ix]) for row in data[1:] if len(row) > ix]
+            table.add_column(column_name, dtype, allow_empty, data=values)
+        tables.append(table)
+    return tables
 
 
 def zip_reader(path):
@@ -1595,15 +1616,17 @@ def file_reader(path, **kwargs):
         'csv': [text_reader, {}],
         'tsv': [text_reader, {'sep': "\t"}],
         'txt': [text_reader, {}],
-        'xls': [],
+        'xls': [excel_reader, {}],
         'xlsx': [excel_reader, {}],
-        'xlsm': [],
-        'excelsheet': [],
+        'xlsm': [excel_reader, {}],
+        'ods': [ods_reader, {}],
         'zip': [],
         'log': [log_reader, {'sep': False}]
     }
 
     extension = path.name.split(".")[-1]
+    if extension not in readers:
+        raise TypeError(f"Filetype for {path.name} not recognised.")
     reader, default_kwargs = readers[extension]
     kwargs = {**default_kwargs, **kwargs}
 
