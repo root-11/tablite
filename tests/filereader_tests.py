@@ -1,6 +1,6 @@
 from table import *
 from time import process_time_ns
-
+import zipfile
 
 def text_escape_tests():
     te = text_escape('"t"')
@@ -50,7 +50,7 @@ def test_filereader_123csv():
     s = "\n".join(data)
     print(s)
     csv_file.write_text(s)  # write
-    tr_table = file_reader(csv_file)[0]  # read
+    tr_table = list(file_reader(csv_file))[0]  # read
     csv_file.unlink()  # cleanup
 
     tr_table.show()
@@ -62,7 +62,7 @@ def test_filereader_123csv():
 def test_filereader_book1csv():
     path = Path(__file__).parent / "data" / 'book1.csv'
     assert path.exists()
-    table = file_reader(path)[0]
+    table = list(file_reader(path))[0]
     table.show(slice(0, 10))
 
     book1_csv = Table(filename=path.name)
@@ -77,7 +77,7 @@ def test_filereader_book1csv():
 def test_filereader_gdocs1csv():
     path = Path(__file__).parent / "data" / 'gdocs1.csv'
     assert path.exists()
-    table = file_reader(path)[0]
+    table = list(file_reader(path))[0]
     table.show(slice(0, 10))
 
     book1_csv = Table(filename=path.name)
@@ -92,7 +92,7 @@ def test_filereader_gdocs1csv():
 def test_filereader_book1txt():
     path = Path(__file__).parent / "data" / 'book1.txt'
     assert path.exists()
-    table = file_reader(path)[0]
+    table = list(file_reader(path))[0]
     table.show(slice(0, 10))
 
     book1_csv = Table(filename=path.name)
@@ -107,7 +107,7 @@ def test_filereader_book1txt():
 def test_filereader_gdocsc1tsv():
     path = Path(__file__).parent / "data" / 'gdocs1.tsv'
     assert path.exists()
-    table = file_reader(path)[0]
+    table = list(file_reader(path))[0]
     table.show(slice(0, 10))
 
     book1_csv = Table(filename=path.name)
@@ -143,7 +143,7 @@ def test_filereader_gdocsc1ods():
 def test_filereader_gdocs1xlsx():
     path = Path(__file__).parent / "data" / 'gdocs1.xlsx'
     assert path.exists()
-    table = file_reader(path)[0]
+    table = list(file_reader(path))[0]
     table.show(slice(0, 10))
 
     gdocs1xlsx = Table(filename=path.name, sheet_name='Sheet1')
@@ -158,7 +158,7 @@ def test_filereader_gdocs1xlsx():
 def test_filereader_utf8csv():
     path = Path(__file__).parent / "data" / 'utf8_test.csv'
     assert path.exists()
-    table = file_reader(path, sep=';')[0]
+    table = list(file_reader(path, sep=';'))[0]
     table.show(slice(0, 10))
     table.show(slice(-15))
 
@@ -176,7 +176,7 @@ def test_filereader_utf8csv():
 def test_filereader_utf16csv():
     path = Path(__file__).parent / "data" / 'utf16_test.csv'
     assert path.exists()
-    table = file_reader(path, sep=';')[0]
+    table = list(file_reader(path, sep=';'))[0]
     table.show(slice(0, 10))
     table.show(slice(-15))
 
@@ -194,7 +194,7 @@ def test_filereader_utf16csv():
 def test_filereader_win1251_encoding_csv():
     path = Path(__file__).parent / "data" / 'win1250_test.csv'
     assert path.exists()
-    table = file_reader(path, sep=';')[0]
+    table = list(file_reader(path, sep=';'))[0]
     table.show(slice(0, 10))
     table.show(slice(-15))
 
@@ -214,7 +214,7 @@ def test_filereader_saptxt():
     # test part 1: split using user defined sequence.
     header = "    | Delivery |  Item|Pl.GI date|Route |SC|Ship-to   |SOrg.|Delivery quantity|SU| TO Number|Material    |Dest.act.qty.|BUn|Typ|Source Bin|Cty"
     split_sequence = ["|"] * header.count('|')
-    table = file_reader(path, split_sequence=split_sequence)[0]
+    table = list(file_reader(path, split_sequence=split_sequence))[0]
     table.show(slice(5))
 
     sap_sample = Table(filename=path.name)
@@ -244,7 +244,7 @@ def test_filereader_book1xlsx():
     path = Path(__file__).parent / "data" / 'book1.xlsx'
     assert path.exists()
     start = process_time_ns()
-    tables = file_reader(path)
+    tables = list(file_reader(path))
     end = process_time_ns()
 
     fields = sum(len(t) * len(t.columns) for t in tables)
@@ -270,7 +270,7 @@ def test_filereader_book1xlsx():
 def test_filereader_exceldatesxlsx():
     path = Path(__file__).parent / "data" / 'excel_dates.xlsx'
     assert path.exists()
-    table = file_reader(path)[0]
+    table = list(file_reader(path))[0]
     table.show()
 
     sheet1 = Table(filename=path.name, sheet_name='Sheet1')
@@ -283,3 +283,21 @@ def test_filereader_exceldatesxlsx():
     assert len(table) == 2, len(table)
 
 
+def test_filereader_zipped():
+    path = Path(__file__).parent / 'data'
+    assert path.exists()
+    assert path.is_dir()
+    zipped = Path(__file__).parent / 'new.zip'
+    file_count = 0
+    with zipfile.ZipFile(zipped, 'w') as zipf:
+        for file in path.iterdir():
+            zipf.write(file)
+            file_count += 1
+
+    tables = list(file_reader(zipped))
+    assert len(tables) >= file_count
+    assert [t.metadata['filename'] for t in tables] == [
+        'book1.csv', 'book1.txt', 'book1.xlsx', 'book1.xlsx', 'excel_dates.xlsx', 'gdocs1.csv', 'gdocs1.ods',
+        'gdocs1.ods', 'gdocs1.tsv', 'gdocs1.xlsx', 'gdocs1.xlsx', 'sap.txt', 'utf16_test.csv', 'utf8_test.csv',
+        'win1250_test.csv'
+    ]
