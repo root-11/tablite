@@ -36,7 +36,10 @@ setup(
     include_package_data=True,
     data_files=[(".", ["LICENSE", "README.md"])],
     platforms="any",
-    install_requires=['xlrd'],
+    install_requires=[
+        'xlrd>=1.2.0',
+        'pyexcel-ods>=0.5.6'
+    ],
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Science/Research",
