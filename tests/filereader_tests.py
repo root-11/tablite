@@ -2,6 +2,7 @@ from table import *
 from time import process_time_ns
 import zipfile
 
+
 def text_escape_tests():
     te = text_escape('"t"')
     assert te == ("t",)
@@ -289,17 +290,15 @@ def test_filereader_zipped():
     assert path.is_dir()
     zipped = Path(__file__).parent / 'new.zip'
     file_count = 0
+    file_names = []
     with zipfile.ZipFile(zipped, 'w') as zipf:
         for file in path.iterdir():
             zipf.write(file)
             file_count += 1
+            file_names.append(file.name)
 
     tables = list(file_reader(zipped))
     assert len(tables) >= file_count
-    assert [t.metadata['filename'] for t in tables] == [
-        'book1.csv', 'book1.txt', 'book1.xlsx', 'book1.xlsx', 'excel_dates.xlsx', 'gdocs1.csv', 'gdocs1.ods',
-        'gdocs1.ods', 'gdocs1.tsv', 'gdocs1.xlsx', 'gdocs1.xlsx', 'sap.txt', 'utf16_test.csv', 'utf8_test.csv',
-        'win1250_test.csv'
-    ]
-    # cleanup.
+
+    assert {t.metadata['filename'] for t in tables} == set(file_names)
     zipped.unlink()
