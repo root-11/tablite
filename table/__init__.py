@@ -1174,6 +1174,7 @@ class GroupBy(object):
         # for header, function, function_instances in zip(self.groupby_functions, self.function_classes) ....
 
     def setup(self, table):
+        """ helper to setup the group functions """
         self.output = Table()
         self.required_headers = self.keys + [h for h, fn in self.groupby_functions]
 
@@ -1216,6 +1217,7 @@ class GroupBy(object):
         return self
 
     def _generate_table(self):
+        """ helper that generates the result for .table and .rows """
         for key, functions in self.data.items():
             row = key + tuple(fn.value for fn in functions)
             self.output.add_row(row)
@@ -1224,6 +1226,7 @@ class GroupBy(object):
 
     @property
     def table(self):
+        """ returns Table """
         if self.output is None:
             return None
 
@@ -1235,6 +1238,7 @@ class GroupBy(object):
 
     @property
     def rows(self):
+        """ returns iterator for Groupby.rows """
         if self.output is None:
             return None
 
@@ -1335,6 +1339,7 @@ class GroupBy(object):
 # reading and writing data.
 # --------------------------
 def split_by_sequence(text, sequence):
+    """ helper to split text according to a split sequence. """
     chunks = tuple()
     for element in sequence:
         idx = text.find(element)
@@ -1347,6 +1352,7 @@ def split_by_sequence(text, sequence):
 
 
 def detect_encoding(path):
+    """ helper that automatically detects encoding from files. """
     assert isinstance(path, Path)
     for encoding in ['ascii', 'utf-8', 'utf-16', 'windows-1252']:
         try:
@@ -1465,6 +1471,7 @@ def text_escape(s, escape='"', sep=';'):
 
 
 def excel_reader(path):
+    """  returns Table(s) from excel path """
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
     sheets = xlrd.open_workbook(str(path), logfile='', on_demand=True)
@@ -1480,6 +1487,7 @@ def excel_reader(path):
 
 
 def excel_datetime(value):
+    """ converts excels internal datetime numerics to date, time or datetime. """
     Y, M, D, h, m, s = xlrd.xldate_as_tuple(value, 0)
     if all((Y, M, D, h, m, s)):
         return f"{Y}-{M}-{D}T{h}-{m}-{s}"
@@ -1491,6 +1499,7 @@ def excel_datetime(value):
 
 
 def excel_sheet_reader(sheet):
+    """ returns Table from a spreadsheet sheet. """
     assert isinstance(sheet, xlrd.sheet.Sheet)
 
     excel_datatypes = {0: lambda x: None,  # empty string
@@ -1523,6 +1532,7 @@ def excel_sheet_reader(sheet):
 
 
 def ods_reader(path):
+    """  returns Table from .ODS """
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
     sheets = pyexcel_ods.get_data(str(path))
@@ -1549,15 +1559,20 @@ def ods_reader(path):
 
 
 def zip_reader(path):
+    """ reads zip files and unpacks anything it can read."""
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
-    with tempfile.TemporaryDirectory() as working_dir:
-        directory = Path(working_dir)
-        with zipfile.ZipFile(path, 'r') as zipf:
-            for name in zipf.namelist():
-                zipf.extract(name, working_dir)
 
-                p = directory / name
+    with tempfile.TemporaryDirectory() as temp_dir_path:
+        tempdir = Path(temp_dir_path)
+
+        with zipfile.ZipFile(path, 'r') as zipf:
+
+            for name in zipf.namelist():
+
+                zipf.extract(name, temp_dir_path)
+
+                p = tempdir / name
                 try:
                     tables = file_reader(p)
                 except Exception as e:  # unknown file type.
@@ -1567,10 +1582,12 @@ def zip_reader(path):
 
                 for table in tables:
                     yield table
+
                 p.unlink()
 
 
 def log_reader(path):
+    """ returns Table from log files (txt)"""
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
     for line in path.open()[:10]:
