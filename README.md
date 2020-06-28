@@ -15,7 +15,7 @@ So what do we do? We write a custom built class for the problem at hand and
 discover that we've just spent 3 hours doing something that should have taken
 20 minutes. No more please!
 
-### Enter: [Tablite](https://pypi.org/tablite)
+### Enter: [Tablite](https://pypi.org/project/tablite/)
 A python library for tables that does everything you need in 60kB.
 
 Install: `pip install tablite`  
@@ -169,15 +169,12 @@ except TypeError as error:
 now = datetime.now()
 
 table4 = Table()
-table4.add_column('A', int, False, data=[-1, 1])
-table4.add_column('A', int, True, data=[None, 1])  # None!
-table4.add_column('A', DataTypes.integer, False, data=[-1, 1])
+table4.add_column('A', int, allow_empty=False, data=[-1, 1])
+table4.add_column('A', int, allow_empty=True, data=[None, 1])  # None!
 table4.add_column('A', float, False, data=[-1.1, 1.1])
-table4.add_column('A', DataTypes.decimal, False, data=[-1.1, 1.1])
-table4.add_column('A', str, False, data=["", "1"])
-table4.add_column('A', DataTypes.text, False, data=["", "1"])
+table4.add_column('A', str, False, data=["", "1"])  # Empty string is not a None, when dtype is str!
+table4.add_column('A', str, True, data=[None, "1"])  # Empty string is not a None, when dtype is str!
 table4.add_column('A', bool, False, data=[False, True])
-table4.add_column('A', DataTypes.boolean, False, data=[False, True])
 table4.add_column('A', datetime, False, data=[now, now])
 table4.add_column('A', date, False, data=[now.date(), now.date()])
 table4.add_column('A', time, False, data=[now.time(), now.time()])
@@ -209,6 +206,27 @@ table5_from_json = Table.from_json(table5_json)
 assert table5 == table5_from_json
 
 ```
+
+### Okay, great. How do I load data?
+
+Easy. Use `filereader`
+
+```
+from pathlib import Path
+from table import filereader
+
+for filename in ['data.csv', 'data.xlsx', 'data.txt', 'data.tsv', 'data.ods']:
+    path = Path(filename
+    tables = filereader(path)
+    assert isinstance(tables, list)
+    assert all(isinstance(t, Table) for t in tables
+```
+
+table.filereader currently accepts the following formats:
+
+`csv, tsv, txt, xls, xlsx, xlsm, ods, zip, log.`
+ 
+
 
 ----------------
 
