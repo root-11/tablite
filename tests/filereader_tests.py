@@ -301,3 +301,5 @@ def test_filereader_zipped():
         'gdocs1.ods', 'gdocs1.tsv', 'gdocs1.xlsx', 'gdocs1.xlsx', 'sap.txt', 'utf16_test.csv', 'utf8_test.csv',
         'win1250_test.csv'
     ]
+    # cleanup.
+    zipped.unlink()
