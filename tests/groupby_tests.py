@@ -71,9 +71,29 @@ def test_groupby():
 
 def test_groupby_02():
     t = Table()
-    t.add_column('A', int, data=[1, 1, 2, 2, 3, 3])
-    t.add_column('B', int, data=[1, 2, 3, 4, 5, 6])
-    t.add_column('C', int, data=[6, 5, 4, 3, 2, 1])
+    t.add_column('A', int, data=[1, 1, 2, 2, 3, 3] * 2)
+    t.add_column('B', int, data=[1, 2, 3, 4, 5, 6] * 2)
+    t.add_column('C', int, data=[6, 5, 4, 3, 2, 1] * 2)
+
+    t.show()
+    # +=====+=====+=====+
+    # |  A  |  B  |  C  |
+    # | int | int | int |
+    # |False|False|False|
+    # +-----+-----+-----+
+    # |    1|    1|    6|
+    # |    1|    2|    5|
+    # |    2|    3|    4|
+    # |    2|    4|    3|
+    # |    3|    5|    2|
+    # |    3|    6|    1|
+    # |    1|    1|    6|
+    # |    1|    2|    5|
+    # |    2|    3|    4|
+    # |    2|    4|    3|
+    # |    3|    5|    2|
+    # |    3|    6|    1|
+    # +=====+=====+=====+
 
     g = t.groupby(keys=['A', 'C'], functions=[('B', Sum)])
     g.table.show()
@@ -85,12 +105,12 @@ def test_groupby_02():
     # | int |   int    |   int    |   int    |
     # |False|   True   |   True   |   True   |
     # +-----+----------+----------+----------+
-    # |    5|         2|      None|      None|
-    # |    6|         1|      None|      None|
-    # |    3|      None|         4|      None|
-    # |    4|      None|         3|      None|
-    # |    1|      None|      None|         6|
-    # |    2|      None|      None|         5|
+    # |    5|         4|      None|      None|
+    # |    6|         2|      None|      None|
+    # |    3|      None|         8|      None|
+    # |    4|      None|         6|      None|
+    # |    1|      None|      None|        12|
+    # |    2|      None|      None|        10|
     # +=====+==========+==========+==========+
 
     assert len(t2) == 6 and len(t2.columns) == 4
