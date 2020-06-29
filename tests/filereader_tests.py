@@ -75,6 +75,21 @@ def test_filereader_book1csv():
     assert len(table) == 45
 
 
+def test_filereader_book1tsv():
+    path = Path(__file__).parent / "data" / 'book1.tsv'
+    assert path.exists()
+    table = list(file_reader(path))[0]
+    table.show(slice(0, 10))
+
+    book1 = Table(filename=path.name)
+    book1.add_column('a', int)
+    for float_type in list('bcdef'):
+        book1.add_column(float_type, float)
+
+    assert table.compare(book1), table.compare(book1)
+    assert len(table) == 45
+
+
 def test_filereader_gdocs1csv():
     path = Path(__file__).parent / "data" / 'gdocs1.csv'
     assert path.exists()
