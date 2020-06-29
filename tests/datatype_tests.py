@@ -10,6 +10,7 @@ def test_datatype_inference():
     assert DataTypes.infer('0', int) == 0
     assert DataTypes.infer('-1', int) == -1
     assert DataTypes.infer('"1000028"', int) == 1000028
+    assert DataTypes.infer('"1,000,028"', int) == 1000028
 
     # floats
     assert DataTypes.infer("2932,500", float) == 2932.5
@@ -90,27 +91,25 @@ def test_datatype_inference():
     assert DataTypes.infer("1990-01-01T23:12:11.003", datetime) == dirty_date  #
     assert DataTypes.infer("1990-01-01 23:12:11.003", datetime) == dirty_date  # iso space
     assert DataTypes.infer("1990/01/01T23:12:11.003", datetime) == dirty_date  # iso slash T
-    assert DataTypes.infer("10/04/2007 00:00", datetime) == datetime(2007, 4, 10, 0, 0)
     assert DataTypes.infer("1990/01/01 23:12:11.003", datetime) == dirty_date  # iso slash
+    assert DataTypes.infer("1990.01.01T23:12:11.003", datetime) == dirty_date  # iso dot T
+    assert DataTypes.infer("1990.01.01 23:12:11.003", datetime) == dirty_date  # iso dot
+    assert DataTypes.infer("10/04/2007 00:00", datetime) == datetime(2007, 4, 10, 0, 0)
     assert DataTypes.infer("1990 01 01T23:12:11.003", datetime) == dirty_date  # iso space T
     assert DataTypes.infer("1990 01 01 23:12:11.003", datetime) == dirty_date  # iso space
 
-    assert DataTypes.infer("2003-09-25T10:49:41", datetime) == datetime(2003, 9, 25, 10, 49,
-                                                                        41)  # iso minus T fields omitted.
+    assert DataTypes.infer("2003-09-25T10:49:41", datetime) == datetime(2003, 9, 25, 10, 49, 41)  # iso minus T fields omitted.
     assert DataTypes.infer("2003-09-25T10:49", datetime) == datetime(2003, 9, 25, 10, 49)
     assert DataTypes.infer("2003-09-25T10", datetime) == datetime(2003, 9, 25, 10)
 
-    assert DataTypes.infer("20080227T21:26:01.123456789", datetime) == datetime(2008, 2, 27, 21, 26, 1,
-                                                                                123456)  # high precision seconds
-    assert DataTypes.infer("20030925T104941", datetime) == datetime(2003, 9, 25, 10, 49,
-                                                                    41)  # iso nospace T fields omitted.
+    assert DataTypes.infer("20080227T21:26:01.123456789", datetime) == datetime(2008, 2, 27, 21, 26, 1, 123456)  # high precision seconds
+    assert DataTypes.infer("20030925T104941", datetime) == datetime(2003, 9, 25, 10, 49, 41)  # iso nospace T fields omitted.
     assert DataTypes.infer("20030925T1049", datetime) == datetime(2003, 9, 25, 10, 49, 0)
     assert DataTypes.infer("20030925T10", datetime) == datetime(2003, 9, 25, 10)
 
     assert DataTypes.infer("199709020908", datetime) == datetime(1997, 9, 2, 9, 8)
     assert DataTypes.infer("19970902090807", datetime) == datetime(1997, 9, 2, 9, 8, 7)
-    assert DataTypes.infer("2003-09-25 10:49:41,502", datetime) == datetime(2003, 9, 25, 10, 49, 41,
-                                                                            502000)  # python logger format
+    assert DataTypes.infer("2003-09-25 10:49:41,502", datetime) == datetime(2003, 9, 25, 10, 49, 41, 502000)  # python logger format
     assert DataTypes.infer('0099-01-01T00:00:00', datetime) == datetime(99, 1, 1, 0, 0)  # 99 ad
     assert DataTypes.infer('0031-01-01T00:00:00', datetime) == datetime(31, 1, 1, 0, 0)  # 31 ad
 
