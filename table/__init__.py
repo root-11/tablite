@@ -1298,7 +1298,7 @@ class GroupBy(object):
 
         """
         columns = args
-        if not all(isinstance(i,str) for i in args):
+        if not all(isinstance(i, str) for i in args):
             raise TypeError(f"column name not str: {[i for i in columns if not isinstance(i,str)]}")
 
         if self.output is None:
@@ -1352,7 +1352,6 @@ class GroupBy(object):
         return t
 
 
-
 # reading and writing data.
 # --------------------------
 def split_by_sequence(text, sequence):
@@ -1400,7 +1399,7 @@ def detect_seperator(path, encoding):
     for line in path.open('r', encoding=encoding):  # pick the first line only.
         text = line
         break
-    seps = set(',\t;:|').intersection(text)
+    seps = {',', '\t', ';', ':', '|', '	'}.intersection(text)
     if not seps:
         if " " in text:
             return " "
@@ -1664,7 +1663,7 @@ def file_reader(path, **kwargs):
     assert isinstance(path, Path)
     readers = {
         'csv': [text_reader, {}],
-        'tsv': [text_reader, {'sep': "\t"}],
+        'tsv': [text_reader, {}],
         'txt': [text_reader, {}],
         'xls': [excel_reader, {}],
         'xlsx': [excel_reader, {}],
