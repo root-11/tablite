@@ -64,6 +64,34 @@ def test_groupby():
 
     g2.table.show()
 
-    pivot_table = g2.pivot(columns=['b'])
+    pivot_table = g2.pivot('b')
 
     pivot_table.show()
+
+
+def test_groupby_02():
+    t = Table()
+    t.add_column('A', int, data=[1, 1, 2, 2, 3, 3])
+    t.add_column('B', int, data=[1, 2, 3, 4, 5, 6])
+    t.add_column('C', int, data=[6, 5, 4, 3, 2, 1])
+
+    g = t.groupby(keys=['A', 'C'], functions=[('B', Sum)])
+    g.table.show()
+    t2 = g.pivot('A')
+
+    t2.show()
+    # +=====+==========+==========+==========+
+    # |  C  |Sum(B,A=1)|Sum(B,A=2)|Sum(B,A=3)|
+    # | int |   int    |   int    |   int    |
+    # |False|   True   |   True   |   True   |
+    # +-----+----------+----------+----------+
+    # |    5|         2|      None|      None|
+    # |    6|         1|      None|      None|
+    # |    3|      None|         4|      None|
+    # |    4|      None|         3|      None|
+    # |    1|      None|      None|         6|
+    # |    2|      None|      None|         5|
+    # +=====+==========+==========+==========+
+
+    assert len(t2) == 6 and len(t2.columns) == 4
+

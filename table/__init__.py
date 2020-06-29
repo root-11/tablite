@@ -83,6 +83,13 @@ class DataTypes(object):
         'NNNN NN NN NN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd=' ', T=" "),  # space
         'NNNN NN NN NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd=' ', T=" "),
 
+        'NNNN.NN.NNTNN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.'),  # dot T
+        'NNNN.NN.NNTNN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.'),
+
+        'NNNN.NN.NN NN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.', T=" "),  # dot
+        'NNNN.NN.NN NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.', T=" "),
+
+
         # day first
         'NN-NN-NNNNTNN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='-', T=' ', day_first=True),  # - T
         'NN-NN-NNNNTNN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='-', T=' ', day_first=True),
@@ -101,6 +108,12 @@ class DataTypes(object):
 
         'NN NN NNNN NN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='/', day_first=True),  # space
         'NN NN NNNN NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='/', day_first=True),
+
+        'NN.NN.NNNNTNN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.', day_first=True),  # space T
+        'NN.NN.NNNNTNN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.', day_first=True),
+
+        'NN.NN.NNNN NN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.', day_first=True),  # space
+        'NN.NN.NNNN NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.', day_first=True),
 
         # compact formats - type 1
         'NNNNNNNNTNNNNNN': lambda x: DataTypes.pattern_to_datetime(x, compact=1),
@@ -244,7 +257,9 @@ class DataTypes(object):
                 return int(value)
             raise ValueError("it's a float")
         elif isinstance(value, str):
-            value = value.replace('"', '').replace(" ", "")
+            value = value.replace('"', '')  # "1,234" --> 1,234
+            value = value.replace(" ", "")  # 1 234 --> 1234
+            value = value.replace(',', '')  # 1,234 --> 1234
             value_set = set(value)
             if value_set - DataTypes.integers:  # set comparison.
                 raise ValueError
@@ -339,9 +354,9 @@ class DataTypes(object):
                 return datetime.fromisoformat(value)
             except ValueError:
                 if '.' in value:
-                    dot = value.find('.')
+                    dot = value.find('.', 11)  # 11 = len("1999.12.12")
                 elif ',' in value:
-                    dot = value.find(',')
+                    dot = value.find(',', 11)
                 else:
                     dot = len(value)
 
@@ -988,7 +1003,6 @@ class Table(object):
         return g
 
 
-
 class GroupbyFunction(object):
     def __init__(self, datatype):
         hasattr(DataTypes, datatype.__name__)
@@ -1249,11 +1263,10 @@ class GroupBy(object):
         for row in self.output.rows:
             yield row
 
-    def pivot(self, columns):
+    def pivot(self, *args):
         """ pivots the groupby so that `columns` become new columns.
 
         :param args: column names
-        :param values_as_rows: boolean, if False: values as columns.
         :return: New Table
 
         Example:
@@ -1284,9 +1297,8 @@ class GroupBy(object):
         +=====+==========+==========+==========+==========+==========+==========+==========+==========+==========+==========+
 
         """
-        if not isinstance(columns, list):
-            raise TypeError(f"expected columns as list, not {type(columns)}")
-        if not all(isinstance(i,str) for i in columns):
+        columns = args
+        if not all(isinstance(i,str) for i in args):
             raise TypeError(f"column name not str: {[i for i in columns if not isinstance(i,str)]}")
 
         if self.output is None:
@@ -1311,9 +1323,14 @@ class GroupBy(object):
         tup_length = 0
         for column_key in self.output.filter(*columns):  # add horizontal groups.
             col_name = ",".join(f"{h}={v}" for h, v in zip(columns, column_key))  # expressed "a=0,b=3" in column name "Sum(g, a=0,b=3)"
+
             for (header, function), function_instances in zip(self.groupby_functions, self.function_classes):
-                t.add_column(f"{function.__name__}({header},{col_name})", datatype=function_instances.datatype, allow_empty=True)
-                tup_length += 1
+                new_column_name = f"{function.__name__}({header},{col_name})"
+                if new_column_name not in t.columns:  # it's could be duplicate key value.
+                    t.add_column(new_column_name, datatype=function_instances.datatype, allow_empty=True)
+                    tup_length += 1
+                else:
+                    pass  # it's a duplicate.
 
         # add rows.
         key_index = {k: i for i, k in enumerate(self.output.columns)}
