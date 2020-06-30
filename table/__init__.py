@@ -1591,13 +1591,12 @@ def zip_reader(path):
                 p = tempdir / name
                 try:
                     tables = file_reader(p)
+                    for table in tables:
+                        yield table
                 except Exception as e:  # unknown file type.
                     print(f'reading {p} resulted in the error:')
                     print(str(e))
                     continue
-
-                for table in tables:
-                    yield table
 
                 p.unlink()
 
@@ -1683,5 +1682,7 @@ def file_reader(path, **kwargs):
         assert isinstance(table, Table), "programmer returned something else than a Table"
         find_format(table)
         yield table
+
+
 
 
