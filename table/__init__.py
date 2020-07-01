@@ -1270,32 +1270,48 @@ class GroupBy(object):
         :return: New Table
 
         Example:
-        g.show()
-        +=====+=====+======+======+
-        |  a  |  b  |Max(f)|Sum(f)|
-        | int | int | int  | int  |
-        |False|False| True | True |
-        +-----+-----+------+------+
-        |    0|    0|     1|     3|
-        |    1|    1|     4|    12|
-        |    2|    2|     7|    21|
-        |    3|    3|    10|    30|
-        |    4|    4|    13|    39|
-        +=====+=====+======+======+
+        t = Table()
+        t.add_column('A', int, data=[1, 1, 2, 2, 3, 3] * 2)
+        t.add_column('B', int, data=[1, 2, 3, 4, 5, 6] * 2)
+        t.add_column('C', int, data=[6, 5, 4, 3, 2, 1] * 2)
 
-        g.pivot('b')
-        +=====+==========+==========+==========+==========+==========+==========+==========+==========+==========+==========+
-        |  a  |Max(f,b=0)|Sum(f,b=0)|Max(f,b=1)|Sum(f,b=1)|Max(f,b=2)|Sum(f,b=2)|Max(f,b=3)|Sum(f,b=3)|Max(f,b=4)|Sum(f,b=4)|
-        | int |   int    |   int    |   int    |   int    |   int    |   int    |   int    |   int    |   int    |   int    |
-        |False|   True   |   True   |   True   |   True   |   True   |   True   |   True   |   True   |   True   |   True   |
-        +-----+----------+----------+----------+----------+----------+----------+----------+----------+----------+----------+
-        |    0|         1|         3|      None|      None|      None|      None|      None|      None|      None|      None|
-        |    1|      None|      None|         4|        12|      None|      None|      None|      None|      None|      None|
-        |    2|      None|      None|      None|      None|         7|        21|      None|      None|      None|      None|
-        |    3|      None|      None|      None|      None|      None|      None|        10|        30|      None|      None|
-        |    4|      None|      None|      None|      None|      None|      None|      None|      None|        13|        39|
-        +=====+==========+==========+==========+==========+==========+==========+==========+==========+==========+==========+
+        t.show()
+        +=====+=====+=====+
+        |  A  |  B  |  C  |
+        | int | int | int |
+        |False|False|False|
+        +-----+-----+-----+
+        |    1|    1|    6|
+        |    1|    2|    5|
+        |    2|    3|    4|
+        |    2|    4|    3|
+        |    3|    5|    2|
+        |    3|    6|    1|
+        |    1|    1|    6|
+        |    1|    2|    5|
+        |    2|    3|    4|
+        |    2|    4|    3|
+        |    3|    5|    2|
+        |    3|    6|    1|
+        +=====+=====+=====+
 
+        g = t.groupby(keys=['A', 'C'], functions=[('B', Sum)])
+
+        t2 = g.pivot('A')
+
+        t2.show()
+        +=====+==========+==========+==========+
+        |  C  |Sum(B,A=1)|Sum(B,A=2)|Sum(B,A=3)|
+        | int |   int    |   int    |   int    |
+        |False|   True   |   True   |   True   |
+        +-----+----------+----------+----------+
+        |    5|         4|      None|      None|
+        |    6|         2|      None|      None|
+        |    3|      None|         8|      None|
+        |    4|      None|         6|      None|
+        |    1|      None|      None|        12|
+        |    2|      None|      None|        10|
+        +=====+==========+==========+==========+
         """
         columns = args
         if not all(isinstance(i, str) for i in args):
@@ -1384,17 +1400,16 @@ def detect_seperator(path, encoding):
     :param path: pathlib.Path objects
     :param encoding: file encoding.
     :return: 1 character.
-
-    After reviewing the logic in the CSV sniffer, I concluded that all it
-    really does is to look for a non-text character. As the separator is
-    determined by the first line, which almost always is a line of headers,
-    the text characters will be utf-8,16 or ascii letters plus white space.
-    This leaves the characters ,;:| and \t as potential separators, with one
-    exception: files that use whitespace as separator. My logic is therefore
-    to (1) find the set of characters that intersect with ',;:|\t' which in
-    practice is a single character, unless (2) it is empty whereby it must
-    be whitespace.
     """
+    # After reviewing the logic in the CSV sniffer, I concluded that all it
+    # really does is to look for a non-text character. As the separator is
+    # determined by the first line, which almost always is a line of headers,
+    # the text characters will be utf-8,16 or ascii letters plus white space.
+    # This leaves the characters ,;:| and \t as potential separators, with one
+    # exception: files that use whitespace as separator. My logic is therefore
+    # to (1) find the set of characters that intersect with ',;:|\t' which in
+    # practice is a single character, unless (2) it is empty whereby it must
+    # be whitespace.
     text = ""
     for line in path.open('r', encoding=encoding):  # pick the first line only.
         text = line
@@ -1659,6 +1674,26 @@ def find_format(table):
 
 
 def file_reader(path, **kwargs):
+    """
+    :param path: pathlib.Path object with extension as:
+        .csv, .tsv, .txt, .xls, .xlsx, .xlsm, .ods, .zip, .log
+
+        .zip is automatically flattened
+
+    :param kwargs: dictionary options:
+        'sep': False or single character
+        'split_sequence': list of characters
+
+    :return: generator of Tables.
+        to get the table in one line.
+
+        >>> list(file_reader(abc.csv)[0]
+
+        use the following for Excel and Zips:
+        >>> for table in file_reader(filename):
+                ...
+    """
+
     assert isinstance(path, Path)
     readers = {
         'csv': [text_reader, {}],
