@@ -20,7 +20,7 @@ class DataTypes(object):
     datetime = datetime
     time = time
 
-    # reserved keyword for Nones:
+    numeric_types = {int, float, date, time, datetime}
     digits = '1234567890'
     decimals = set('1234567890-+eE.')
     integers = set('1234567890-+')
@@ -62,7 +62,8 @@ class DataTypes(object):
         "NNNNNNNN": lambda x: date(*(int(x[:4]), int(x[4:6]), int(x[6:]))),
     }
 
-    datetime_formats = {  # Note: Only recognised ISO8601 formats are accepted.
+    datetime_formats = {
+        # Note: Only recognised ISO8601 formats are accepted.
 
         # year first
         'NNNN-NN-NNTNN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x),  # -T
