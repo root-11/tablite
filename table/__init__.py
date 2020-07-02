@@ -547,7 +547,7 @@ class Table(object):
         print("|", "|".join([str(self.columns[h].allow_empty).center(c_lens[h], " ") for h in headers]), "|", sep="")
         print("+", "+".join(["-" * c_lens[h] for h in headers]), "+", sep="")
         for row in self.filter(*tuple(headers) + (slc,)):
-            print("|", "|".join([str(v).rjust(c_lens[h]) for v, h in zip(row, headers)]), "|", sep="")
+            print("|", "|".join([v.ljust(c_lens[h]) if isinstance(v, str) else str(v).rjust(c_lens[h]) for v, h in zip(row, headers)]), "|", sep="")
         print("+", "+".join(["=" * c_lens[h] for h in headers]), "+", sep="")
 
     def copy(self):
