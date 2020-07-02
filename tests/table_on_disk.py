@@ -1,155 +1,333 @@
+import json
+from pathlib import Path
 from tempfile import TemporaryFile
 from zipfile import ZipFile
-from datetime import date,time,datetime
-import json
-import sys
 
-from pathlib import Path
 from table import Table, Column, DataTypes
 
 
-from collections import namedtuple
-
-
 class Record(object):
-    def __init__(self, start, len, max, min, sorted):
-        self.start = start
-        self.len = len
-        self.min = min
-        self.max = max
-        self.sorted = sorted
+    def __init__(self, name, datatype, items):
+        self.name = name
+        self.len = len(items)
+        self.min = min(items)
+        self.max = max(items)
+        assert datatype in DataTypes.types
+        self.datatype = datatype
 
 
-class Records(object):
+    def update(self, items):
+        assert all(isinstance(i, self.datatype) for i in items)
+        self.len = len(items)
+        self.min = min(items)
+        self.max = max(items)
+
+    def may_contain(self, item):
+        dtype = type(item)
+        if dtype is not self.datatype:
+            return False
+        if dtype in DataTypes.numeric_types:
+            if self.min <= item <= self.max:
+                return True
+            else:
+                return False
+        return True
+
+
+class StoredList(object):
     def __init__(self):
         self.file = TemporaryFile()
-        self.records = {}
+        self.records = []
+        self.buffer = []
+        self.buffer_max_len = float('inf')
+        self.datatype = None
 
-    def add(self, column):
-        assert isinstance(column, Column)
+    # internal data management methods
+    # --------------------------------
 
-        if column[-1] >= column[0]:  # Z > A
-            if any(column[i - 1] > column[i] for i in column[1:]):
-                sorted = False
-            else:
-                sorted = True
-        else:  # A > Z
-            if any(column[i - 1] < column[i] for i in column[1:]):
-                sorted = False
-            else:
-                sorted = True
+    def _buffer_check(self):
+        if len(self.buffer) < self.buffer_max_len:
+            return
 
-        mi, ma = min(column), max(column)
+        while len(self.buffer) >= self.buffer_max_len:
+            items, self.buffer = self.buffer[:self.buffer_max_len], self.buffer[self.buffer_max_len:]
 
-        max_cid = max(self.records)
-        new_cid = max_cid + 1
-        r = self.records[max_cid]
-        assert isinstance(r, Record)
-        start = r.start + r.len
+            datatypes = {type(t) for t in items}
+            if len(datatypes) != 1:
+                raise TypeError("One datatype only.")
+            dtype = datatypes.pop()
+            if self.datatype is None:
+                self.datatype = dtype
+            if dtype != self.datatype:
+                raise TypeError(f"expected {self.datatype}, got {dtype}")
 
-        self.records[new_cid] = Record(start, len(column), mi, ma, sorted)
-        
+            self._write(items, record=None)
+
+    def _write(self, items, record=None):
+        if record is None:
+            r = Record(len(self.records) + 1, self.datatype, items)
+            self.records.append(r)
+        assert isinstance(record, Record)
         with ZipFile(self.file, 'w') as zipf:
-            zipf.writestr(f'{new_cid}.TLL', json.dumps(column.to_json()))
+            json_str = json.dumps([DataTypes.to_json(v) for v in items])
+            zipf.writestr(record.name, json_str)
+            record.update(items)
 
-    def __iter__(self):
+    def _read(self, record):
         with ZipFile(self.file, 'r') as zipf:
-            for name in sorted(zipf.namelist()):
-                zips = zipf.read(name)
-                data = json.loads(zips)
-                column = Column.from_json(data)
-                for v in column:
-                    yield v
+            zips = zipf.extract(record.name)
+            data = json.loads(Path(zips).read_bytes())
+        return data
 
+    def _delete(self, r):
+        assert isinstance(r, Record)
+        self.records.remove(r)
+        empty_list = []
+        self._write(empty_list, r)
 
+    def _records_len(self):
+        """ returns rows in stored records, excluding rows in buffer. """
+        return sum(r.len for r in self.records)
 
-class List(object):
-    def __init__(self):
-        self._file = TemporaryFile()
+    def __len__(self):
+        """ Return len(self). """
+        return self._records_len() + len(self.buffer)
 
-        self._working_memory_limit = 2000  # bytes
-        self._records = Records()        
-        self._buffer = []
+    def _normal_index(self, index):
+        if not isinstance(index, int):
+            raise TypeError
+        if 0 <= index < len(self):
+            pass
+        elif index < 0:
+            index = 0 if len(self) + index < 0 else len(self) + index
+        elif index >= len(self):
+            index = len(self)
+        else:
+            raise Exception('bad logic')
 
-    def deletes(self, slice_id):
-        file = TemporaryFile()
-        with ZipFile(self._file, 'r') as fi:
-            with ZipFile(file, 'w') as fo:
-                for item in fi.infolist():
-                    if item.filename == f"{slice_id}":
-                        pass
-                    else:
-                        fo.writestr(item.filename, fi.read(item.filename))
-        self._file = file
+        return index
+
+    # public methods of a list
+    # ------------------------
 
     def append(self, value):
         """ Append object to the end of the list. """
-        self._cache.append(value)
+        self.buffer.append(value)
+        self._buffer_check()
 
-
-    def clear(self, *args, **kwargs):
+    def clear(self):
         """ Remove all items from list. """
-        
+        self.buffer.clear()
+        self.file = TemporaryFile()
+        self.records = {}
+        self.buffer = []
 
     def copy(self, *args, **kwargs):
         """ Return a shallow copy of the list. """
         pass
 
-    def count(self, *args, **kwargs):
+    def count(self, item):
         """ Return number of occurrences of value. """
-        pass
+        if type(item) not in self.datatypes:
+            return 0
 
-    def extend(self, *args, **kwargs):
+        counter = 0
+        for r in self.records:
+            assert isinstance(r, Record)
+            if r.may_contain(item):
+                data = self._read(r)
+                counter += data.count(item)
+        counter += self.buffer.count(item)
+        return counter
+
+    def extend(self, items):
         """ Extend list by appending elements from the iterable. """
-        pass
+        self.buffer.extend(items)
+        self._buffer_check()
 
-    def index(self, *args, **kwargs):
+    def index(self, item):
         """
         Return first index of value.
 
         Raises ValueError if the value is not present.
         """
-        pass
+        if type(item) not in self.datatypes:
+            return None
 
-    def insert(self, *args, **kwargs):
+        counter = 0
+        for r in self.records:
+            assert isinstance(r, Record)
+            if r.may_contain(item):
+                data = self._read(r)
+                if item in data:
+                    return counter + data.index(item)
+            counter += r.len
+
+        if item in self.buffer:
+            counter = sum(r.len for r in self.records)
+            return counter + self.buffer.index(item)
+
+        raise ValueError(f"{item} not found")
+
+    def insert(self, index, item):
         """ Insert object before index. """
-        pass
+        index = self._normal_index(index)
 
-    def pop(self, *args, **kwargs):
+        if not isinstance(item, self.datatype):
+            raise TypeError
+
+        _records = sum(r.len for r in self.records)
+        if index < _records:
+            counter = 0
+            for r in self.records:
+                if counter <= index <= counter + r.len:
+                    data = self._read(r)
+                    ix = index - counter
+                    data.insert(ix, item)
+                    self._write(data, r)
+                    return None
+                counter += r.len
+
+        elif _records <= index <= len(self):
+            self.buffer.insert(index - _records, item)
+            self._buffer_check()
+        else:
+            self.buffer.append(item)
+            self._buffer_check()
+
+    def pop(self, index):
         """
         Remove and return item at index (default last).
 
         Raises IndexError if list is empty or index is out of range.
         """
-        pass
+        if index is None:
+            index = len(self)
+        else:
+            index = self._normal_index(index)
 
-    def remove(self, *args, **kwargs):
+        if self._records_len() < index:
+            return self.buffer.pop()
+
+        counter = 0
+        for r in self.records:
+            if counter < index <= counter + r.len:
+                data = self._read(r)
+                row_index = index - counter
+                pop_value = data.pop(row_index)
+                self._write(data, r)
+                return pop_value
+
+        else:  # there's no buffer and we are popping the last value.
+            r = self.records[-1]
+            self.buffer = self._read(r)
+            self._delete(r)
+            return self.buffer.pop()
+
+    def remove(self, item):
         """
         Remove first occurrence of value.
 
         Raises ValueError if the value is not present.
         """
-        pass
+        if not isinstance(item, self.datatype):
+            raise TypeError
 
-    def reverse(self, *args, **kwargs):
+        for r in self.records:
+            if r.may_contain(item):
+                data = self._read(r)
+                if item in data:
+                    data.remove(item)
+                    self._write(data, r)
+                    return None
+
+        if item in self.buffer:
+            self.buffer.remove(item)
+        else:
+            raise ValueError(f"{item} not found")
+
+    def reverse(self):
         """ Reverse *IN PLACE*. """
-        pass
+        self._write(self.buffer, record=None)
+        self.buffer.clear()
 
-    def sort(self, *args, **kwargs):
+        new_list = StoredList()
+        for r in reversed(self.records):
+            data = self._read(r)
+            data.reverse()
+            new_list.extend(data)
+
+        self.file = new_list.file
+        self.records = new_list.records
+        self.buffer = new_list.buffer
+
+
+    def sort(self, reverse=False):
         """ Stable sort *IN PLACE*. """
-        pass
+        self._write(self.buffer, record=None)
+        self.buffer.clear()
 
-    def __add__(self, *args, **kwargs):
+        for r in self.records:
+            data = self._read(r)
+            data.sort(reverse=reverse)
+            self._write(data, r)
+
+        new_list = StoredList()
+        while self.records:
+            if reverse:
+                limit_value = max(r.max for r in self.records)
+            else:
+                limit_value = min(r.min for r in self.records)
+
+            for r in self.records:
+                if r.min == limit_value:
+                    data = self._read(r)
+                    new_list.extend([r for r in data if r == limit_value])
+                    data = [r for r in data if r != limit_value]
+                    if not data:
+                        self._delete(r)
+                    else:
+                        self._write(data)
+
+        self.file = new_list.file
+        self.records = new_list.records
+        self.buffer = new_list.buffer
+
+    def __add__(self, other):
         """ Return self+value. """
-        pass
+        new_list = StoredList()
 
-    def __contains__(self, *args, **kwargs):
+        if isinstance(other, (StoredList, list)):
+            new_list.extend(other)
+            for i in self:
+                new_list.append(i)
+            return new_list
+        else:
+            raise TypeError
+
+    def __contains__(self, item):
         """ Return key in self. """
-        pass
+        if item in self.buffer:
+            return True
+        if any(i == item for i in self):
+            return True
+        return False
 
-    def __delitem__(self, *args, **kwargs):
+    def __delitem__(self, index):
         """ Delete self[key]. """
-        pass
+        if index > len(self) or index < 0:
+            raise IndexError
+        _records = self._records_len()
+        if index > _records:
+            del self.buffer[index - _records]
+
+        counter = 0
+        for r in self.records:
+            if counter < index < counter + r.len:
+                data = self._read(r)
+                del data[index - counter]
+                self._write(data)
+                break
 
     def __eq__(self, *args, **kwargs):
         """ Return self==value. """
@@ -181,11 +359,12 @@ class List(object):
 
     def __iter__(self, *args, **kwargs):
         """ Implement iter(self). """
-        pass
-
-    def __len__(self, *args, **kwargs):
-        """ Return len(self). """
-        pass
+        for r in self.records:
+            data = self._read(r)
+            for v in data:
+                yield v
+        for v in self.buffer:
+            yield v
 
     def __le__(self, *args, **kwargs):
         """ Return self<=value. """
