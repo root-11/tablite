@@ -1,4 +1,5 @@
 from table import *
+from datetime import date, time, datetime
 
 
 def test_datatype_inference():
