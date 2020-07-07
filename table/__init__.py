@@ -1,13 +1,23 @@
 import json
+import pickle
 from itertools import count
-from datetime import datetime, date, time
 from collections import defaultdict
+from datetime import datetime, date, time
 from pathlib import Path
+
+import zlib
+from tempfile import NamedTemporaryFile
+import sqlite3
+from sys import getsizeof
 
 import zipfile
 import tempfile
 import xlrd
 import pyexcel_ods
+
+__all__ = ['DataTypes', 'StoredList', 'Column', 'Table', 'file_reader',
+           'GroupBy', 'Max', 'Min', 'Sum', 'First', 'Last', 'Count',
+           'CountUnique', 'Average', 'StandardDeviation', 'Median', 'Mode']
 
 
 class DataTypes(object):
@@ -25,6 +35,7 @@ class DataTypes(object):
     decimals = set('1234567890-+eE.')
     integers = set('1234567890-+')
     nones = {'null', 'Null', 'NULL', '#N/A', '#n/a', "", 'None', None}
+    none_type = type(None)
 
     date_formats = {  # Note: Only recognised ISO8601 formats are accepted.
         "NNNN-NN-NN": lambda x: date(*(int(i) for i in x.split("-"))),
@@ -389,8 +400,734 @@ class DataTypes(object):
     # Order is very important!
     types = [datetime, date, time, int, bool, float, str]
 
+    @staticmethod
+    def infer_range_from_slice(slice_item, records):
+        assert isinstance(slice_item, slice)
+        assert isinstance(records, int)
+        item = slice_item
 
-class Column(list):
+        if all((item.start is None,
+               item.stop is None,
+               item.step is None)):
+            return 0, records, 1
+
+        if item.step is None or item.step > 0:  # forward traverse
+            step = 1
+            if item.start is None:
+                start = 0
+            elif item.start < 0:
+                start = records + item.start
+            else:
+                start = item.start
+
+            if item.stop is None or item.stop > records:
+                stop = records
+            elif item.stop < 0:
+                stop = records + item.stop
+            else:
+                stop = item.stop
+
+            if start >= stop:
+                return None  # empty list.
+
+            return start, stop, step
+
+        elif item.step < 0:  # item.step < 0: backward traverse
+            step = item.step
+            if item.start is None:  # a[::-1]
+                start = records
+            elif item.start < 0:
+                start = item.start + records
+            else:
+                start = item.start
+
+            if item.stop is None:
+                stop = 0
+            elif item.stop < 0:
+                stop = item.stop + records
+            else:
+                stop = item.stop
+
+            if start < stop:  # example [2:4:-1] --> []
+                return None  # empty list.
+
+            return start, stop, step
+
+        else:
+            return None
+
+
+class Record(object):
+    ids = count()
+    """ Internal datastructure used by StoredList"""
+    def __init__(self, stored_list):
+        assert isinstance(stored_list, StoredList)
+        self.stored_list = stored_list
+        self.id = next(self.ids)  # id is used for storage retrieval. Not sequence.
+        self._len = 0
+        self.buffer = []
+        self.loaded = False
+        self.changed = False
+
+    def __str__(self):
+        return self.__repr__()
+
+    def __repr__(self):
+        if self.changed:
+            c = "changed"
+        else:
+            c = "saved"
+        return f"{self.__class__.__name__} ({c}) ({len(self)} items) {self.buffer[:5]} ..."
+
+    def __sizeof__(self):
+        return getsizeof(self.buffer)
+
+    def __bool__(self):
+        return bool(self.loaded)
+
+    # def __del__(self):
+    #     self.stored_list.buffer_delete(self)
+
+    def __len__(self):
+        if self.buffer:
+            self._len = len(self.buffer)
+        return self._len
+
+    def save(self):
+        """ save the buffer to disk and clears the buffer"""
+        if self.changed:
+            self.changed = False
+            self.loaded = False
+            self._len = len(self.buffer)
+            try:
+                self.stored_list.buffer_write(self)
+            except Exception:
+                self.stored_list.buffer_update(self)
+            self.buffer.clear()
+        else:
+            pass
+
+    def dump(self):
+        """ wipes the buffer without saving """
+        self.loaded = False
+        if self.changed:
+            raise Exception("data loss!")
+        self.buffer.clear()
+
+    def load(self):
+        """
+        loads the buffer savely from disk, by saving any
+        other buffered data first.
+
+        The total buffer will thereby never exceed set limit.
+        """
+        if self.loaded:
+            pass
+        else:
+            if self.changed:
+                return
+            # 1. first save the buffer of everyone else.
+            for r in self.stored_list.records:
+                if r.changed:
+                    r.save()
+            # 2. then load own buffer.
+            self.loaded = True
+            self.changed = False
+            self.buffer = self.stored_list.buffer_read(self)
+
+    def append(self, value):
+        if len(self.buffer) < self.stored_list.buffer_limit:
+            self.buffer.append(value)
+            self.changed = True
+        else:
+            self.save()
+            r = Record(self.stored_list)
+            self.stored_list.records.append(r)
+            r.append(value)
+
+    def extend(self, items):
+        self.changed = True
+
+        max_len = self.stored_list.buffer_limit
+        # first store what fits.
+        space = max_len - len(self)
+        try:
+            part, items = items[:space], items[space:]
+        except Exception:
+            raise
+        self.buffer.extend(part)
+        if len(self.buffer) == max_len:
+            self.save()
+
+        # second store remaining items (if any)
+        while items:
+            part, items = items[:max_len], items[max_len:]
+            r = Record(self.stored_list)
+            self.stored_list.records.append(r)
+            r.extend(part)
+
+    def count(self, item):
+        self.load()
+        v = self.buffer.count(item)
+        self.dump()
+        return v
+
+    def index(self, item):
+        self.load()
+        try:
+            v = self.buffer.index(item)
+        except ValueError:
+            v = None
+        self.dump()
+        return v
+
+    def insert(self, index, item):
+        self.load()
+
+        if len(self) < self.stored_list.buffer_limit:
+            self.changed = True
+            self.buffer.insert(index, item)
+        else:
+            self.save()
+            r = Record(self.stored_list)
+            self.stored_list.records.append(r)
+            r.append(item)
+
+    def pop(self, index):
+        self.load()
+        self.changed = True
+        if index is None:
+            return self.buffer.pop()
+        else:
+            return self.buffer.pop(index)
+
+    def __contains__(self, item):
+        self.load()
+        return item in self.buffer
+
+    def remove(self, item):
+        self.load()
+        try:
+            self.buffer.remove(item)
+            self.changed = True
+        except ValueError:
+            self.dump()
+
+    def reverse(self):
+        self.load()
+        self.changed = True
+        self.buffer.reverse()
+        v = self.buffer
+        self.save()
+        return v
+
+    def __iter__(self):
+        self.load()
+        for v in self.buffer:
+            yield v
+
+    def __getitem__(self, item):
+        if isinstance(item, (slice, int)):
+            self.load()
+            return self.buffer[item]
+        else:
+            raise NotImplementedError
+
+    def __setitem__(self, key, value):
+        self.load()
+        self.changed = True
+        self.buffer[key] = value
+
+    def sort(self, reverse=False):
+        self.load()
+        self.changed = True
+        self.buffer.sort(reverse=reverse)
+
+    def __delitem__(self, key):
+        self.load()
+        self.changed = True
+        del self.buffer[key]
+
+
+class StoredList(object):
+    """ A type that behaves like a list, but stores items on disk """
+
+    sql_create = "CREATE TABLE records (id INTEGER PRIMARY KEY, data BLOB);"
+    sql_delete = "DELETE FROM records WHERE id = ?"
+    sql_insert = "INSERT INTO records VALUES (?, ?);"
+    sql_update = "UPDATE records SET data = ? WHERE id=?;"
+    sql_select = "SELECT data FROM records WHERE id=?"
+
+    def __init__(self, buffer_limit=200_000):
+        self.file = NamedTemporaryFile(suffix='.db').name  # SQLite3 file.
+        self._file_con = sqlite3.connect(self.file)  # SQLite3 connection
+        with self._file_con as c:
+            c.execute(self.sql_create)
+        self.records = []
+        self._buffer_limit = buffer_limit
+
+    # internal data management methods
+    # --------------------------------
+    def _load_from_list(self, other):
+        """ helper to load variables from another StoredList"""
+        assert isinstance(other, StoredList)
+        self.file = other.file
+        self._file_con = other._file_con
+        self.records = other.records
+        self._buffer_limit = other._buffer_limit
+
+    def buffer_update(self, record):
+        assert isinstance(record, Record)
+        data = zlib.compress(pickle.dumps(record.buffer))
+        with self._file_con as c:
+            c.execute(self.sql_update, (data, record.id))  # UPDATE
+
+    def buffer_write(self, record):
+        assert isinstance(record, Record)
+        data = zlib.compress(pickle.dumps(record.buffer))
+        with self._file_con as c:
+            c.execute(self.sql_insert, (record.id, data))  # INSERT
+
+    def buffer_read(self, record):
+        assert isinstance(record, Record)
+        with self._file_con as c:
+            q = c.execute(self.sql_select, (record.id,))  # READ
+            data = q.fetchone()[0]
+        return pickle.loads(zlib.decompress(data))
+
+    def buffer_delete(self, record):
+        assert isinstance(record, Record)
+        with self._file_con as c:
+            c.execute(self.sql_delete, (record.id,))  # DELETE
+        record.buffer.clear()
+
+    @property
+    def buffer_limit(self):
+        return self._buffer_limit
+
+    @buffer_limit.setter
+    def buffer_limit(self, value):
+        if self._buffer_limit < value: # reduce requires reload.
+            L = StoredList(buffer_limit=value)
+            for v in self:
+                L.append(v)
+            self._load_from_list(L)
+        else:
+            self._buffer_limit = value  # increase is permissive.
+
+    def _normal_index(self, index):
+        if not isinstance(index, int):
+            raise TypeError
+        if 0 <= index < len(self):
+            return index
+
+        if index < 0:
+            return max(0, len(self) + index)
+
+        if index >= len(self):
+            return len(self)
+
+    # public methods of a list
+    # ------------------------
+    def __len__(self):
+        """ Return len(self). """
+        return sum(len(r) for r in self.records)
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return f"{self.__class__.__name__} {len(self)}"
+        # records = len(self)
+        # ram = sum(getsizeof(r) for r in self.records)
+        # size = getsizeof(self.records) + Path(self.file).stat().st_size
+        # return f"{self.__class__.__name__} {records} {self.datatype.__name__}'s, total {size+ram} bytes ({ram} in ram)"
+
+    def append(self, value):
+        """ Append object to the end of the list. """
+        if not self.records:
+            r = Record(self)
+            self.records.append(r)
+        r = self.records[-1]
+        r.append(value)
+
+    def clear(self):
+        """ Remove all items from list. """
+        new_list = StoredList(buffer_limit=self._buffer_limit)
+        self._load_from_list(new_list)
+
+    def copy(self):
+        """ Return a shallow copy of the list. """
+        L = StoredList(buffer_limit=self._buffer_limit)
+        for i in self:
+            L.append(i)
+        return L
+
+    def count(self, item):
+        """ Return number of occurrences of value. """
+        counter = 0
+        for r in self.records:
+            counter += r.count(item)
+        return counter
+
+    def extend(self, items):
+        """ Extend list by appending elements from the iterable. """
+        if not self.records:
+            r = Record(self)
+            self.records.append(r)
+        r = self.records[-1]
+        r.extend(items)
+
+    def index(self, item):
+        """
+        Return first index of value.
+
+        Raises ValueError if the value is not present.
+        """
+        counter = 0
+        for r in self.records:
+            assert isinstance(r, Record)
+            v = r.index(item)
+            if v is not None:
+                return counter + v
+            counter += len(r)
+
+        raise ValueError(f"{item} not found")
+
+    def insert(self, index, item):
+        """ Insert object before index. """
+        index = self._normal_index(index)
+
+        counter = 0
+        for r in self.records:
+            if counter <= index <= counter + len(r):
+                r.insert(index % counter, item)
+                break
+
+    def pop(self, index):
+        """
+        Remove and return item at index (default last).
+
+        Raises IndexError if list is empty or index is out of range.
+        """
+        if index is None:
+            r = self.records[-1]
+            return r.pop()
+
+        counter = 0
+        for r in self.records:
+            if counter < index <= counter + len(r):
+                return r.pop(index % counter)
+
+    def remove(self, item):
+        """
+        Remove first occurrence of value.
+
+        Raises ValueError if the value is not present.
+        """
+        counter = 0
+        for r in self.records:
+            if item in r:
+                r.remove(item)
+                counter += 1
+                break
+        if not counter:
+            raise ValueError(f"{item} not found")
+
+    def reverse(self):
+        """ Reverse *IN PLACE*. """
+        new_list = StoredList(buffer_limit=self._buffer_limit)
+        for r in reversed(self.records):
+            data = r.reverse()
+            new_list.extend(data)
+
+        self._load_from_list(new_list)
+
+    def _sort_ascending(self):
+        L = StoredList(self._buffer_limit)
+
+        for r in self.records:
+            assert isinstance(r, Record)
+            r.sort()
+
+            temp = StoredList(self._buffer_limit)
+
+            ix_1, ix_2, ix_1_max, ix_2_max = 0, 0, len(r), len(L)
+            v1 = r[ix_1]
+            v2 = L[ix_2]
+
+            while ix_1 < ix_1_max and ix_2 < ix_2_max:
+
+                if v1 <= v2:
+                    temp.append(v1)
+                    ix_1 += 1
+                    if ix_1 < ix_1_max:
+                        v1 = r[ix_1]
+                else:
+                    temp.append(v2)
+                    ix_2 += 1
+                    if ix_2 < ix_2_max:
+                        v2 = L[ix_2]
+
+            if ix_1 == ix_1_max:  # if ix_1 is exhausted finish ix2
+                data = L[ix_2:]
+                temp.extend(data)
+
+            if ix_2 == ix_2_max: # if
+                data = r[ix_1:]
+                temp.extend(data)
+
+            r.save()
+            L = temp
+
+
+        assert len(L) == len(self), (len(L), len(self))
+        self._load_from_list(L)
+
+    def _sort_descending(self):
+        L = StoredList(self._buffer_limit)
+
+        while self.records:
+            L2 = StoredList(self._buffer_limit)
+            r = self.records.pop(0)
+            r.sort(reverse=True)
+
+            ix_1, ix_2, ix_1_max, ix_2_max = 0, 0, len(r), len(L)
+            while ix_1 < ix_1_max and ix_2 < ix_2_max:
+                v1 = r[ix_1]
+                v2 = L[ix_2]
+                if v1 >= v2:
+                    L2.append(v1)
+                    ix_1 += 1
+                else:
+                    L2.append(v2)
+                    ix_2 += 1
+
+                if ix_1 == ix_1_max:  # if ix_1 is exhausted finish ix2
+                    L2.extend(L[ix_2:])
+                    break
+
+                if ix_2 == ix_2_max: # if
+                    L2.extend(r[ix_1:])
+                    break
+
+            L = L2
+
+        self._load_from_list(L)
+
+    def sort(self, reverse=False):
+        """ Stable sort *IN PLACE*. """
+        if not reverse:
+            self._sort_ascending()
+        else:
+            self._sort_descending()
+        return
+
+    def __add__(self, other):
+        """ Return self+value. """
+        if isinstance(other, (StoredList, list)):
+            new_list = StoredList(buffer_limit=self._buffer_limit)
+            new_list.extend(other)
+            return new_list
+        else:
+            raise TypeError
+
+    def __contains__(self, item):
+        """ Return key in self. """
+        for r in self.records:
+            if item in r:
+                return True
+        return False
+
+    def __delitem__(self, index):
+        """ Delete self[key]. """
+        if index > len(self) or index < 0:
+            raise IndexError
+
+        counter = 0
+        for r in self.records:
+            if counter < index < counter + len(r):
+                del r[index % counter]
+                return
+
+    def __eq__(self, other):
+        """ Return self==value. """
+        if not isinstance(other, (StoredList, list)):
+            raise TypeError
+
+        if len(self) != len(other):
+            return False
+
+        return not any(a != b for a, b in zip(self, other))
+
+    def _get_item(self, index):
+        assert isinstance(index, int)
+        counter = 0
+        for r in self.records:
+            if counter <= index < counter + len(r):
+                if counter == 0:
+                    return r[index]
+                else:
+                    return r[index % counter]
+            else:
+                counter += len(r)
+
+    def __getitem__(self, item):
+        """ x.__getitem__(y) <==> x[y] """
+        if isinstance(item, int):
+            return self._get_item(item)
+
+        assert isinstance(item, slice)
+        L = StoredList(buffer_limit=self._buffer_limit)
+        slc = DataTypes.infer_range_from_slice(item, len(self))
+        if slc is None:
+            return L
+        start, stop, step = slc
+
+        if step > 0:
+            counter = 0
+            for r in self.records:
+                if counter > stop:
+                    break
+                if counter + len(r) > start:
+                    start_ix = max(0, start - counter)
+                    start_ix += (start_ix - start) % step
+                    end_ix = min(stop-counter, len(r))
+                    data = r[start_ix:end_ix:step]
+                    L.extend(data)
+
+                counter += len(r)
+
+        else:  # step < 0  # item.step < 0: backward traverse
+
+            counter = len(self)
+            for r in reversed(self.records):
+                if counter < stop:
+                    break
+                if counter - len(r) > start:
+                    start_ix = max(start - counter, 0)
+                    start_ix -= (start_ix - start) % step
+                    end_ix = None if item.stop is None else max(stop-counter, counter - len(r))
+                    L.extend(r[start_ix:end_ix:step])
+
+                counter -= len(r)
+
+        return L
+
+    def __ge__(self, other):
+        """ Return self>=value. """
+        for a, b in zip(self, other):
+            if a < b:
+                return False
+        return True
+
+    def __gt__(self, other):
+        """ Return self>value. """
+        for a, b in zip(self, other):
+            if a <= b:
+                return False
+        return True
+
+    def __iadd__(self, other):
+        """ Implement self+=value. """
+        if not isinstance(other, (StoredList, list)):
+            raise TypeError
+        self.extend(other)
+        return self
+
+    def __imul__(self, value):
+        """ Implement self*=value. """
+        if not isinstance(value, int):
+            raise TypeError
+        if value <= 0:
+            raise ValueError
+        elif value == 1:
+            return self
+        else:
+            new_list = StoredList(self._buffer_limit)
+            for i in range(value):
+                new_list += self
+            return new_list
+
+    def __iter__(self):
+        """ Implement iter(self). """
+        for r in self.records:
+            for v in r:
+                yield v
+
+    def __le__(self, other):
+        """ Return self<=value. """
+        for a, b in zip(self, other):
+            if a > b:
+                return False
+        return True
+
+    def __lt__(self, other):
+        """ Return self<value. """
+        for a, b in zip(self, other):
+            if a >= b:
+                return False
+        return True
+
+    def __mul__(self, value):
+        """ Return self*value. """
+        if not isinstance(value, int):
+            raise TypeError
+        if value <= 0:
+            raise ValueError
+        new_list = StoredList(buffer_limit=self._buffer_limit)
+        for i in range(value):
+            new_list += self
+        return new_list
+
+    def __ne__(self, other):
+        """ Return self!=value. """
+        if not isinstance(other, (StoredList, list)):
+            raise TypeError
+
+        if len(self) != len(other):
+            return True
+
+        return any(a != b for a, b in zip(self, other))
+
+    def __reversed__(self):
+        """ Return a reverse iterator over the list. """
+        for r in reversed(self.records):
+            data = r.reverse()
+            for i in data:
+                yield i
+
+    def __rmul__(self, value):
+        """ Return value*self. """
+        return self.__mul__(value)
+
+    def __setitem__(self, key, value):
+        """ Set self[key] to value. """
+        if not isinstance(key, int):
+            raise TypeError
+        if not 0 <= key <= len(self):
+            raise IndexError
+
+        counter = 0
+        for r in self.records:
+            if counter <= key < len(r) + counter:
+                r[key] = value
+                break
+
+    def __sizeof__(self):
+        """ Return the size of the list in memory, in bytes. """
+        return getsizeof(self.records)
+
+    __hash__ = None
+
+    def __copy__(self):
+        new_list = StoredList(self._buffer_limit)
+        for i in self:
+            new_list.append(i)
+        return new_list
+
+
+class Column(StoredList):
     def __init__(self, header, datatype, allow_empty, data=None):
         super().__init__()
         assert isinstance(header, str)
@@ -467,7 +1204,7 @@ class Column(list):
         self.clear()
         self.extend(values)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key, value):  # this is handled by stored list.
         self.type_check(value)
         super().__setitem__(key, value)
 
@@ -521,7 +1258,8 @@ class Table(object):
             raise SyntaxError(f"unexpected input: {[not isinstance(i, (str, slice)) for i in items]}")
 
         slices = [i for i in items if isinstance(i, slice)]
-        if len(slices) > 2: raise SyntaxError("1 > slices")
+        if len(slices) > 2:
+            raise SyntaxError("1 > slices")
         if not slices:
             slc = slice(0, len(self), None)
         else:
@@ -628,11 +1366,9 @@ class Table(object):
         if isinstance(item, int):
             item = slice(item, item + 1, 1)
         if isinstance(item, slice):
-            start, stop, step = self._slice(item)
-
             t = Table()
             for col in self.columns.values():
-                t.add_column(col.header, col.datatype, col.allow_empty, col[start:stop:step])
+                t.add_column(col.header, col.datatype, col.allow_empty, col[item])
             return t
         else:
             return self.columns[item]
@@ -775,7 +1511,9 @@ class Table(object):
             raise SyntaxError(f"unexpected input: {[not isinstance(i, (str, slice)) for i in items]}")
 
         slices = [i for i in items if isinstance(i, slice)]
-        if len(slices) > 2: raise SyntaxError("1 > slices")
+        if len(slices) > 2:
+            raise SyntaxError("1 > slices")
+
         if not slices:
             slc = slice(None, len(self), None)
         else:
@@ -786,8 +1524,12 @@ class Table(object):
         if any(h not in self.columns for h in headers):
             raise ValueError(f"column not found: {[h for h in headers if h not in self.columns]}")
 
+        sss = DataTypes.infer_range_from_slice(slc, len(self))
+        if sss is None:
+            return
+
         L = [self.columns[h] for h in headers]
-        for ix in range(*self._slice(slc)):
+        for ix in range(*sss):
             item = tuple(c[ix] if ix < len(c) else None for c in L)
             yield item
 
