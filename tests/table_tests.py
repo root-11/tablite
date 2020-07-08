@@ -73,7 +73,7 @@ def test_basic_table():
 
     # updating values is familiar to any user who likes a list:
     assert 'A' in table.columns
-    assert isinstance(table.columns['A'], list)
+    assert isinstance(table.columns['A'], (StoredList,list))
     last_row = -1
     table['A'][last_row] = 44
     table['B'][last_row] = "Hallo"
