@@ -536,6 +536,7 @@ class Record(object):
             self.buffer = self.stored_list.buffer_read(self)
 
     def append(self, value):
+        self.loaded = True
         if len(self.buffer) < self.stored_list.buffer_limit:
             self.buffer.append(value)
             self.changed = True
@@ -546,6 +547,7 @@ class Record(object):
             r.append(value)
 
     def extend(self, items):
+        self.loaded = True
         self.changed = True
 
         max_len = self.stored_list.buffer_limit
@@ -569,7 +571,7 @@ class Record(object):
     def count(self, item):
         self.load()
         v = self.buffer.count(item)
-        self.dump()
+        # self.dump()
         return v
 
     def index(self, item):
@@ -578,7 +580,6 @@ class Record(object):
             v = self.buffer.index(item)
         except ValueError:
             v = None
-        self.dump()
         return v
 
     def insert(self, index, item):
@@ -593,7 +594,7 @@ class Record(object):
             self.stored_list.records.append(r)
             r.append(item)
 
-    def pop(self, index):
+    def pop(self, index=None):
         self.load()
         self.changed = True
         if index is None:
@@ -617,7 +618,7 @@ class Record(object):
         self.load()
         self.changed = True
         self.buffer.reverse()
-        v = self.buffer
+        v = self.buffer[:]
         self.save()
         return v
 
@@ -658,12 +659,14 @@ class StoredList(object):
     sql_update = "UPDATE records SET data = ? WHERE id=?;"
     sql_select = "SELECT data FROM records WHERE id=?"
 
-    def __init__(self, buffer_limit=200_000):
+    def __init__(self, buffer_limit=2_000_000):
         self.file = NamedTemporaryFile(suffix='.db').name  # SQLite3 file.
         self._file_con = sqlite3.connect(self.file)  # SQLite3 connection
         with self._file_con as c:
             c.execute(self.sql_create)
         self.records = []
+        if not isinstance(buffer_limit, int):
+            raise TypeError
         self._buffer_limit = buffer_limit
 
     # internal data management methods
@@ -707,6 +710,8 @@ class StoredList(object):
 
     @buffer_limit.setter
     def buffer_limit(self, value):
+        if not isinstance(value, int):
+            raise TypeError
         if self._buffer_limit < value: # reduce requires reload.
             L = StoredList(buffer_limit=value)
             for v in self:
@@ -801,10 +806,13 @@ class StoredList(object):
         counter = 0
         for r in self.records:
             if counter <= index <= counter + len(r):
-                r.insert(index % counter, item)
+                if counter == 0:
+                    r.insert(index, item)
+                else:
+                    r.insert(index % counter, item)
                 break
 
-    def pop(self, index):
+    def pop(self, index=None):
         """
         Remove and return item at index (default last).
 
@@ -812,7 +820,7 @@ class StoredList(object):
         """
         if index is None:
             r = self.records[-1]
-            return r.pop()
+            return r.pop(None)
 
         counter = 0
         for r in self.records:
@@ -843,85 +851,50 @@ class StoredList(object):
 
         self._load_from_list(new_list)
 
-    def _sort_ascending(self):
-        L = StoredList(self._buffer_limit)
-
+    def sort(self, reverse=False):
         for r in self.records:
-            assert isinstance(r, Record)
-            r.sort()
-
-            temp = StoredList(self._buffer_limit)
-
-            ix_1, ix_2, ix_1_max, ix_2_max = 0, 0, len(r), len(L)
-            v1 = r[ix_1]
-            v2 = L[ix_2]
-
-            while ix_1 < ix_1_max and ix_2 < ix_2_max:
-
-                if v1 <= v2:
-                    temp.append(v1)
-                    ix_1 += 1
-                    if ix_1 < ix_1_max:
-                        v1 = r[ix_1]
-                else:
-                    temp.append(v2)
-                    ix_2 += 1
-                    if ix_2 < ix_2_max:
-                        v2 = L[ix_2]
-
-            if ix_1 == ix_1_max:  # if ix_1 is exhausted finish ix2
-                data = L[ix_2:]
-                temp.extend(data)
-
-            if ix_2 == ix_2_max: # if
-                data = r[ix_1:]
-                temp.extend(data)
-
+            r.sort(reverse=reverse)
             r.save()
-            L = temp
 
+        wb = [r for r in self.records]
+        if len(wb) == 1:
+            C = StoredList(self._buffer_limit)
+            r = wb.pop()
+            C.extend(r)
+            wb.append(C)
+        else:
+            while len(wb) > 1:
+                A = wb.pop(0)
+                A = iter(A)
+                B = wb.pop(0)
+                B = iter(B)
 
+                C = StoredList(self._buffer_limit)
+                a, b = next(A), next(B)
+
+                while True:
+                    if (reverse and a >= b) or (not reverse and a <= b):
+                        C.append(a)
+                        try:
+                            a = next(A)
+                        except StopIteration:
+                            C.append(b)
+                            C.extend(list(B))
+                            break
+                    else:
+                        C.append(b)
+                        try:
+                            b = next(B)
+                        except StopIteration:
+                            C.append(a)
+                            C.extend(list(A))
+                            break
+
+                wb.append(C)
+
+        L = wb.pop()
         assert len(L) == len(self), (len(L), len(self))
         self._load_from_list(L)
-
-    def _sort_descending(self):
-        L = StoredList(self._buffer_limit)
-
-        while self.records:
-            L2 = StoredList(self._buffer_limit)
-            r = self.records.pop(0)
-            r.sort(reverse=True)
-
-            ix_1, ix_2, ix_1_max, ix_2_max = 0, 0, len(r), len(L)
-            while ix_1 < ix_1_max and ix_2 < ix_2_max:
-                v1 = r[ix_1]
-                v2 = L[ix_2]
-                if v1 >= v2:
-                    L2.append(v1)
-                    ix_1 += 1
-                else:
-                    L2.append(v2)
-                    ix_2 += 1
-
-                if ix_1 == ix_1_max:  # if ix_1 is exhausted finish ix2
-                    L2.extend(L[ix_2:])
-                    break
-
-                if ix_2 == ix_2_max: # if
-                    L2.extend(r[ix_1:])
-                    break
-
-            L = L2
-
-        self._load_from_list(L)
-
-    def sort(self, reverse=False):
-        """ Stable sort *IN PLACE*. """
-        if not reverse:
-            self._sort_ascending()
-        else:
-            self._sort_descending()
-        return
 
     def __add__(self, other):
         """ Return self+value. """
@@ -947,7 +920,10 @@ class StoredList(object):
         counter = 0
         for r in self.records:
             if counter < index < counter + len(r):
-                del r[index % counter]
+                if counter == 0:
+                    del r[index]
+                else:
+                    del r[index % counter]
                 return
 
     def __eq__(self, other):
@@ -962,6 +938,7 @@ class StoredList(object):
 
     def _get_item(self, index):
         assert isinstance(index, int)
+        index = self._normal_index(index)
         counter = 0
         for r in self.records:
             if counter <= index < counter + len(r):
@@ -1105,8 +1082,7 @@ class StoredList(object):
         """ Set self[key] to value. """
         if not isinstance(key, int):
             raise TypeError
-        if not 0 <= key <= len(self):
-            raise IndexError
+        key = self._normal_index(key)
 
         counter = 0
         for r in self.records:
@@ -1127,7 +1103,7 @@ class StoredList(object):
         return new_list
 
 
-class Column(StoredList):
+class Column(list):
     def __init__(self, header, datatype, allow_empty, data=None):
         super().__init__()
         assert isinstance(header, str)
