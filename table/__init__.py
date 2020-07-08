@@ -1103,7 +1103,7 @@ class StoredList(object):
         return new_list
 
 
-class Column(list):
+class Column(StoredList):
     def __init__(self, header, datatype, allow_empty, data=None):
         super().__init__()
         assert isinstance(header, str)
