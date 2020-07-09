@@ -1,5 +1,5 @@
 from time import process_time
-from table import StoredList
+from table import StoredList, Column
 from random import shuffle, randint
 
 
@@ -83,7 +83,7 @@ def test_memory_footprint():
 
 def test_index():
     n = int(1e6)
-    A = StoredList(buffer_limit=1000)
+    A = StoredList()
     A.extend(list(range(n)))
     start = process_time()
     m = 1000
@@ -92,6 +92,22 @@ def test_index():
         v = A[ix]
     end = process_time()
     print(end - start, "for ", m, "lookups is", 1000 * (end - start) / m , "msec per lookup")
+
+
+def test_sort_performance2():
+    A = StoredList()
+    A.buffer_limit = 5 * 3
+    A.extend([1] * 5 + [2] * 5 + [3] * 5 + [4] * 5)
+    A.extend([1] * 5 + [3] * 5 + [5] * 5 + [7] * 5)
+    A.extend([4] * 5 + [5] * 5 + [6] * 5 + [7] * 5)
+    data = [v for v in A]
+    data.sort()
+    A.sort()
+    assert data == A
+    assert A == data
+    A.sort(reverse=True)
+    data.sort(reverse=True)
+    assert A == data
 
 
 def test_sort_performance1():
@@ -108,20 +124,6 @@ def test_sort_performance1():
     start = process_time()
     data.sort()
     print(process_time() - start)
-
-    assert A == data
-    A.sort(reverse=True)
-    data.sort(reverse=True)
     assert A == data
 
 
-def test_sort_performance2():
-    A = StoredList()
-    A.buffer_limit = 5 * 3
-    A.extend([1] * 5 + [2] * 5 + [3] * 5 + [4] * 5)
-    A.extend([1] * 5 + [3] * 5 + [5] * 5 + [7] * 5)
-    A.extend([4] * 5 + [5] * 5 + [6] * 5 + [7] * 5)
-    data = [v for v in A]
-    data.sort()
-    A.sort()
-    assert data == A
