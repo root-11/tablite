@@ -4,9 +4,11 @@ from itertools import count
 from collections import defaultdict
 from datetime import datetime, date, time
 from pathlib import Path
+from random import choice
+from string import ascii_lowercase
 
 import zlib
-from tempfile import NamedTemporaryFile
+from tempfile import gettempdir
 import sqlite3
 from sys import getsizeof
 
@@ -650,24 +652,47 @@ class Record(object):
         del self.buffer[key]
 
 
+def windows_tempfile(prefix='tmp', suffix='.db'):
+    """ generates a safe tempfile which windows can't handle. """
+    safe_folder = Path(gettempdir())
+    while 1:
+        n = "".join(choice(ascii_lowercase) for i in range(5))
+        name = f"{prefix}{n}{suffix}"
+        p = safe_folder / name
+        if not p.exists():
+            break
+    # print("created tempfile", str(p), flush=True)
+    return p
+
+
 class StoredList(object):
     """ A type that behaves like a list, but stores items on disk """
 
     sql_create = "CREATE TABLE records (id INTEGER PRIMARY KEY, data BLOB);"
+    sql_journal_off = "PRAGMA journal_mode = OFF"
+    sql_sync_off = "PRAGMA synchronous = OFF "
+
     sql_delete = "DELETE FROM records WHERE id = ?"
     sql_insert = "INSERT INTO records VALUES (?, ?);"
     sql_update = "UPDATE records SET data = ? WHERE id=?;"
     sql_select = "SELECT data FROM records WHERE id=?"
 
-    def __init__(self, buffer_limit=2_000_000):
-        self.file = NamedTemporaryFile(suffix='.db').name  # SQLite3 file.
-        self._file_con = sqlite3.connect(self.file)  # SQLite3 connection
-        with self._file_con as c:
+    def __init__(self, buffer_limit=500_000):
+        self.file = windows_tempfile()
+        self._conn = sqlite3.connect(self.file)  # SQLite3 connection
+        with self._conn as c:
             c.execute(self.sql_create)
+            c.execute(self.sql_journal_off)
+            c.execute(self.sql_sync_off)
         self.records = []
         if not isinstance(buffer_limit, int):
             raise TypeError
         self._buffer_limit = buffer_limit
+
+    def __del__(self):
+        self._conn.close()
+        self.file.unlink(missing_ok=True)
+        # print("removed tempfile", str(self.file.name), flush=True)
 
     # internal data management methods
     # --------------------------------
@@ -675,32 +700,32 @@ class StoredList(object):
         """ helper to load variables from another StoredList"""
         assert isinstance(other, StoredList)
         self.file = other.file
-        self._file_con = other._file_con
+        self._conn = other._conn
         self.records = other.records
         self._buffer_limit = other._buffer_limit
 
     def buffer_update(self, record):
         assert isinstance(record, Record)
         data = zlib.compress(pickle.dumps(record.buffer))
-        with self._file_con as c:
+        with self._conn as c:
             c.execute(self.sql_update, (data, record.id))  # UPDATE
 
     def buffer_write(self, record):
         assert isinstance(record, Record)
         data = zlib.compress(pickle.dumps(record.buffer))
-        with self._file_con as c:
+        with self._conn as c:
             c.execute(self.sql_insert, (record.id, data))  # INSERT
 
     def buffer_read(self, record):
         assert isinstance(record, Record)
-        with self._file_con as c:
+        with self._conn as c:
             q = c.execute(self.sql_select, (record.id,))  # READ
             data = q.fetchone()[0]
         return pickle.loads(zlib.decompress(data))
 
     def buffer_delete(self, record):
         assert isinstance(record, Record)
-        with self._file_con as c:
+        with self._conn as c:
             c.execute(self.sql_delete, (record.id,))  # DELETE
         record.buffer.clear()
 
@@ -743,10 +768,6 @@ class StoredList(object):
 
     def __str__(self):
         return f"{self.__class__.__name__} {len(self)}"
-        # records = len(self)
-        # ram = sum(getsizeof(r) for r in self.records)
-        # size = getsizeof(self.records) + Path(self.file).stat().st_size
-        # return f"{self.__class__.__name__} {records} {self.datatype.__name__}'s, total {size+ram} bytes ({ram} in ram)"
 
     def append(self, value):
         """ Append object to the end of the list. """
@@ -1103,7 +1124,7 @@ class StoredList(object):
         return new_list
 
 
-class Column(StoredList):
+class Column(list):
     def __init__(self, header, datatype, allow_empty, data=None):
         super().__init__()
         assert isinstance(header, str)
