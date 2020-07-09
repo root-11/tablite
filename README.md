@@ -7,7 +7,7 @@ We're all tired of reinventing the wheel when we need to process a bit of data.
 
 - Pandas has a huge memory overhead.
 - Numpy has become a language of it's own. It just doesn't seem pythonic anymore.
-- Arrows isn't ready.
+- Arrows [isn't ready](https://arrow.apache.org/docs/python/dataset.html).
 - SQLite is great but just too slow, particularly on disk.
 - Protobuffer is just overkill for storing data when I still need to implement all the analytics after that.
 
