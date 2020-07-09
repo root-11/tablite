@@ -1,12 +1,13 @@
 import json
 import pickle
-from itertools import count
+from itertools import count, compress
 from collections import defaultdict
 from datetime import datetime, date, time
 from pathlib import Path
 from random import choice
 from string import ascii_lowercase
 
+import array
 import zlib
 from tempfile import gettempdir
 import sqlite3
@@ -460,8 +461,10 @@ class DataTypes(object):
 
 
 class Record(object):
-    ids = count()
     """ Internal datastructure used by StoredList"""
+
+    ids = count()
+
     def __init__(self, stored_list):
         assert isinstance(stored_list, StoredList)
         self.stored_list = stored_list
@@ -487,9 +490,6 @@ class Record(object):
     def __bool__(self):
         return bool(self.loaded)
 
-    # def __del__(self):
-    #     self.stored_list.buffer_delete(self)
-
     def __len__(self):
         if self.buffer:
             self._len = len(self.buffer)
@@ -502,9 +502,9 @@ class Record(object):
             self.loaded = False
             self._len = len(self.buffer)
             try:
-                self.stored_list.buffer_write(self)
+                self.stored_list.write(self)
             except Exception:
-                self.stored_list.buffer_update(self)
+                self.stored_list.update(self)
             self.buffer.clear()
         else:
             pass
@@ -524,10 +524,10 @@ class Record(object):
         The total buffer will thereby never exceed set limit.
         """
         if self.loaded:
-            pass
+            return
+        elif self.changed:
+            return
         else:
-            if self.changed:
-                return
             # 1. first save the buffer of everyone else.
             for r in self.stored_list.records:
                 if r.changed:
@@ -535,7 +535,7 @@ class Record(object):
             # 2. then load own buffer.
             self.loaded = True
             self.changed = False
-            self.buffer = self.stored_list.buffer_read(self)
+            self.buffer = self.stored_list.read(self)
 
     def append(self, value):
         self.loaded = True
@@ -573,7 +573,6 @@ class Record(object):
     def count(self, item):
         self.load()
         v = self.buffer.count(item)
-        # self.dump()
         return v
 
     def index(self, item):
@@ -652,22 +651,8 @@ class Record(object):
         del self.buffer[key]
 
 
-def windows_tempfile(prefix='tmp', suffix='.db'):
-    """ generates a safe tempfile which windows can't handle. """
-    safe_folder = Path(gettempdir())
-    while 1:
-        n = "".join(choice(ascii_lowercase) for i in range(5))
-        name = f"{prefix}{n}{suffix}"
-        p = safe_folder / name
-        if not p.exists():
-            break
-    # print("created tempfile", str(p), flush=True)
-    return p
-
-
-class StoredList(object):
-    """ A type that behaves like a list, but stores items on disk """
-
+class Buffer(object):
+    """ internal storage class of the StoredList """
     sql_create = "CREATE TABLE records (id INTEGER PRIMARY KEY, data BLOB);"
     sql_journal_off = "PRAGMA journal_mode = OFF"
     sql_sync_off = "PRAGMA synchronous = OFF "
@@ -677,32 +662,28 @@ class StoredList(object):
     sql_update = "UPDATE records SET data = ? WHERE id=?;"
     sql_select = "SELECT data FROM records WHERE id=?"
 
-    def __init__(self, buffer_limit=500_000):
-        self.file = windows_tempfile()
+    def __init__(self):
+        self.file = self.windows_tempfile()
         self._conn = sqlite3.connect(self.file)  # SQLite3 connection
         with self._conn as c:
             c.execute(self.sql_create)
             c.execute(self.sql_journal_off)
             c.execute(self.sql_sync_off)
-        self.records = []
-        if not isinstance(buffer_limit, int):
-            raise TypeError
-        self._buffer_limit = buffer_limit
 
     def __del__(self):
         self._conn.close()
-        self.file.unlink(missing_ok=True)
-        # print("removed tempfile", str(self.file.name), flush=True)
+        self.file.unlink()
 
-    # internal data management methods
-    # --------------------------------
-    def _load_from_list(self, other):
-        """ helper to load variables from another StoredList"""
-        assert isinstance(other, StoredList)
-        self.file = other.file
-        self._conn = other._conn
-        self.records = other.records
-        self._buffer_limit = other._buffer_limit
+    def windows_tempfile(self, prefix='tmp', suffix='.db'):
+        """ generates a safe tempfile which windows can't handle. """
+        safe_folder = Path(gettempdir())
+        while 1:
+            n = "".join(choice(ascii_lowercase) for _ in range(5))
+            name = f"{prefix}{n}{suffix}"
+            p = safe_folder / name
+            if not p.exists():
+                break
+        return p
 
     def buffer_update(self, record):
         assert isinstance(record, Record)
@@ -728,6 +709,49 @@ class StoredList(object):
         with self._conn as c:
             c.execute(self.sql_delete, (record.id,))  # DELETE
         record.buffer.clear()
+
+
+class StoredList(object):
+    """ A type that behaves like a list, but stores items on disk """
+    def __init__(self, buffer_limit=20_000):
+        self.storage = None
+        self.records = []
+        if not isinstance(buffer_limit, int):
+            raise TypeError
+        self._buffer_limit = buffer_limit
+
+    # internal data management methods
+    # --------------------------------
+    def _load_from_list(self, other):
+        """ helper to load variables from another StoredList"""
+        assert isinstance(other, StoredList)
+        self.storage = other.storage
+        self.records = other.records
+        self._buffer_limit = other._buffer_limit
+
+    def update(self, record):
+        assert isinstance(record, Record)
+        assert isinstance(self.storage, Buffer)
+        self.storage.buffer_update(record)
+
+    def write(self, record):
+        if self.storage is None:
+            self.storage = Buffer()
+        assert isinstance(record, Record)
+        assert isinstance(self.storage, Buffer)
+        self.storage.buffer_write(record)
+
+    def read(self, record):
+        if self.storage is None:
+            self.storage = Buffer()
+        assert isinstance(self.storage, Buffer)
+        assert isinstance(record, Record)
+        return self.storage.buffer_read(record)
+
+    def delete(self, record):
+        assert isinstance(record, Record)
+        assert isinstance(self.storage, Buffer)
+        self.storage.buffer_delete(record)
 
     @property
     def buffer_limit(self):
@@ -1124,6 +1148,21 @@ class StoredList(object):
         return new_list
 
 
+class StoredColumn(StoredList):
+    def __init__(self, header, datatype, allow_empty, data=None):
+        super().__init__()
+        assert isinstance(header, str)
+        self.header = header
+        assert isinstance(datatype, type)
+        assert hasattr(DataTypes, datatype.__name__)
+        self.datatype = datatype
+        assert isinstance(allow_empty, bool)
+        self.allow_empty = allow_empty
+
+        if data:
+            for v in data:
+                self.append(v)  # append does the type check.
+
 class Column(list):
     def __init__(self, header, datatype, allow_empty, data=None):
         super().__init__()
@@ -1210,6 +1249,15 @@ class Table(object):
     def __init__(self, **kwargs):
         self.columns = {}
         self.metadata = {**kwargs}
+        self._use_stored_list = False
+
+    def use_stored_lists(self):
+        if self._use_stored_list:
+            return
+        self._use_stored_list = True
+        for col_name, column in self.columns.items():
+            new = StoredColumn(col_name, column.datatype, column.allow_empty, data=column)
+            self.columns[col_name] = new
 
     def __eq__(self, other):
         if not isinstance(other, Table):
@@ -2457,7 +2505,6 @@ def file_reader(path, **kwargs):
         assert isinstance(table, Table), "programmer returned something else than a Table"
         find_format(table)
         yield table
-
 
 
 
