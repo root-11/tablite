@@ -1,6 +1,6 @@
 from time import process_time
 from table import StoredList
-from random import shuffle
+from random import shuffle, randint
 
 
 def test_basic_stored_list():
@@ -67,6 +67,31 @@ def test_basic_stored_list():
     last_A_value = A.pop()
     last_B_value = B.pop()
     assert last_A_value == last_B_value
+
+
+def test_memory_footprint():
+    A = StoredList(buffer_limit=200)
+    t = 0
+    for i in range(int(1e3)):
+        A.append(i)
+        t += i
+    t2 = 0
+    for i in A:
+        t2 += i
+    assert t == t2
+
+
+def test_index():
+    n = int(1e6)
+    A = StoredList(buffer_limit=1000)
+    A.extend(list(range(n)))
+    start = process_time()
+    m = 1000
+    for i in range(m):
+        ix = randint(0, n)
+        v = A[ix]
+    end = process_time()
+    print(end - start, "for ", m, "lookups is", 1000 * (end - start) / m , "msec per lookup")
 
 
 def test_sort_performance1():
