@@ -283,6 +283,10 @@ We've thereby saved 50 Mb by avoiding the overhead from managing 1 million rows.
     78 Mb / 134 Mb = 56%. 
 
 Q: But why didn't I just use an array? It would have even lower memory footprint.
+A: First, array's don't handle None's and we get that frequently in dirty csv data.
+Second, Table needs even less memory.
+
+Let's start with an array:
 ```
 import array
 L = [array.array('i', [11 for _ in range(digits)]) for _ in range(10)]
@@ -290,8 +294,6 @@ L = [array.array('i', [11 for _ in range(digits)]) for _ in range(10)]
 # at this point we're using 60.0 Mb to store 10 lists with 1 million integers.
 L.clear() 
 ```
-A: Array's don't handle None's well and we get that frequently in dirty csv data.
-
 
 Now let's use Table:
 
@@ -312,7 +314,7 @@ t.use_disk = True
 ```
 
 Conclusion a drop from 154.2 Mb to 24.5 Mb working memory using tables in
-1 line of code.
+1 line of code: `t.use_disk = True`.
 
 ----------------
 
