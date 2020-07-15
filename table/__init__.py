@@ -1261,7 +1261,7 @@ class Table(object):
     def __init__(self, **kwargs):
         self.columns = {}
         self.metadata = {**kwargs}
-        self._use_disk = False
+        self._use_disk = kwargs.get('use_disk', False)
 
     @property
     def use_disk(self):
