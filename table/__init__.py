@@ -1304,14 +1304,14 @@ class Table(object):
         return any(self.columns)
 
     def __copy__(self):
-        t = Table()
+        t = Table(use_disk=self._use_disk)
         for col in self.columns.values():
             t.add_column(col.header, col.datatype, col.allow_empty, data=col[:])
         t.metadata = self.metadata.copy()
         return t
 
     def __repr__(self):
-        return f"{self.__class__.__name__}()"
+        return f"{self.__class__.__name__}(use_disk={self._use_disk})"
 
     def __str__(self):
         variation = ""
@@ -1348,9 +1348,17 @@ class Table(object):
         c_lens = {}
         for h in headers:
             col = self.columns[h]
-            assert isinstance(col, Column)
+            assert isinstance(col, (Column, StoredColumn))
             c_lens[h] = max(
                 [len(col.header), len(str(col.datatype.__name__)), len(str(False))] + [len(str(v)) for v in col[slc]])
+
+        def adjust(v, length):
+            if v is None:
+                return str(v).ljust(length)
+            elif isinstance(v, str):
+                return v.ljust(length)
+            else:
+                return str(v).rjust(length)
 
         print("+", "+".join(["=" * c_lens[h] for h in headers]), "+", sep="")
         print("|", "|".join([h.center(c_lens[h], " ") for h in headers]), "|", sep="")
@@ -1358,7 +1366,7 @@ class Table(object):
         print("|", "|".join([str(self.columns[h].allow_empty).center(c_lens[h], " ") for h in headers]), "|", sep="")
         print("+", "+".join(["-" * c_lens[h] for h in headers]), "+", sep="")
         for row in self.filter(*tuple(headers) + (slc,)):
-            print("|", "|".join([v.ljust(c_lens[h]) if isinstance(v, str) else str(v).rjust(c_lens[h]) for v, h in zip(row, headers)]), "|", sep="")
+            print("|", "|".join([adjust(v, c_lens[h]) for v, h in zip(row, headers)]), "|", sep="")
         print("+", "+".join(["=" * c_lens[h] for h in headers]), "+", sep="")
 
     def copy(self):
@@ -1400,7 +1408,10 @@ class Table(object):
     def add_column(self, header, datatype, allow_empty=False, data=None):
         assert isinstance(header, str)
         header = self.check_for_duplicate_header(header)
-        self.columns[header] = Column(header, datatype, allow_empty, data=data)
+        if self._use_disk is False:
+            self.columns[header] = Column(header, datatype, allow_empty, data=data)
+        else:
+            self.columns[header] = StoredColumn(header, datatype, allow_empty, data=data)
 
     def add_row(self, values):
         if not isinstance(values, tuple):
@@ -1438,7 +1449,7 @@ class Table(object):
         if isinstance(item, int):
             item = slice(item, item + 1, 1)
         if isinstance(item, slice):
-            t = Table()
+            t = Table(use_disk=self._use_disk)
             for col in self.columns.values():
                 t.add_column(col.header, col.datatype, col.allow_empty, col[item])
             return t
@@ -1638,7 +1649,7 @@ class Table(object):
             if not ixs:  # There are no matches.
                 break
 
-        t = Table()
+        t = Table(use_disk=self._use_disk)
         for col in self.columns.values():
             t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
         return t
@@ -1660,7 +1671,7 @@ class Table(object):
                 ix2 = {ix for ix, r in enumerate(col) if v == r}
             ixs.update(ix2)
 
-        t = Table()
+        t = Table(use_disk=self._use_disk)
         for col in self.columns.values():
             t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
         return t
@@ -1689,7 +1700,7 @@ class Table(object):
         """
         self._join_type_check(other, keys, columns)  # raises if error
 
-        left_join = Table()
+        left_join = Table(use_disk=self._use_disk)
         for col_name in columns:
             if col_name in self.columns:
                 col = self.columns[col_name]
@@ -1731,7 +1742,7 @@ class Table(object):
         """
         self._join_type_check(other, keys, columns)  # raises if error
 
-        inner_join = Table()
+        inner_join = Table(use_disk=self._use_disk)
         for col_name in columns:
             if col_name in self.columns:
                 col = self.columns[col_name]
@@ -1771,7 +1782,7 @@ class Table(object):
         """
         self._join_type_check(other, keys, columns)  # raises if error
 
-        outer_join = Table()
+        outer_join = Table(use_disk=self._use_disk)
         for col_name in columns:
             if col_name in self.columns:
                 col = self.columns[col_name]
