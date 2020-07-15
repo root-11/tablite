@@ -1257,11 +1257,13 @@ class StoredColumn(CommonColumn, StoredList):  # MRO: CC first, then StoredList.
 
 
 class Table(object):
+    new_tables_use_disk = False
+
     """ The main workhorse for data processing. """
     def __init__(self, **kwargs):
         self.columns = {}
         self.metadata = {**kwargs}
-        self._use_disk = kwargs.get('use_disk', False)
+        self._use_disk = kwargs.get('use_disk', self.new_tables_use_disk)
 
     @property
     def use_disk(self):
