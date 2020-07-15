@@ -22,6 +22,7 @@ def test_datatype_inference():
     assert DataTypes.infer("-2.932e5", float) == -2.932e5
     assert DataTypes.infer("10e5", float) == 10e5
     assert DataTypes.infer("-10e5", float) == -10e5
+    assert DataTypes.infer("-10e-5", float) == -10e-5
 
     # booleans
     assert DataTypes.infer('true', bool) is True
