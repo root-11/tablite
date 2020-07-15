@@ -199,7 +199,6 @@ class DataTypes(object):
 
     @staticmethod
     def from_json(v, dtype):
-
         if v in DataTypes.nones:
             if dtype is str and v == "":
                 return ""
@@ -652,7 +651,11 @@ class Record(object):
 
 
 class Buffer(object):
-    """ internal storage class of the StoredList """
+    """ internal storage class of the StoredList
+
+    If you want to store using remote connections or another format
+    simply override the methods in this class.
+    """
     sql_create = "CREATE TABLE records (id INTEGER PRIMARY KEY, data BLOB);"
     sql_journal_off = "PRAGMA journal_mode = OFF"
     sql_sync_off = "PRAGMA synchronous = OFF "
@@ -897,6 +900,10 @@ class StoredList(object):
         self._load_from_list(new_list)
 
     def sort(self, reverse=False):
+        """ Implements a hybrid of quicksort and merge sort.
+
+        See more on https://en.wikipedia.org/wiki/External_sorting
+        """
         for r in self.records:
             r.sort(reverse=reverse)
             r.save()
@@ -1148,9 +1155,9 @@ class StoredList(object):
         return new_list
 
 
-class StoredColumn(StoredList):
-    def __init__(self, header, datatype, allow_empty, data=None):
-        super().__init__()
+class CommonColumn(object):
+    """ A Stored list with the necessary metadata to imitate a Column """
+    def __init__(self, header, datatype, allow_empty, *args):
         assert isinstance(header, str)
         self.header = header
         assert isinstance(datatype, type)
@@ -1158,28 +1165,9 @@ class StoredColumn(StoredList):
         self.datatype = datatype
         assert isinstance(allow_empty, bool)
         self.allow_empty = allow_empty
-
-        if data:
-            for v in data:
-                self.append(v)  # append does the type check.
-
-class Column(list):
-    def __init__(self, header, datatype, allow_empty, data=None):
-        super().__init__()
-        assert isinstance(header, str)
-        self.header = header
-        assert isinstance(datatype, type)
-        assert hasattr(DataTypes, datatype.__name__)
-        self.datatype = datatype
-        assert isinstance(allow_empty, bool)
-        self.allow_empty = allow_empty
-
-        if data:
-            for v in data:
-                self.append(v)  # append does the type check.
 
     def __eq__(self, other):
-        if not isinstance(other, Column):
+        if not isinstance(other, (StoredColumn, Column)):
             a, b = self.__class__.__name__, other.__class__.__name__
             raise TypeError(f"cannot compare {a} with {b}")
 
@@ -1245,19 +1233,56 @@ class Column(list):
         super().__setitem__(key, value)
 
 
+# class Column(list):
+class Column(CommonColumn, list):
+    """ A list with metadata for use in the Table class. """
+    def __init__(self, header, datatype, allow_empty, data=None):
+        CommonColumn.__init__(self, header, datatype, allow_empty)
+        list.__init__(self)
+
+        if data:
+            for v in data:
+                self.append(v)  # append does the type check.
+
+
+class StoredColumn(CommonColumn, StoredList):
+    """ A Stored list with the necessary metadata to imitate a Column """
+    def __init__(self, header, datatype, allow_empty, data=None):
+        CommonColumn.__init__(self, header, datatype, allow_empty)
+        StoredList.__init__(self)
+
+        if data:
+            for v in data:
+                self.append(v)  # append does the type check.
+
+
 class Table(object):
+    """ The main workhorse for data processing. """
     def __init__(self, **kwargs):
         self.columns = {}
         self.metadata = {**kwargs}
-        self._use_stored_list = False
+        self._use_disk = False
 
-    def use_stored_lists(self):
-        if self._use_stored_list:
+    @property
+    def use_disk(self):
+        return self._use_disk
+
+    @use_disk.setter
+    def use_disk(self, value):
+        if not isinstance(value, bool):
+            raise TypeError(str(value))
+        if self._use_disk == value:
             return
-        self._use_stored_list = True
-        for col_name, column in self.columns.items():
-            new = StoredColumn(col_name, column.datatype, column.allow_empty, data=column)
-            self.columns[col_name] = new
+
+        self._use_disk = value
+        if value is True:
+            for col_name, column in self.columns.items():
+                new = StoredColumn(col_name, column.datatype, column.allow_empty, data=column)
+                self.columns[col_name] = new
+        else:
+            for col_name, column in self.columns.items():
+                new = Column(col_name, column.datatype, column.allow_empty, data=column)
+                self.columns[col_name] = new
 
     def __eq__(self, other):
         if not isinstance(other, Table):
