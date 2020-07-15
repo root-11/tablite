@@ -15,6 +15,7 @@ def test_datatype_inference():
 
     # floats
     assert DataTypes.infer("2932,500", float) == 2932.5
+    assert DataTypes.infer("2,932.500", float) == 2932.5
     assert DataTypes.infer("2932.500", float) == 2932.5
     assert DataTypes.infer("-2932.500", float) == -2932.5
     assert DataTypes.infer("2.932,500", float) == 2932.5
@@ -32,8 +33,12 @@ def test_datatype_inference():
     assert DataTypes.infer('False', bool) is False
     assert DataTypes.infer('FALSE', bool) is False
 
+    # strings
+    assert DataTypes.infer(7, str) == "7"
+
     # dates
     isodate = date(1990, 1, 1)
+    assert DataTypes.infer(isodate, date) == isodate
     assert DataTypes.infer(isodate.isoformat(), date) == isodate
     assert DataTypes.infer("1990-01-01", date) == date(1990, 1, 1)  # date with minus
     assert DataTypes.infer("2003-09-25", date) == date(2003, 9, 25)
@@ -81,12 +86,14 @@ def test_datatype_inference():
 
     # times
     isotime = time(23, 12, 11)
+    assert DataTypes.infer(isotime, time) == isotime
     assert DataTypes.infer(isotime.isoformat(), time) == time(23, 12, 11)
     assert DataTypes.infer("23:12:11", time) == time(23, 12, 11)
     assert DataTypes.infer("23:12:11.123456", time) == time(23, 12, 11, 123456)
 
     # datetimes
     isodatetime = datetime.now()
+    assert DataTypes.infer(isodatetime, datetime) == isodatetime
     assert DataTypes.infer(isodatetime.isoformat(), datetime) == isodatetime
     dirty_date = datetime(1990, 1, 1, 23, 12, 11, int(0.003 * 10 ** 6))
     assert DataTypes.infer("1990-01-01T23:12:11.003000", datetime) == dirty_date  # iso minus T microsecond
