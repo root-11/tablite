@@ -1571,7 +1571,7 @@ class Table(object):
         """
         sorted_index = self._sort_index(**kwargs)
         for col_name, col in self.columns.items():
-            assert isinstance(col, Column)
+            assert isinstance(col, (StoredColumn, Column))
             col.replace(values=[col[ix] for ix in sorted_index])
 
     def is_sorted(self, **kwargs):

@@ -94,7 +94,7 @@ def test_index():
     print(end - start, "for ", m, "lookups is", 1000 * (end - start) / m , "msec per lookup")
 
 
-def test_sort_performance2():
+def test_sort_performance1():
     A = StoredList()
     A.buffer_limit = 5 * 3
     A.extend([1] * 5 + [2] * 5 + [3] * 5 + [4] * 5)
@@ -110,9 +110,9 @@ def test_sort_performance2():
     assert A == data
 
 
-def test_sort_performance1():
+def test_sort_performance2():
     A = StoredList()
-    n = A.buffer_limit *10
+    n = A.buffer_limit * 10
     data = list(range(n))
     shuffle(data)
     A.extend(data)
