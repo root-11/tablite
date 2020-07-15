@@ -1217,7 +1217,7 @@ class CommonColumn(object):
 
     def append(self, __object) -> None:
         self.type_check(__object)
-        super().append(__object)
+        super().append(__object)  # call handled by super on the sub-class.
 
     def replace(self, values) -> None:
         assert isinstance(values, list)
@@ -1228,28 +1228,28 @@ class CommonColumn(object):
         self.clear()
         self.extend(values)
 
-    def __setitem__(self, key, value):  # this is handled by stored list.
+    def __setitem__(self, key, value):
         self.type_check(value)
         super().__setitem__(key, value)
 
 
 # class Column(list):
-class Column(CommonColumn, list):
+class Column(CommonColumn, list):  # MRO: CC first, then list.
     """ A list with metadata for use in the Table class. """
     def __init__(self, header, datatype, allow_empty, data=None):
-        CommonColumn.__init__(self, header, datatype, allow_empty)
-        list.__init__(self)
+        CommonColumn.__init__(self, header, datatype, allow_empty)  # first init the cc attrs.
+        list.__init__(self)  # then init the list attrs.
 
         if data:
             for v in data:
                 self.append(v)  # append does the type check.
 
 
-class StoredColumn(CommonColumn, StoredList):
+class StoredColumn(CommonColumn, StoredList):  # MRO: CC first, then StoredList.
     """ A Stored list with the necessary metadata to imitate a Column """
     def __init__(self, header, datatype, allow_empty, data=None):
-        CommonColumn.__init__(self, header, datatype, allow_empty)
-        StoredList.__init__(self)
+        CommonColumn.__init__(self, header, datatype, allow_empty)  # first init the cc attrs.
+        StoredList.__init__(self)  # then init the list attrs.
 
         if data:
             for v in data:
