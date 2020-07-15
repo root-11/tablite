@@ -236,6 +236,83 @@ you can provide a split as a keyword:
 table = filereader('web.log', split_sequence `" ", " ", " ", " "," [", "] (", ") ", " : ", "LineNo ", " scanned ", "of "`)
 ```
 
+### But what do I do if I'm about to run out of memory?
+
+```
+import table
+table.new_tables_use_disk = True  # Sets global property for all new tables.
+
+path = 'zip_full_of_large_csvs.zip'  # 314 Gb unzipped.
+tables = filereader(path)  # uses 11 Mb of memory to manage 314 Gb of data.
+
+```
+
+Let's do a comparison:
+
+```
+from table import StoredList, Table
+
+digits = 1_000_000
+
+# go and check taskmanagers memory usage. 
+# At this point were using ~20.3 Mb ram to python started.
+
+# Let's now use the common and convenient "row" based format:
+
+L = []
+for _ in range(digits):
+    L.append(tuple([11 for _ in range(10)]))
+
+# go and check taskmanagers memory usage.
+# At this point we're using ~154.2 Mb to store 1 million lists with 10 items. 
+L.clear() 
+
+# Let's now use a columnar format instead:
+L = [[11 for i in range(digits)] for _ in range(10)]
+
+# go and check taskmanagers memory usage.
+# at this point we're using ~98.2 Mb to store 10 lists with 1 million items.
+L.clear() 
+
+```
+We've thereby saved 50 Mb by avoiding the overhead from managing 1 million rows.
+
+    Python alone: 20.3 Mb
+    1,000,000 lists: 154 Mb --> 134 Mb of lists and data.
+    10 lists: 98.2 Mb --> 78 Mb of lists and data.
+    78 Mb / 134 Mb = 56%. 
+
+Q: But why didn't I just use an array? It would have even lower memory footprint.
+```
+import array
+L = [array.array('i', [11 for _ in range(digits)]) for _ in range(10)]
+# go and check taskmanagers memory usage.
+# at this point we're using 60.0 Mb to store 10 lists with 1 million integers.
+L.clear() 
+```
+A: Array's don't handle None's well and we get that frequently in dirty csv data.
+
+
+Now let's use Table:
+
+```
+t = Table()
+for i in range(10):
+    t.add_column(str(i), int, allow_empty=False, data=[11 for _ in range(digits)])
+
+# go and check taskmanagers memory usage.
+# At this point we're using  97.5 Mb to store 10 columns with 1 million integers.
+
+# Next we'll use the api `use_stored_lists` to drop to disk:
+t.use_disk = True
+
+# go and check taskmanagers memory usage.
+# At this point we're using  24.5 Mb to store 10 columns with 1 million integers.
+# Only the metadata remains in pythons memory.
+```
+
+Conclusion a drop from 154.2 Mb to 24.5 Mb working memory using tables in
+1 line of code.
 
 ----------------
 
@@ -546,6 +623,7 @@ pivot_table.show()
 ```
 
 ---------------------
+
 
 
 This concludes the mega-tutorial to `tablite`. There's nothing more to it.
