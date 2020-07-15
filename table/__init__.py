@@ -188,11 +188,11 @@ class DataTypes(object):
             return v
         elif isinstance(v, bool):
             return str(v)
-        elif isinstance(v, date):
+        elif isinstance(v, datetime):
             return v.isoformat()
         elif isinstance(v, time):
             return v.isoformat()
-        elif isinstance(v, datetime):
+        elif isinstance(v, date):
             return v.isoformat()
         else:
             raise TypeError(f"The datatype {type(v)} is not supported.")
