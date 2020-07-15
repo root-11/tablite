@@ -112,18 +112,18 @@ def test_sort_performance2():
 
 def test_sort_performance1():
     A = StoredList()
-    A.buffer_limit = int(1e6)
-    data = list(range(int(1e7)))
+    n = A.buffer_limit *10
+    data = list(range(n))
     shuffle(data)
     A.extend(data)
 
     start = process_time()
     A.sort()
-    print(process_time() - start)
+    print("sort on disk allows {:,.0f} items/sec".format(n/(process_time() - start)))
 
     start = process_time()
     data.sort()
-    print(process_time() - start)
+    print("sort in memory allows {:,.0f} items/sec".format(n/(process_time() - start)))
     assert A == data
 
 
