@@ -32,6 +32,9 @@ def test_basic_stored_list():
     assert 44 in A
     assert 44 in B
 
+    assert 4444 not in A
+    assert 4444 not in B
+
     A.reverse()
     assert A != B
     B.reverse()

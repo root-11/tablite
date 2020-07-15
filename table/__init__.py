@@ -180,14 +180,16 @@ class DataTypes(object):
     def to_json(v):
         if v is None:
             return v
-        if isinstance(v, int):
+        elif v is False:  # using isinstance(v, bool): won't work as False also is int of zero.
+            return str(v)
+        elif v is True:
+            return str(v)
+        elif isinstance(v, int):
             return v
         elif isinstance(v, str):
             return v
         elif isinstance(v, float):
             return v
-        elif isinstance(v, bool):
-            return str(v)
         elif isinstance(v, datetime):
             return v.isoformat()
         elif isinstance(v, time):
@@ -211,7 +213,12 @@ class DataTypes(object):
         elif dtype is float:
             return float(v)
         elif dtype is bool:
-            return bool(v)
+            if v == 'False':
+                return False
+            elif v == 'True':
+                return True
+            else:
+                raise ValueError(v)
         elif dtype is date:
             return date.fromisoformat(v)
         elif dtype is datetime:
@@ -223,7 +230,7 @@ class DataTypes(object):
 
     @staticmethod
     def infer(v, dtype):
-        if v is DataTypes.nones:
+        if v in DataTypes.nones:
             return None
         if dtype is int:
             return DataTypes._infer_int(v)
@@ -294,7 +301,7 @@ class DataTypes(object):
                 value = value.replace('.', '')  # --> 1234,567
                 value = value.replace(',', '.')  # --> 1234.567
             elif dot_index > comma_index > 0:  # 1,234.678
-                value = value.replace(',', '.')
+                value = value.replace(',', '')
             elif comma_index and dot_index == -1:
                 value = value.replace(',', '.')
             else:
@@ -403,29 +410,29 @@ class DataTypes(object):
     types = [datetime, date, time, int, bool, float, str]
 
     @staticmethod
-    def infer_range_from_slice(slice_item, records):
+    def infer_range_from_slice(slice_item, length):
         assert isinstance(slice_item, slice)
-        assert isinstance(records, int)
+        assert isinstance(length, int)
         item = slice_item
 
         if all((item.start is None,
                item.stop is None,
                item.step is None)):
-            return 0, records, 1
+            return 0, length, 1
 
         if item.step is None or item.step > 0:  # forward traverse
             step = 1
             if item.start is None:
                 start = 0
             elif item.start < 0:
-                start = records + item.start
+                start = length + item.start
             else:
                 start = item.start
 
-            if item.stop is None or item.stop > records:
-                stop = records
+            if item.stop is None or item.stop > length:
+                stop = length
             elif item.stop < 0:
-                stop = records + item.stop
+                stop = length + item.stop
             else:
                 stop = item.stop
 
@@ -437,16 +444,16 @@ class DataTypes(object):
         elif item.step < 0:  # item.step < 0: backward traverse
             step = item.step
             if item.start is None:  # a[::-1]
-                start = records
+                start = length
             elif item.start < 0:
-                start = item.start + records
+                start = item.start + length
             else:
                 start = item.start
 
             if item.stop is None:
                 stop = 0
             elif item.stop < 0:
-                stop = item.stop + records
+                stop = item.stop + length
             else:
                 stop = item.stop
 
@@ -554,10 +561,7 @@ class Record(object):
         max_len = self.stored_list.buffer_limit
         # first store what fits.
         space = max_len - len(self)
-        try:
-            part, items = items[:space], items[space:]
-        except Exception:
-            raise
+        part, items = items[:space], items[space:]
         self.buffer.extend(part)
         if len(self.buffer) == max_len:
             self.save()
@@ -628,11 +632,8 @@ class Record(object):
             yield v
 
     def __getitem__(self, item):
-        if isinstance(item, (slice, int)):
-            self.load()
-            return self.buffer[item]
-        else:
-            raise NotImplementedError
+        self.load()
+        return self.buffer[item]
 
     def __setitem__(self, key, value):
         self.load()
@@ -1278,13 +1279,12 @@ class Table(object):
 
         self._use_disk = value
         if value is True:
-            for col_name, column in self.columns.items():
-                new = StoredColumn(col_name, column.datatype, column.allow_empty, data=column)
-                self.columns[col_name] = new
+            C = StoredColumn
         else:
-            for col_name, column in self.columns.items():
-                new = Column(col_name, column.datatype, column.allow_empty, data=column)
-                self.columns[col_name] = new
+            C = Column
+
+        for col_name, column in self.columns.items():
+            self.columns[col_name] = C(col_name, column.datatype, column.allow_empty, data=column)
 
     def __eq__(self, other):
         if not isinstance(other, Table):
@@ -1391,7 +1391,8 @@ class Table(object):
 
     @classmethod
     def from_file(cls, path, **kwargs):
-        """ reads path and returns 1 or more tables. """
+        """ reads path and returns 1 or more tables.
+        Use `list(Table.from_file(...))` to obtain all tables """
         for table in file_reader(path, **kwargs):
             yield table
 

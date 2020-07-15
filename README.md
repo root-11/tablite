@@ -34,7 +34,7 @@ Usage:  `>>> import table`
 - it checks if the header name is already in use.
 - you can add any type of metadata to the table as `table.metadata['some key'] = 'some value'`
 - you can ask `column_xyz in Table.colums`
-- load from file with `Table.from_file('this.csv')` which has automatic datatype detection
+- load from files with `tables = list(Table.from_file('this.csv'))` which has automatic datatype detection
 - perform sql join between tables 
 - summarise using `table.groupby( ... )` 
 - create pivot tables using `groupby.pivot( ... )`
