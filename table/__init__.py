@@ -675,7 +675,11 @@ class Buffer(object):
             c.execute(self.sql_sync_off)
 
     def __del__(self):
-        self._conn.close()
+        try:
+            self._conn.close()
+        except Exception:
+            self._conn.interrupt()
+            self._conn.close()
         self.file.unlink()
 
     def windows_tempfile(self, prefix='tmp', suffix='.db'):
@@ -1311,7 +1315,10 @@ class Table(object):
         return t
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(use_disk={self._use_disk})"
+        m = self.metadata.copy()
+        m['use_disk'] = self._use_disk
+        kwargs = ", ".join(f"{k}={v}" for k,v in sorted(m.items()))
+        return f"{self.__class__.__name__}({kwargs})"
 
     def __str__(self):
         variation = ""
@@ -2269,7 +2276,7 @@ def text_reader(path, split_sequence=None, sep=None):
     if split_sequence is None and sep is None:  #
         sep = detect_seperator(path, encoding)
 
-    t = Table(use_disk=True)
+    t = Table()
     t.metadata['filename'] = path.name
     n_columns = None
     with path.open('r', encoding=encoding) as fi:

@@ -319,3 +319,13 @@ def test_filereader_zipped():
 
     assert {t.metadata['filename'] for t in tables} == set(file_names)
     zipped.unlink()
+
+
+def test_all_on_disk():
+    Table.new_tables_use_disk = True
+    for k, v in sorted(globals().items()):
+        if k == 'test_all_on_disk':
+            continue
+        if k.startswith('test') and callable(v):
+            v()
+    Table.new_tables_use_disk = False
