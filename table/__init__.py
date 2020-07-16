@@ -725,7 +725,7 @@ class StoredList(object):
         self.storage = None
         self.records = []
         if not isinstance(buffer_limit, int):
-            raise TypeError
+            raise TypeError(f'buffer_limit must be int, not {type(buffer_limit)}')
         self._buffer_limit = buffer_limit
 
     # internal data management methods
