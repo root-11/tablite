@@ -2466,28 +2466,29 @@ def find_format(table):
     assert isinstance(table, Table)
 
     for col_name, column in table.columns.items():
-        values = set(column)  # reduce the values to the minimum set.
+        assert isinstance(column, (StoredColumn, Column))
+        column.allow_empty = any(v in DataTypes.nones for v in column)
 
-        ni = DataTypes.nones.intersection(values)  # remove known values for None.
-        if ni:
-            column.allow_empty = True
-            for i in ni:
-                values.remove(i)
-        else:
-            column.allow_empty = False
+        values = [v for v in column if v not in DataTypes.nones]
+        assert isinstance(column, (StoredColumn, Column))
+        values.sort()
 
         works = []
         if not values:
             works.append((0, DataTypes.str))
         else:
             for dtype in DataTypes.types:  # try all datatypes.
+                last_value = None
                 c = 0
                 for v in values:
-                    try:
-                        DataTypes.infer(v, dtype)  # handles None gracefully.
-                        c += 1
-                    except (ValueError, TypeError):
-                        break
+                    if v != last_value:  # no need to repeat duplicates.
+                        try:
+                            DataTypes.infer(v, dtype)  # handles None gracefully.
+                        except (ValueError, TypeError):
+                            break
+                        last_value = v
+                    c += 1
+
                 works.append((c, dtype))
                 if c == len(values):
                     break  # we have a complete match for the simplest
