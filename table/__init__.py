@@ -1263,8 +1263,8 @@ class Table(object):
     """ The main workhorse for data processing. """
     def __init__(self, **kwargs):
         self.columns = {}
+        self._use_disk = kwargs.pop('use_disk', self.new_tables_use_disk)
         self.metadata = {**kwargs}
-        self._use_disk = kwargs.get('use_disk', self.new_tables_use_disk)
 
     @property
     def use_disk(self):
@@ -2269,7 +2269,7 @@ def text_reader(path, split_sequence=None, sep=None):
     if split_sequence is None and sep is None:  #
         sep = detect_seperator(path, encoding)
 
-    t = Table()
+    t = Table(use_disk=True)
     t.metadata['filename'] = path.name
     n_columns = None
     with path.open('r', encoding=encoding) as fi:
@@ -2491,7 +2491,7 @@ def find_format(table):
                 works.append((c, dtype))
                 if c == len(values):
                     break  # we have a complete match for the simplest
-                    # dataformat for all values. No need to do more work.
+                    # data format for all values. No need to do more work.
 
         for c, dtype in works:
             if c == len(values):
