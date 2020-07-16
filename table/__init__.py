@@ -2248,7 +2248,7 @@ def detect_seperator(path, encoding):
     for line in path.open('r', encoding=encoding):  # pick the first line only.
         text = line
         break
-    seps = {',', '\t', ';', ':', '|', '	'}.intersection(text)
+    seps = {',', '\t', ';', ':', '|'}.intersection(text)
     if not seps:
         if " " in text:
             return " "
