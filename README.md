@@ -8,7 +8,7 @@
 
 We're all tired of reinventing the wheel when we need to process a bit of data.
 
-- Pandas has a huge memory overhead.
+- Pandas has a huge memory overhead when the datatypes are messy (hint: They are!).
 - Numpy has become a language of it's own. It just doesn't seem pythonic anymore.
 - Arrows [isn't ready](https://arrow.apache.org/docs/python/dataset.html).
 - SQLite is great but just too slow, particularly on disk.
@@ -19,7 +19,7 @@ discover that we've just spent 3 hours doing something that should have taken
 20 minutes. No more please!
 
 ### Enter: [Tablite](https://pypi.org/project/tablite/)
-A python library for tables that does everything you need in 60kB.
+A python library for tables that does everything you need in 89kB.
 
 Install: `pip install tablite`  
 Usage:  `>>> import table`  
@@ -35,10 +35,10 @@ Usage:  `>>> import table`
   - you can load it with `Table.from_json(json_str)`.
 - Type checking is automatic when you append or replace values. 
 - it checks if the header name is already in use.
-- you can add any type of metadata to the table as `table.metadata['some key'] = 'some value'`
-- you can ask `column_xyz in Table.colums`
+- you can add any type of metadata to the table as `table(some_key='some_value')` or as `table.metadata['some key'] = 'some value'`.
+- you can ask `column_xyz in Table.colums` ?
 - load from files with `tables = list(Table.from_file('this.csv'))` which has automatic datatype detection
-- perform sql join between tables 
+- perform inner, outer & left sql join between tables as simple as `table_1.inner_join(table2, keys=['A', 'B'])` 
 - summarise using `table.groupby( ... )` 
 - create pivot tables using `groupby.pivot( ... )`
 
@@ -47,12 +47,13 @@ Here are some examples:
 
 ```
 # 1. Create the table.
-table = Table()
+table = Table()  # in memory
+table_on_disk = Table(use_disk=True)  # on disk in Tempfile.gettempdir()
 
 # 2. Add a column
 table.add_column('A', int, False)
 
-# 3. check that it really is there.
+# 3. check that the column is there.
 assert 'A' in table
 
 # 4. Add another column that doesn't tolerate None's
@@ -212,7 +213,7 @@ assert table5 == table5_from_json
 
 ### Okay, great. How do I load data?
 
-Easy. Use `filereader`
+Easy. Use `filereader`. Here's an example:
 
 ```
 from pathlib import Path
@@ -225,19 +226,22 @@ for filename in ['data.csv', 'data.xlsx', 'data.txt', 'data.tsv', 'data.ods']:
         ...
 ```
 
-table.filereader currently accepts the following formats:
+table.filereader currently accepts the following formats:  
 
 `csv, tsv, txt, xls, xlsx, xlsm, ods, zip, log.`
 
-And should have some wicked format like:
+And should you have some wicked format like:  
 
-input: ```19-Sep 02:59:47.153 web_id821 LOG 62.13.11.127 [3] (USER_N) ProcessScannedItem() : Scan[35572] LineNo 201636 scanned 1 of product 2332```
+```19-Sep 02:59:47.153 web_id821 LOG 62.13.11.127 [3] (USER_N) ProcessScannedItem() : Scan[35572] LineNo 201636 scanned 1 of product 2332```
 
-you can provide a split as a keyword:
+you can provide a split_sequence as a keyword:
 
 ```
 table = filereader('web.log', split_sequence `" ", " ", " ", " "," [", "] (", ") ", " : ", "LineNo ", " scanned ", "of "`)
 ```
+
+I've included all formats in the test suite that are publicly available from 
+the alan turing institute, dateutils and csv reader. 
 
 ### But what do I do if I'm about to run out of memory?
 
@@ -278,12 +282,12 @@ L = [[11 for i in range(digits)] for _ in range(10)]
 L.clear() 
 
 ```
-We've thereby saved 50 Mb by avoiding the overhead from managing 1 million rows.
+We've thereby saved 50 Mb by avoiding the overhead from managing 1 million lists.
 
     Python alone: 20.3 Mb
-    1,000,000 lists: 154 Mb --> 134 Mb of lists and data.
-    10 lists: 98.2 Mb --> 78 Mb of lists and data.
-    78 Mb / 134 Mb = 56%. 
+    1,000,000 lists of 10 values: 154 Mb ram with 134 Mb for the lists and data.
+    10 lists of 1,000,000 values: 98.2 Mb ram with 78 Mb for lists and data.
+    Saved: 100% - (78 Mb / 134 Mb) = 44%. 
 
 Q: But why didn't I just use an array? It would have even lower memory footprint.
 A: First, array's don't handle None's and we get that frequently in dirty csv data.
@@ -319,10 +323,18 @@ t.use_disk = True
 Conclusion a drop from 154.2 Mb to 24.5 Mb working memory using tables in
 1 line of code: `t.use_disk = True`.
 
+If you want all your tables to be on disk, set the class variable `Table.new_tables_use_disk = True`.  
+If you want a single table to be on disk, use `t = Table(use_disk=True)`.  
+If you want an existing table to drop to disk use: `t.use_disk = True`
+
+
 ----------------
 
 ### At this point you know it's a solid bread and butter table. 
-### No surprises. Now onto the real time savers
+### No surprises. Now onto the features that will save a lot of time.
+
+
+### Iteration
 
 **_Iteration_** supports for loops and list comprehension at the speed of c: 
 
@@ -366,6 +378,9 @@ assert list(t.columns) == list('abcdefg')
 
 ```
 
+### Sort
+
+
 **_Sort_** supports multi-column sort as simple as `table.sort(**{'A': False, 'B': True, 'C': False})`
 
 Here's an example:
@@ -390,7 +405,11 @@ assert list(table7.rows) == [
     (None, 100, 1)
 ]
 ```
-This takes us to filter:
+This takes us to filter.
+
+
+### Filter
+
 
 **_Filter_** allows selection of particular rows like: 
 
@@ -413,6 +432,9 @@ As you can see, the table is sorted first by column `B` in ascending order, then
 by column 'C' and finally by column 'A'. Note that `None` is handled as `float('-inf')`
 
 
+### Create Index / Indices
+
+
 **_Index_** supports multi-key indexing using args: `table.index('B','C')`. 
 
 This gives you a dictionary with the key as a tuple and the indices as a set, e.g. 
@@ -423,6 +445,8 @@ This gives you a dictionary with the key as a tuple and the indices as a set, e.
     }
 
 
+
+### search using All and ANY
 
 **_All_** allows copy of a table where "all" criteria match.
 
@@ -450,6 +474,9 @@ assert list(after.rows) == [(1, 'hello'), (1, 'hello'), (44, 'Hallo')]
 ```
 
 ----------------
+
+### SQL join operations
+
 
 **_SQL JOINs_** are supported out of the box. 
 
@@ -493,6 +520,9 @@ outer_join = left.outer_join(right, keys=['colour'], columns=['number','letter']
 ```
 
 ----------------
+
+### Groupby and Pivot tables
+
 
 **_GroupBy_** operations are supported using the GroupBy class.
 
@@ -589,6 +619,9 @@ for a, b, stdev, avg in g.rows:
      # ... do something ...
 ```
 
+### Did I say pivot table? Yes.
+
+
 **Pivot Table** included in the groupby? Yes. You can pivot the groupby on any
 column that is used for grouping. Here's a simple example:
 
@@ -629,12 +662,24 @@ pivot_table.show()
 
 ---------------------
 
-
+### Conclusions
 
 This concludes the mega-tutorial to `tablite`. There's nothing more to it.
 But oh boy it'll save a lot of time.
 
+Here's a summary of features:
 
+- Everything a list can do, plus data type checking.
+- import csv*, tsv, txt, xls, xlsx, xlsm, ods, zip and log using `Table.from_file(...)`
+- import multiple files use `filereader`.
+- Move fluently between disk and ram using `t.use_disk = True/False`
+- Iterate over rows or columns
+- Create multikey index, sort, use filter, any and all to select.
+- Perform multikey joins with other tables.
+- Perform groupby and reorganise data as a pivot table with max, min, sum, first, last, count, unique, average, st.deviation, median and mode
+- Update tables with += which automatically sorts out the columns - even if they're not in perfect order.
+- Calculate out-of-memory summaries using += on groupby, f.x. groupby += t1
+  
 
 
 

@@ -1,7 +1,7 @@
 """
 tablite
 """
-build_tag = "ab12f48fc56e8ffdfafeaa692e626e5b96ef13cc6b368acbffcab93ca311f0ec"
+build_tag = "b288ccb9cc872d3747e4dd4856e4d15e908805766cf4cbf72f4262dc00e8f8c2"
 from setuptools import setup
 from pathlib import Path
 
@@ -15,7 +15,12 @@ with open(str(readme), encoding='utf-8') as f:
     long_description = f.read()
 
 keywords = list({
-    'tables'
+    'table', 'tables', 'csv', 'txt', 'excel', 'xlsx', 'ods', 'zip', 'log',
+    'any', 'all', 'filter', 'column', 'columns', 'rows', 'from', 'json', 'to',
+    'inner join', 'outer join', 'left join', 'groupby', 'pivot', 'pivot table',
+    'sort', 'is sorted', 'show', 'use disk', 'out-of-memory', 'list on disk',
+    'stored list', 'min', 'max', 'sum', 'first', 'last', 'count', 'unique',
+    'average', 'standard deviation', 'median', 'mode', 'in-memory', 'index'
 })
 
 keywords.sort(key=lambda x: x.lower())
@@ -23,7 +28,7 @@ keywords.sort(key=lambda x: x.lower())
 
 setup(
     name="tablite",
-    version="2020.6.30.66481",
+    version="2020.7.17.40404",
     url="https://github.com/root-11/tablite",
     license="MIT",
     author="Bjorn Madsen",
