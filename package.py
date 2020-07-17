@@ -3,9 +3,9 @@ from datetime import datetime
 import subprocess
 import hashlib
 
-# -------------------------------------------
-# This script packages Graph-theory for pypi
-# -------------------------------------------
+# --------------------------------------
+# This script packages tablite for pypi
+# --------------------------------------
 
 folder = Path(__file__).parent
 
