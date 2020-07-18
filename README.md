@@ -446,7 +446,7 @@ This gives you a dictionary with the key as a tuple and the indices as a set, e.
 
 
 
-### search using All and ANY
+### search using ALL and ANY
 
 **_All_** allows copy of a table where "all" criteria match.
 
