@@ -284,7 +284,10 @@ class DataTypes(object):
             value_set = set(value)
             if value_set - DataTypes.integers:  # set comparison.
                 raise ValueError
-            return int(float(value))
+            try:
+                return int(float(value))
+            except Exception:
+                raise ValueError(f"{value} is not an integer")
         else:
             raise ValueError
 
@@ -297,11 +300,14 @@ class DataTypes(object):
         elif isinstance(value, str):
             value = value.replace('"', '')
             dot_index, comma_index = value.find('.'), value.find(',')
-            if 0 < dot_index < comma_index:  # 1.234,567
+            if dot_index == comma_index == -1:
+                pass  # there are no dots or commas.
+            elif 0 < dot_index < comma_index:  # 1.234,567
                 value = value.replace('.', '')  # --> 1234,567
                 value = value.replace(',', '.')  # --> 1234.567
             elif dot_index > comma_index > 0:  # 1,234.678
                 value = value.replace(',', '')
+
             elif comma_index and dot_index == -1:
                 value = value.replace(',', '.')
             else:
@@ -316,8 +322,10 @@ class DataTypes(object):
             # check that reverse conversion is valid,
             # otherwise we have loss of precision. F.ex.:
             # int(0.532) --> 0
-
-            float_value = float(value)
+            try:
+                float_value = float(value)
+            except Exception:
+                raise ValueError(f"{value} is not a float.")
             if value_set.intersection('Ee'):  # it's scientific notation.
                 v = value.lower()
                 if v.count('e') != 1:
