@@ -1,11 +1,11 @@
-from table import text_escape, Table, file_reader, find_format
+from table import text_escape, Table, file_reader, find_format, detect_encoding
 from time import process_time_ns
-from datetime import date,time,datetime
+from datetime import date, time, datetime
 from pathlib import Path
 import zipfile
 
 
-def text_escape_tests():
+def test_text_escape():
     te = text_escape('"t"')
     assert te == ("t",)
 
@@ -172,7 +172,6 @@ def test_filereader_gdocs1xlsx():
     assert len(table) == 45
 
 
-
 def test_filereader_utf8csv():
     path = Path(__file__).parent / "data" / 'utf8_test.csv'
     assert path.exists()
@@ -224,6 +223,20 @@ def test_filereader_win1251_encoding_csv():
     book1_csv.add_column('Free Inv Pcs', int)
     assert table.compare(book1_csv), table.compare(book1_csv)
     assert len(table) == 99, len(table)
+
+
+def test_filereader_utf8sig_encoding_csv():
+    path = Path(__file__).parent / "data" / 'utf8sig.csv'
+    assert path.exists()
+    table = list(file_reader(path, sep=','))[0]
+    table.show(slice(0, 10))
+    table.show(slice(-15))
+
+    book1_csv = Table(filename=path.name)
+    book1_csv.add_column('432', int)
+    book1_csv.add_column('1', int)
+    assert table.compare(book1_csv), table.compare(book1_csv)
+    assert len(table) == 2, len(table)
 
 
 def test_filereader_saptxt():
@@ -329,3 +342,7 @@ def test_all_on_disk():
         if k.startswith('test') and callable(v):
             v()
     Table.new_tables_use_disk = False
+
+
+
+

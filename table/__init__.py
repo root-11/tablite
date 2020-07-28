@@ -1,13 +1,13 @@
 import json
 import pickle
-from itertools import count, compress
+from itertools import count
 from collections import defaultdict
 from datetime import datetime, date, time
 from pathlib import Path
 from random import choice
 from string import ascii_lowercase
 
-import array
+
 import zlib
 from tempfile import gettempdir
 import sqlite3
@@ -2225,12 +2225,24 @@ def split_by_sequence(text, sequence):
     return chunks
 
 
+encodings = [
+    'utf-32',
+    'utf-16',
+    'ascii',
+    'utf-8',
+    'windows-1252',
+    'utf-7',
+]
+
+
 def detect_encoding(path):
     """ helper that automatically detects encoding from files. """
     assert isinstance(path, Path)
-    for encoding in ['ascii', 'utf-8', 'utf-16', 'windows-1252']:
+    for encoding in encodings:
         try:
-            _ = path.open('r', encoding=encoding).read(100)
+            snippet = path.open('r', encoding=encoding).read(100)
+            if snippet.startswith('ï»¿'):
+                return 'utf-8-sig'
             return encoding
         except (UnicodeDecodeError, UnicodeError):
             pass
@@ -2292,6 +2304,8 @@ def text_reader(path, split_sequence=None, sep=None):
             end = windows if line.endswith(windows) else unix
 
             line = line.rstrip(end)
+            line = line.lstrip('\ufeff')
+
             if split_sequence:
                 values = split_by_sequence(line, split_sequence)
             elif line.count('"') >= 2 or line.count("'") >= 2:
@@ -2300,13 +2314,12 @@ def text_reader(path, split_sequence=None, sep=None):
                 values = tuple((i.lstrip().rstrip() for i in line.split(sep)))
 
             if not t.columns:
-
                 for v in values:
                     header = v.rstrip(" ").lstrip(" ")
                     t.add_column(header, datatype=str, allow_empty=True)
                 n_columns = len(values)
             else:
-                if n_columns - 1 == len(values):
+                while n_columns > len(values):
                     values += ('', )
                 t.add_row(values)
     yield t
