@@ -2302,9 +2302,10 @@ def text_reader(path, split_sequence=None, sep=None):
     with path.open('r', encoding=encoding) as fi:
         for line in fi:
             end = windows if line.endswith(windows) else unix
+            # this is more robust if the file was concatenated by a non-programmer, than doing it once only.
 
             line = line.rstrip(end)
-            line = line.lstrip('\ufeff')
+            line = line.lstrip('\ufeff')  # utf-8-sig byte order mark.
 
             if split_sequence:
                 values = split_by_sequence(line, split_sequence)
@@ -2319,7 +2320,7 @@ def text_reader(path, split_sequence=None, sep=None):
                     t.add_column(header, datatype=str, allow_empty=True)
                 n_columns = len(values)
             else:
-                while n_columns > len(values):
+                while n_columns > len(values):  # this makes the reader more robust.
                     values += ('', )
                 t.add_row(values)
     yield t
@@ -2384,17 +2385,17 @@ def excel_datetime(value):
     return value  # .. we tried...
 
 
+excel_datatypes = {0: lambda x: None,  # empty string
+                   1: lambda x: str(x),  # unicode string
+                   2: lambda x: x,  # numeric int or float
+                   3: lambda x: excel_datetime(x),  # datetime float
+                   4: lambda x: True if x == 1 else False,  # boolean
+                   5: lambda x: str(x)}  # error code
+
+
 def excel_sheet_reader(sheet):
     """ returns Table from a spreadsheet sheet. """
     assert isinstance(sheet, xlrd.sheet.Sheet)
-
-    excel_datatypes = {0: lambda x: None,  # empty string
-                       1: lambda x: str(x),  # unicode string
-                       2: lambda x: x,  # numeric int or float
-                       3: lambda x: excel_datetime(x),  # datetime float
-                       4: lambda x: True if x == 1 else False,  # boolean
-                       5: lambda x: str(x)}  # error code
-
     t = Table()
     t.metadata['sheet_name'] = sheet.name
 
@@ -2529,6 +2530,19 @@ def find_format(table):
                 break
 
 
+readers = {
+        'csv': [text_reader, {}],
+        'tsv': [text_reader, {}],
+        'txt': [text_reader, {}],
+        'xls': [excel_reader, {}],
+        'xlsx': [excel_reader, {}],
+        'xlsm': [excel_reader, {}],
+        'ods': [ods_reader, {}],
+        'zip': [zip_reader, {}],
+        'log': [log_reader, {'sep': False}]
+    }
+
+
 def file_reader(path, **kwargs):
     """
     :param path: pathlib.Path object with extension as:
@@ -2549,20 +2563,7 @@ def file_reader(path, **kwargs):
         >>> for table in file_reader(filename):
                 ...
     """
-
     assert isinstance(path, Path)
-    readers = {
-        'csv': [text_reader, {}],
-        'tsv': [text_reader, {}],
-        'txt': [text_reader, {}],
-        'xls': [excel_reader, {}],
-        'xlsx': [excel_reader, {}],
-        'xlsm': [excel_reader, {}],
-        'ods': [ods_reader, {}],
-        'zip': [zip_reader, {}],
-        'log': [log_reader, {'sep': False}]
-    }
-
     extension = path.name.split(".")[-1]
     if extension not in readers:
         raise TypeError(f"Filetype for {path.name} not recognised.")
