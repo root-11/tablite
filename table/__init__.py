@@ -2525,8 +2525,17 @@ def find_format(table):
 
         for c, dtype in works:
             if c == len(values):
-                column.datatype = dtype
-                column.replace([DataTypes.infer(v, dtype) if v not in DataTypes.nones else None for v in column])
+                values.clear()
+                if table.use_disk:
+                    c2 = StoredColumn
+                else:
+                    c2 = Column
+
+                new_column = c2(column.header, dtype, column.allow_empty)
+                for v in column:
+                    new_column.append(DataTypes.infer(v, dtype) if v not in DataTypes.nones else None)
+                column.clear()
+                table.columns[col_name] = new_column
                 break
 
 
