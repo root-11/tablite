@@ -1545,7 +1545,7 @@ class Table(object):
             yield item
 
     def index(self, *args):
-        """ Creates index on *args columns as d[(key tuple, ) = {index1, index2, ...} """
+        """ Creates index on *args columns as d[(key tuple, )] = {index1, index2, ...} """
         idx = defaultdict(set)
         for ix, key in enumerate(self.filter(*args)):
             idx[key].add(ix)
