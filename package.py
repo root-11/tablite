@@ -70,5 +70,5 @@ else:  # Step 4. make a new setup.py.
         print(response.stdout.read().decode())
     else:
         print("new setup.py created with build_tag {}".format(current_build_tag))
-        print(r"next: run: twine upload dist\table-{}.tar.gz".format(version[1:-1]))
+        print(r"next: run: twine upload dist\tablite-{}.tar.gz".format(version[1:-1]))
 
