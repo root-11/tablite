@@ -1,2 +1,2 @@
-xlrd>=1.2.0
+openpyxl>=3.0.5
 pyexcel-ods>=0.5.6
