@@ -243,6 +243,41 @@ table = filereader('web.log', split_sequence `" ", " ", " ", " "," [", "] (", ")
 I've included all formats in the test suite that are publicly available from 
 the alan turing institute, dateutils and csv reader. 
 
+### Cool. Does it play well with plotly?
+
+Yes. Here's an example you can copy paste:
+```
+from table import Table
+
+t = Table()
+t.add_column('a', int, data=[1, 2, 8, 3, 4, 6, 5, 7, 9], allow_empty=True)
+t.add_column('b', int, data=[10, 100, 3, 4, 16, -1, 10, 10, 10])
+
+t[:5].show()
+
+    +=====+=====+
+    |  a  |  b  |
+    | int | int |
+    | True|False|
+    +-----+-----+
+    |    1|   10|
+    |    2|  100|
+    |    8|    3|
+    |    3|    4|
+    |    4|   16|
+    +=====+=====+
+
+import plotly.graph_objects as go
+fig = go.Figure()
+fig.add_trace(go.Scatter(y=t['a']))
+fig.add_trace(go.Bar(y=t['b']))
+fig.update_layout(title = 'Hello Figure')
+fig.show()
+```
+
+![new plot](images/newplot.png)
+
+
 ### But what do I do if I'm about to run out of memory?
 
 ```
