@@ -1840,6 +1840,25 @@ class Table(object):
         return outer_join
 
     def groupby(self, keys, functions):
+        """
+        :param keys: headers for grouping
+        :param functions: list of headers and functions.
+        :return: GroupBy class
+
+        Example usage:
+            from table import Table
+
+            t = Table()
+            t.add_column('date', int, allow_empty=False, data=[1,1,1,2,2,2])
+            t.add_column('sku', int, allow_empty=False, data=[1,2,3,1,2,3])
+            t.add_column('qty', int, allow_empty=False, data=[4,5,4,5,3,7])
+
+            from table import GroupBy, Sum
+
+            g = t.groupby(keys=['sku'], functions=[('qty', Sum)])
+            g.table.show()
+
+        """
         g = GroupBy(keys=keys, functions=functions)
         g += self
         return g
@@ -2011,6 +2030,22 @@ class GroupBy(object):
         :param keys: headers for grouping
         :param functions: list of headers and functions.
         :return: None.
+
+        Example usage:
+        --------------------
+        from table import Table
+
+        t = Table()
+        t.add_column('date', int, allow_empty=False, data=[1,1,1,2,2,2])
+        t.add_column('sku', int, allow_empty=False, data=[1,2,3,1,2,3])
+        t.add_column('qty', int, allow_empty=False, data=[4,5,4,5,3,7])
+
+        from table import GroupBy, Sum
+
+        g = GroupBy(keys=['sku'], functions=[('qty', Sum)])
+        g += t
+        g.table.show()
+
         """
         assert isinstance(keys, list)
         assert len(set(keys)) == len(keys), "duplicate key found."
