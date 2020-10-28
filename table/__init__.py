@@ -1411,6 +1411,15 @@ class Table(object):
         for table in file_reader(path, **kwargs):
             yield table
 
+    def from_table(self, table):
+        """creates a new toble without the data"""
+        assert isinstance(table, Table)
+        t = Table(use_disk=self._use_disk)
+        for col in self.columns.values():
+            t.add_column(col.header, col.datatype, col.allow_empty, data=[])
+        t.metadata = self.metadata.copy()
+        return t
+
     def check_for_duplicate_header(self, header):
         assert isinstance(header, str)
         if not header:
