@@ -324,8 +324,8 @@ We've thereby saved 50 Mb by avoiding the overhead from managing 1 million lists
     10 lists of 1,000,000 values: 98.2 Mb ram with 78 Mb for lists and data.
     Saved: 100% - (78 Mb / 134 Mb) = 44%. 
 
-Q: But why didn't I just use an array? It would have even lower memory footprint.
-A: First, array's don't handle None's and we get that frequently in dirty csv data.
+Q: But why didn't I just use an array? It would have even lower memory footprint.  
+A: First, array's don't handle None's and we get that frequently in dirty csv data.  
 Second, Table needs even less memory.
 
 Let's start with an array:
