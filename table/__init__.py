@@ -1411,13 +1411,14 @@ class Table(object):
         for table in file_reader(path, **kwargs):
             yield table
 
-    def from_table(self, table):
-        """creates a new toble without the data"""
+    @staticmethod
+    def copy_columns_only(table):
+        """creates a new table without the data"""
         assert isinstance(table, Table)
-        t = Table(use_disk=self._use_disk)
-        for col in self.columns.values():
+        t = Table()
+        for col in table.columns.values():
             t.add_column(col.header, col.datatype, col.allow_empty, data=[])
-        t.metadata = self.metadata.copy()
+        t.metadata = table.metadata.copy()
         return t
 
     def check_for_duplicate_header(self, header):
