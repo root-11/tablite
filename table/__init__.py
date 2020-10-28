@@ -1782,7 +1782,7 @@ class Table(object):
                         elif col_name in other:
                             column.append(other[col_name][right_ix])
                         else:
-                            raise Exception("bad logic.")
+                            raise ValueError(f"column {col_name} not found. Duplicate names?")
         return inner_join
 
     def outer_join(self, other, keys, columns):
