@@ -1960,6 +1960,10 @@ class Average(GroupbyFunction):
 
 
 class StandardDeviation(GroupbyFunction):
+    """
+    Uses J.P. Welfords (1962) algorithm.
+    For details see https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm
+    """
     def __init__(self, datatype):
         super().__init__(datatype=float)  # datatype will be float no matter what type is given.
         self.count = 0
