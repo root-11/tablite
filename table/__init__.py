@@ -1914,14 +1914,18 @@ class Sum(Limit):
 
 
 class First(GroupbyFunction):
+    empty = (None, )
+    # we will never receive a tuple, so using (None,) as the initial
+    # value will assure that IF None is the first value, then it can
+    # be captured correctly.
+
     def __init__(self, datatype):
         super().__init__(datatype)
-        self.value = None
+        self.value = self.empty
 
     def update(self, value):
-        if self.value is None:
-            if value is not None:
-                self.value = value
+        if self.value is First.empty:
+            self.value = value
 
 
 class Last(GroupbyFunction):
@@ -1930,8 +1934,7 @@ class Last(GroupbyFunction):
         self.value = None
 
     def update(self, value):
-        if value is not None:
-            self.value = value
+        self.value = value
 
 
 class Count(GroupbyFunction):
@@ -1940,19 +1943,18 @@ class Count(GroupbyFunction):
         self.value = 0
 
     def update(self, value):
-        if value is not None:
-            self.value += 1
+        self.value += 1
 
 
 class CountUnique(GroupbyFunction):
     def __init__(self, datatype):
         super().__init__(datatype=int)  # datatype will be int no matter what type is given.
         self.items = set()
+        self.value = None
 
     def update(self, value):
-        if value is not None:
-            self.items.add(value)
-            self.value = len(self.items)
+        self.items.add(value)
+        self.value = len(self.items)
 
 
 class Average(GroupbyFunction):
@@ -2001,8 +2003,7 @@ class Histogram(GroupbyFunction):
         self.hist = defaultdict(int)
 
     def update(self, value):
-        if value is not None:
-            self.hist[value] += 1
+        self.hist[value] += 1
 
 
 class Median(Histogram):
@@ -2032,12 +2033,24 @@ class Mode(Histogram):
 
 
 class GroupBy(object):
-    functions = [
+    max = Max  # shortcuts to avoid having to type a long list of imports.
+    min = Min
+    sum = Sum
+    first = First
+    last = Last
+    count = Count
+    count_unique = CountUnique
+    avg = Average
+    stdev = StandardDeviation
+    median = Median
+    mode = Mode
+
+    _functions = [
         Max, Min, Sum, First, Last,
         Count, CountUnique,
         Average, StandardDeviation, Median, Mode
     ]
-    function_names = {f.__name__: f for f in functions}
+    _function_names = {f.__name__: f for f in _functions}
 
     def __init__(self, keys, functions):
         """
@@ -2061,42 +2074,64 @@ class GroupBy(object):
         g.table.show()
 
         """
-        assert isinstance(keys, list)
-        assert len(set(keys)) == len(keys), "duplicate key found."
+        if not isinstance(keys, list):
+            raise TypeError(f"Expected keys as a list of header names, not {type(keys)}")
+
+        if len(set(keys)) != len(keys):
+            duplicates = [k for k in keys if keys.count(k) > 1]
+            s = "" if len(duplicates) > 1 else "s"
+            raise ValueError(f"duplicate key{s} found: {duplicates}")
+
         self.keys = keys
 
-        assert isinstance(functions, list)
-        assert all(len(i) == 2 for i in functions)
-        assert all(isinstance(a, str) and issubclass(b, GroupbyFunction) for a, b in functions)
+        if not isinstance(functions, list):
+            raise TypeError(f"Expected functions to be a list of tuples. Got {type(functions)}")
+
+        if not all(len(i) == 2 for i in functions):
+            raise ValueError(f"Expected each tuple in functions to be of length 2. \nGot {functions}")
+
+        if not all(isinstance(a, str) for a, b in functions):
+            L = [(a, type(a)) for a, b in functions if not isinstance(a, str)]
+            raise ValueError(f"Expected header names in functions to be strings. Found: {L}")
+
+        if not all(issubclass(b, GroupbyFunction) and b in GroupBy._functions for a, b in functions):
+            L = [b for a, b in functions if b not in GroupBy._functions]
+            if len(L) == 1:
+                singular = f"function {L[0]} is not in GroupBy.functions"
+                raise ValueError(singular)
+            else:
+                plural = f"the functions {L} are not in GroupBy.functions"
+                raise ValueError(plural)
+
         self.groupby_functions = functions  # list with header name and function name
 
-        self.output = None   # class Table.
-        self.required_headers = None  # headers for reading input.
+        self._output = None   # class Table.
+        self._required_headers = None  # headers for reading input.
         self.data = defaultdict(list)  # key: [list of groupby functions]
-        self.function_classes = []  # initiated functions.
+        self._function_classes = []  # initiated functions.
 
         # Order is preserved so that this is doable:
         # for header, function, function_instances in zip(self.groupby_functions, self.function_classes) ....
 
-    def setup(self, table):
+    def _setup(self, table):
         """ helper to setup the group functions """
-        self.output = Table()
-        self.required_headers = self.keys + [h for h, fn in self.groupby_functions]
+        self._output = Table()
+        self._required_headers = self.keys + [h for h, fn in self.groupby_functions]
 
         for h in self.keys:
             col = table[h]
-            self.output.add_column(header=h, datatype=col.datatype, allow_empty=False)  # add column for keys
+            self._output.add_column(header=h, datatype=col.datatype, allow_empty=True)  # add column for keys
 
-        self.function_classes = []
+        self._function_classes = []
         for h, fn in self.groupby_functions:
             col = table[h]
             assert isinstance(col, Column)
             f_instance = fn(col.datatype)
             assert isinstance(f_instance, GroupbyFunction)
-            self.function_classes.append(f_instance)
+            self._function_classes.append(f_instance)
 
             function_name = f"{fn.__name__}({h})"
-            self.output.add_column(header=function_name, datatype=f_instance.datatype, allow_empty=True)  # add column for fn's.
+            self._output.add_column(header=function_name, datatype=f_instance.datatype, allow_empty=True)  # add column for fn's.
 
     def __iadd__(self, other):
         """
@@ -2104,17 +2139,17 @@ class GroupBy(object):
         To add more data use self += new data (Table)
         """
         assert isinstance(other, Table)
-        if self.output is None:
-            self.setup(other)
+        if self._output is None:
+            self._setup(other)
         else:
-            self.output.compare(other)  # this will raise if there are problems
+            self._output.compare(other)  # this will raise if there are problems
 
-        for row in other.filter(*self.required_headers):
-            d = {h: v for h, v in zip(self.required_headers, row)}
+        for row in other.filter(*self._required_headers):
+            d = {h: v for h, v in zip(self._required_headers, row)}
             key = tuple([d[k] for k in self.keys])
             functions = self.data.get(key)
             if not functions:
-                functions = [fn.__class__(fn.datatype) for fn in self.function_classes]
+                functions = [fn.__class__(fn.datatype) for fn in self._function_classes]
                 self.data[key] = functions
 
             for (h, fn), f in zip(self.groupby_functions, functions):
@@ -2125,33 +2160,33 @@ class GroupBy(object):
         """ helper that generates the result for .table and .rows """
         for key, functions in self.data.items():
             row = key + tuple(fn.value for fn in functions)
-            self.output.add_row(row)
+            self._output.add_row(row)
         self.data.clear()  # hereby we only create the table once.
-        self.output.sort(**{k: False for k in self.keys})
+        self._output.sort(**{k: False for k in self.keys})
 
     @property
     def table(self):
         """ returns Table """
-        if self.output is None:
+        if self._output is None:
             return None
 
         if self.data:
             self._generate_table()
 
-        assert isinstance(self.output, Table)
-        return self.output
+        assert isinstance(self._output, Table)
+        return self._output
 
     @property
     def rows(self):
         """ returns iterator for Groupby.rows """
-        if self.output is None:
+        if self._output is None:
             return None
 
         if self.data:
             self._generate_table()
 
-        assert isinstance(self.output, Table)
-        for row in self.output.rows:
+        assert isinstance(self._output, Table)
+        for row in self._output.rows:
             yield row
 
     def pivot(self, *args):
@@ -2208,30 +2243,30 @@ class GroupBy(object):
         if not all(isinstance(i, str) for i in args):
             raise TypeError(f"column name not str: {[i for i in columns if not isinstance(i,str)]}")
 
-        if self.output is None:
+        if self._output is None:
             return None
 
         if self.data:
             self._generate_table()
 
-        assert isinstance(self.output, Table)
-        if any(i not in self.output.columns for i in columns):
-            raise ValueError(f"column not found in groupby: {[i not in self.output.columns for i in columns]}")
+        assert isinstance(self._output, Table)
+        if any(i not in self._output.columns for i in columns):
+            raise ValueError(f"column not found in groupby: {[i not in self._output.columns for i in columns]}")
 
         sort_order = {k: False for k in self.keys}
-        if not self.output.is_sorted(**sort_order):
-            self.output.sort(**sort_order)
+        if not self._output.is_sorted(**sort_order):
+            self._output.sort(**sort_order)
 
         t = Table()
-        for col_name, col in self.output.columns.items():  # add vertical groups.
+        for col_name, col in self._output.columns.items():  # add vertical groups.
             if col_name in self.keys and col_name not in columns:
                 t.add_column(col_name, col.datatype, allow_empty=False)
 
         tup_length = 0
-        for column_key in self.output.filter(*columns):  # add horizontal groups.
+        for column_key in self._output.filter(*columns):  # add horizontal groups.
             col_name = ",".join(f"{h}={v}" for h, v in zip(columns, column_key))  # expressed "a=0,b=3" in column name "Sum(g, a=0,b=3)"
 
-            for (header, function), function_instances in zip(self.groupby_functions, self.function_classes):
+            for (header, function), function_instances in zip(self.groupby_functions, self._function_classes):
                 new_column_name = f"{function.__name__}({header},{col_name})"
                 if new_column_name not in t.columns:  # it's could be duplicate key value.
                     t.add_column(new_column_name, datatype=function_instances.datatype, allow_empty=True)
@@ -2240,16 +2275,16 @@ class GroupBy(object):
                     pass  # it's a duplicate.
 
         # add rows.
-        key_index = {k: i for i, k in enumerate(self.output.columns)}
+        key_index = {k: i for i, k in enumerate(self._output.columns)}
         old_v_keys = tuple(None for k in self.keys if k not in columns)
 
-        for row in self.output.rows:
+        for row in self._output.rows:
             v_keys = tuple(row[key_index[k]] for k in self.keys if k not in columns)
             if v_keys != old_v_keys:
                 t.add_row(v_keys + tuple(None for i in range(tup_length)))
                 old_v_keys = v_keys
 
-            function_values = [v for h, v in zip(self.output.columns, row) if h not in self.keys]
+            function_values = [v for h, v in zip(self._output.columns, row) if h not in self.keys]
 
             col_name = ",".join(f"{h}={row[key_index[h]]}" for h in columns)
             for (header, function), fi in zip(self.groupby_functions, function_values):
