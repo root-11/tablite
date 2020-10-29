@@ -115,3 +115,80 @@ def test_groupby_02():
 
     assert len(t2) == 6 and len(t2.columns) == 4
 
+
+def test_ttopi():
+    """ example code from the readme as "reverseing a pivot table". """
+    from random import seed, choice
+    seed(11)
+
+    records = 9
+    t = Table()
+    t.add_column('record id', int, allow_empty=False, data=[i for i in range(records)])
+    for column in [f"4.{i}.a" for i in range(5)]:
+        t.add_column(column, str, allow_empty=True, data=[choice(['a', 'h', 'e', None]) for i in range(records)])
+
+    print("\nshowing raw data:")
+    t.show()
+    # +=====+=====+
+    # |  A  |  B  |
+    # | str | str |
+    # |False|False|
+    # +-----+-----+
+    # |4.2.a|e    |
+    # |4.3.a|h    |
+    # |4.2.a|h    |
+    # |4.2.a|e    |
+    # |4.3.a|e    |
+    # |4.3.a|e    |
+    # |4.1.a|e    |
+    # |4.1.a|a    |
+    # |4.3.a|e    |
+    # |4.2.a|a    |
+    # |4.3.a|e    |
+    # |4.3.a|a    |
+    # |4.1.a|a    |
+    # |4.1.a|a    |
+    # |4.2.a|a    |
+    # |4.2.a|a    |
+    # |4.1.a|e    |
+    # |4.1.a|a    |
+    # |4.3.a|h    |
+    # |4.3.a|h    |
+    # |4.3.a|h    |
+    # |4.1.a|e    |
+    # +=====+=====+
+
+    # wanted output:
+    # +=====+=====
+    # |  A  | Count(A,B=a) | Count(A,B=h) | Count(A,B=e) |
+    # | str |     int      |     int      |     int      |
+    # |False|    False     |    False     |    False     |
+    # +-----+--------------+--------------+--------------+
+    # |4.1.a|            3 |            0 |            3 |
+    # |4.2.a|            3 |            1 |            2 |
+    # |4.3.a|            1 |            4 |            4 |
+    # +=====+==============+==============+==============+
+
+    reverse_pivot = Table()
+    records = t['record id']
+    reverse_pivot.add_column('record id', records.datatype, allow_empty=False)
+    reverse_pivot.add_column('4.x', str, allow_empty=False)
+    reverse_pivot.add_column('ahe', str, allow_empty=True)
+
+    for name in t.columns:
+        if not name.startswith('4.'):
+            continue
+        column = t[name]
+        for index, entry in enumerate(column):
+            new_row = records[index], name, entry  # record id, 4.x, ahe
+            reverse_pivot.add_row(new_row)
+
+    print("\nshowing reversed pivot of the raw data:")
+    reverse_pivot.show()
+
+    g = reverse_pivot.groupby(['4.x', 'ahe'], functions=[('ahe', GroupBy.count)])
+    print("\nshowing basic groupby of the reversed pivot")
+    g.table.show()
+    t2 = g.pivot('ahe')
+    print("\nshowing the wanted output:")
+    t2.show()
