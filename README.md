@@ -695,6 +695,152 @@ pivot_table.show()
 +=====+==========+==========+==========+==========+==========+==========+==========+==========+==========+==========+
 ```
 
+### If somebody sent me data that is already pivoted, how can I reverse it?
+
+Let's assume the data arrived as this:
+
+```
++=========+=====+=====+=====+=====+=====+
+|record id|4.0.a|4.1.a|4.2.a|4.3.a|4.4.a|
+|   int   | str | str | str | str | str |
+|  False  | True| True| True| True| True|
++---------+-----+-----+-----+-----+-----+
+|        0|None |e    |a    |h    |e    |
+|        1|None |h    |a    |e    |e    |
+|        2|None |a    |h    |None |h    |
+|        3|h    |a    |h    |a    |e    |
+|        4|h    |None |a    |a    |a    |
+|        5|None |None |None |None |a    |
+|        6|h    |h    |e    |e    |a    |
+|        7|a    |a    |None |None |None |
+|        8|None |a    |h    |a    |a    |
++=========+=====+=====+=====+=====+=====+
+```
+
+Hint: You can generate this table using:
+```
+from random import seed, choice
+seed(11)
+
+records = 9
+t = Table()
+t.add_column('record id', int, allow_empty=False, data=[i for i in range(records)])
+for column in [f"4.{i}.a" for i in range(5)]:
+    t.add_column(column, str, allow_empty=True, data=[choice(['a', 'h', 'e', None]) for i in range(records)])
+
+print("\nshowing raw data:")
+t.show()
+```
+
+To reverse the raw data, you can do this:
+
+```
+reverse_pivot = Table()
+records = t['record id']
+reverse_pivot.add_column('record id', records.datatype, allow_empty=False)
+reverse_pivot.add_column('4.x', str, allow_empty=False)
+reverse_pivot.add_column('ahe', str, allow_empty=True)
+
+for name in t.columns:
+    if not name.startswith('4.'):
+        continue
+    column = t[name]
+    for index, entry in enumerate(column):
+        new_row = records[index], name, entry  # record id, 4.x, ahe
+        reverse_pivot.add_row(new_row)
+```
+
+The "original" data then looks like this:
+```
+print("\nshowing reversed pivot of the raw data:")
+reverse_pivot.show()
+
+showing reversed pivot of the raw data:
++=========+=====+=====+
+|record id| 4.x | ahe |
+|   int   | str | str |
+|  False  |False| True|
++---------+-----+-----+
+|        0|4.0.a|None |
+|        1|4.0.a|None |
+|        2|4.0.a|None |
+|        3|4.0.a|h    |
+|        4|4.0.a|h    |
+|        5|4.0.a|None |
+|        6|4.0.a|h    |
+|        7|4.0.a|a    |
+|        8|4.0.a|None |
+|        0|4.1.a|e    |
+|        1|4.1.a|h    |
+|        2|4.1.a|a    |
+|        3|4.1.a|a    |
+
+   (cut for brevity)
+
+|        6|4.4.a|a    |
+|        7|4.4.a|None |
+|        8|4.4.a|a    |
++=========+=====+=====+
+
+```
+
+You can now "regroup" the data using groupby:
+
+```
+g = reverse_pivot.groupby(['4.x', 'ahe'], functions=[('ahe', GroupBy.count)])
+print("\nshowing basic groupby of the reversed pivot")
+g.table.show()
+
+    +=====+=====+==========+
+    | 4.x | ahe |Count(ahe)|
+    | str | str |   int    |
+    | True| True|   True   |
+    +-----+-----+----------+
+    |4.0.a|None |         5|
+    |4.0.a|a    |         1|
+    |4.0.a|h    |         3|
+    |4.1.a|None |         2|
+    |4.1.a|a    |         4|
+    |4.1.a|e    |         1|
+    |4.1.a|h    |         2|
+    |4.2.a|None |         2|
+    |4.2.a|a    |         3|
+    |4.2.a|e    |         1|
+    |4.2.a|h    |         3|
+    |4.3.a|None |         3|
+    |4.3.a|a    |         3|
+    |4.3.a|e    |         2|
+    |4.3.a|h    |         1|
+    |4.4.a|None |         1|
+    |4.4.a|a    |         4|
+    |4.4.a|e    |         3|
+    |4.4.a|h    |         1|
+    +=====+=====+==========+
+```
+
+And create a new pivot'ed summary, for example like this:
+
+```
+t2 = g.pivot('ahe')
+print("\nshowing the wanted output:")
+t2.show()
+
+    +=====+===================+================+================+================+
+    | 4.x |Count(ahe,ahe=None)|Count(ahe,ahe=a)|Count(ahe,ahe=h)|Count(ahe,ahe=e)|
+    | str |        int        |      int       |      int       |      int       |
+    |False|        True       |      True      |      True      |      True      |
+    +-----+-------------------+----------------+----------------+----------------+
+    |4.0.a|                  5|               1|               3|None            |
+    |4.1.a|                  2|               4|               2|               1|
+    |4.2.a|                  2|               3|               3|               1|
+    |4.3.a|                  3|               3|               1|               2|
+    |4.4.a|                  1|               4|               1|               3|
+    +=====+===================+================+================+================+
+
+```
+
+
+
 ---------------------
 
 ### Conclusions
