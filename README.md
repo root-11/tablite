@@ -210,6 +210,65 @@ table5_from_json = Table.from_json(table5_json)
 assert table5 == table5_from_json
 
 ```
+### How do I add data again?
+
+Here's a couple of examples:
+
+```
+from table import Table
+from itertools import count 
+
+t = Table()
+t.add_column('row', int)
+t.add_column('A', int)
+t.add_column('B', int)
+t.add_column('C', int)
+test_number = count(1)
+```
+
+The following examples are all valid and append the row (1,2,3) to the table.
+
+```
+t.add_row(1, 1, 2, 3)
+t.add_row([2, 1, 2, 3])
+t.add_row((3, 1, 2, 3))
+t.add_row(*(4, 1, 2, 3))
+t.add_row(row=5, A=1, B=2, C=3)
+t.add_row(**{'row': 6, 'A': 1, 'B': 2, 'C': 3})
+```
+
+The following examples add two rows to the table
+
+```
+t.add_row((7, 1, 2, 3), (8, 4, 5, 6))
+t.add_row([9, 1, 2, 3], [10, 4, 5, 6])
+t.add_row({'row': 11, 'A': 1, 'B': 2, 'C': 3},
+          {'row': 12, 'A': 4, 'B': 5, 'C': 6})  # two (or more) dicts as args.
+t.add_row(*[{'row': 13, 'A': 1, 'B': 2, 'C': 3},
+            {'row': 14, 'A': 1, 'B': 2, 'C': 3}])  # list of dicts.
+t.show()  
+
+    # +=====+=====+=====+=====+
+    # | row |  A  |  B  |  C  |
+    # | int | int | int | int |
+    # |False|False|False|False|
+    # +-----+-----+-----+-----+
+    # |    1|    1|    2|    3|
+    # |    2|    1|    2|    3|
+    # |    3|    1|    2|    3|
+    # |    4|    1|    2|    3|
+    # |    5|    1|    2|    3|
+    # |    6|    1|    2|    3|
+    # |    7|    1|    2|    3|
+    # |    8|    4|    5|    6|
+    # |    9|    1|    2|    3|
+    # |   10|    4|    5|    6|
+    # |   11|    1|    2|    3|
+    # |   12|    4|    5|    6|
+    # |   13|    1|    2|    3|
+    # |   14|    1|    2|    3|
+    # +=====+=====+=====+=====+
+```
 
 ### Okay, great. How do I load data?
 

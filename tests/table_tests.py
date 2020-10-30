@@ -1,5 +1,6 @@
 from table import *
 from datetime import date, time, datetime
+from itertools import count
 import zlib
 
 
@@ -198,6 +199,56 @@ def test_basic_table():
     table5_json = table5.to_json()
     table5_from_json = Table.from_json(table5_json)
     assert table5 == table5_from_json
+
+
+def test_add_rows():
+    """ Example from docstring. """
+    t = Table()
+    t.add_column('test', int)
+    t.add_column('A', int)
+    t.add_column('B', int)
+    t.add_column('C', int)
+    test_number = count(1)
+
+    # The following examples are all valid and append the row (1,2,3) to the table.
+
+    t.add_row(next(test_number), 1, 2, 3)
+    t.add_row([next(test_number), 1, 2, 3])
+    t.add_row((next(test_number), 1, 2, 3))
+    t.add_row(*(next(test_number), 1, 2, 3))
+    t.add_row(test=next(test_number), A=1, B=2, C=3)
+    t.add_row(**{'test': next(test_number), 'A': 1, 'B': 2, 'C': 3})
+
+    # The following examples add two rows to the table
+
+    t.add_row((next(test_number), 1, 2, 3), (next(test_number), 4, 5, 6))
+    t.add_row([next(test_number), 1, 2, 3], [next(test_number), 4, 5, 6])
+    t.add_row({'test': next(test_number), 'A': 1, 'B': 2, 'C': 3},
+              {'test': next(test_number), 'A': 4, 'B': 5, 'C': 6})  # two (or more) dicts as args.
+    t.add_row(*[{'test': next(test_number), 'A': 1, 'B': 2, 'C': 3},
+                {'test': next(test_number), 'A': 1, 'B': 2, 'C': 3}])  # list of dicts.
+    t.show()  # expects:
+    # +=====+=====+=====+=====+
+    # | test|  A  |  B  |  C  |
+    # | int | int | int | int |
+    # |False|False|False|False|
+    # +-----+-----+-----+-----+
+    # |    1|    1|    2|    3|
+    # |    2|    1|    2|    3|
+    # |    3|    1|    2|    3|
+    # |    4|    1|    2|    3|
+    # |    5|    1|    2|    3|
+    # |    6|    1|    2|    3|
+    # |    7|    1|    2|    3|
+    # |    8|    4|    5|    6|
+    # |    9|    1|    2|    3|
+    # |   10|    4|    5|    6|
+    # |   11|    1|    2|    3|
+    # |   12|    4|    5|    6|
+    # |   13|    1|    2|    3|
+    # |   14|    1|    2|    3|
+    # +=====+=====+=====+=====+
+    assert next(test_number) == 14 + 1
 
 
 def test_lookup_functions():  # doing lookups is supported by indexing:

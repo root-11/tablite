@@ -1439,13 +1439,82 @@ class Table(object):
         else:
             self.columns[header] = StoredColumn(header, datatype, allow_empty, data=data)
 
-    def add_row(self, values):
-        if not isinstance(values, tuple):
-            raise TypeError(f"expected tuple, got {type(values)}")
-        if len(values) != len(self.columns):
-            raise ValueError(f"expected {len(self.columns)} values not {len(values)}: {values}")
-        for value, col in zip(values, self.columns.values()):
-            col.append(value)
+    def add_row(self, *args, **kwargs):
+        """ Adds row(s) to the table.
+        :param args: see below
+        :param kwargs: see below
+        :return: None
+
+        Example:
+
+            t = Table()
+            t.add_column('A', int)
+            t.add_column('B', int)
+            t.add_column('C', int)
+
+        The following examples are all valid and append the row (1,2,3) to the table.
+
+            t.add_row(1,2,3)
+            t.add_row([1,2,3])
+            t.add_row((1,2,3))
+            t.add_row(*(1,2,3))
+            t.add_row(A=1, B=2, C=3)
+            t.add_row(**{'A':1, 'B':2, 'C':3})
+
+        The following examples add two rows to the table
+
+            t.add_row((1,2,3), (4,5,6))
+            t.add_row([1,2,3], [4,5,6])
+            t.add_row({'A':1, 'B':2, 'C':3}, {'A':4, 'B':5, 'C':6}) # two (or more) dicts as args.
+            t.add_row([{'A':1, 'B':2, 'C':3}, {'A':1, 'B':2, 'C':3}]) # list of dicts.
+
+        """
+        if args:
+            if not any(isinstance(i, (list, tuple, dict)) for i in args):
+                if len(args) == len(self.columns):
+                    args = (args, )
+                elif len(args) < len(self.columns):
+                    raise TypeError(f"{args} doesn't match the number of columns. Are values missing?")
+                elif len(args) > len(self.columns):
+                    raise TypeError(f"{args} doesn't match the number of columns. Too many values?")
+                else:
+                    raise TypeError(f"{args} doesn't match the format of the table.")
+
+            for arg in args:
+                if len(arg) != len(self.columns):
+                    raise ValueError(f"expected {len(self.columns)} columns, not {len(arg)}: {arg}")
+
+                if isinstance(arg, (list, tuple)):
+                    for value, col in zip(arg, self.columns.values()):
+                        col.append(value)
+
+                elif isinstance(arg, dict):
+                    for k, value in arg.items():
+                        col = self.columns.get(k, None)
+                        if col is None:
+                            raise ValueError(f"column {k} unknown: {list(self.columns)}")
+                        assert isinstance(col, (Column, StoredColumn))
+                        col.append(value)
+                else:
+                    raise TypeError(f"no handler for {type(arg)}s: {arg}")
+
+        if kwargs:
+            if len(kwargs) < len(self.columns):
+                missing = [k for k in kwargs if k not in self.columns]
+                raise ValueError(f"expected {len(self.columns)} columns, not {len(kwargs)}: Missing columns: {missing}")
+            elif len(kwargs) > len(self.columns):
+                excess = [k for k in kwargs if k not in self.columns]
+                raise ValueError(f"expected {len(self.columns)} columns, not {len(kwargs)}: Excess columns: {excess}")
+            else:
+                pass  # looks alright.
+
+            for k, value in kwargs.items():
+                col = self.columns.get(k, None)
+                if col is None:
+                    raise ValueError(f"column {k} unknown: {list(self.columns)}")
+                assert isinstance(col, (Column, StoredColumn))
+                col.append(value)
+            return
 
     def __contains__(self, item):
         return item in self.columns
