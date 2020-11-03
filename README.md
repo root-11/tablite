@@ -209,6 +209,15 @@ table5_json = table5.to_json()
 table5_from_json = Table.from_json(table5_json)
 assert table5 == table5_from_json
 
+# 27. Copy data to clipboard:
+
+t.copy_to_clipboard()
+
+# 28. Copy data from clipboard:
+
+t = Table.copy_from_clipboard()  
+
+
 ```
 ### How do I add data again?
 
