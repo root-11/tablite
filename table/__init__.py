@@ -689,7 +689,7 @@ class Buffer(object):
 
     def __init__(self):
         self.file = windows_tempfile()
-        self._conn = sqlite3.connect(self.file)  # SQLite3 connection
+        self._conn = sqlite3.connect(str(self.file))  # SQLite3 connection
         with self._conn as c:
             c.execute(self.sql_create)
             c.execute(self.sql_journal_off)
