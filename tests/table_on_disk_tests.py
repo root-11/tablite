@@ -198,29 +198,79 @@ def test_lookup_functions():  # doing lookups is supported by indexing:
 
 
 def test_sql_joins():  # a couple of examples with SQL join:
+    numbers = Table(use_disk=True)
+    numbers.add_column('number', int, allow_empty=True, data=[1, 2, 3, 4, None])
+    numbers.add_column('colour', str, data=['black', 'blue', 'white', 'white', 'blue'])
 
-    left = Table(use_disk=True)
-    left.add_column('number', int, allow_empty=True, data=[1, 2, 3, 4, None])
-    left.add_column('colour', str, data=['black', 'blue', 'white', 'white', 'blue'])
-
-    right = Table(use_disk=True)
-    right.add_column('letter', str, allow_empty=True, data=['a', 'b', 'c', 'd', None])
-    right.add_column('colour', str, data=['blue', 'white', 'orange', 'white', 'blue'])
+    letters = Table(use_disk=True)
+    letters.add_column('letter', str, allow_empty=True, data=['a', 'b', 'c', 'd', None])
+    letters.add_column('color', str, data=['blue', 'white', 'orange', 'white', 'blue'])
 
     # left join
-    # SELECT number, letter FROM left LEFT JOIN right on left.colour == right.colour
-    left_join = left.left_join(right, keys=['colour'], columns=['number', 'letter'])
+    # SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
+    left_join = numbers.left_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
     left_join.show()
+    # +======+======+
+    # |number|letter|
+    # | int  | str  |
+    # | True | True |
+    # +------+------+
+    # |     1|None  |
+    # |     2|a     |
+    # |     2|None  |
+    # |     3|b     |
+    # |     3|d     |
+    # |     4|b     |
+    # |     4|d     |
+    # |None  |a     |
+    # |None  |None  |
+    # +======+======+
+    assert [i for i in left_join['number']] == [1, 2, 2, 3, 3, 4, 4, None, None]
+    assert [i for i in left_join['letter']] == [None, 'a', None, 'b', 'd', 'b', 'd', 'a', None]
 
     # inner join
-    # SELECT number, letter FROM left JOIN right ON left.colour == right.colour
-    inner_join = left.inner_join(right, keys=['colour'], columns=['number', 'letter'])
+    # SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
+    inner_join = numbers.inner_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
     inner_join.show()
+    # +======+======+
+    # |number|letter|
+    # | int  | str  |
+    # | True | True |
+    # +------+------+
+    # |     2|a     |
+    # |     2|None  |
+    # |None  |a     |
+    # |None  |None  |
+    # |     3|b     |
+    # |     3|d     |
+    # |     4|b     |
+    # |     4|d     |
+    # +======+======+
+    assert [i for i in inner_join['number']] == [2, 2, None, None, 3, 3, 4, 4]
+    assert [i for i in inner_join['letter']] == ['a', None, 'a', None, 'b', 'd', 'b', 'd']
 
     # outer join
-    # SELECT number, letter FROM left OUTER JOIN right ON left.colour == right.colour
-    outer_join = left.outer_join(right, keys=['colour'], columns=['number', 'letter'])
+    # SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
+    outer_join = numbers.outer_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
     outer_join.show()
+    # +======+======+
+    # |number|letter|
+    # | int  | str  |
+    # | True | True |
+    # +------+------+
+    # |     1|None  |
+    # |     2|a     |
+    # |     2|None  |
+    # |     3|b     |
+    # |     3|d     |
+    # |     4|b     |
+    # |     4|d     |
+    # |None  |a     |
+    # |None  |None  |
+    # |None  |c     |
+    # +======+======+
+    assert [i for i in outer_join['number']] == [1, 2, 2, 3, 3, 4, 4, None, None, None]
+    assert [i for i in outer_join['letter']] == [None, 'a', None, 'b', 'd', 'b', 'd', 'a', None, 'c']
 
     assert left_join != inner_join
     assert inner_join != outer_join

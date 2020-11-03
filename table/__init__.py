@@ -1771,29 +1771,50 @@ class Table(object):
             t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
         return t
 
-    def _join_type_check(self, other, keys, columns):
+    def _join_type_check(self, other, left_keys, right_keys, columns):
         if not isinstance(other, Table):
             raise TypeError(f"other expected other to be type Table, not {type(other)}")
-        if not isinstance(keys, list) and all(isinstance(k, str) for k in keys):
-            raise TypeError(f"Expected keys as list of strings, not {type(keys)}")
-        union = list(self.columns) + list(other.columns)
-        if not all(k in self.columns and k in other.columns for k in keys):
-            raise ValueError(f"key(s) not found: {[k for k in keys if k not in union]}")
-        if not all(k in union for k in columns):
-            raise ValueError(f"column(s) not found: {[k for k in keys if k not in union]}")
 
-    def left_join(self, other, keys, columns):
+        if len(left_keys) != len(right_keys):
+            raise ValueError(f"Keys do not have same length: \n{left_keys}, \n{right_keys}")
+
+        if not isinstance(left_keys, list) and all(isinstance(k, str) for k in left_keys):
+            raise TypeError(f"Expected keys as list of strings, not {type(left_keys)}")
+        if not isinstance(right_keys, list) and all(isinstance(k, str) for k in right_keys):
+            raise TypeError(f"Expected keys as list of strings, not {type(right_keys)}")
+
+        if any(key not in self.columns for key in left_keys):
+            raise ValueError(f"left key(s) not found: {[k for k in left_keys if k not in self.columns]}")
+        if any(key not in other.columns for key in right_keys):
+            raise ValueError(f"right key(s) not found: {[k for k in right_keys if k not in other.columns]}")
+        for L, R in zip(left_keys, right_keys):
+            Lcol, Rcol = self.columns[L], other.columns[R]
+            if Lcol.datatype != Rcol.datatype:
+                raise TypeError(f"{L} is {Lcol.datatype}, but {R} is {Rcol.datatype}")
+
+        if columns is None:
+            pass
+        else:
+            union = list(self.columns) + list(other.columns)
+            if any(column not in union for column in columns):
+                raise ValueError(f"Column not found: {[column for column in columns if column not in union]}")
+
+    def left_join(self, other, left_keys, right_keys, columns=None):
         """
         :param other: self, other = (left, right)
-        :param keys: list of keys for the join
-        :param columns: list of columns to retain
+        :param left_keys: list of keys for the join
+        :param right_keys: list of keys for the join
+        :param columns: list of columns to retain, if None, all are retained.
         :return: new table
 
         Example:
-        SQL:   SELECT number, letter FROM left LEFT JOIN right on left.colour == right.colour
-        Table: left_join = left_table.left_join(right_table, keys=['colour'], columns=['number', 'letter'])
+        SQL:   SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
+        Table: left_join = numbers.left_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
         """
-        self._join_type_check(other, keys, columns)  # raises if error
+        if columns is None:
+            columns = list(self.columns) + list(other.columns)
+
+        self._join_type_check(other, left_keys, right_keys, columns)  # raises if error
 
         left_join = Table(use_disk=self._use_disk)
         for col_name in columns:
@@ -1806,10 +1827,10 @@ class Table(object):
             left_join.add_column(col_name, col.datatype, allow_empty=True)
 
         left_ixs = range(len(self))
-        right_idx = other.index(*keys)
+        right_idx = other.index(*right_keys)
 
         for left_ix in left_ixs:
-            key = tuple(self[h][left_ix] for h in keys)
+            key = tuple(self[h][left_ix] for h in left_keys)
             right_ixs = right_idx.get(key, (None,))
             for right_ix in right_ixs:
                 for col_name, column in left_join.columns.items():
@@ -1824,18 +1845,22 @@ class Table(object):
                         raise Exception('bad logic')
         return left_join
 
-    def inner_join(self, other, keys, columns):
+    def inner_join(self, other, left_keys, right_keys, columns=None):
         """
-        :param other: table
-        :param keys: list of keys
-        :param columns: list of columns to retain
-        :return: new Table
+        :param other: self, other = (left, right)
+        :param left_keys: list of keys for the join
+        :param right_keys: list of keys for the join
+        :param columns: list of columns to retain, if None, all are retained.
+        :return: new table
 
         Example:
-        SQL:   SELECT number, letter FROM left INNER JOIN right ON left.colour == right.colour
-        Table: inner_join = left_table.inner_join_with(right_table, keys=['colour'],  columns=['number','letter'])
+        SQL:   SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
+        Table: inner_join = numbers.inner_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
         """
-        self._join_type_check(other, keys, columns)  # raises if error
+        if columns is None:
+            columns = list(self.columns) + list(other.columns)
+
+        self._join_type_check(other, left_keys, right_keys, columns)  # raises if error
 
         inner_join = Table(use_disk=self._use_disk)
         for col_name in columns:
@@ -1847,12 +1872,12 @@ class Table(object):
                 raise ValueError(f"column name '{col_name}' not in any table.")
             inner_join.add_column(col_name, col.datatype, allow_empty=True)
 
-        key_union = set(self.filter(*keys)).intersection(set(other.filter(*keys)))
+        key_union = set(self.filter(*left_keys)).intersection(set(other.filter(*right_keys)))
 
-        left_ixs = self.index(*keys)
-        right_ixs = other.index(*keys)
+        left_ixs = self.index(*left_keys)
+        right_ixs = other.index(*right_keys)
 
-        for key in key_union:
+        for key in sorted(key_union):
             for left_ix in left_ixs.get(key, set()):
                 for right_ix in right_ixs.get(key, set()):
                     for col_name, column in inner_join.columns.items():
@@ -1864,18 +1889,22 @@ class Table(object):
                             raise ValueError(f"column {col_name} not found. Duplicate names?")
         return inner_join
 
-    def outer_join(self, other, keys, columns):
+    def outer_join(self, other, left_keys, right_keys, columns=None):
         """
-        :param other: table
-        :param keys: list of keys
-        :param columns: list of columns to retain
-        :return: new Table
+        :param other: self, other = (left, right)
+        :param left_keys: list of keys for the join
+        :param right_keys: list of keys for the join
+        :param columns: list of columns to retain, if None, all are retained.
+        :return: new table
 
         Example:
-        SQL:   SELECT number, letter FROM left OUTER JOIN right ON left.colour == right.colour
-        Table: outer_join = left_table.outer_join(right_table, keys=['colour'], columns=['number','letter'])
+        SQL:   SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
+        Table: outer_join = numbers.outer_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
         """
-        self._join_type_check(other, keys, columns)  # raises if error
+        if columns is None:
+            columns = list(self.columns) + list(other.columns)
+
+        self._join_type_check(other, left_keys, right_keys, columns)  # raises if error
 
         outer_join = Table(use_disk=self._use_disk)
         for col_name in columns:
@@ -1888,11 +1917,11 @@ class Table(object):
             outer_join.add_column(col_name, col.datatype, allow_empty=True)
 
         left_ixs = range(len(self))
-        right_idx = other.index(*keys)
+        right_idx = other.index(*right_keys)
         right_keyset = set(right_idx)
 
         for left_ix in left_ixs:
-            key = tuple(self[h][left_ix] for h in keys)
+            key = tuple(self[h][left_ix] for h in left_keys)
             right_ixs = right_idx.get(key, (None,))
             right_keyset.discard(key)
             for right_ix in right_ixs:
