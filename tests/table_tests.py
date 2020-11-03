@@ -373,3 +373,16 @@ def test_sortation():  # Sortation
 
     assert table7.is_sorted(**sort_order)
 
+
+def test_clipboard():
+    t = Table()
+    t.add_column('dog', int, data=[1, 4])
+    t.add_column('cat', int, data=[2, 5])
+    t.add_column('hat', int, data=[3, 6])
+    t.show()
+    t.copy_to_clipboard()
+    t2 = t.copy_from_clipboard()
+    assert t == t2
+
+
+
