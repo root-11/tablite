@@ -1,3 +1,4 @@
 openpyxl>=3.0.5
 xlrd>=1.2.0
 pyexcel-ods>=0.5.6
+pyperclip>=1.8.1

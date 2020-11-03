@@ -1,4 +1,5 @@
 import json
+import pyperclip
 import pickle
 from itertools import count
 from collections import defaultdict
@@ -659,6 +660,18 @@ class Record(object):
         del self.buffer[key]
 
 
+def windows_tempfile(prefix='tmp', suffix='.db'):
+    """ generates a safe tempfile which windows can't handle. """
+    safe_folder = Path(gettempdir())
+    while 1:
+        n = "".join(choice(ascii_lowercase) for _ in range(5))
+        name = f"{prefix}{n}{suffix}"
+        p = safe_folder / name
+        if not p.exists():
+            break
+    return p
+
+
 class Buffer(object):
     """ internal storage class of the StoredList
 
@@ -675,7 +688,7 @@ class Buffer(object):
     sql_select = "SELECT data FROM records WHERE id=?"
 
     def __init__(self):
-        self.file = self.windows_tempfile()
+        self.file = windows_tempfile()
         self._conn = sqlite3.connect(self.file)  # SQLite3 connection
         with self._conn as c:
             c.execute(self.sql_create)
@@ -689,17 +702,6 @@ class Buffer(object):
             self._conn.interrupt()
             self._conn.close()
         self.file.unlink()
-
-    def windows_tempfile(self, prefix='tmp', suffix='.db'):
-        """ generates a safe tempfile which windows can't handle. """
-        safe_folder = Path(gettempdir())
-        while 1:
-            n = "".join(choice(ascii_lowercase) for _ in range(5))
-            name = f"{prefix}{n}{suffix}"
-            p = safe_folder / name
-            if not p.exists():
-                break
-        return p
 
     def buffer_update(self, record):
         assert isinstance(record, Record)
@@ -1335,6 +1337,28 @@ class Table(object):
             longest_col = max(lengths.values())
             variation = f"(except {', '.join([f'{k}({v})' for k, v in lengths.items() if v < longest_col])})"
         return f"{self.__class__.__name__}() # {len(self.columns)} columns x {len(self)} rows {variation}"
+
+    def copy_to_clipboard(self):
+        """ copy data from a Table into clipboard. """
+        try:
+            s = ["\t".join([f"{name}" for name in self.columns])]
+            for row in self.rows:
+                s.append("\t".join((str(i) for i in row)))
+            s = "\n".join(s)
+            pyperclip.copy(s)
+        except MemoryError:
+            raise MemoryError("Cannot copy to clipboard. Select slice instead.")
+
+    @staticmethod
+    def copy_from_clipboard():
+        """ copy data from clipboard into Table. """
+        tempfile = windows_tempfile(suffix='.csv')
+        with open(tempfile, 'w') as fo:
+            fo.writelines(pyperclip.paste())
+        g = Table.from_file(tempfile)
+        t = list(g)[0]
+        del t.metadata['filename']
+        return t
 
     def show(self, *items):
         """ shows the table.
