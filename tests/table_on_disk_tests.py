@@ -306,3 +306,92 @@ def test_sortation():  # Sortation
 
     assert table7.is_sorted(**sort_order)
 
+
+def test_recreate_readme_comparison():
+    try:
+        import os
+        import psutil
+    except ImportError:
+        return
+    process = psutil.Process(os.getpid())
+    baseline_memory = process.memory_info().rss
+    from time import process_time
+
+    from table import Table
+
+    digits = 1_000_000
+
+    records = Table()
+    records.add_column('method', str)
+    records.add_column('memory', int)
+    records.add_column('time', float)
+
+    records.add_row(('python', baseline_memory, 0.0))
+
+    # Let's now use the common and convenient "row" based format:
+
+    start = process_time()
+    L = []
+    for _ in range(digits):
+        L.append(tuple([11 for _ in range(10)]))
+    end = process_time()
+
+    # go and check taskmanagers memory usage.
+    # At this point we're using ~154.2 Mb to store 1 million lists with 10 items.
+    records.add_row(('1e6 lists w. 10 integers', process.memory_info().rss - baseline_memory, round(end-start,4)))
+
+    L.clear()
+
+    # Let's now use a columnar format instead:
+    start = process_time()
+    L = [[11 for i in range(digits)] for _ in range(10)]
+    end = process_time()
+
+    # go and check taskmanagers memory usage.
+    # at this point we're using ~98.2 Mb to store 10 lists with 1 million items.
+    records.add_row(('10 lists with 1e6 integers', process.memory_info().rss - baseline_memory, round(end-start,4)))
+    L.clear()
+
+    # We've thereby saved 50 Mb by avoiding the overhead from managing 1 million lists.
+
+    # Q: But why didn't I just use an array? It would have even lower memory footprint.
+    # A: First, array's don't handle None's and we get that frequently in dirty csv data.
+    # Second, Table needs even less memory.
+
+    # Let's start with an array:
+
+    import array
+    start = process_time()
+    L = [array.array('i', [11 for _ in range(digits)]) for _ in range(10)]
+    end = process_time()
+    # go and check taskmanagers memory usage.
+    # at this point we're using 60.0 Mb to store 10 lists with 1 million integers.
+
+    records.add_row(('10 lists with 1e6 integers in arrays', process.memory_info().rss - baseline_memory, round(end-start,4)))
+    L.clear()
+
+    # Now let's use Table:
+
+    start = process_time()
+    t = Table()
+    for i in range(10):
+        t.add_column(str(i), int, allow_empty=False, data=[11 for _ in range(digits)])
+    end = process_time()
+
+    records.add_row(('Table with 10 columns with 1e6 integers', process.memory_info().rss - baseline_memory, round(end-start,4)))
+
+    # go and check taskmanagers memory usage.
+    # At this point we're using  97.5 Mb to store 10 columns with 1 million integers.
+
+    # Next we'll use the api `use_stored_lists` to drop to disk:
+    start = process_time()
+    t.use_disk = True
+    end = process_time()
+    records.add_row(('Table on disk with 10 columns with 1e6 integers', process.memory_info().rss - baseline_memory, round(end-start,4)))
+
+    # go and check taskmanagers memory usage.
+    # At this point we're using  24.5 Mb to store 10 columns with 1 million integers.
+    # Only the metadata remains in pythons memory.
+
+    records.show()
+
