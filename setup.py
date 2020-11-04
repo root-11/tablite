@@ -1,7 +1,7 @@
 """
 tablite
 """
-build_tag = "cf5b524aa45416c38ee51aab61fa3c1e5e5f2e19740a126f7c7d73250c948d8b"
+build_tag = "cf5b524aa45416c38ee51aab61fa3c1e5e5f2740a126f7c7d73250c948d8b"
 from setuptools import setup
 from pathlib import Path
 
