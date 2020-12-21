@@ -16,8 +16,8 @@ from sys import getsizeof
 
 import zipfile
 import tempfile
-import xlrd
-import pyexcel_ods
+import pyexcel
+
 
 __all__ = ['DataTypes', 'StoredList', 'Column', 'Table', 'file_reader',
            'GroupBy', 'Max', 'Min', 'Sum', 'First', 'Last', 'Count',
@@ -2567,72 +2567,47 @@ def excel_reader(path):
     """  returns Table(s) from excel path """
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
-    sheets = xlrd.open_workbook(str(path), logfile='', on_demand=True)
-    assert isinstance(sheets, xlrd.Book)
+    sheets = pyexcel.get_book(file_name=str(path))
 
-    for sheet in sheets.sheets():
-        if sheet.nrows == sheet.ncols == 0:
+    for sheet in sheets:
+        if len(sheet) == 0:
             continue
-        else:
-            table = excel_sheet_reader(sheet)
-            table.metadata['filename'] = path.name
-            yield table
 
+        t = Table()
+        t.metadata['sheet_name'] = sheet.name
+        t.metadata['filename'] = path.name
+        for column in sheet.columns():
+            dtypes = {type(v) for v in column[1:]}
+            allow_empty = True if None in dtypes else False
+            dtypes.discard(None)
 
-def excel_datetime(value):
-    """ converts excels internal datetime numerics to date, time or datetime. """
-    Y, M, D, h, m, s = xlrd.xldate_as_tuple(value, 0)
-    if all((Y, M, D, h, m, s)):
-        return f"{Y}-{M}-{D}T{h}-{m}-{s}"
-    if all((Y, M, D)):
-        return f"{Y}-{M}-{D}"
-    if all((h, m, s)):
-        return f"{h}:{m}:{s}"
-    return value  # .. we tried...
+            if dtypes == {int, float}:
+                dtypes.remove(int)
 
-
-excel_datatypes = {0: lambda x: None,  # empty string
-                   1: lambda x: str(x),  # unicode string
-                   2: lambda x: x,  # numeric int or float
-                   3: lambda x: excel_datetime(x),  # datetime float
-                   4: lambda x: True if x == 1 else False,  # boolean
-                   5: lambda x: str(x)}  # error code
-
-
-def excel_sheet_reader(sheet):
-    """ returns Table from a spreadsheet sheet. """
-    assert isinstance(sheet, xlrd.sheet.Sheet)
-    t = Table()
-    t.metadata['sheet_name'] = sheet.name
-
-    for column_index in range(sheet.ncols):
-        data = []
-        for row_index in range(sheet.nrows):
-            etype = sheet.cell_type(row_index, column_index)
-            value = sheet.cell_value(row_index, column_index)
-            data.append(excel_datatypes[etype](value))
-
-        dtypes = {type(v) for v in data[1:]}
-        allow_empty = True if None in dtypes else False
-        dtypes.discard(None)
-
-        if len(dtypes) == 1:
-            header, dtype, data = str(data[0]), dtypes.pop(), data[1:]
-        else:
-            header, dtype, data = str(data[0]), str, [str(v) for v in data[1:]]
-        t.add_column(header, dtype, allow_empty, data)
-    return t
+            if len(dtypes) == 1:
+                dtype = dtypes.pop()
+                header, data = str(column[0]), [dtype(v) if not isinstance(v, dtype) else v for v in column[1:]]
+            else:
+                header, dtype, data = str(column[0]), str, [str(v) for v in column[1:]]
+            t.add_column(header, dtype, allow_empty, data)
+        yield t
 
 
 def ods_reader(path):
     """  returns Table from .ODS """
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
-    sheets = pyexcel_ods.get_data(str(path))
+    sheets = pyexcel.get_book_dict(file_name=str(path))
 
     for sheet_name, data in sheets.items():
         if data == [[], []]:  # no data.
             continue
+        for i in range(len(data)):  # remove empty lines at the end of the data.
+            if "" == "".join(str(i) for i in data[-1]):
+                data = data[:-1]
+            else:
+                break
+
         table = Table(filename=path.name)
         table.metadata['filename'] = path.name
         table.metadata['sheet_name'] = sheet_name
