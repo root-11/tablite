@@ -1,7 +1,7 @@
 """
 tablite
 """
-build_tag = "cf5b524aa45416c38ee51aab61fa3c1e5e5f2740a126f7c7d73250c948d8b"
+build_tag = "6fbcd528ead47c1a98b8437181cbb62060709f610d2f127d7a005299540c65c8"
 from setuptools import setup
 from pathlib import Path
 
@@ -25,10 +25,13 @@ keywords = list({
 
 keywords.sort(key=lambda x: x.lower())
 
+with open('requirements.txt', 'r') as fi:
+    requirements = [v.rstrip('\n') for v in fi.readlines()]
+
 
 setup(
     name="tablite",
-    version="2020.11.3.62707",
+    version="2020.12.21.68845",
     url="https://github.com/root-11/tablite",
     license="MIT",
     author="Bjorn Madsen",
@@ -41,12 +44,7 @@ setup(
     include_package_data=True,
     data_files=[(".", ["LICENSE", "README.md"])],
     platforms="any",
-    install_requires=[
-        'xlrd>=1.2.0',
-        'pyexcel-ods>=0.5.6',
-        'openpyxl>=3.0.5',
-        'pyperclip>=1.8.1',
-    ],
+    install_requires=requirements,
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Science/Research",
