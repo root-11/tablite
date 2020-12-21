@@ -1360,7 +1360,7 @@ class Table(object):
         del t.metadata['filename']
         return t
 
-    def show(self, *items):
+    def show(self, *items, blanks=None):
         """ shows the table.
         param: items: column names, slice.
         :returns None. Output is printed to stdout.
@@ -1393,7 +1393,7 @@ class Table(object):
 
         def adjust(v, length):
             if v is None:
-                return str(v).ljust(length)
+                return str(blanks).ljust(length)
             elif isinstance(v, str):
                 return v.ljust(length)
             else:
