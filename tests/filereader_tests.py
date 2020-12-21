@@ -155,7 +155,7 @@ def test_filereader_gdocsc1ods():
 
     for sheet, table in zip(sheets, tables):
         table.compare(sheet)
-        assert len(table) == 45
+        assert len(table) == 45, table.show(blanks="")
 
 
 def test_filereader_gdocs1xlsx():
@@ -305,7 +305,7 @@ def test_filereader_exceldatesxlsx():
     table.show()
 
     sheet1 = Table(filename=path.name, sheet_name='Sheet1')
-    sheet1.add_column('Date', date, False)
+    sheet1.add_column('Date', datetime, False)
     sheet1.add_column('numeric value', int, False)
     sheet1.add_column('string', date, False)
     sheet1.add_column('bool', bool, False)
