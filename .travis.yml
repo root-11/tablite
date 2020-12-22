@@ -25,9 +25,3 @@ matrix:
         - pip install coverage
         - pip install codecov
         - pip install -r requirements.txt
-
-    - python: pypy3
-      before_install:
-        - pip install coverage
-        - pip install codecov
-        - pip install -r requirements.txt
