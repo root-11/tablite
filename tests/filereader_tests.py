@@ -344,5 +344,50 @@ def test_all_on_disk():
     Table.new_tables_use_disk = False
 
 
+def test_filereader_gdocs1csv_no_header():
+    path = Path(__file__).parent / "data" / 'gdocs1.csv'
+    assert path.exists()
+    table = list(file_reader(path, has_headers=False))[0]
+    table.show(slice(0, 10))
+
+    book1_csv = Table(filename=path.name)
+    for idx, _ in enumerate(list('abcdef'), 1):
+        book1_csv.add_column(f"_{idx}", str)
+
+    assert table.compare(book1_csv), table.compare(book1_csv)
+    assert len(table) == 46
 
 
+def test_filereader_gdocs1xlsx_no_header():
+    path = Path(__file__).parent / "data" / 'gdocs1.xlsx'
+    assert path.exists()
+    table = list(file_reader(path, has_headers=False))[0]
+    table.show(slice(0, 10))
+
+    gdocs1xlsx = Table(filename=path.name, sheet_name='Sheet1')
+    for idx, _ in enumerate(list('abcdef'), 1):
+        gdocs1xlsx.add_column(f"_{idx}", str)
+
+    assert table.compare(gdocs1xlsx), table.compare(gdocs1xlsx)
+    assert len(table) == 46
+
+
+def test_filereader_gdocsc1ods_no_header():
+    path = Path(__file__).parent / "data" / 'gdocs1.ods'
+    assert path.exists()
+    tables = file_reader(path, has_headers=False)
+
+    sheet1 = Table(filename=path.name, sheet_name='Sheet1')
+    for idx, _ in enumerate(list('abcdef'), 1):
+        sheet1.add_column(f"_{idx}", str)
+
+    sheet2 = Table(filename=path.name, sheet_name='Sheet2')
+    for idx, _ in enumerate(list('abcdef'), 1):
+        sheet2.add_column(f"_{idx}", str)
+
+    sheets = [sheet1, sheet2]
+
+    for sheet, table in zip(sheets, tables):
+        table.show(slice(0, 10))
+        table.compare(sheet)
+        assert len(table) == 46, table.show(blanks="")
