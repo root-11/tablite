@@ -31,7 +31,7 @@ with open('requirements.txt', 'r') as fi:
 
 setup(
     name="tablite",
-    version="2020.12.21.68845",
+    version="2021.2.10.52756",
     url="https://github.com/root-11/tablite",
     license="MIT",
     author="Bjorn Madsen",
@@ -42,7 +42,7 @@ setup(
     keywords=keywords,
     packages=["table"],
     include_package_data=True,
-    data_files=[(".", ["LICENSE", "README.md"])],
+    data_files=[(".", ["LICENSE", "README.md", "requirements.txt"])],
     platforms="any",
     install_requires=requirements,
     classifiers=[
