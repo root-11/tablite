@@ -2584,11 +2584,11 @@ def excel_reader(path, has_headers=True):
         t.metadata['filename'] = path.name
         for idx, column in enumerate(sheet.columns(), 1):
             if has_headers:
-                header, row_pos = str(column[0]), 1
+                header, start_row_pos = str(column[0]), 1
             else:
-                header, row_pos = f"_{idx}", 0
+                header, start_row_pos = f"_{idx}", 0
 
-            dtypes = {type(v) for v in column[row_pos:]}
+            dtypes = {type(v) for v in column[start_row_pos:]}
             allow_empty = True if None in dtypes else False
             dtypes.discard(None)
 
@@ -2597,9 +2597,9 @@ def excel_reader(path, has_headers=True):
 
             if len(dtypes) == 1:
                 dtype = dtypes.pop()
-                data = [dtype(v) if not isinstance(v, dtype) else v for v in column[row_pos:]]
+                data = [dtype(v) if not isinstance(v, dtype) else v for v in column[start_row_pos:]]
             else:
-                dtype, data = str, [str(v) for v in column[row_pos:]]
+                dtype, data = str, [str(v) for v in column[start_row_pos:]]
             t.add_column(header, dtype, allow_empty, data)
         yield t
 
@@ -2625,11 +2625,11 @@ def ods_reader(path, has_headers=True):
 
         for ix, value in enumerate(data[0]):
             if has_headers:
-                header, row_pos = str(value), 1
+                header, start_row_pos = str(value), 1
             else:
-                header, row_pos = f"_{ix+1}", 0
+                header, start_row_pos = f"_{ix+1}", 0
 
-            dtypes = set(type(row[ix]) for row in data[row_pos:] if len(row) > ix)
+            dtypes = set(type(row[ix]) for row in data[start_row_pos:] if len(row) > ix)
             allow_empty = None in dtypes
             dtypes.discard(None)
             if len(dtypes) == 1:
@@ -2638,7 +2638,7 @@ def ods_reader(path, has_headers=True):
                 dtype = float
             else:
                 dtype = str
-            values = [dtype(row[ix]) for row in data[row_pos:] if len(row) > ix]
+            values = [dtype(row[ix]) for row in data[start_row_pos:] if len(row) > ix]
             table.add_column(header, dtype, allow_empty, data=values)
         yield table
 
