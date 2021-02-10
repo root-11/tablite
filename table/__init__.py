@@ -2488,7 +2488,7 @@ def detect_seperator(path, encoding):
         return frq[0][-1]
 
 
-def text_reader(path, split_sequence=None, sep=None):
+def text_reader(path, split_sequence=None, sep=None, has_headers=True):
     """ txt, tab & csv reader """
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
@@ -2521,10 +2521,16 @@ def text_reader(path, split_sequence=None, sep=None):
                 values = tuple((i.lstrip().rstrip() for i in line.split(sep)))
 
             if not t.columns:
-                for v in values:
-                    header = v.rstrip(" ").lstrip(" ")
-                    t.add_column(header, datatype=str, allow_empty=True)
+                for idx, v in enumerate(values, 1):
+                    if not has_headers:
+                        t.add_column(f"_{idx}", datatype=str, allow_empty=True)
+                    else:
+                        header = v.rstrip(" ").lstrip(" ")
+                        t.add_column(header, datatype=str, allow_empty=True)
                 n_columns = len(values)
+
+                if not has_headers:  # first line is our first row
+                    t.add_row(values)
             else:
                 while n_columns > len(values):  # this makes the reader more robust.
                     values += ('', )
@@ -2563,7 +2569,7 @@ def text_escape(s, escape='"', sep=';'):
     return words
 
 
-def excel_reader(path):
+def excel_reader(path, has_headers=True):
     """  returns Table(s) from excel path """
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
@@ -2576,8 +2582,13 @@ def excel_reader(path):
         t = Table()
         t.metadata['sheet_name'] = sheet.name
         t.metadata['filename'] = path.name
-        for column in sheet.columns():
-            dtypes = {type(v) for v in column[1:]}
+        for idx, column in enumerate(sheet.columns(), 1):
+            if has_headers:
+                header, start_row_pos = str(column[0]), 1
+            else:
+                header, start_row_pos = f"_{idx}", 0
+
+            dtypes = {type(v) for v in column[start_row_pos:]}
             allow_empty = True if None in dtypes else False
             dtypes.discard(None)
 
@@ -2586,14 +2597,14 @@ def excel_reader(path):
 
             if len(dtypes) == 1:
                 dtype = dtypes.pop()
-                header, data = str(column[0]), [dtype(v) if not isinstance(v, dtype) else v for v in column[1:]]
+                data = [dtype(v) if not isinstance(v, dtype) else v for v in column[start_row_pos:]]
             else:
-                header, dtype, data = str(column[0]), str, [str(v) for v in column[1:]]
+                dtype, data = str, [str(v) for v in column[start_row_pos:]]
             t.add_column(header, dtype, allow_empty, data)
         yield t
 
 
-def ods_reader(path):
+def ods_reader(path, has_headers=True):
     """  returns Table from .ODS """
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
@@ -2611,8 +2622,14 @@ def ods_reader(path):
         table = Table(filename=path.name)
         table.metadata['filename'] = path.name
         table.metadata['sheet_name'] = sheet_name
-        for ix, column_name in enumerate(data[0]):
-            dtypes = set(type(row[ix]) for row in data[1:] if len(row) > ix)
+
+        for ix, value in enumerate(data[0]):
+            if has_headers:
+                header, start_row_pos = str(value), 1
+            else:
+                header, start_row_pos = f"_{ix+1}", 0
+
+            dtypes = set(type(row[ix]) for row in data[start_row_pos:] if len(row) > ix)
             allow_empty = None in dtypes
             dtypes.discard(None)
             if len(dtypes) == 1:
@@ -2621,8 +2638,8 @@ def ods_reader(path):
                 dtype = float
             else:
                 dtype = str
-            values = [dtype(row[ix]) for row in data[1:] if len(row) > ix]
-            table.add_column(column_name, dtype, allow_empty, data=values)
+            values = [dtype(row[ix]) for row in data[start_row_pos:] if len(row) > ix]
+            table.add_column(header, dtype, allow_empty, data=values)
         yield table
 
 
@@ -2653,7 +2670,7 @@ def zip_reader(path):
                 p.unlink()
 
 
-def log_reader(path):
+def log_reader(path, has_headers=True):
     """ returns Table from log files (txt)"""
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
@@ -2667,7 +2684,7 @@ def log_reader(path):
             break
         print("got", repr(response))
         split_sequence.append(response)
-    table = text_reader(path, split_sequence=split_sequence)
+    table = text_reader(path, split_sequence=split_sequence, has_headers=has_headers)
     return table
 
 
