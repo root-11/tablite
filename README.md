@@ -281,20 +281,20 @@ t.show()
 
 ### Okay, great. How do I load data?
 
-Easy. Use `filereader`. Here's an example:
+Easy. Use `file_reader`. Here's an example:
 
 ```
 from pathlib import Path
-from table import filereader
+from table import file_reader
 
 for filename in ['data.csv', 'data.xlsx', 'data.txt', 'data.tsv', 'data.ods']:
     path = Path(filename)
-    for table in filereader(path):
+    for table in file_reader(path):
         assert isinstance(t, Table)
         ...
 ```
 
-table.filereader currently accepts the following formats:  
+table.file_reader currently accepts the following formats:  
 
 `csv, tsv, txt, xls, xlsx, xlsm, ods, zip, log.`
 
@@ -305,7 +305,7 @@ And should you have some wicked format like:
 you can provide a split_sequence as a keyword:
 
 ```
-table = filereader('web.log', split_sequence `" ", " ", " ", " "," [", "] (", ") ", " : ", "LineNo ", " scanned ", "of "`)
+table = file_reader('web.log', split_sequence `" ", " ", " ", " "," [", "] (", ") ", " : ", "LineNo ", " scanned ", "of "`)
 ```
 
 I've included all formats in the test suite that are publicly available from 
@@ -353,7 +353,7 @@ import table
 table.new_tables_use_disk = True  # Sets global property for all new tables.
 
 path = 'zip_full_of_large_csvs.zip'  # 314 Gb unzipped.
-tables = filereader(path)  # uses 11 Mb of memory to manage 314 Gb of data.
+tables = file_reader(path)  # uses 11 Mb of memory to manage 314 Gb of data.
 
 ```
 
@@ -972,7 +972,7 @@ Here's a summary of features:
 
 - Everything a list can do, plus data type checking.
 - import csv*, tsv, txt, xls, xlsx, xlsm, ods, zip and log using `Table.from_file(...)`
-- import multiple files use `filereader`.
+- import multiple files use `file_reader`.
 - Move fluently between disk and ram using `t.use_disk = True/False`
 - Iterate over rows or columns
 - Create multikey index, sort, use filter, any and all to select.
