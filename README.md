@@ -5,6 +5,11 @@
 [![Downloads](https://pepy.tech/badge/tablite)](https://pepy.tech/project/tablite)
 [![Downloads](https://pepy.tech/badge/tablite/month)](https://pepy.tech/project/tablite/month)
 
+--------------
+
+Version 2021/02/18+: Breaking change: import name is now `tablite`: `from tablite import Table`
+
+-----------
 
 We're all tired of reinventing the wheel when we need to process a bit of data.
 
