@@ -22,7 +22,7 @@ discover that we've just spent 3 hours doing something that should have taken
 A python library for tables that does everything you need in 89kB.
 
 Install: `pip install tablite`  
-Usage:  `>>> import table`  
+Usage:  `>>> from tablite import Table`  
 
 - it handles all datatypes: `str`, `float`, `bool`, `int`, `date`, `datetime`, `time`.
 - you can select: 
