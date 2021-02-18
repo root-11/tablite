@@ -1361,7 +1361,7 @@ class Table(object):
         return t
 
     def show(self, *items, blanks=None):
-        """ shows the table.
+        """ shows the tablite.
         param: items: column names, slice.
         :returns None. Output is printed to stdout.
         """
@@ -1437,7 +1437,7 @@ class Table(object):
 
     @staticmethod
     def copy_columns_only(table):
-        """creates a new table without the data"""
+        """creates a new tablite without the data"""
         assert isinstance(table, Table)
         t = Table()
         for col in table.columns.values():
@@ -1464,7 +1464,7 @@ class Table(object):
             self.columns[header] = StoredColumn(header, datatype, allow_empty, data=data)
 
     def add_row(self, *args, **kwargs):
-        """ Adds row(s) to the table.
+        """ Adds row(s) to the tablite.
         :param args: see below
         :param kwargs: see below
         :return: None
@@ -1476,7 +1476,7 @@ class Table(object):
             t.add_column('B', int)
             t.add_column('C', int)
 
-        The following examples are all valid and append the row (1,2,3) to the table.
+        The following examples are all valid and append the row (1,2,3) to the tablite.
 
             t.add_row(1,2,3)
             t.add_row([1,2,3])
@@ -1485,7 +1485,7 @@ class Table(object):
             t.add_row(A=1, B=2, C=3)
             t.add_row(**{'A':1, 'B':2, 'C':3})
 
-        The following examples add two rows to the table
+        The following examples add two rows to the tablite
 
             t.add_row((1,2,3), (4,5,6))
             t.add_row([1,2,3], [4,5,6])
@@ -1502,7 +1502,7 @@ class Table(object):
                 elif len(args) > len(self.columns):
                     raise TypeError(f"{args} doesn't match the number of columns. Too many values?")
                 else:
-                    raise TypeError(f"{args} doesn't match the format of the table.")
+                    raise TypeError(f"{args} doesn't match the format of the tablite.")
 
             for arg in args:
                 if len(arg) != len(self.columns):
@@ -1639,7 +1639,7 @@ class Table(object):
     def rows(self):
         """ enables iteration
 
-        for row in table.rows:
+        for row in tablite.rows:
             print(row)
 
         """
@@ -1702,10 +1702,10 @@ class Table(object):
     def filter(self, *items):
         """ enables iteration on a limited number of headers:
 
-        >>> table.columns
+        >>> tablite.columns
         'a','b','c','d','e'
 
-        for row in table.filter('b', 'a', 'a', 'c'):
+        for row in tablite.filter('b', 'a', 'a', 'c'):
             b,a,a,c = row ...
 
         returns values in same order as headers. """
@@ -1829,7 +1829,7 @@ class Table(object):
         :param left_keys: list of keys for the join
         :param right_keys: list of keys for the join
         :param columns: list of columns to retain, if None, all are retained.
-        :return: new table
+        :return: new tablite
 
         Example:
         SQL:   SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
@@ -1847,7 +1847,7 @@ class Table(object):
             elif col_name in other.columns:
                 col = other.columns[col_name]
             else:
-                raise ValueError(f"column name '{col_name}' not in any table.")
+                raise ValueError(f"column name '{col_name}' not in any tablite.")
             left_join.add_column(col_name, col.datatype, allow_empty=True)
 
         left_ixs = range(len(self))
@@ -1875,7 +1875,7 @@ class Table(object):
         :param left_keys: list of keys for the join
         :param right_keys: list of keys for the join
         :param columns: list of columns to retain, if None, all are retained.
-        :return: new table
+        :return: new tablite
 
         Example:
         SQL:   SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
@@ -1893,7 +1893,7 @@ class Table(object):
             elif col_name in other.columns:
                 col = other.columns[col_name]
             else:
-                raise ValueError(f"column name '{col_name}' not in any table.")
+                raise ValueError(f"column name '{col_name}' not in any tablite.")
             inner_join.add_column(col_name, col.datatype, allow_empty=True)
 
         key_union = set(self.filter(*left_keys)).intersection(set(other.filter(*right_keys)))
@@ -1919,7 +1919,7 @@ class Table(object):
         :param left_keys: list of keys for the join
         :param right_keys: list of keys for the join
         :param columns: list of columns to retain, if None, all are retained.
-        :return: new table
+        :return: new tablite
 
         Example:
         SQL:   SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
@@ -1937,7 +1937,7 @@ class Table(object):
             elif col_name in other.columns:
                 col = other.columns[col_name]
             else:
-                raise ValueError(f"column name '{col_name}' not in any table.")
+                raise ValueError(f"column name '{col_name}' not in any tablite.")
             outer_join.add_column(col_name, col.datatype, allow_empty=True)
 
         left_ixs = range(len(self))
@@ -1978,17 +1978,17 @@ class Table(object):
         :return: GroupBy class
 
         Example usage:
-            from table import Table
+            from tablite import Table
 
             t = Table()
             t.add_column('date', int, allow_empty=False, data=[1,1,1,2,2,2])
             t.add_column('sku', int, allow_empty=False, data=[1,2,3,1,2,3])
             t.add_column('qty', int, allow_empty=False, data=[4,5,4,5,3,7])
 
-            from table import GroupBy, Sum
+            from tablite import GroupBy, Sum
 
             g = t.groupby(keys=['sku'], functions=[('qty', Sum)])
-            g.table.show()
+            g.tablite.show()
 
         """
         g = GroupBy(keys=keys, functions=functions)
@@ -2182,18 +2182,18 @@ class GroupBy(object):
 
         Example usage:
         --------------------
-        from table import Table
+        from tablite import Table
 
         t = Table()
         t.add_column('date', int, allow_empty=False, data=[1,1,1,2,2,2])
         t.add_column('sku', int, allow_empty=False, data=[1,2,3,1,2,3])
         t.add_column('qty', int, allow_empty=False, data=[4,5,4,5,3,7])
 
-        from table import GroupBy, Sum
+        from tablite import GroupBy, Sum
 
         g = GroupBy(keys=['sku'], functions=[('qty', Sum)])
         g += t
-        g.table.show()
+        g.tablite.show()
 
         """
         if not isinstance(keys, list):
@@ -2279,11 +2279,11 @@ class GroupBy(object):
         return self
 
     def _generate_table(self):
-        """ helper that generates the result for .table and .rows """
+        """ helper that generates the result for .tablite and .rows """
         for key, functions in self.data.items():
             row = key + tuple(fn.value for fn in functions)
             self._output.add_row(row)
-        self.data.clear()  # hereby we only create the table once.
+        self.data.clear()  # hereby we only create the tablite once.
         self._output.sort(**{k: False for k in self.keys})
 
     @property
@@ -2762,12 +2762,12 @@ def file_reader(path, **kwargs):
         'split_sequence': list of characters
 
     :return: generator of Tables.
-        to get the table in one line.
+        to get the tablite in one line.
 
         >>> list(file_reader(abc.csv)[0]
 
         use the following for Excel and Zips:
-        >>> for table in file_reader(filename):
+        >>> for tablite in file_reader(filename):
                 ...
     """
     assert isinstance(path, Path)

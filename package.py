@@ -11,7 +11,7 @@ folder = Path(__file__).parent
 
 # Step 1. find the sha256 of the files used for this build.
 packages = [
-    folder / 'table' / "__init__.py",
+    folder / 'tablite' / "__init__.py",
     folder / 'LICENSE',
     folder / 'README.md',
 ]

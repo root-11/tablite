@@ -1,10 +1,10 @@
-from table import *
+from tablite import *
 from datetime import date, time, datetime
 import zlib
 
 
 def test_basic_table():
-    # creating a table incrementally is straight forward:
+    # creating a tablite incrementally is straight forward:
     table = Table(use_disk=True)
     table.use_disk = True
     table.use_disk = False
@@ -68,7 +68,7 @@ def test_basic_table():
     # if you try to loop and forget the direction, Table will tell you
     try:
         for row in table:  # wont pass
-            assert False, "not possible. Use for row in table.rows or for column in table.columns"
+            assert False, "not possible. Use for row in tablite.rows or for column in tablite.columns"
     except AttributeError:
         assert True
 
@@ -90,7 +90,7 @@ def test_basic_table():
 
     assert list(after.rows) == [(1, 'hello'), (1, 'hello'), (44, 'Hallo')]
 
-    # Imagine a table with columns a,b,c,d,e (all integers) like this:
+    # Imagine a tablite with columns a,b,c,d,e (all integers) like this:
     t = Table()
     for c in 'abcde':
         t.add_column(header=c, datatype=int, allow_empty=False, data=[i for i in range(5)])
@@ -106,7 +106,7 @@ def test_basic_table():
     t.add_column(header='f', datatype=int, allow_empty=False)
     t.add_column(header='g', datatype=int, allow_empty=True)
 
-    # we can now use the filter, to iterate over the table:
+    # we can now use the filter, to iterate over the tablite:
     for row in t.filter('a', 'b', 'c', 'd'):
         a, b, c, d = row
 
@@ -133,7 +133,7 @@ def test_basic_table():
     # adding a computed column is easy:
     table.add_column('new column', str, allow_empty=False, data=[f"{r}" for r in table.rows])
 
-    # part of or the whole table is easy:
+    # part of or the whole tablite is easy:
     table.show()
 
     table.show('A', slice(0, 1))
@@ -317,7 +317,7 @@ def test_recreate_readme_comparison():
     baseline_memory = process.memory_info().rss
     from time import process_time
 
-    from table import Table
+    from tablite import Table
 
     digits = 1_000_000
 
