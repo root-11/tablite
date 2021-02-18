@@ -1,4 +1,4 @@
-from table import *
+from tablite import *
 from datetime import date, time, datetime
 from itertools import count
 import zlib
@@ -26,7 +26,7 @@ def test_basic_column():
 
 
 def test_basic_table():
-    # creating a table incrementally is straight forward:
+    # creating a tablite incrementally is straight forward:
     table = Table()
     table.add_column('A', int, False)
     assert 'A' in table
@@ -86,7 +86,7 @@ def test_basic_table():
     # if you try to loop and forget the direction, Table will tell you
     try:
         for row in table:  # wont pass
-            assert False, "not possible. Use for row in table.rows or for column in table.columns"
+            assert False, "not possible. Use for row in tablite.rows or for column in tablite.columns"
     except AttributeError:
         assert True
 
@@ -108,7 +108,7 @@ def test_basic_table():
 
     assert list(after.rows) == [(1, 'hello'), (1, 'hello'), (44, 'Hallo')]
 
-    # Imagine a table with columns a,b,c,d,e (all integers) like this:
+    # Imagine a tablite with columns a,b,c,d,e (all integers) like this:
     t = Table()
     for c in 'abcde':
         t.add_column(header=c, datatype=int, allow_empty=False, data=[i for i in range(5)])
@@ -124,7 +124,7 @@ def test_basic_table():
     t.add_column(header='f', datatype=int, allow_empty=False)
     t.add_column(header='g', datatype=int, allow_empty=True)
 
-    # we can now use the filter, to iterate over the table:
+    # we can now use the filter, to iterate over the tablite:
     for row in t.filter('a', 'b', 'c', 'd'):
         a, b, c, d = row
 
@@ -151,7 +151,7 @@ def test_basic_table():
     # adding a computed column is easy:
     table.add_column('new column', str, allow_empty=False, data=[f"{r}" for r in table.rows])
 
-    # part of or the whole table is easy:
+    # part of or the whole tablite is easy:
     table.show()
 
     table.show('A', slice(0, 1))
@@ -212,7 +212,7 @@ def test_add_rows():
     t.add_column('C', int)
     test_number = count(1)
 
-    # The following examples are all valid and append the row (1,2,3) to the table.
+    # The following examples are all valid and append the row (1,2,3) to the tablite.
 
     t.add_row(next(test_number), 1, 2, 3)
     t.add_row([next(test_number), 1, 2, 3])
@@ -221,7 +221,7 @@ def test_add_rows():
     t.add_row(test=next(test_number), A=1, B=2, C=3)
     t.add_row(**{'test': next(test_number), 'A': 1, 'B': 2, 'C': 3})
 
-    # The following examples add two rows to the table
+    # The following examples add two rows to the tablite
 
     t.add_row((next(test_number), 1, 2, 3), (next(test_number), 4, 5, 6))
     t.add_row([next(test_number), 1, 2, 3], [next(test_number), 4, 5, 6])

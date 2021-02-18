@@ -1,4 +1,4 @@
-from table import *
+from tablite import *
 
 
 def test_groupby():
@@ -17,7 +17,7 @@ def test_groupby():
     t.add_column(header='f', datatype=int, allow_empty=False)
     t.add_column(header='g', datatype=int, allow_empty=True)
 
-    # we can now use the filter, to iterate over the table:
+    # we can now use the filter, to iterate over the tablite:
     for row in t.filter('a', 'b', 'c', 'd'):
         a, b, c, d = row
 
@@ -117,7 +117,7 @@ def test_groupby_02():
 
 
 def test_ttopi():
-    """ example code from the readme as "reverseing a pivot table". """
+    """ example code from the readme as "reverseing a pivot tablite". """
     from random import seed, choice
     seed(11)
 

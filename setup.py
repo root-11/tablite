@@ -15,9 +15,9 @@ with open(str(readme), encoding='utf-8') as f:
     long_description = f.read()
 
 keywords = list({
-    'table', 'tables', 'csv', 'txt', 'excel', 'xlsx', 'ods', 'zip', 'log',
+    'tablite', 'tables', 'csv', 'txt', 'excel', 'xlsx', 'ods', 'zip', 'log',
     'any', 'all', 'filter', 'column', 'columns', 'rows', 'from', 'json', 'to',
-    'inner join', 'outer join', 'left join', 'groupby', 'pivot', 'pivot table',
+    'inner join', 'outer join', 'left join', 'groupby', 'pivot', 'pivot tablite',
     'sort', 'is sorted', 'show', 'use disk', 'out-of-memory', 'list on disk',
     'stored list', 'min', 'max', 'sum', 'first', 'last', 'count', 'unique',
     'average', 'standard deviation', 'median', 'mode', 'in-memory', 'index'
@@ -36,11 +36,11 @@ setup(
     license="MIT",
     author="Bjorn Madsen",
     author_email="bjorn.madsen@operationsresearchgroup.com",
-    description="A table crunching library",
+    description="A tablite crunching library",
     long_description=long_description,
     long_description_content_type='text/markdown',
     keywords=keywords,
-    packages=["table"],
+    packages=["tablite"],
     include_package_data=True,
     data_files=[(".", ["LICENSE", "README.md", "requirements.txt"])],
     platforms="any",

@@ -1,5 +1,5 @@
 from time import process_time
-from table import StoredList
+from tablite import StoredList
 from random import shuffle, randint
 
 

@@ -1,4 +1,4 @@
-from table import *
+from tablite import *
 from datetime import date, time, datetime
 
 
