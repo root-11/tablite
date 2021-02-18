@@ -286,7 +286,7 @@ class DataTypes(object):
             if value_set - DataTypes.integers:  # set comparison.
                 raise ValueError
             try:
-                return int(float(value))
+                return int(value)
             except Exception:
                 raise ValueError(f"{value} is not an integer")
         else:
