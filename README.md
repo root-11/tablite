@@ -224,7 +224,7 @@ t = Table.copy_from_clipboard()
 Here's a couple of examples:
 
 ```
-from table import Table
+from tablite import Table
 from itertools import count 
 
 t = Table()
@@ -285,7 +285,7 @@ Easy. Use `file_reader`. Here's an example:
 
 ```
 from pathlib import Path
-from table import file_reader
+from tablite import file_reader
 
 for filename in ['data.csv', 'data.xlsx', 'data.txt', 'data.tsv', 'data.ods']:
     path = Path(filename)
@@ -315,7 +315,7 @@ the alan turing institute, dateutils and csv reader.
 
 Yes. Here's an example you can copy paste:
 ```
-from table import Table
+from tablite import Table
 
 t = Table()
 t.add_column('a', int, data=[1, 2, 8, 3, 4, 6, 5, 7, 9], allow_empty=True)
@@ -360,7 +360,7 @@ tables = file_reader(path)  # uses 11 Mb of memory to manage 314 Gb of data.
 Let's do a comparison:
 
 ```
-from table import StoredList, Table
+from tablite import StoredList, Table
 
 digits = 1_000_000
 
