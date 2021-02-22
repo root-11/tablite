@@ -9,7 +9,7 @@ from string import ascii_lowercase
 from sys import getsizeof
 from tempfile import gettempdir
 
-from tablite import DataTypes
+from tablite.datatypes import DataTypes
 
 
 class Record(object):

@@ -1,6 +1,4 @@
-from tablite.table import Table
-from tablite.groupby import GroupBy
-
+from tablite.core import Table, GroupBy
 
 __all__ = [
     Table, GroupBy

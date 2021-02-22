@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from tablite import DataTypes
+from tablite.datatypes import DataTypes
 
 
 class GroupbyFunction(object):

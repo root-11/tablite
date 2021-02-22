@@ -1,10 +1,10 @@
-from tablite import *
 from datetime import date, time, datetime
 from itertools import count
 import zlib
 import pyperclip
 
 from tablite import Table
+from tablite.stored_list import Column, StoredList
 
 
 def test_basic_column():

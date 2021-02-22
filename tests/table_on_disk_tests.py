@@ -1,8 +1,8 @@
-from tablite import *
 from datetime import date, time, datetime
 import zlib
 
 from tablite import Table
+from tablite.stored_list import StoredList
 
 
 def test_basic_table():
