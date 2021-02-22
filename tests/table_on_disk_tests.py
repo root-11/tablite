@@ -2,6 +2,8 @@ from tablite import *
 from datetime import date, time, datetime
 import zlib
 
+from tablite import Table
+
 
 def test_basic_table():
     # creating a tablite incrementally is straight forward:

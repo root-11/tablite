@@ -1,4 +1,5 @@
-from tablite import text_escape, Table, file_reader, find_format, detect_encoding
+from tablite import Table
+from tablite.file_readers import detect_encoding, text_escape, find_format, file_reader
 from time import process_time_ns
 from datetime import date, time, datetime
 from pathlib import Path

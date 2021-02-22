@@ -1,4 +1,6 @@
 from tablite import *
+from tablite import Table
+from tablite.groupby import GroupBy
 
 
 def test_groupby():
