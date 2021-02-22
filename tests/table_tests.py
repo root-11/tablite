@@ -4,6 +4,7 @@ from itertools import count
 import zlib
 import pyperclip
 
+from tablite import Table
 
 
 def test_basic_column():
