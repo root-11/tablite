@@ -1,7 +1,8 @@
 from tablite import Table
-from tablite.file_readers import detect_encoding, text_escape, find_format, file_reader
+from tablite.file_reader_utils import text_escape
+from tablite.core import file_reader, find_format
 from time import process_time_ns
-from datetime import date, time, datetime
+from datetime import date, datetime
 from pathlib import Path
 import zipfile
 

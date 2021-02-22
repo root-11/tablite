@@ -1,6 +1,6 @@
 from time import process_time
-from tablite.stored_list import StoredList
 from random import shuffle, randint
+from tablite.stored_list import StoredList
 
 
 def test_basic_stored_list():

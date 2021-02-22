@@ -1,6 +1,6 @@
-from tablite import *
-from tablite import Table
-from tablite.groupby import GroupBy
+from tablite import Table, GroupBy
+
+gb = GroupBy
 
 
 def test_groupby():
@@ -32,19 +32,19 @@ def test_groupby():
     t.show()
 
     g = GroupBy(keys=['a', 'b'],
-                functions=[('f', Max),
-                           ('f', Min),
-                           ('f', Sum),
-                           ('f', First),
-                           ('f', Last),
-                           ('f', Count),
-                           ('f', CountUnique),
-                           ('f', Average),
-                           ('f', StandardDeviation),
-                           ('a', StandardDeviation),
-                           ('f', Median),
-                           ('f', Mode),
-                           ('g', Median)])
+                functions=[('f', gb.max),
+                           ('f', gb.min),
+                           ('f', gb.sum),
+                           ('f', gb.first),
+                           ('f', gb.last),
+                           ('f', gb.count),
+                           ('f', gb.count_unique),
+                           ('f', gb.avg),
+                           ('f', gb.stdev),
+                           ('a', gb.stdev),
+                           ('f', gb.median),
+                           ('f', gb.mode),
+                           ('g', gb.median)])
     t2 = t + t
     assert len(t2) == 2 * len(t)
     t2.show()
@@ -61,7 +61,7 @@ def test_groupby():
 
     g.table.show()
 
-    g2 = GroupBy(keys=['a', 'b'], functions=[('f', Max), ('f', Sum)])
+    g2 = GroupBy(keys=['a', 'b'], functions=[('f', gb.max), ('f', g.sum)])
     g2 += t + t + t
 
     g2.table.show()
@@ -97,7 +97,7 @@ def test_groupby_02():
     # |    3|    6|    1|
     # +=====+=====+=====+
 
-    g = t.groupby(keys=['A', 'C'], functions=[('B', Sum)])
+    g = t.groupby(keys=['A', 'C'], functions=[('B', gb.sum)])
     g.table.show()
     t2 = g.pivot('A')
 

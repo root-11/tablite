@@ -1,4 +1,4 @@
-from tablite import *
+from tablite.datatypes import DataTypes
 from datetime import date, time, datetime
 
 
