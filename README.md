@@ -24,7 +24,7 @@ discover that we've just spent 3 hours doing something that should have taken
 20 minutes. No more please!
 
 ### Enter: [Tablite](https://pypi.org/project/tablite/)
-A python library for tables that does everything you need in 89kB.
+A python library for tables that does everything you need in 200kB.
 
 Install: `pip install tablite`  
 Usage:  `>>> from tablite import Table`  
@@ -316,6 +316,37 @@ table = file_reader('web.log', split_sequence `" ", " ", " ", " "," [", "] (", "
 I've included all formats in the test suite that are publicly available from 
 the alan turing institute, dateutils and csv reader. 
 
+### Sweet. Can I add my own file reader?
+
+Yes! This is very good for special log files or custom json formats.  
+Here's how you do it:
+
+```
+>>> def magic_reader(path):   # define the reader.
+>>>     # do magic
+>>>     return 1
+
+>>> from tablite.core import readers
+
+>>> readers['my_magic_reader'] = [magic_reader, {}]
+
+>>>for kv in readers.items():
+>>>    print(kv)
+    
+csv [<function text_reader at 0x0000020FFF373C18>, {}]
+tsv [<function text_reader at 0x0000020FFF373C18>, {}]
+txt [<function text_reader at 0x0000020FFF373C18>, {}]
+xls [<function excel_reader at 0x0000020FFF299DC8>, {}]
+xlsx [<function excel_reader at 0x0000020FFF299DC8>, {}]
+xlsm [<function excel_reader at 0x0000020FFF299DC8>, {}]
+ods [<function ods_reader at 0x0000020FFF299E58>, {}]
+zip [<function zip_reader at 0x0000020FFF299EE8>, {}]
+log [<function log_reader at 0x0000020FFF299F78>, {'sep': False}]
+my_html_reader [<function magic_reader at 0x0000020FFF3828B8>, {}]  # <--------- my magic new reader!
+```
+
+
+
 ### Cool. Does it play well with plotly?
 
 Yes. Here's an example you can copy paste:
@@ -398,7 +429,7 @@ We've thereby saved 50 Mb by avoiding the overhead from managing 1 million lists
     Saved: 100% - (78 Mb / 134 Mb) = 44%. 
 
 Q: But why didn't I just use an array? It would have even lower memory footprint.  
-A: First, array's don't handle None's and we get that frequently in dirty csv data.  
+A: First, array's don't handle `None`'s and we get that frequently in dirty csv data.  
 Second, Table needs even less memory.
 
 Let's start with an array:
