@@ -7,6 +7,7 @@
 
 --------------
 
+Version 2021/03/02+: Name space review (credits: [DanieldJewell](https://github.com/danieldjewell))  
 Version 2021/02/18+: Breaking change: import name is now `tablite`: `from tablite import Table`
 
 -----------
