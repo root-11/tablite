@@ -38,6 +38,8 @@ class Min(Limit):
 
 class Sum(Limit):
     def __init__(self, datatype):
+        if datatype in (DataTypes.date, DataTypes.date, DataTypes.time, DataTypes.str):
+            raise ValueError(f"Sum of {datatype} doesn't make sense.")
         super().__init__(datatype)
         self.f = sum
 
@@ -88,6 +90,8 @@ class CountUnique(GroupbyFunction):
 
 class Average(GroupbyFunction):
     def __init__(self, datatype):
+        if datatype in (DataTypes.date, DataTypes.date, DataTypes.time, DataTypes.str):
+            raise ValueError(f"Average of {datatype} doesn't make sense.")
         super().__init__(datatype=float)  # datatype will be float no matter what type is given.
         self.sum = 0
         self.count = 0
@@ -106,6 +110,8 @@ class StandardDeviation(GroupbyFunction):
     For details see https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm
     """
     def __init__(self, datatype):
+        if datatype in (DataTypes.date, DataTypes.date, DataTypes.time, DataTypes.str):
+            raise ValueError(f"Std.dev. of {datatype} doesn't make sense.")
         super().__init__(datatype=float)  # datatype will be float no matter what type is given.
         self.count = 0
         self.mean = 0
