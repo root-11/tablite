@@ -8,7 +8,7 @@
 --------------
 
 Version 2021/03/02+: Name space review (credits: [DanieldJewell](https://github.com/danieldjewell))  
-Version 2021/02/18+: Breaking change: import name is now `tablite`: `from tablite import Table`
+
 
 -----------
 
@@ -29,6 +29,8 @@ A python library for tables that does everything you need in 200kB.
 
 Install: `pip install tablite`  
 Usage:  `>>> from tablite import Table`  
+
+_(changed in version 2021.02.18+: import name is now `tablite`: `from tablite import Table`)_
 
 - it handles all datatypes: `str`, `float`, `bool`, `int`, `date`, `datetime`, `time`.
 - you can select: 
@@ -1018,6 +1020,5 @@ Here's a summary of features:
 - Update tables with += which automatically sorts out the columns - even if they're not in perfect order.
 - Calculate out-of-memory summaries using += on groupby, f.x. groupby += t1
   
-
 
 
