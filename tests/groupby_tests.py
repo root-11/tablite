@@ -1,5 +1,4 @@
 from tablite import Table, GroupBy
-from tests.utils import make_table
 
 gb = GroupBy
 
