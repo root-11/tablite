@@ -1,4 +1,5 @@
 from tablite import Table, GroupBy
+from tests.utils import make_table
 
 gb = GroupBy
 
@@ -119,7 +120,7 @@ def test_groupby_02():
 
 
 def test_ttopi():
-    """ example code from the readme as "reverseing a pivot tablite". """
+    """ example code from the readme as "reversing a pivot tablite". """
     from random import seed, choice
     seed(11)
 
