@@ -815,7 +815,7 @@ class GroupBy(object):
 
         self._output = None   # class Table.
         self._required_headers = None  # headers for reading input.
-        self.data = defaultdict(list)  # key: [list of groupby functions]
+        self.aggregation_functions = defaultdict(list)  # key: [list of groupby functions]
         self._function_classes = []  # initiated functions.
 
         # Order is preserved so that this is doable:
@@ -855,10 +855,10 @@ class GroupBy(object):
         for row in other.filter(*self._required_headers):
             d = {h: v for h, v in zip(self._required_headers, row)}
             key = tuple([d[k] for k in self.keys])
-            functions = self.data.get(key)
+            functions = self.aggregation_functions.get(key)
             if not functions:
                 functions = [fn.__class__(fn.datatype) for fn in self._function_classes]
-                self.data[key] = functions
+                self.aggregation_functions[key] = functions
 
             for (h, fn), f in zip(self.groupby_functions, functions):
                 f.update(d[h])
@@ -866,10 +866,10 @@ class GroupBy(object):
 
     def _generate_table(self):
         """ helper that generates the result for .tablite and .rows """
-        for key, functions in self.data.items():
+        for key, functions in self.aggregation_functions.items():
             row = key + tuple(fn.value for fn in functions)
             self._output.add_row(row)
-        self.data.clear()  # hereby we only create the tablite once.
+        self.aggregation_functions.clear()  # hereby we only create the tablite once.
         self._output.sort(**{k: False for k in self.keys})
 
     @property
@@ -878,7 +878,7 @@ class GroupBy(object):
         if self._output is None:
             return None
 
-        if self.data:
+        if self.aggregation_functions:
             self._generate_table()
 
         assert isinstance(self._output, Table)
@@ -890,7 +890,7 @@ class GroupBy(object):
         if self._output is None:
             return None
 
-        if self.data:
+        if self.aggregation_functions:
             self._generate_table()
 
         assert isinstance(self._output, Table)
@@ -954,7 +954,7 @@ class GroupBy(object):
         if self._output is None:
             return None
 
-        if self.data:
+        if self.aggregation_functions:
             self._generate_table()
 
         assert isinstance(self._output, Table)
