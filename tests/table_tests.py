@@ -1,5 +1,8 @@
 from datetime import date, time, datetime
 from itertools import count
+import random
+from tablite.datatypes import DataTypes
+
 import zlib
 import pyperclip
 
@@ -391,4 +394,42 @@ def test_clipboard():
         pass  # travis VMs can't handle this.
 
 
+def test_lookup():
+    friends = Table()
+    friends.add_column("name", str, data=['alice', 'betty', 'charlie', 'dorethy', 'edward'])
+    friends.add_column("stop", str,
+                       data=['downtown-1', 'downtown-2', 'hillside view', 'hillside crescent', 'downtown-2'])
+    friends.show()
 
+    random.seed(11)
+    table_size = 40
+
+    times = [DataTypes.time(random.randint(21, 23), random.randint(0, 59)) for i in range(table_size)]
+    stops = ['stadium', 'hillside', 'hillside view', 'hillside crescent', 'downtown-1', 'downtown-2',
+             'central station'] * 2 + [f'random road-{i}' for i in range(table_size)]
+    route = [random.choice([1, 2, 3]) for i in stops]
+
+    bustable = Table()
+    bustable.add_column("time", DataTypes.time, data=times)
+    bustable.add_column("stop", str, data=stops[:table_size])
+    bustable.add_column("route", int, data=route[:table_size])
+
+    bustable.sort(**{'time': False})
+
+    bustable[:10].show()
+
+    lookup_1 = friends.lookup(bustable, ('time', ">=", DataTypes.time(21, 10)), ('stop', "==", 'stop'))
+    lookup_1.sort(**{'time': False})
+    lookup_1.show()
+
+    expected = [
+        ('dorethy', 'hillside crescent', time(21, 5), 'hillside crescent', 2),
+        ('betty', 'downtown-2', time(21, 51), 'downtown-2', 1),
+        ('edward', 'downtown-2', time(21, 51), 'downtown-2', 1),
+        ('charlie', 'hillside view', time(22, 19), 'hillside view', 2),
+        ('alice', 'downtown-1', time(23, 12), 'downtown-1', 3),
+    ]
+
+    for row in lookup_1.rows:
+        expected.remove(row)
+    assert expected == []
