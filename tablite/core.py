@@ -1,8 +1,9 @@
 import json
 import tempfile
 import zipfile
+import operator
 from collections import defaultdict
-from itertools import count
+from itertools import count, chain
 from pathlib import Path
 
 import pyexcel
@@ -388,8 +389,7 @@ class Table(object):
 
         """
         for ix in range(len(self)):
-            item = tuple(c[ix] if ix < len(c) else None for c in self.columns.values())
-            yield item
+            yield tuple(c[ix] if ix < len(c) else None for c in self.columns.values())
 
     def index(self, *args):
         """ Creates index on *args columns as d[(key tuple, )] = {index1, index2, ...} """
@@ -738,6 +738,87 @@ class Table(object):
         g = GroupBy(keys=keys, functions=functions)
         g += self
         return g
+
+    def lookup(self, other, *criteria):
+        """ function for looking up values in other according to criteria
+        :param: other: Table
+        :param: criteria: Each criteria must be a tuple with value comparisons in the form:
+            (LEFT, OPERATOR, RIGHT)
+
+        OPERATOR must be a callable that returns a boolean
+        LEFT must be a value that the OPERATOR can compare.
+        RIGHT must be a value that the OPERATOR can compare.
+
+        Examples:
+              ('column A', "==", 'column B')  # comparison of two columns
+              ('Date', "<", DataTypes.date(24,12) )  # value from column 'Date' is before 24/12.
+
+              f = lambda L,R: all( ord(L) < ord(R) )  # uses custom function.
+
+              ('text 1', f, 'text 2')
+
+              value from column 'text 1' is compared with value from column 'text 2'
+
+        """
+        assert isinstance(self, Table)
+        assert isinstance(other, Table)
+        ops = {
+            "in": operator.contains,
+            "not in": lambda left, right: not left.contains(right),
+            "<": operator.lt,
+            "<=": operator.le,
+            ">": operator.gt,
+            ">=": operator.ge,
+            "!=": operator.ne,
+            "==": operator.eq,
+        }
+
+        table3 = Table()
+        for name, col in chain(self.columns.items(), other.columns.items()):
+            table3.add_column(name, col.datatype, allow_empty=True)
+
+        functions = []
+        columns = set(chain(self.columns, other.columns))
+        columns_used = set()
+        for left, op, right in criteria:
+            if left in columns: columns_used.add(left)
+            if right in columns: columns_used.add(right)
+            if not callable(op):
+                op = ops.get(op, None)
+                if not callable(op):
+                    raise ValueError(f"{op} not a recognised operator for comparison.")
+
+            functions.append(lambda L, R: op(L.get(left, left), R.get(right, right)))
+            # The lambda function above does a neat trick:
+            # as L is a dict, L.get(left, L) will return a value
+            # from the columns IF left is a column name. If it isn't
+            # the function will treat left as a value.
+
+        lru_cache = {}
+        empty_row = tuple(None for _ in other.columns)
+
+        for row1 in self.rows:
+            row1_tup = tuple(v for v, name in zip(row1, columns_used) if name in self.columns)
+            row1d = {name: value for name, value in zip(self.columns, row1) if name in columns_used}
+
+            match_found = True if row1_tup in lru_cache else False
+
+            if not match_found:  # search.
+                for row2 in other.rows:
+                    row2d = {name: value for name, value in zip(other.columns, row2) if name in columns_used}
+
+                    if all(f(row1d, row2d) for f in functions):  # match found!
+                        lru_cache[row1_tup] = row1 + row2
+                        match_found = True
+                        break
+
+            if not match_found:  # no match found.
+                lru_cache[row1_tup] = row1 + empty_row
+
+            new_row = lru_cache[row1_tup]
+            table3.add_row(new_row)
+
+        return table3
 
 
 class GroupBy(object):
