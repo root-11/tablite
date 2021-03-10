@@ -808,14 +808,15 @@ class Table(object):
                     row2d = {name: value for name, value in zip(other.columns, row2) if name in columns_used}
 
                     if all(f(row1d, row2d) for f in functions):  # match found!
-                        lru_cache[row1_tup] = row1 + row2
+                        lru_cache[row1_tup] = row2
                         match_found = True
                         break
 
             if not match_found:  # no match found.
-                lru_cache[row1_tup] = row1 + empty_row
+                lru_cache[row1_tup] = empty_row
 
-            new_row = lru_cache[row1_tup]
+            new_row = row1 + lru_cache[row1_tup]
+
             table3.add_row(new_row)
 
         return table3

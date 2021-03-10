@@ -396,17 +396,19 @@ def test_clipboard():
 
 def test_lookup():
     friends = Table()
-    friends.add_column("name", str, data=['alice', 'betty', 'charlie', 'dorethy', 'edward'])
+    friends.add_column("name", str, data=['Alice', 'Betty', 'Charlie', 'Dorethy', 'Edward', 'Fred'])
     friends.add_column("stop", str,
-                       data=['downtown-1', 'downtown-2', 'hillside view', 'hillside crescent', 'downtown-2'])
+                       data=['Downtown-1', 'Downtown-2', 'Hillside View', 'Hillside Crescent', 'Downtown-2', 'Chicago'])
     friends.show()
 
     random.seed(11)
     table_size = 40
 
+    table_size = 40
+
     times = [DataTypes.time(random.randint(21, 23), random.randint(0, 59)) for i in range(table_size)]
-    stops = ['stadium', 'hillside', 'hillside view', 'hillside crescent', 'downtown-1', 'downtown-2',
-             'central station'] * 2 + [f'random road-{i}' for i in range(table_size)]
+    stops = ['Stadium', 'Hillside', 'Hillside View', 'Hillside Crescent', 'Downtown-1', 'Downtown-2',
+             'Central station'] * 2 + [f'Random Road-{i}' for i in range(table_size)]
     route = [random.choice([1, 2, 3]) for i in stops]
 
     bustable = Table()
@@ -416,6 +418,7 @@ def test_lookup():
 
     bustable.sort(**{'time': False})
 
+    print("Departures from Concert Hall towards ...")
     bustable[:10].show()
 
     lookup_1 = friends.lookup(bustable, ('time', ">=", DataTypes.time(21, 10)), ('stop', "==", 'stop'))
@@ -423,11 +426,12 @@ def test_lookup():
     lookup_1.show()
 
     expected = [
-        ('dorethy', 'hillside crescent', time(21, 5), 'hillside crescent', 2),
-        ('betty', 'downtown-2', time(21, 51), 'downtown-2', 1),
-        ('edward', 'downtown-2', time(21, 51), 'downtown-2', 1),
-        ('charlie', 'hillside view', time(22, 19), 'hillside view', 2),
-        ('alice', 'downtown-1', time(23, 12), 'downtown-1', 3),
+        ('Fred', 'Chicago', None, None, None),
+        ('Dorethy', 'Hillside Crescent', time(21, 5), 'Hillside Crescent', 2),
+        ('Betty', 'Downtown-2', time(21, 51), 'Downtown-2', 1),
+        ('Edward', 'Downtown-2', time(21, 51), 'Downtown-2', 1),
+        ('Charlie', 'Hillside View', time(22, 19), 'Hillside View', 2),
+        ('Alice', 'Downtown-1', time(23, 12), 'Downtown-1', 3),
     ]
 
     for row in lookup_1.rows:
