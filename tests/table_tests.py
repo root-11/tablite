@@ -53,6 +53,11 @@ def test_basic_table():
     # copying is easy:
     table3 = table.copy()
 
+    table.rename_column('A', 'aa')
+    assert list(table.columns) == ['aa','B']
+    table.rename_column('aa', 'A')
+    assert list(table.columns) == ['A', 'B']
+
     # and checking for headers is simple:
     assert 'A' in table
     assert 'Z' not in table
