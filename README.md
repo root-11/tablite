@@ -7,8 +7,7 @@
 
 --------------
 
-Version 2021/03/02+: Name space review (credits: [DanieldJewell](https://github.com/danieldjewell))  
-
+Version 2021/03/10+: New multi-criteria lookup functionality: table1.lookup(table2, criterias...)
 
 -----------
 
@@ -49,97 +48,45 @@ _(changed in version 2021.02.18+: import name is now `tablite`: `from tablite im
 - perform inner, outer & left sql join between tables as simple as `table_1.inner_join(table2, keys=['A', 'B'])` 
 - summarise using `table.groupby( ... )` 
 - create pivot tables using `groupby.pivot( ... )`
+- perform multi-criteria lookup in tables using `table1.lookup(table2, criteria=.....`
 
 
 Here are some examples:
 
+|What|How|
+|---|---|
+|Create an empty table *in memory*|`table = Table()`|
+|Create an empty table *on disk*|`table_on_disk = Table(use_disk=True)`|
+|Add an empty column|`table.add_column(header='A', datatype=int, allow_empty=False)`|
+|Access the column| `table['A']`|
+|Access index in column |`table['A'][7]`|
+|Add another column that doesn't tolerate None's|`table.add_column('B', str, allow_empty=False)`|
+|Gracefully deal with duplicate column names|`table.add_column('B', int, allow_empty=True)`<br>`>>> table2.columns`<br>`['A','B','B_1']`|
+|Delete a column|`del table['B_1']`|
+|append (a couple of) rows|`table.add_row((1, 'hello'))`<br>`table.add_row((2, 'world'))`|
+|update values<br>_(should be familiar to any user who knows how to update a list)_|`table['A'][-1] = 44`<br>`table['B'][-1] = "Hallo"`|
+|type verification is included, <br>and it complaints if you're doing it wrong|`table.columns['A'][0] = 'Hallo'`<br>Will raise TypeError as 'A' is int.|
+|extend a table|`table2x = table + table`<br>this assertion will hold:<br>`assert len(table2x) == len(table) * 2`|
+|iteradd|`table2x += table`<br>now this will hold:<br>`assert len(table2x) == len(table) * 3`|
+|copy a table|`table3 = table.copy()`|
+|compare table metadata|`table.compare(table3)`<br>This will raise exception if they're different.|
+|compare tables|`assert table == table2 == table3`|
+|get slice|`table_chunk = table2[2:4]`<br>`assert isinstance(table_chunk, Table)`|
+|Add a column with data|`table.add_column('new column', str, allow_empty=False, data=[f"{r}" for r in table.rows])`|
+|iterate over rows|`for row in table.rows:`<br>`    print(row) # do something`|
+|using regular indexing|`for ix, r in enumerate(table['A']):`<br>`    table['A'][ix] = r * 10`|
+|updating a column with a function|`f = lambda x: x * 10`<br>`table['A'] = [f(r) for r in table['A']]`|
+|works with all datatypes ...|`now = datetime.now()`<br>`table4 = Table()`<br>`table4.add_column('A', int, allow_empty=False, data=[-1, 1])`<br>`table4.add_column('A', int, allow_empty=True, data=[None, 1])  # None!`<br>`table4.add_column('A', float, False, data=[-1.1, 1.1])`<br>`table4.add_column('A', str, False, data=["", "1"])`<br>` # Empty string is not a None, when dtype is str!`<br>`table4.add_column('A', str, True, data=[None, "1"])`<br>` # Empty string is not a None, when dtype is str!`<br>`table4.add_column('A', bool, False, data=[False, True])`<br>`table4.add_column('A', datetime, False, data=[now, now])`<br>`table4.add_column('A', date, False, data=[now.date(), now.date()])`<br>`table4.add_column('A', time, False, data=[now.time(), now.time()])`|
+|json - to and from|`table4_json = table4.to_json()`<br>`table5 = Table.from_json(table4_json)`<br>`assert table4 == table5`|
+|doing lookups is supported by indexing|`table6 = Table()`<br>`table6.add_column('A', str, data=['Alice', 'Bob', 'Bob', 'Ben', 'Charlie', 'Ben', 'Albert'])`<br>`table6.add_column('B', str, data=['Alison', 'Marley', 'Dylan', 'Affleck', 'Hepburn', 'Barnes', 'Einstein'])`<br>``<br>`index = table6.index('A')  # single key.`<br>`assert index[('Bob',)] == {1, 2}`<br>``<br>`index2 = table6.index('A', 'B')  # multiple keys.`<br>`assert index2[('Bob', 'Dylan')] == {2}`|
+|Add metadata until the cows come home|`table5.metadata['db_mapping'] = {'A': 'customers.customer_name', A_2': 'product.sku', 'A_4': 'locations.sender'}`|
+|Copy data to/from clipboard|`t.copy_to_clipboard()`<br>`t = Table.copy_from_clipboard()  `|
+|converting to/from json|`table_as_json = table.to_json()`<br>`table2 = Table.from_json(table_as_json)`|
+|store table on disk|`zlib.compress(table_as_json.encode())`|
+
+Finally if you just want to view it interactively (or a slice of it), use:
 ```
-# 1. Create the table.
-table = Table()  # in memory
-table_on_disk = Table(use_disk=True)  # on disk in Tempfile.gettempdir()
-
-# 2. Add a column
-table.add_column('A', int, False)
-
-# 3. check that the column is there.
-assert 'A' in table
-
-# 4. Add another column that doesn't tolerate None's
-table.add_column('B', str, allow_empty=False)
-
-# 5. appending a couple of rows:
-table.add_row((1, 'hello'))
-table.add_row((2, 'world'))
-
-# 6. converting to json is easy:
-table_as_json = table.to_json()
-
-# 7. loading from json is easy:
-table2 = Table.from_json(table_as_json)
-
-# 8. for storing in a database or on disk, I recommend to zip the json.
-zipped = zlib.compress(table_as_json.encode())
-
-# 9. copying is easy:
-table3 = table.copy()
-
-# 10. comparing tables are straight forward:
-assert table == table2 == table3
-
-# 11. comparing metadata is also straight forward 
-# (for example if you want to append the one table to the other)
-table.compare(table3)  # will raise exception if they're different.
-
-# 12. The plus operator `+` also works:
-table3x2 = table3 + table3
-assert len(table3x2) == len(table3) * 2
-
-# 13. and so does plus-equal: +=
-table3x2 += table3
-assert len(table3x2) == len(table3) * 3
-
-# 14. updating values is familiar to any user who likes a list:
-assert 'A' in table.columns
-assert isinstance(table.columns['A'], list)
-last_row = -1
-table['A'][last_row] = 44
-table['B'][last_row] = "Hallo"
-
-# 15. type verification is included, and complaints if you're doing it wrong:
-try:
-    table.columns['A'][0] = 'Hallo'
-    assert False, "A TypeError should have been raised."
-except TypeError:
-    assert True
-
-# 16. slicing is easy:
-table_chunk = table2[2:4]
-assert isinstance(table_chunk, Table)
-
-# 17. we will handle duplicate names gracefully.
-table2.add_column('B', int, allow_empty=True)
-assert set(table2.columns) == {'A', 'B', 'B_1'}
-
-# 18. you can delete a column as key...
-del table2['B_1']
-assert set(table2.columns) == {'A', 'B'}
-
-# 19. adding a computed column is easy:
-table.add_column('new column', str, allow_empty=False, data=[f"{r}" for r in table.rows])
-
-# 20. iterating over the rows is easy, but if you forget `.rows` will remind you.
-try:
-    for row in table: # <-- wont pass needs: table.rows
-        assert False, "not possible. Use for row in table.rows or for column in table.columns"
-except AttributeError:
-    assert True
-
-print(table)
-for row in table.rows:
-    print(row)
-
-# but if you just want to view it interactively (or a slice of it), use:
-table.show()
+>>> table.show()
 
 + =====+=====+============= +
 |   A  |  B  |  new column  |
@@ -150,7 +97,7 @@ table.show()
 |    44|Hallo|(44, 'Hallo') |
 + =====+=====+============= +
 
-table.show('A', slice(0,1))
+>>> table.show('A', slice(0,1))
 
 + ===== +
 |   A   |
@@ -159,71 +106,6 @@ table.show('A', slice(0,1))
 + ----- +
 |     1 |
 + ===== +
-
-
-# 21 .updating a column with a function is easy:
-f = lambda x: x * 10
-table['A'] = [f(r) for r in table['A']]
-
-# 22. using regular indexing will also work.
-for ix, r in enumerate(table['A']):
-    table['A'][ix] = r * 10
-
-# 23. and it will tell you if you're not allowed:
-try:
-    f = lambda x: f"'{x} as text'"
-    table['A'] = [f(r) for r in table['A']]
-    assert False, "The line above must raise a TypeError"
-except TypeError as error:
-    print("The error is:", str(error))
-
-# 24. works with all datatypes ...
-now = datetime.now()
-
-table4 = Table()
-table4.add_column('A', int, allow_empty=False, data=[-1, 1])
-table4.add_column('A', int, allow_empty=True, data=[None, 1])  # None!
-table4.add_column('A', float, False, data=[-1.1, 1.1])
-table4.add_column('A', str, False, data=["", "1"])  # Empty string is not a None, when dtype is str!
-table4.add_column('A', str, True, data=[None, "1"])  # Empty string is not a None, when dtype is str!
-table4.add_column('A', bool, False, data=[False, True])
-table4.add_column('A', datetime, False, data=[now, now])
-table4.add_column('A', date, False, data=[now.date(), now.date()])
-table4.add_column('A', time, False, data=[now.time(), now.time()])
-
-# ...to and from json:
-table4_json = table4.to_json()
-table5 = Table.from_json(table4_json)
-
-assert table4 == table5
-
-# 25. doing lookups is supported by indexing:
-table6 = Table()
-table6.add_column('A', str, data=['Alice', 'Bob', 'Bob', 'Ben', 'Charlie', 'Ben', 'Albert'])
-table6.add_column('B', str, data=['Alison', 'Marley', 'Dylan', 'Affleck', 'Hepburn', 'Barnes', 'Einstein'])
-
-index = table6.index('A')  # single key.
-assert index[('Bob',)] == {1, 2}
-
-index2 = table6.index('A', 'B')  # multiple keys.
-assert index2[('Bob', 'Dylan')] == {2}
-
-# 26. And finally: You can add metadata until the cows come home:
-table5.metadata['db_mapping'] = {'A': 'customers.customer_name',
-                                 'A_2': 'product.sku',
-                                 'A_4': 'locations.sender'}
-
-table5_json = table5.to_json()
-table5_from_json = Table.from_json(table5_json)
-assert table5 == table5_from_json
-
-# 27. Copy data to clipboard:
-
-t.copy_to_clipboard()
-
-# 28. Copy data from clipboard:
-
-t = Table.copy_from_clipboard()  
 
 
 ```
@@ -265,26 +147,26 @@ t.add_row(*[{'row': 13, 'A': 1, 'B': 2, 'C': 3},
             {'row': 14, 'A': 1, 'B': 2, 'C': 3}])  # list of dicts.
 t.show()  
 
-    # +=====+=====+=====+=====+
-    # | row |  A  |  B  |  C  |
-    # | int | int | int | int |
-    # |False|False|False|False|
-    # +-----+-----+-----+-----+
-    # |    1|    1|    2|    3|
-    # |    2|    1|    2|    3|
-    # |    3|    1|    2|    3|
-    # |    4|    1|    2|    3|
-    # |    5|    1|    2|    3|
-    # |    6|    1|    2|    3|
-    # |    7|    1|    2|    3|
-    # |    8|    4|    5|    6|
-    # |    9|    1|    2|    3|
-    # |   10|    4|    5|    6|
-    # |   11|    1|    2|    3|
-    # |   12|    4|    5|    6|
-    # |   13|    1|    2|    3|
-    # |   14|    1|    2|    3|
-    # +=====+=====+=====+=====+
+    +=====+=====+=====+=====+
+    | row |  A  |  B  |  C  |
+    | int | int | int | int |
+    |False|False|False|False|
+    +-----+-----+-----+-----+
+    |    1|    1|    2|    3|
+    |    2|    1|    2|    3|
+    |    3|    1|    2|    3|
+    |    4|    1|    2|    3|
+    |    5|    1|    2|    3|
+    |    6|    1|    2|    3|
+    |    7|    1|    2|    3|
+    |    8|    4|    5|    6|
+    |    9|    1|    2|    3|
+    |   10|    4|    5|    6|
+    |   11|    1|    2|    3|
+    |   12|    4|    5|    6|
+    |   13|    1|    2|    3|
+    |   14|    1|    2|    3|
+    +=====+=====+=====+=====+
 ```
 
 ### Okay, great. How do I load data?
@@ -325,7 +207,7 @@ Yes! This is very good for special log files or custom json formats.
 Here's how you do it:
 
 ```
->>> def magic_reader(path):   # define the reader.
+>>> def magic_reader(path):   # define your new file reader.
 >>>     # do magic
 >>>     return 1
 
@@ -348,11 +230,13 @@ log [<function log_reader at 0x0000020FFF299F78>, {'sep': False}]
 my_html_reader [<function magic_reader at 0x0000020FFF3828B8>, {}]  # <--------- my magic new reader!
 ```
 
+The `file_readers` are all in [tablite.core](https://github.com/root-11/tablite/blob/master/tablite/core.py) so if you intend to extend the readers, I recommend that you start here.
+
 
 
 ### Cool. Does it play well with plotly?
 
-Yes. Here's an example you can copy paste:
+Yes. Here's an example you can copy and paste:
 ```
 from tablite import Table
 
@@ -376,54 +260,59 @@ t[:5].show()
 
 import plotly.graph_objects as go
 fig = go.Figure()
-fig.add_trace(go.Scatter(y=t['a']))
-fig.add_trace(go.Bar(y=t['b']))
+fig.add_trace(go.Scatter(y=t['a']))  # <-- get column 'a' from Table t 
+fig.add_trace(go.Bar(y=t['b']))  #     <-- get column 'b' from Table t
 fig.update_layout(title = 'Hello Figure')
 fig.show()
 ```
 
-![new plot](images/newplot.png)
+![new plot](https://github.com/root-11/tablite/blob/master/images/newplot.png?raw=true)
 
 
 ### But what do I do if I'm about to run out of memory?
 
-```
-import table
-table.new_tables_use_disk = True  # Sets global property for all new tables.
+You can drop tables from memory onto disk at runtime with this command: `table.use_disk=True`
 
-path = 'zip_full_of_large_csvs.zip'  # 314 Gb unzipped.
-tables = file_reader(path)  # uses 11 Mb of memory to manage 314 Gb of data.
-
+I have a 308 Gb library with txt, csv and excel files with all kinds of locales that I
+use for testing. To cope with this on a raspberry pi I do this:
 ```
+from tablite import Table
+Table.new_tables_use_disk = True  # Sets global property for all new tables.
+
+path = 'zip_full_of_large_csvs.zip'  # 308 Gb unzipped.
+tables = file_reader(path)  # a generator 
+
+for table in tables:
+    # do the tests...
+```
+
+`tables` is a generator that reads one file at a time. Some users tend to use `tables = list(file_reader(path))`
+and then pick the tables as they'd like. For example `table1 = tables[0]`. 
+
+With `Table.new_tables_use_disk = True` tablite uses 11 Mb of memory to manage 308 Gb of data.
+The 308Gb can't magically vanish, so you will find that `tablite` uses 
+`gettempdir` from pythons builtin `tempfile` module. The 308 Gb will be here.
+_Hint: USB 3.0 makes it tolerable_.
+
+Consuming the generator to make a list (in `tables = list(...)`) will load all tables, and with
+308 Gb that will take some time. Instead I use `table1 = next(file_reader(path))` as this reads
+the data one table at a time.
+
 
 Let's do a comparison:
 
-```
-from tablite import StoredList, Table
+|Step|What|How|
+|:---:|---|---|
+|1|Start python<br>import the libraries|`from tablite import StoredList, Table`|
+|2|Decide for test size|`digits = 1_000_000`|
+|3|go and check taskmanagers memory usage now as the imports are loadde.|At this point were using ~20.3 Mb ram to python started.|
+|4|Set up the common and convenient "row" based format|`L = [tuple(11 for i in range(10) for j in range(digits)]`|
+|5|go and check taskmanagers memory usage.|At this point we're using ~154.2 Mb to store 1 million lists with 10 items.|
+|6|clear the memory|`L.clear() `|
+|7|Set up a "columnar" format instead|`L = [[11 for i in range(digits)] for _ in range(10)]`|
+|8|go and check taskmanagers memory usage.|at this point we're using ~98.2 Mb to store 10 lists with 1 million items.|
+|9|clear the memory|`L.clear() `|
 
-digits = 1_000_000
-
-# go and check taskmanagers memory usage. 
-# At this point were using ~20.3 Mb ram to python started.
-
-# Let's now use the common and convenient "row" based format:
-
-L = []
-for _ in range(digits):
-    L.append(tuple([11 for _ in range(10)]))
-
-# go and check taskmanagers memory usage.
-# At this point we're using ~154.2 Mb to store 1 million lists with 10 items. 
-L.clear() 
-
-# Let's now use a columnar format instead:
-L = [[11 for i in range(digits)] for _ in range(10)]
-
-# go and check taskmanagers memory usage.
-# at this point we're using ~98.2 Mb to store 10 lists with 1 million items.
-L.clear() 
-
-```
 We've thereby saved 50 Mb by avoiding the overhead from managing 1 million lists.
 
     Python alone: 20.3 Mb
@@ -435,46 +324,36 @@ Q: But why didn't I just use an array? It would have even lower memory footprint
 A: First, array's don't handle `None`'s and we get that frequently in dirty csv data.  
 Second, Table needs even less memory.
 
-Let's start with an array:
-```
-import array
-L = [array.array('i', [11 for _ in range(digits)]) for _ in range(10)]
-# go and check taskmanagers memory usage.
-# at this point we're using 60.0 Mb to store 10 lists with 1 million integers.
-L.clear() 
-```
+|Step|What|How|
+|:---:|---|---|
+|10|Let's start with an array|`import array`<br>`L = [array.array('i', [11 for _ in range(digits)]) for j in range(10)]`|
+|11|go and check taskmanagers memory usage.|at this point we're using 60.0 Mb to store 10 lists with 1 million integers.|
+|12|clear the memory|`L.clear() `|
 
 Now let's use Table:
 
-```
-t = Table()
-for i in range(10):
-    t.add_column(str(i), int, allow_empty=False, data=[11 for _ in range(digits)])
+|Step|What|How|
+|:---:|---|---|
+|13|set up the Table|`t = Table()`<br>`for i in range(10):`<br>`    t.add_column(str(i), int, allow_empty=False, data=[11 for _ in range(digits)])`|
+|14|go and check taskmanagers memory usage.|At this point we're using  97.5 Mb to store 10 columns with 1 million integers.|
+|15|use the api `use_stored_lists` to drop to disk|`t.use_disk = True`|
+|16|go and check taskmanagers memory usage.|At this point we're using  24.5 Mb to store 10 columns with 1 million integers.Only the metadata remains in pythons memory.|
 
-# go and check taskmanagers memory usage.
-# At this point we're using  97.5 Mb to store 10 columns with 1 million integers.
-
-# Next we'll use the api `use_stored_lists` to drop to disk:
-t.use_disk = True
-
-# go and check taskmanagers memory usage.
-# At this point we're using  24.5 Mb to store 10 columns with 1 million integers.
-# Only the metadata remains in pythons memory.
-```
-
-Conclusion a drop from 154.2 Mb to 24.5 Mb working memory using tables in
+*Conclusion*: a drop from 154.2 Mb to 24.5 Mb working memory using tables in
 1 line of code: `t.use_disk = True`.
 
-If you want all your tables to be on disk, set the class variable `Table.new_tables_use_disk = True`.  
-If you want a single table to be on disk, use `t = Table(use_disk=True)`.  
-If you want an existing table to drop to disk use: `t.use_disk = True`
+_more hints:_  
+
+- If you want all your tables to be on disk, set the class variable `Table.new_tables_use_disk = True`.  
+- If you want a single table to be on disk, use `t = Table(use_disk=True)`.  
+- If you want an existing table to drop to disk use: `t.use_disk = True`
 
 
 ----------------
 
-### At this point you know it's a solid bread and butter table. 
-### No surprises. Now onto the features that will save a lot of time.
+### At this point you know it's a solid bread and butter table.<br> No surprises.<br> Now onto the features that will save a lot of time.
 
+------------
 
 ### Iteration
 
@@ -524,6 +403,8 @@ assert list(t.columns) == list('abcdefg')
 
 
 **_Sort_** supports multi-column sort as simple as `table.sort(**{'A': False, 'B': True, 'C': False})`
+
+The boolean uses same interpretation as `reverse` when sorting a list.
 
 Here's an example:
 
@@ -586,6 +467,7 @@ This gives you a dictionary with the key as a tuple and the indices as a set, e.
         (2, 44): {4,5,32}
     }
 
+You can now fetch all rows using index access methods.
 
 
 ### search using ALL and ANY
@@ -617,8 +499,102 @@ assert list(after.rows) == [(1, 'hello'), (1, 'hello'), (44, 'Hallo')]
 
 ----------------
 
-### SQL join operations
+### Lookup
 
+Lookup is a special case of a search loop: Say for example you are planning a concert and want to make sure that your friends can make it home using public transport: You would have to find the first departure after the concert ends towards their home. A join would only give you a direct match on the time.
+
+Lookup allows you "to iterate through a list of data and find the first match given a set of criteria."
+
+Here's an example:
+
+First we have our list of friends and their stops.
+```
+>>> friends = Table()
+>>> friends.add_column("name", str, data=['Alice', 'Betty', 'Charlie', 'Dorethy', 'Edward', 'Fred'])
+>>> friends.add_column("stop", str, data=['Downtown-1', 'Downtown-2', 'Hillside View', 'Hillside Crescent', 'Downtown-2', 'Chicago'])
+>>> friends.show()
+
++=======+=================+
+|  name |       stop      |
+|  str  |       str       |
+| False |      False      |
++-------+-----------------+
+|Alice  |Downtown-1       |
+|Betty  |Downtown-2       |
+|Charlie|Hillside View    |
+|Dorethy|Hillside Crescent|
+|Edward |Downtown-2       |
+|Fred   |Chicago          |
++=======+=================+
+```
+Next we need a list of bus routes and their time and stops. I don't have that, so I'm making one up:
+```
+>>> import random
+>>> random.seed(11)
+>>> table_size = 40
+
+>>> times = [DataTypes.time(random.randint(21, 23), random.randint(0, 59)) for i in range(table_size)]
+>>> stops = ['Stadium', 'Hillside', 'Hillside View', 'Hillside Crescent', 'Downtown-1', 'Downtown-2',
+>>>          'Central station'] * 2 + [f'Random Road-{i}' for i in range(table_size)]
+>>> route = [random.choice([1, 2, 3]) for i in stops]
+
+>>> bustable = Table()
+>>> bustable.add_column("time", DataTypes.time, data=times)
+>>> bustable.add_column("stop", str, data=stops[:table_size])
+>>> bustable.add_column("route", int, data=route[:table_size])
+
+>>> bustable.sort(**{'time': False})
+
+>>> print("Departures from Concert Hall towards ...")
+>>> bustable[:10].show()
+
+Departures from Concert Hall towards ...
++========+=================+=====+
+|  time  |       stop      |route|
+|  time  |       str       | int |
+| False  |      False      |False|
++--------+-----------------+-----+
+|21:02:00|Random Road-6    |    2|
+|21:05:00|Hillside Crescent|    2|
+|21:06:00|Hillside         |    1|
+|21:25:00|Random Road-24   |    1|
+|21:29:00|Random Road-16   |    1|
+|21:32:00|Random Road-21   |    1|
+|21:33:00|Random Road-12   |    1|
+|21:36:00|Random Road-23   |    3|
+|21:38:00|Central station  |    2|
+|21:38:00|Random Road-8    |    2|
++========+=================+=====+
+
+```
+Let's say the concerts ends at 21:00 and it takes a 10 minutes to get to the bus-stop. Earliest departure must then be 21:10 - goodbye hugs included.
+
+```
+lookup_1 = friends.lookup(bustable, ('time', ">=", DataTypes.time(21, 10)), ('stop', "==", 'stop'))
+lookup_1.sort(**{'time': False})
+lookup_1.show()
+
++=======+=================+========+=================+=====+
+|  name |       stop      |  time  |      stop_1     |route|
+|  str  |       str       |  time  |       str       | int |
+|  True |       True      |  True  |       True      | True|
++-------+-----------------+--------+-----------------+-----+
+|Fred   |Chicago          |None    |None             |None |
+|Dorethy|Hillside Crescent|21:05:00|Hillside Crescent|    2|
+|Betty  |Downtown-2       |21:51:00|Downtown-2       |    1|
+|Edward |Downtown-2       |21:51:00|Downtown-2       |    1|
+|Charlie|Hillside View    |22:19:00|Hillside View    |    2|
+|Alice  |Downtown-1       |23:12:00|Downtown-1       |    3|
++=======+=================+========+=================+=====+
+```
+
+Lookup's ability to custom criteria is thereby far more versatile than SQL joins. 
+But _with great power comes great responsibility_.
+
+
+----------
+
+### SQL join operations
 
 **_SQL JOINs_** are supported out of the box. 
 
@@ -712,6 +688,33 @@ outer_join.show()
     +======+======+
 
 ```
+
+
+**Venn diagrams do not explain joins**.
+> A Venn diagram is a widely-used diagram style that shows the logical relation between sets, popularised by John Venn in the 1880s. The diagrams are used to teach elementary set theory, and to illustrate simple set relationships<br>[source: en.wikipedia.org](https://en.wikipedia.org/wiki/Venn_diagram)
+
+Joins operate over rows and ***when*** there are duplicate rows, these will be replicated in the output.
+Too many users get surprised over this behaviour.
+
+_hint_: If you want to get rid of duplicates using tablite, use the `index` functionality
+across all columns and pick the first row from each index. Here's the recipe:
+
+### Create table of unique entries (deduplicate)
+
+```
+indices = old_table.index(*old_table.columns)
+new_table = Table()
+for name,column in old_table.columns:
+    new_table.add_column(name, column.datatype, column.allow_empty)
+for keys,index in indices.items():
+    first_match = index.pop()
+    row = old_table.rows[first_match]
+    new_table.add_row(row)
+
+new_table.show()  # <-- duplicates have been removed.
+```
+
+
 
 ----------------
 
@@ -1015,6 +1018,7 @@ Here's a summary of features:
 - Move fluently between disk and ram using `t.use_disk = True/False`
 - Iterate over rows or columns
 - Create multikey index, sort, use filter, any and all to select.
+  Lookup between tables using custom functions.
 - Perform multikey joins with other tables.
 - Perform groupby and reorganise data as a pivot table with max, min, sum, first, last, count, unique, average, st.deviation, median and mode
 - Update tables with += which automatically sorts out the columns - even if they're not in perfect order.
