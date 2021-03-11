@@ -397,13 +397,10 @@ def test_clipboard():
 def test_lookup():
     friends = Table()
     friends.add_column("name", str, data=['Alice', 'Betty', 'Charlie', 'Dorethy', 'Edward', 'Fred'])
-    friends.add_column("stop", str,
-                       data=['Downtown-1', 'Downtown-2', 'Hillside View', 'Hillside Crescent', 'Downtown-2', 'Chicago'])
+    friends.add_column("stop", str, data=['Downtown-1', 'Downtown-2', 'Hillside View', 'Hillside Crescent', 'Downtown-2', 'Chicago'])
     friends.show()
 
     random.seed(11)
-    table_size = 40
-
     table_size = 40
 
     times = [DataTypes.time(random.randint(21, 23), random.randint(0, 59)) for i in range(table_size)]
