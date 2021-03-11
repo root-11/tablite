@@ -7,7 +7,12 @@
 
 --------------
 
-Version 2021/03/10+: New multi-criteria lookup functionality: table1.lookup(table2, criterias...)
+Version 2021/03/10+: 
+- New multi-criteria lookup functionality: table1.lookup(table2, criterias...)
+- rename_column(self, header, new_name)
+- copy_columns_only(table)
+- updated documentation.
+
 
 -----------
 
@@ -62,13 +67,15 @@ Here are some examples:
 |Access index in column |`table['A'][7]`|
 |Add another column that doesn't tolerate None's|`table.add_column('B', str, allow_empty=False)`|
 |Gracefully deal with duplicate column names|`table.add_column('B', int, allow_empty=True)`<br>`>>> table2.columns`<br>`['A','B','B_1']`|
+|Rename column| `>>> table.rename_column('A', 'aa')`<br>`>>> list(table.columns)`<br>`['aa', 'B']`|
 |Delete a column|`del table['B_1']`|
 |append (a couple of) rows|`table.add_row((1, 'hello'))`<br>`table.add_row((2, 'world'))`|
 |update values<br>_(should be familiar to any user who knows how to update a list)_|`table['A'][-1] = 44`<br>`table['B'][-1] = "Hallo"`|
 |type verification is included, <br>and it complaints if you're doing it wrong|`table.columns['A'][0] = 'Hallo'`<br>Will raise TypeError as 'A' is int.|
 |extend a table|`table2x = table + table`<br>this assertion will hold:<br>`assert len(table2x) == len(table) * 2`|
 |iteradd|`table2x += table`<br>now this will hold:<br>`assert len(table2x) == len(table) * 3`|
-|copy a table|`table3 = table.copy()`|
+|copy a table|`table3 = Table.copy()`|
+|copy the headers only|`table4 = table.copy_columns_only()`|
 |compare table metadata|`table.compare(table3)`<br>This will raise exception if they're different.|
 |compare tables|`assert table == table2 == table3`|
 |get slice|`table_chunk = table2[2:4]`<br>`assert isinstance(table_chunk, Table)`|
@@ -76,10 +83,10 @@ Here are some examples:
 |iterate over rows|`for row in table.rows:`<br>`    print(row) # do something`|
 |using regular indexing|`for ix, r in enumerate(table['A']):`<br>`    table['A'][ix] = r * 10`|
 |updating a column with a function|`f = lambda x: x * 10`<br>`table['A'] = [f(r) for r in table['A']]`|
-|works with all datatypes ...|`now = datetime.now()`<br>`table4 = Table()`<br>`table4.add_column('A', int, allow_empty=False, data=[-1, 1])`<br>`table4.add_column('A', int, allow_empty=True, data=[None, 1])  # None!`<br>`table4.add_column('A', float, False, data=[-1.1, 1.1])`<br>`table4.add_column('A', str, False, data=["", "1"])`<br>` # Empty string is not a None, when dtype is str!`<br>`table4.add_column('A', str, True, data=[None, "1"])`<br>` # Empty string is not a None, when dtype is str!`<br>`table4.add_column('A', bool, False, data=[False, True])`<br>`table4.add_column('A', datetime, False, data=[now, now])`<br>`table4.add_column('A', date, False, data=[now.date(), now.date()])`<br>`table4.add_column('A', time, False, data=[now.time(), now.time()])`|
+|works with all datatypes ...|`now = datetime.now()`<br>`table4 = Table()`<br>`table4.add_column('A', int, allow_empty=False, data=[-1, 1])`<br>`table4.add_column('A', int, allow_empty=True, data=[None, 1])` *(1)<br>`table4.add_column('A', float, False, data=[-1.1, 1.1])`<br>`table4.add_column('A', str, False, data=["", "1"])` *(2)<br>`table4.add_column('A', str, True, data=[None, "1"])` *(1),(2)<br>`table4.add_column('A', bool, False, data=[False, True])`<br>`table4.add_column('A', datetime, False, data=[now, now])`<br>`table4.add_column('A', date, False, data=[now.date(), now.date()])`<br>`table4.add_column('A', time, False, data=[now.time(), now.time()])`<br><br>(1) with `allow_empty=True` `None` is permitted.<br>(2) Empty string is not a None, when datatype is string.|
 |json - to and from|`table4_json = table4.to_json()`<br>`table5 = Table.from_json(table4_json)`<br>`assert table4 == table5`|
-|doing lookups is supported by indexing|`table6 = Table()`<br>`table6.add_column('A', str, data=['Alice', 'Bob', 'Bob', 'Ben', 'Charlie', 'Ben', 'Albert'])`<br>`table6.add_column('B', str, data=['Alison', 'Marley', 'Dylan', 'Affleck', 'Hepburn', 'Barnes', 'Einstein'])`<br>``<br>`index = table6.index('A')  # single key.`<br>`assert index[('Bob',)] == {1, 2}`<br>``<br>`index2 = table6.index('A', 'B')  # multiple keys.`<br>`assert index2[('Bob', 'Dylan')] == {2}`|
-|Add metadata until the cows come home|`table5.metadata['db_mapping'] = {'A': 'customers.customer_name', A_2': 'product.sku', 'A_4': 'locations.sender'}`|
+|doing lookups is supported by indexing|`table6 = Table()`<br>`table6.add_column('A', str, data=[`<br>`'Alice', 'Bob', 'Bob', 'Ben', 'Charlie', 'Ben', 'Albert'`<br>`])`<br>`table6.add_column('B', str, data=[`<br>`'Alison', 'Marley', 'Dylan', 'Affleck', 'Hepburn', 'Barnes', 'Einstein'`<br>`])`<br>`index = table6.index('A')  # single key.`<br>`assert index[('Bob',)] == {1, 2}`<br>`index2 = table6.index('A', 'B')  # multiple keys.`<br>`assert index2[('Bob', 'Dylan')] == {2}`|
+|Add metadata in the `.metadata` attribute|`table5.metadata['db_mapping'] = {'A': 'customers.customer_name', A_2': 'product.sku', 'A_4': 'locations.sender'}`|
 |Copy data to/from clipboard|`t.copy_to_clipboard()`<br>`t = Table.copy_from_clipboard()  `|
 |converting to/from json|`table_as_json = table.to_json()`<br>`table2 = Table.from_json(table_as_json)`|
 |store table on disk|`zlib.compress(table_as_json.encode())`|
@@ -106,7 +113,24 @@ Finally if you just want to view it interactively (or a slice of it), use:
 + ----- +
 |     1 |
 + ===== +
+```
 
+Note that show works with any number of arguments.
+Below is an example with keyword `blanks` set to an empty string instead of
+the default `None`. Also notice that by slicing the column names from `table.columns`
+you can limit what is show.
+
+```
+>>> XYZ_table.show(*table.columns[:2], blanks="")
+
++ =====+=====+
+|   X  |  Y  |
+|  int | str |
+| False|False|
++ -----+-----+
+|   100|     |
+|      |Hallo|
++ =====+=====+
 
 ```
 ### How do I add data again?
@@ -145,6 +169,11 @@ t.add_row({'row': 11, 'A': 1, 'B': 2, 'C': 3},
           {'row': 12, 'A': 4, 'B': 5, 'C': 6})  # two (or more) dicts as args.
 t.add_row(*[{'row': 13, 'A': 1, 'B': 2, 'C': 3},
             {'row': 14, 'A': 1, 'B': 2, 'C': 3}])  # list of dicts.
+```
+As the row incremented from `1` in the first of these examples, and finished with
+`row: 14`, you can now see the whole table below:
+
+```
 t.show()  
 
     +=====+=====+=====+=====+
@@ -198,8 +227,25 @@ you can provide a split_sequence as a keyword:
 table = file_reader('web.log', split_sequence `" ", " ", " ", " "," [", "] (", ") ", " : ", "LineNo ", " scanned ", "of "`)
 ```
 
+**How good is the file_reader?**
+
 I've included all formats in the test suite that are publicly available from 
-the alan turing institute, dateutils and csv reader. 
+the [Alan Turing institute](https://github.com/alan-turing-institute), 
+[dateutils](https://github.com/dateutil/dateutil)) and cPythons [csv reader](https://github.com/python/cpython/blob/master/Lib/csv.py).  
+
+`MM-DD-YYYY` formats? Some users from the US ask why the csv reader doesn't read the month-day-year format.
+The answer is simple: It's not an [iso8601](https://en.wikipedia.org/wiki/ISO_8601) format. The US month-day-year format is a locale 
+that may be used a lot in the US, but it isn't an international standard. If you need
+to work with `MM-DD-YYYY` you will find that the file_reader will import the values as 
+text (str). You can then reformat it with a custom function like: 
+```
+>>> s = "03-21-1998"
+>>> from datetime import date
+>>> f = lambda s: date(int(s[-4:]), int(s[:2]), int(s[3:5]))
+>>> f(s)
+datetime.date(1998, 3, 21)
+```
+  
 
 ### Sweet. Can I add my own file reader?
 
@@ -689,23 +735,23 @@ outer_join.show()
 
 ```
 
-
-**Venn diagrams do not explain joins**.
+**Q: But ...I think there's a bug in the join...**  
+**A: Venn diagrams do not explain joins**.
 > A Venn diagram is a widely-used diagram style that shows the logical relation between sets, popularised by John Venn in the 1880s. The diagrams are used to teach elementary set theory, and to illustrate simple set relationships<br>[source: en.wikipedia.org](https://en.wikipedia.org/wiki/Venn_diagram)
 
-Joins operate over rows and ***when*** there are duplicate rows, these will be replicated in the output.
-Too many users get surprised over this behaviour.
+Joins operate over rows and ***when*** there are **duplicate rows**, these will be replicated in the output.
+Many beginners are surprised by this, because they didn't read the SQL standard.
 
-_hint_: If you want to get rid of duplicates using tablite, use the `index` functionality
+**Q: So what do I do?**  
+**A**: If you want to get rid of duplicates using tablite, use the `index` functionality
 across all columns and pick the first row from each index. Here's the recipe:
 
-### Create table of unique entries (deduplicate)
-
 ```
+# CREATE TABLE OF UNIQUE ENTRIES (a.k.a. DEDUPLICATE)
+#
+new_table = old_table.copy_columns_only()
+
 indices = old_table.index(*old_table.columns)
-new_table = Table()
-for name,column in old_table.columns:
-    new_table.add_column(name, column.datatype, column.allow_empty)
 for keys,index in indices.items():
     first_match = index.pop()
     row = old_table.rows[first_match]
@@ -718,7 +764,7 @@ new_table.show()  # <-- duplicates have been removed.
 
 ----------------
 
-### Groupby and Pivot tables
+### GroupBy and Pivot tables
 
 
 **_GroupBy_** operations are supported using the GroupBy class.

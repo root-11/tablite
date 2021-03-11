@@ -180,17 +180,18 @@ class Table(object):
         for table in file_reader(path, **kwargs):
             yield table
 
-    @staticmethod
-    def copy_columns_only(table):
+    def copy_columns_only(self):
         """creates a new tablite without the data"""
-        assert isinstance(table, Table)
         t = Table()
-        for col in table.columns.values():
+        for col in self.columns.values():
             t.add_column(col.header, col.datatype, col.allow_empty, data=[])
-        t.metadata = table.metadata.copy()
+        t.metadata = self.metadata.copy()
         return t
 
     def check_for_duplicate_header(self, header):
+        """ Helper used to detect duplicate headers.
+        :return valid header name
+        """
         assert isinstance(header, str)
         if not header:
             header = 'None'
@@ -200,7 +201,31 @@ class Table(object):
             new_header = f"{header}_{next(counter)}"  # valid attr names must be ascii.
         return new_header
 
+    def rename_column(self, header, new_name):
+        """
+        :param header: current header name
+        :param new_name: new name
+        :return: None.
+        """
+        if new_name != self.check_for_duplicate_header(new_name):
+            raise ValueError(f"header name {new_name} is already in use.")
+
+        order = list(self.columns)
+        d = {}
+        for name in order:
+            if name == header:
+                d[new_name] = self.columns[name]
+            else:
+                d[name] = self.columns[name]
+        self.columns = d
+
     def add_column(self, header, datatype, allow_empty=False, data=None):
+        """
+        :param header: str name of column
+        :param datatype: from: int, str, float, bool, date, datetime, time
+        :param allow_empty: bool
+        :param data: list of values of given datatype.
+        """
         assert isinstance(header, str)
         header = self.check_for_duplicate_header(header)
         if self._use_disk is False:
@@ -399,6 +424,7 @@ class Table(object):
         return idx
 
     def _sort_index(self, **kwargs):
+        """ Helper for methods `sort` and `is_sorted` """
         if not isinstance(kwargs, dict):
             raise ValueError("Expected keyword arguments")
         if not kwargs:
@@ -438,6 +464,9 @@ class Table(object):
             col.replace(values=[col[ix] for ix in sorted_index])
 
     def is_sorted(self, **kwargs):
+        """ Performs multi-pass sorting check with precedence given order of column names.
+        :return bool
+        """
         sorted_index = self._sort_index(**kwargs)
         if any(ix != i for ix, i in enumerate(sorted_index)):
             return False
@@ -573,11 +602,11 @@ class Table(object):
         :param left_keys: list of keys for the join
         :param right_keys: list of keys for the join
         :param columns: list of columns to retain, if None, all are retained.
-        :return: new tablite
+        :return: new Table
 
         Example:
         SQL:   SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
-        Table: left_join = numbers.left_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
+        Tablite: left_join = numbers.left_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
         """
         if columns is None:
             columns = list(self.columns) + list(other.columns)
@@ -591,7 +620,7 @@ class Table(object):
             elif col_name in other.columns:
                 col = other.columns[col_name]
             else:
-                raise ValueError(f"column name '{col_name}' not in any tablite.")
+                raise ValueError(f"column name '{col_name}' not in any table.")
             left_join.add_column(col_name, col.datatype, allow_empty=True)
 
         left_ixs = range(len(self))
@@ -619,11 +648,11 @@ class Table(object):
         :param left_keys: list of keys for the join
         :param right_keys: list of keys for the join
         :param columns: list of columns to retain, if None, all are retained.
-        :return: new tablite
+        :return: new Table
 
         Example:
         SQL:   SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
-        Table: inner_join = numbers.inner_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
+        Tablite: inner_join = numbers.inner_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
         """
         if columns is None:
             columns = list(self.columns) + list(other.columns)
@@ -637,7 +666,7 @@ class Table(object):
             elif col_name in other.columns:
                 col = other.columns[col_name]
             else:
-                raise ValueError(f"column name '{col_name}' not in any tablite.")
+                raise ValueError(f"column name '{col_name}' not in any table.")
             inner_join.add_column(col_name, col.datatype, allow_empty=True)
 
         key_union = set(self.filter(*left_keys)).intersection(set(other.filter(*right_keys)))
@@ -663,11 +692,11 @@ class Table(object):
         :param left_keys: list of keys for the join
         :param right_keys: list of keys for the join
         :param columns: list of columns to retain, if None, all are retained.
-        :return: new tablite
+        :return: new Table
 
         Example:
         SQL:   SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
-        Table: outer_join = numbers.outer_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
+        Tablite: outer_join = numbers.outer_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
         """
         if columns is None:
             columns = list(self.columns) + list(other.columns)
@@ -681,7 +710,7 @@ class Table(object):
             elif col_name in other.columns:
                 col = other.columns[col_name]
             else:
-                raise ValueError(f"column name '{col_name}' not in any tablite.")
+                raise ValueError(f"column name '{col_name}' not in any table.")
             outer_join.add_column(col_name, col.datatype, allow_empty=True)
 
         left_ixs = range(len(self))
@@ -773,7 +802,7 @@ class Table(object):
             "==": operator.eq,
         }
 
-        table3 = Table()
+        table3 = Table(use_disk=self._use_disk)
         for name, col in chain(self.columns.items(), other.columns.items()):
             table3.add_column(name, col.datatype, allow_empty=True)
 
@@ -793,6 +822,7 @@ class Table(object):
             # as L is a dict, L.get(left, L) will return a value
             # from the columns IF left is a column name. If it isn't
             # the function will treat left as a value.
+            # The same applies to right.
 
         lru_cache = {}
         empty_row = tuple(None for _ in other.columns)
