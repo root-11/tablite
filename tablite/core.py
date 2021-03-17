@@ -105,9 +105,36 @@ class Table(object):
         del t.metadata['filename']
         return t
 
-    def show(self, *items, blanks=None):
+    def show(self, *items, blanks=None, row_count=True, metadata=False):
         """ shows the tablite.
-        param: items: column names, slice.
+        param: items: column names
+
+        DEFAULT                   EXAMPLE
+
+        t.show()                  t.show('A', 'C', slice(4), blanks="-", metadata=True)
+        +=====+=====+=====+       +=====+=====+
+        |  A  |  B  |  C  |       |  A  |  C  |
+        | int | str | str |       | int | str |
+        |False|False| True|       |False| True|
+        +-----+-----+-----+       +-----+-----+
+        |    0|0x   |None |       |    0|-    |
+        |    1|1x   |1    |       |    1|1    |
+        |    2|2x   |None |       |    2|-    |
+        |    3|3x   |3    |       |    3|3    |
+        |    4|4x   |None |       +=====+=====+
+        |    5|5x   |5    |       (showing 4 of 10 rows)
+        |    6|6x   |None |       metadata:
+        |    7|7x   |7    |          filename d:\test_data.csv
+        |    8|8x   |None |
+        |    9|9x   |9    |
+        +=====+=====+=====+
+        showing all 10 rows
+
+            Table.show('A','C', blanks="", metadata=True
+
+        param: blanks: string to replace blanks (None is default) when shown.
+        param: row_count: bool: shows rowcount at the end.
+        param: metadata: bool: displays metadata at the end.
         :returns None. Output is printed to stdout.
         """
         if any(not isinstance(i, (str, slice)) for i in items):
@@ -143,7 +170,7 @@ class Table(object):
                 return v.ljust(length)
             else:
                 return str(v).rjust(length)
-
+        rows = 0
         print("+", "+".join(["=" * c_lens[h] for h in headers]), "+", sep="")
         print("|", "|".join([h.center(c_lens[h], " ") for h in headers]), "|", sep="")
         print("|", "|".join([self.columns[h].datatype.__name__.center(c_lens[h], " ") for h in headers]), "|", sep="")
@@ -151,7 +178,20 @@ class Table(object):
         print("+", "+".join(["-" * c_lens[h] for h in headers]), "+", sep="")
         for row in self.filter(*tuple(headers) + (slc,)):
             print("|", "|".join([adjust(v, c_lens[h]) for v, h in zip(row, headers)]), "|", sep="")
+            rows += 1
         print("+", "+".join(["=" * c_lens[h] for h in headers]), "+", sep="")
+
+        if row_count:
+            if rows != len(self):
+                print(f"(showing {rows} of {len(self)} rows)")
+            elif len(self) > 0:
+                print(f"showing all {len(self)} rows")
+            else:
+                print("no rows")
+        if metadata:
+            print("metadata:")
+            for k, v in self.metadata.items():
+                print("  ", k, v)
 
     def copy(self):
         return self.__copy__()
