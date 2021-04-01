@@ -985,7 +985,7 @@ class GroupBy(object):
         self._function_classes = []
         for h, fn in self.groupby_functions:
             col = table[h]
-            assert isinstance(col, Column)
+            assert isinstance(col, (StoredColumn, Column))
             f_instance = fn(col.datatype)
             assert isinstance(f_instance, GroupbyFunction)
             self._function_classes.append(f_instance)
