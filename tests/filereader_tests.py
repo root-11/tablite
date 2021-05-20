@@ -403,6 +403,9 @@ def test_filereader_gdocs1xlsx_import_single_sheet():
     tables = list(file_reader(path, has_headers=False))
     assert len(tables) == 2
 
-    # a specific sheet
-    tables = list(file_reader(path, has_headers=False, sheet_name='Sheet2'))
+    # multiple sheets
+    tables = list(file_reader(path, has_headers=False, sheet_names=['Sheet1', 'Sheet2']))
+    assert len(tables) == 2
+
+    tables = list(file_reader(path, has_headers=False, sheet_names='Sheet2'))
     assert len(tables) == 1

@@ -1164,17 +1164,14 @@ def text_reader(path, split_sequence=None, sep=None, has_headers=True):
     yield t
 
 
-def excel_reader(path, has_headers=True, sheet_name=None):
+def excel_reader(path, has_headers=True, sheet_names=None):
     """  returns Table(s) from excel path """
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
     book = pyexcel.get_book(file_name=str(path))
 
-    if sheet_name is not None and sheet_name not in book.sheet_names():
-        raise ValueError(f"sheet {sheet_name} not found")
-
-    # import all sheets or a specific one
-    sheets = [s for s in book if sheet_name is None or s.name == sheet_name]
+    # import all sheets or a subset
+    sheets = [s for s in book if sheet_names is None or s.name in sheet_names]
 
     for sheet in sheets:
         if len(sheet) == 0:
