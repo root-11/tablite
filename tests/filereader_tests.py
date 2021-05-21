@@ -393,3 +393,19 @@ def test_filereader_gdocsc1ods_no_header():
         table.show(slice(0, 10))
         table.compare(sheet)
         assert len(table) == 46, table.show(blanks="")
+
+
+def test_filereader_gdocs1xlsx_import_single_sheet():
+    path = Path(__file__).parent / "data" / 'gdocs1.xlsx'
+    assert path.exists()
+
+    # all sheets
+    tables = list(file_reader(path, has_headers=False))
+    assert len(tables) == 2
+
+    # multiple sheets
+    tables = list(file_reader(path, has_headers=False, sheet_names=['Sheet1', 'Sheet2']))
+    assert len(tables) == 2
+
+    tables = list(file_reader(path, has_headers=False, sheet_names='Sheet2'))
+    assert len(tables) == 1
