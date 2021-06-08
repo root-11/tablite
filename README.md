@@ -204,7 +204,7 @@ Easy. Use `file_reader`. Here's an example:
 
 ```
 from pathlib import Path
-from tablite import file_reader
+from tablite.core import file_reader  
 
 for filename in ['data.csv', 'data.xlsx', 'data.txt', 'data.tsv', 'data.ods']:
     path = Path(filename)
@@ -213,7 +213,17 @@ for filename in ['data.csv', 'data.xlsx', 'data.txt', 'data.tsv', 'data.ods']:
         ...
 ```
 
-table.file_reader currently accepts the following formats:  
+This will also work:
+```
+from tablite import Table
+tables = Table.from_file(Path(....))
+first_table = next(tables)  # use next to fetch the first.
+for table in tables:  # or iterate...
+   pass
+
+```
+
+`file_reader` currently accepts the following formats:  
 
 `csv, tsv, txt, xls, xlsx, xlsm, ods, zip, log.`
 
