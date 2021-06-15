@@ -32,15 +32,19 @@ def test_basic_column():
 def test_basic_table():
     # creating a tablite incrementally is straight forward:
     table = Table()
+    assert len(table) == 0
     table.add_column('A', int, False)
     assert 'A' in table
+    assert len(table) == 0
 
     table.add_column('B', str, allow_empty=False)
     assert 'B' in table
+    assert len(table) == 0
 
     # appending rows is easy:
     table.add_row((1, 'hello'))
     table.add_row((2, 'world'))
+    assert len(table)==2
 
     # converting to and from json is easy:
     table_as_json = table.to_json()
