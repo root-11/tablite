@@ -57,7 +57,10 @@ class Table(object):
 
     def __len__(self):
         """ returns length of longest column."""
-        return max(len(c) for c in self.columns.values())
+        if self.columns.values():
+            return max(len(c) for c in self.columns.values())
+        else:
+            return 0
 
     def __bool__(self):
         return any(self.columns)
