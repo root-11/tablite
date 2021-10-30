@@ -1252,7 +1252,7 @@ def ods_reader(path, has_headers=True):
     sheets = pyexcel.get_book_dict(file_name=str(path))
 
     for sheet_name, data in sheets.items():
-        if data == [[], []]:  # no data.
+        if all((row == [] for row in data)):  # no data.
             continue
         for i in range(len(data)):  # remove empty lines at the end of the data.
             if "" == "".join(str(i) for i in data[-1]):
