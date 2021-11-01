@@ -407,7 +407,7 @@ class DataTypes(object):
             return 0, length, 1
 
         if item.step is None or item.step > 0:  # forward traverse
-            step = 1
+            step = 1 if item.step is None else item.step
             if item.start is None:
                 start = 0
             elif item.start < 0:
@@ -422,12 +422,10 @@ class DataTypes(object):
             else:
                 stop = item.stop
 
-            if start >= stop:
-                return None  # empty list.
+        elif item.step == 0:
+            raise ValueError("slice step cannot be zero")
 
-            return start, stop, step
-
-        elif item.step < 0:  # item.step < 0: backward traverse
+        else:  # item.step < 0: backward traverse
             step = item.step
             if item.start is None:  # a[::-1]
                 start = length
@@ -443,10 +441,5 @@ class DataTypes(object):
             else:
                 stop = item.stop
 
-            if start < stop:  # example [2:4:-1] --> []
-                return None  # empty list.
+        return start, stop, step
 
-            return start, stop, step
-
-        else:
-            return None
