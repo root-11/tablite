@@ -1,404 +1,276 @@
+import math
 import json
 import pickle
 import sqlite3
 import zlib
-from itertools import count
 from pathlib import Path
 from random import choice
 from string import ascii_lowercase
 from sys import getsizeof
 from tempfile import gettempdir
 
+from itertools import count
+from abc import ABC
+
 from tablite.datatypes import DataTypes
 
+# Queries for StoredList
+sql_create = "CREATE TABLE records (id INTEGER PRIMARY KEY, data BLOB);"
+sql_journal_off = "PRAGMA journal_mode = OFF"
+sql_sync_off = "PRAGMA synchronous = OFF "
+sql_delete = "DELETE FROM records WHERE id = ?"
+sql_insert = "INSERT INTO records VALUES (?, ?);"
+sql_update = "UPDATE records SET data = ? WHERE id=?;"
+sql_select = "SELECT data FROM records WHERE id=?"
 
-class Record(object):
-    """ Internal datastructure used by StoredList"""
 
+def tempfile(prefix='tmp', suffix='.db'):
+    """ generates a safe tempfile which windows can't handle. """
+    safe_folder = Path(gettempdir())
+    while 1:
+        n = "".join(choice(ascii_lowercase) for _ in range(5))
+        name = f"{prefix}{n}{suffix}"
+        p = safe_folder / name
+        if not p.exists():
+            break
+    return p
+
+
+class Page(object):
     ids = count()
 
-    def __init__(self, stored_list):
-        assert isinstance(stored_list, StoredList)
-        self.stored_list = stored_list
-        self.id = next(self.ids)  # id is used for storage retrieval. Not sequence.
-        self._len = 0
-        self.buffer = []
-        self.loaded = False
-        self.changed = False
-
-    def __str__(self):
-        return self.__repr__()
-
-    def __repr__(self):
-        if self.changed:
-            c = "changed"
-        else:
-            c = "saved"
-        return f"{self.__class__.__name__} ({c}) ({len(self)} items) {self.buffer[:5]} ..."
-
-    def __sizeof__(self):
-        return getsizeof(self.buffer)
-
-    def __bool__(self):
-        return bool(self.loaded)
+    def __init__(self):
+        self.pid = next(Page.ids)
+        self.data = []
+        self.len = 0
+        self.loaded = True
 
     def __len__(self):
-        if self.buffer:
-            self._len = len(self.buffer)
-        return self._len
-
-    def save(self):
-        """ save the buffer to disk and clears the buffer"""
-        if self.changed:
-            self.changed = False
-            self.loaded = False
-            self._len = len(self.buffer)
-            try:
-                self.stored_list.write(self)
-            except Exception:
-                self.stored_list.update(self)
-            self.buffer.clear()
+        if not self.loaded:
+            return self.len
         else:
-            pass
+            return len(self.data)
 
-    def dump(self):
-        """ wipes the buffer without saving """
-        self.loaded = False
-        if self.changed:
-            raise Exception("data loss!")
-        self.buffer.clear()
-
-    def load(self):
-        """
-        loads the buffer savely from disk, by saving any
-        other buffered data first.
-
-        The total buffer will thereby never exceed set limit.
-        """
-        if self.loaded:
-            return
-        elif self.changed:
-            return
-        else:
-            # 1. first save the buffer of everyone else.
-            for r in self.stored_list.records:
-                if r.changed:
-                    r.save()
-            # 2. then load own buffer.
-            self.loaded = True
-            self.changed = False
-            self.buffer = self.stored_list.read(self)
-
-    def append(self, value):
-        self.loaded = True
-        if len(self.buffer) < self.stored_list.buffer_limit:
-            self.buffer.append(value)
-            self.changed = True
-        else:
-            self.save()
-            r = Record(self.stored_list)
-            self.stored_list.records.append(r)
-            r.append(value)
-
-    def extend(self, items):
-        self.loaded = True
-        self.changed = True
-
-        max_len = self.stored_list.buffer_limit
-        # first store what fits.
-        space = max_len - len(self)
-        part, items = items[:space], items[space:]
-        self.buffer.extend(part)
-        if len(self.buffer) == max_len:
-            self.save()
-
-        # second store remaining items (if any)
-        while items:
-            part, items = items[:max_len], items[max_len:]
-            r = Record(self.stored_list)
-            self.stored_list.records.append(r)
-            r.extend(part)
-
-    def count(self, item):
-        self.load()
-        v = self.buffer.count(item)
-        return v
-
-    def index(self, item):
-        self.load()
-        try:
-            v = self.buffer.index(item)
-        except ValueError:
-            v = None
-        return v
-
-    def insert(self, index, item):
-        self.load()
-
-        if len(self) < self.stored_list.buffer_limit:
-            self.changed = True
-            self.buffer.insert(index, item)
-        else:
-            self.save()
-            r = Record(self.stored_list)
-            self.stored_list.records.append(r)
-            r.append(item)
-
-    def pop(self, index=None):
-        self.load()
-        self.changed = True
-        if index is None:
-            return self.buffer.pop()
-        else:
-            return self.buffer.pop(index)
-
-    def __contains__(self, item):
-        self.load()
-        return item in self.buffer
-
-    def remove(self, item):
-        self.load()
-        try:
-            self.buffer.remove(item)
-            self.changed = True
-        except ValueError:
-            self.dump()
-
-    def reverse(self):
-        self.load()
-        self.changed = True
-        self.buffer.reverse()
-        v = self.buffer[:]
-        self.save()
-        return v
-
-    def __iter__(self):
-        self.load()
-        for v in self.buffer:
-            yield v
-
-    def __getitem__(self, item):
-        self.load()
-        return self.buffer[item]
-
-    def __setitem__(self, key, value):
-        self.load()
-        self.changed = True
-        self.buffer[key] = value
-
-    def sort(self, reverse=False):
-        self.load()
-        self.changed = True
-        self.buffer.sort(reverse=reverse)
-
-    def __delitem__(self, key):
-        self.load()
-        self.changed = True
-        del self.buffer[key]
-
-
-class Buffer(object):
-    """ internal storage class of the StoredList
-
-    If you want to store using remote connections or another format
-    simply override the methods in this class.
-    """
-    sql_create = "CREATE TABLE records (id INTEGER PRIMARY KEY, data BLOB);"
-    sql_journal_off = "PRAGMA journal_mode = OFF"
-    sql_sync_off = "PRAGMA synchronous = OFF "
-
-    sql_delete = "DELETE FROM records WHERE id = ?"
-    sql_insert = "INSERT INTO records VALUES (?, ?);"
-    sql_update = "UPDATE records SET data = ? WHERE id=?;"
-    sql_select = "SELECT data FROM records WHERE id=?"
-
-    def __init__(self):
-        self.file = windows_tempfile()
-        self._conn = sqlite3.connect(str(self.file))  # SQLite3 connection
-        with self._conn as c:
-            c.execute(self.sql_create)
-            c.execute(self.sql_journal_off)
-            c.execute(self.sql_sync_off)
-
-    def __del__(self):
-        try:
-            self._conn.close()
-        except Exception:
-            self._conn.interrupt()
-            self._conn.close()
-        self.file.unlink()
-
-    def buffer_update(self, record):
-        assert isinstance(record, Record)
-        data = zlib.compress(pickle.dumps(record.buffer))
-        with self._conn as c:
-            c.execute(self.sql_update, (data, record.id))  # UPDATE
-
-    def buffer_write(self, record):
-        assert isinstance(record, Record)
-        data = zlib.compress(pickle.dumps(record.buffer))
-        with self._conn as c:
-            c.execute(self.sql_insert, (record.id, data))  # INSERT
-
-    def buffer_read(self, record):
-        assert isinstance(record, Record)
-        with self._conn as c:
-            q = c.execute(self.sql_select, (record.id,))  # READ
-            data = q.fetchone()[0]
-        return pickle.loads(zlib.decompress(data))
-
-    def buffer_delete(self, record):
-        assert isinstance(record, Record)
-        with self._conn as c:
-            c.execute(self.sql_delete, (record.id,))  # DELETE
-        record.buffer.clear()
+    def __repr__(self):
+        return f"Page({self.pid}) {'loaded' if self.loaded else 'stored'} ({len(self)} items)"
 
 
 class StoredList(object):
-    """ A type that behaves like a list, but stores items on disk """
-    def __init__(self, buffer_limit=20_000):
-        self.storage = None
-        self.records = []
-        if not isinstance(buffer_limit, int):
-            raise TypeError(f'buffer_limit must be int, not {type(buffer_limit)}')
-        self._buffer_limit = buffer_limit
+    """
+    Python list stored on disk using sqlite's fast mmap.
+    """
+    default_page_size = 20_000
 
-    # internal data management methods
-    # --------------------------------
-    def _load_from_list(self, other):
-        """ helper to load variables from another StoredList"""
-        assert isinstance(other, StoredList)
-        self.storage = other.storage
-        self.records = other.records
-        self._buffer_limit = other._buffer_limit
+    def __init__(self, data=None, page_size=None):
+        if page_size is None:
+            page_size = StoredList.default_page_size
+        if not isinstance(page_size, int):
+            raise TypeError
+        self._page_size = page_size
 
-    def update(self, record):
-        assert isinstance(record, Record)
-        assert isinstance(self.storage, Buffer)
-        self.storage.buffer_update(record)
+        self.storage_file = tempfile()
+        self._conn = sqlite3.connect(str(self.storage_file))  # SQLite3 connection
+        with self._conn as c:
+            c.execute(sql_create)
+            c.execute(sql_journal_off)
+            c.execute(sql_sync_off)
 
-    def write(self, record):
-        if self.storage is None:
-            self.storage = Buffer()
-        assert isinstance(record, Record)
-        assert isinstance(self.storage, Buffer)
-        self.storage.buffer_write(record)
+        self.pages = []
+        self._current_page = None
+        self._new_page()
 
-    def read(self, record):
-        if self.storage is None:
-            self.storage = Buffer()
-        assert isinstance(self.storage, Buffer)
-        assert isinstance(record, Record)
-        return self.storage.buffer_read(record)
-
-    def delete(self, record):
-        assert isinstance(record, Record)
-        assert isinstance(self.storage, Buffer)
-        self.storage.buffer_delete(record)
+        if data is not None:
+            self.extend(data)
 
     @property
-    def buffer_limit(self):
-        return self._buffer_limit
+    def page_size(self):
+        return self._page_size
 
-    @buffer_limit.setter
-    def buffer_limit(self, value):
+    @page_size.setter
+    def page_size(self, value):
         if not isinstance(value, int):
             raise TypeError
-        if self._buffer_limit < value: # reduce requires reload.
-            L = StoredList(buffer_limit=value)
-            for v in self:
-                L.append(v)
-            self._load_from_list(L)
-        else:
-            self._buffer_limit = value  # increase is permissive.
+        elif value < 0:
+            raise ValueError
+        elif self._page_size == value:
+            pass  # leave as is.
+        elif value > self._page_size:  # leave the page size. It won't make a difference.
+            self._page_size = value
+        else:  # pages will have to be reduced.
+            print(f"reducing page size from {self._page_size} to {value}")
+            self._page_size = value
 
-    def _normal_index(self, index):
-        if not isinstance(index, int):
-            raise TypeError
-        if 0 <= index < len(self):
-            return index
+            old_pages = [page for page in self.pages]
+            self._new_page()
+            for page in old_pages:
+                self._load_page(page)
+                self.extend(page.data)  # extension runs with the new page size.
+                self._delete_page(page)
 
-        if index < 0:
-            return max(0, len(self) + index)
+    def _new_page(self):
+        """ internal method that stores current page and creates a new empty page"""
+        if self._current_page is not None:
+            self._store_page(self._current_page)
 
-        if index >= len(self):
-            return len(self)
+        page = Page()
+        self.pages.append(page)
+        data = zlib.compress(pickle.dumps(page.data))
+        with self._conn as c:
+            c.execute(sql_insert, (page.pid, data))  # INSERT
 
-    # public methods of a list
-    # ------------------------
+        assert page.loaded is True
+        self._current_page = page
+
+    def _store_page(self, page):
+        """ internal method that stores page data to disk.
+        :param page: Page
+        """
+        assert isinstance(page, Page)
+        if not page.loaded:
+            return  # because it is already stored.
+
+        data = zlib.compress(pickle.dumps(page.data))
+        page.len = len(page.data)  # update page len.
+        page.data.clear()
+
+        with self._conn as c:
+            c.execute(sql_update, (data, page.pid))  # UPDATE
+        page.loaded = False
+
+    def _load_page(self, page):
+        """ internal method that loads the data from a page.
+        :param page: Page
+        """
+        assert isinstance(page, Page)
+        if self._current_page == page and page.loaded:
+            return
+        self._store_page(self._current_page)
+        assert self._current_page.loaded is False
+
+        with self._conn as c:
+            q = c.execute(sql_select, (page.pid,))  # READ
+            data = q.fetchone()[0]
+        page.data = pickle.loads(zlib.decompress(data))
+        page.loaded = True
+        self._current_page = page
+
+    def _delete_page(self, page):
+        """ internal method that deletes a page of data. """
+        assert isinstance(page, Page)
+        with self._conn as c:
+            c.execute(sql_delete, (page.pid,))  # DELETE
+        page.data.clear()
+        self.pages.remove(page)
+
+        if not self.pages:  # there must always be one page available.
+            self._new_page()
+
+        if self._current_page == page:
+            self._current_page = self.pages[-1]
+
+    # PUBLIC METHODS.
+
     def __len__(self):
-        """ Return len(self). """
-        return sum(len(r) for r in self.records)
+        return sum(len(p) for p in self.pages)
+
+    def __iter__(self):
+        for page in self.pages:
+            self._load_page(page)
+            for value in page.data:
+                yield value
+
+    def __reversed__(self):
+        for page in reversed(self.pages):
+            self._load_page(page)
+            for value in reversed(page.data):
+                yield value
 
     def __repr__(self):
-        return self.__str__()
+        return f"StoredList(page_size={self._page_size}, data={len(self)})"
 
     def __str__(self):
-        return f"{self.__class__.__name__} {len(self)}"
+        if len(self) > 20:
+            a, b = [v for v in self[:5]], [v for v in self[-5:]]
+            return f"StoredList(page_size={self._page_size}, data={a}...{b})"
+        else:
+            return f"StoredList(page_size={self._page_size}, data={list(self[:])})"
 
     def append(self, value):
         """ Append object to the end of the list. """
-        if not self.records:
-            r = Record(self)
-            self.records.append(r)
-        r = self.records[-1]
-        r.append(value)
+        assert isinstance(self._current_page, Page)
+        if len(self._current_page) == self._page_size:
+            self._new_page()
+        self._current_page.data.append(value)
 
     def clear(self):
         """ Remove all items from list. """
-        new_list = StoredList(buffer_limit=self._buffer_limit)
-        self._load_from_list(new_list)
+        for page in self.pages[::-1]:
+            self._delete_page(page)
 
     def copy(self):
         """ Return a shallow copy of the list. """
-        L = StoredList(buffer_limit=self._buffer_limit)
-        for i in self:
-            L.append(i)
-        return L
+        SL = StoredList(page_size=self.page_size)
+        for page in self.pages:
+            self._load_page(page)
+            SL.extend(page.data)
+        return SL
 
     def count(self, item):
-        """ Return number of occurrences of value. """
-        counter = 0
-        for r in self.records:
-            counter += r.count(item)
-        return counter
+        """ Return number of occurrences of item. """
+        return sum(1 for v in self if v == item)
 
     def extend(self, items):
         """ Extend list by appending elements from the iterable. """
-        if not self.records:
-            r = Record(self)
-            self.records.append(r)
-        r = self.records[-1]
-        r.extend(items)
+        while items:
+            space = self._page_size - len(self._current_page)
+            data = items[:space]
+            self._current_page.data.extend(data[:])
+            items = items[space:]
+            if items:
+                self._new_page()
 
     def index(self, item):
         """
         Return first index of value.
-
         Raises ValueError if the value is not present.
         """
-        counter = 0
-        for r in self.records:
-            assert isinstance(r, Record)
-            v = r.index(item)
-            if v is not None:
-                return counter + v
-            counter += len(r)
-
-        raise ValueError(f"{item} not found")
+        for ix, v in enumerate(self):
+            if v == item:
+                return ix
+        raise ValueError(f"{item} is not in list")
 
     def insert(self, index, item):
         """ Insert object before index. """
-        index = self._normal_index(index)
+        if not isinstance(index, int):
+            raise TypeError
+        if abs(index) > len(self):
+            raise IndexError("index out of range")
+        if index < 0:
+            index = len(self) + index
 
-        counter = 0
-        for r in self.records:
-            if counter <= index <= counter + len(r):
-                if counter == 0:
-                    r.insert(index, item)
-                else:
-                    r.insert(index % counter, item)
+        c = 0
+        page = None
+        for page in self.pages[:]:
+            assert isinstance(page, Page)
+            if c <= index <= len(page) + c:
                 break
+            c += len(page)
+        ix = index - c
+
+        assert isinstance(page, Page)
+        self._load_page(page)
+        page.data.insert(ix, item)
+
+        if len(page) < self._page_size:  # if there is space on the page...
+            return
+        else:  # split the data in half and insert a page.
+            n = len(page) // 2
+            page.data, new_page = page.data[:n], page.data[n:]
+            page_ix = self.pages.index(page)
+            self._new_page()
+            self._current_page.data.extend(new_page)
+            self.pages.remove(self._current_page)
+            self.pages.insert(page_ix + 1, self._current_page)
 
     def pop(self, index=None):
         """
@@ -407,13 +279,25 @@ class StoredList(object):
         Raises IndexError if list is empty or index is out of range.
         """
         if index is None:
-            r = self.records[-1]
-            return r.pop(None)
+            index = 0
+        if not isinstance(index, int):
+            raise TypeError
+        if abs(index) > len(self):
+            raise IndexError("list index out of range")
+        if index < 0:
+            index = len(self) + index
 
-        counter = 0
-        for r in self.records:
-            if counter < index <= counter + len(r):
-                return r.pop(index % counter)
+        c = 0
+        for page in self.pages[:]:
+            if c <= index < len(page) + c:
+                self._load_page(page)
+                ix = index - c
+                value = page.data.pop[ix]
+                if not page.data:
+                    self._delete_page(page)
+                return value
+            else:
+                c += len(page)
 
     def remove(self, item):
         """
@@ -421,47 +305,51 @@ class StoredList(object):
 
         Raises ValueError if the value is not present.
         """
-        counter = 0
-        for r in self.records:
-            if item in r:
-                r.remove(item)
-                counter += 1
-                break
-        if not counter:
-            raise ValueError(f"{item} not found")
+        for page in self.pages[:]:
+            self._load_page(page)
+            if item in page.data:
+                page.data.remove(item)
+                return
+            if not page.data:
+                self._delete_page(page)
+
+        raise ValueError(f"{item} not in list")
 
     def reverse(self):
         """ Reverse *IN PLACE*. """
-        new_list = StoredList(buffer_limit=self._buffer_limit)
-        for r in reversed(self.records):
-            data = r.reverse()
-            new_list.extend(data)
+        self.pages.reverse()
+        for page in self.pages:
+            self._load_page(page)
+            assert isinstance(page, Page)
+            page.data.reverse()
+            self._store_page(page)
 
-        self._load_from_list(new_list)
-
-    def sort(self, reverse=False):
+    def sort(self, key=None, reverse=False):
         """ Implements a hybrid of quicksort and merge sort.
-
         See more on https://en.wikipedia.org/wiki/External_sorting
         """
-        for r in self.records:
-            r.sort(reverse=reverse)
-            r.save()
+        if key is not None:
+            raise NotImplementedError(f"key is not supported.")
 
-        wb = [r for r in self.records]
-        if len(wb) == 1:
-            C = StoredList(self._buffer_limit)
-            r = wb.pop()
-            C.extend(r)
-            wb.append(C)
+        for page in self.pages:
+            self._load_page(page)
+            page.data.sort()
+
+        working_buffer = [page for page in self.pages]
+        if len(working_buffer) == 1:
+            C = StoredList(self.page_size)
+            page = working_buffer.pop()
+            self._load_page(page)
+            C.extend(page.data)
+            working_buffer.append(C)
         else:
-            while len(wb) > 1:
-                A = wb.pop(0)
+            while len(working_buffer) > 1:
+                A = working_buffer.pop(0)
                 A = iter(A)
-                B = wb.pop(0)
+                B = working_buffer.pop(0)
                 B = iter(B)
 
-                C = StoredList(self._buffer_limit)
+                C = StoredList(self.page_size)
                 a, b = next(A), next(B)
 
                 while True:
@@ -481,42 +369,35 @@ class StoredList(object):
                             C.append(a)
                             C.extend(list(A))
                             break
+                working_buffer.append(C)
 
-                wb.append(C)
-
-        L = wb.pop()
-        assert len(L) == len(self), (len(L), len(self))
-        self._load_from_list(L)
+        L = working_buffer.pop(0)
+        assert len(L) == len(self)
+        old_pages = [page for page in self.pages]
+        self._new_page()
+        self.extend(L)
+        for page in old_pages:
+            self._delete_page(page)
 
     def __add__(self, other):
-        """ Return self+value. """
-        if isinstance(other, (StoredList, list)):
-            new_list = StoredList(buffer_limit=self._buffer_limit)
-            new_list.extend(other)
-            return new_list
-        else:
+        """
+        A = [1,2,3]
+        B = [4,5,6]
+        C = A+B
+        C = [1,2,3,4,5,6]
+        """
+        if not isinstance(other, (StoredList, list)):
             raise TypeError
+        SL = StoredList(self._page_size)
+        SL.extend(self)
+        SL.extend(other)
+        return SL
 
     def __contains__(self, item):
-        """ Return key in self. """
-        for r in self.records:
-            if item in r:
-                return True
-        return False
+        return any(item == i for i in self)
 
     def __delitem__(self, index):
-        """ Delete self[key]. """
-        if index > len(self) or index < 0:
-            raise IndexError
-
-        counter = 0
-        for r in self.records:
-            if counter < index < counter + len(r):
-                if counter == 0:
-                    del r[index]
-                else:
-                    del r[index % counter]
-                return
+        _ = self.pop(index)
 
     def __eq__(self, other):
         """ Return self==value. """
@@ -526,79 +407,104 @@ class StoredList(object):
         if len(self) != len(other):
             return False
 
-        return not any(a != b for a, b in zip(self, other))
-
-    def _get_item(self, index):
-        assert isinstance(index, int)
-        index = self._normal_index(index)
-        counter = 0
-        for r in self.records:
-            if counter <= index < counter + len(r):
-                if counter == 0:
-                    return r[index]
-                else:
-                    return r[index % counter]
-            else:
-                counter += len(r)
+        if any(a != b for a, b in zip(self, other)):
+            return False
+        return True
 
     def __getitem__(self, item):
-        """ x.__getitem__(y) <==> x[y] """
+        if not isinstance(item, (slice, int)):
+            raise TypeError
+
         if isinstance(item, int):
-            return self._get_item(item)
+            if not isinstance(item, int):
+                raise TypeError
+            if abs(item) > len(self):
+                raise IndexError("list index out of range")
+            if item < 0:
+                item = len(self) + item
+            c = 0
+            for page in self.pages:
+                if c <= item <= len(page) + c:
+                    ix = item - c
+                    self._load_page(page)
+                    return page.data[ix]  # <--- Exit for integer item
+                c += len(page)
 
         assert isinstance(item, slice)
-        L = StoredList(buffer_limit=self._buffer_limit)
-        slc = DataTypes.infer_range_from_slice(item, len(self))
-        if slc is None:
+        start, stop, step = DataTypes.infer_range_from_slice(item, len(self))
+
+        L = StoredList(page_size=self._page_size)
+        if step > 0 and start > stop:
             return L
-        start, stop, step = slc
+        if step < 0 and start < stop:
+            return L
 
         if step > 0:
-            counter = 0
-            for r in self.records:
-                if counter > stop:
+            A = 0
+            for page in self.pages:
+                B = len(page) + A
+                if stop < A:
                     break
-                if counter + len(r) > start:
-                    start_ix = max(0, start - counter)
-                    start_ix += (start_ix - start) % step
-                    end_ix = min(stop-counter, len(r))
-                    data = r[start_ix:end_ix:step]
-                    L.extend(data)
+                if B < start:
+                    A += len(page)
+                    continue
+                self._load_page(page)
+                if start >= A:
+                    start_ix = start - A
+                else:  # A > start:
+                    steps = math.ceil((A-start) / step)
+                    start_ix = (start + (steps * step)) - A
+                if stop < B:
+                    stop_ix = stop - A
+                else:
+                    stop_ix = len(page)
 
-                counter += len(r)
-
+                data = page.data[start_ix:stop_ix:step]
+                L.extend(data)
+                A += len(page)
         else:  # step < 0  # item.step < 0: backward traverse
-
-            counter = len(self)
-            for r in reversed(self.records):
-                if counter < stop:
+            B = len(self)
+            for page in reversed(self.pages):
+                A = B - len(page)
+                if start < A:
+                    B -= len(page)
+                    continue
+                if B < stop:
                     break
-                if counter - len(r) > start:
-                    start_ix = max(start - counter, 0)
-                    start_ix -= (start_ix - start) % step
-                    end_ix = None if item.stop is None else max(stop-counter, counter - len(r))
-                    L.extend(r[start_ix:end_ix:step])
+                self._load_page(page)
 
-                counter -= len(r)
+                if start > B:
+                    steps = abs(math.floor((start-B) / step))
+                    start_ix = start + (steps * step) - A
+                else:  # start <= B
+                    start_ix = start-A
+
+                if item.stop is None:
+                    stop_ix = None
+                else:  # stop - A:
+                    stop_ix = max(stop - A, 0)
+
+                data = page.data[start_ix:stop_ix:step]
+                L.extend(data)
+                B -= len(page)
 
         return L
 
     def __ge__(self, other):
         """ Return self>=value. """
-        for a, b in zip(self, other):
-            if a < b:
-                return False
-        return True
+        return all(a >= b for a, b in zip(self, other))
 
     def __gt__(self, other):
         """ Return self>value. """
-        for a, b in zip(self, other):
-            if a <= b:
-                return False
-        return True
+        return all(a > b for a, b in zip(self, other))
 
     def __iadd__(self, other):
-        """ Implement self+=value. """
+        """ Implement self+=value.
+        >>> A = [1,2,3]
+        >>> A += [4,5]
+        >>> print(A)
+        [1,2,3,4,5]
+        """
         if not isinstance(other, (StoredList, list)):
             raise TypeError
         self.extend(other)
@@ -613,30 +519,18 @@ class StoredList(object):
         elif value == 1:
             return self
         else:
-            new_list = StoredList(self._buffer_limit)
+            new_list = StoredList(self._page_size)
             for i in range(value):
-                new_list += self
+                new_list.extend(self)
             return new_list
-
-    def __iter__(self):
-        """ Implement iter(self). """
-        for r in self.records:
-            for v in r:
-                yield v
 
     def __le__(self, other):
         """ Return self<=value. """
-        for a, b in zip(self, other):
-            if a > b:
-                return False
-        return True
+        return all(a <= b for a, b in zip(self, other))
 
     def __lt__(self, other):
         """ Return self<value. """
-        for a, b in zip(self, other):
-            if a >= b:
-                return False
-        return True
+        return all(a <= b for a, b in zip(self, other))
 
     def __mul__(self, value):
         """ Return self*value. """
@@ -644,7 +538,7 @@ class StoredList(object):
             raise TypeError
         if value <= 0:
             raise ValueError
-        new_list = StoredList(buffer_limit=self._buffer_limit)
+        new_list = StoredList(page_size=self._page_size)
         for i in range(value):
             new_list += self
         return new_list
@@ -653,18 +547,9 @@ class StoredList(object):
         """ Return self!=value. """
         if not isinstance(other, (StoredList, list)):
             raise TypeError
-
         if len(self) != len(other):
             return True
-
         return any(a != b for a, b in zip(self, other))
-
-    def __reversed__(self):
-        """ Return a reverse iterator over the list. """
-        for r in reversed(self.records):
-            data = r.reverse()
-            for i in data:
-                yield i
 
     def __rmul__(self, value):
         """ Return value*self. """
@@ -674,77 +559,81 @@ class StoredList(object):
         """ Set self[key] to value. """
         if not isinstance(key, int):
             raise TypeError
-        key = self._normal_index(key)
-
-        counter = 0
-        for r in self.records:
-            if counter <= key < len(r) + counter:
-                r[key] = value
-                break
+        c = 0
+        for page in self.pages:
+            if c < key < c + len(page):
+                self._load_page(page)
+                ix = key - c
+                page.data[ix] = value
+                return
 
     def __sizeof__(self):
         """ Return the size of the list in memory, in bytes. """
-        return getsizeof(self.records)
+        return getsizeof(self.pages)
 
-    __hash__ = None
+    def disk_size(self):
+        """ returns the size of the stored file"""
+        self._store_page(self._current_page)
+        return self.storage_file.stat().st_size
+
+    def __hash__(self):
+        raise TypeError("unhashable type: List")
 
     def __copy__(self):
-        new_list = StoredList(self._buffer_limit)
-        for i in self:
-            new_list.append(i)
-        return new_list
+        SL = StoredList(self._page_size)
+        for page in self.pages:
+            self._load_page(page)
+            SL.extend(page.data)
+        return SL
 
 
-class CommonColumn(object):
-    """ A Stored list with the necessary metadata to imitate a Column """
-    def __init__(self, header, datatype, allow_empty, *args):
-        assert isinstance(header, str)
+class CommonColumn(ABC):
+    def __init__(self, header, datatype, allow_empty, metadata=None, data=None):
+        if not isinstance(header, str) and header != "":
+            raise ValueError
         self.header = header
-        assert isinstance(datatype, type)
-        assert hasattr(DataTypes, datatype.__name__)
+        if not isinstance(datatype, type):
+            raise ValueError
         self.datatype = datatype
-        assert isinstance(allow_empty, bool)
+        if not isinstance(allow_empty, bool):
+            raise TypeError
         self.allow_empty = allow_empty
+        if metadata is not None:
+            if not isinstance(metadata, dict):
+                raise TypeError
+        self.metadata = metadata
+        if data is not None:
+            self._init(data)
 
-    def __eq__(self, other):
-        if not isinstance(other, (StoredColumn, Column)):
-            a, b = self.__class__.__name__, other.__class__.__name__
-            raise TypeError(f"cannot compare {a} with {b}")
-
-        return all([
-            self.header == other.header,
-            self.datatype == other.datatype,
-            self.allow_empty == other.allow_empty,
-            len(self) == len(other),
-            all(a == b for a, b in zip(self, other))
-        ])
+    def _init(self, data):
+        if isinstance(data, tuple):
+            for v in data:
+                self.append(v)
+        elif isinstance(data, (list, StoredColumn, InMemoryColumn)):
+            self.extend(data)
+        elif data is not None:
+            raise NotImplementedError(f"{type(data)} is not supported.")
 
     def __str__(self):
         return self.__repr__()
 
     def __repr__(self):
-        return f"Column({self.header},{self.datatype},{self.allow_empty}) # ({len(self)} rows)"
+        return f"{self.__class__.__name__}({self.header},{self.datatype},{self.allow_empty}) # ({len(self)} rows)"
 
     def __copy__(self):
         return self.copy()
 
     def copy(self):
-        return Column(self.header, self.datatype, self.allow_empty, data=self[:])
+        return self.__class__(self.header, self.datatype, self.allow_empty, metadata=self.metadata.copy(), data=self)
 
     def to_json(self):
         return json.dumps({
             'header': self.header,
             'datatype': self.datatype.__name__,
             'allow_empty': self.allow_empty,
+            'metadata': self.metadata,
             'data': json.dumps([DataTypes.to_json(v) for v in self])
         })
-
-    @classmethod
-    def from_json(cls, json_):
-        j = json.loads(json_)
-        j['datatype'] = dtype = getattr(DataTypes, j['datatype'])
-        j['data'] = [DataTypes.from_json(v, dtype) for v in json.loads(j['data'])]
-        return Column(**j)
 
     def type_check(self, value):
         """ helper that does nothing unless it raises an exception. """
@@ -755,53 +644,137 @@ class CommonColumn(object):
         if not isinstance(value, self.datatype):
             raise TypeError(f"{value} is not of type {self.datatype}")
 
-    def append(self, __object) -> None:
-        self.type_check(__object)
-        super().append(__object)  # call handled by super on the sub-class.
+    def __len__(self):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def append(self, value):
+        self.type_check(value)
+        super().append(value)
 
     def replace(self, values) -> None:
         assert isinstance(values, list)
         if len(values) != len(self):
             raise ValueError("input is not of same length as column.")
-        for v in values:
-            self.type_check(v)
+        if not all(self.type_check(v) for v in values):
+            raise TypeError(f"input contains non-{self.datatype.__name__}")
         self.clear()
         self.extend(values)
+
+    def clear(self):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def count(self, item):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def extend(self, items):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def index(self, item):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def pop(self, index=None):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def remove(self, item):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def reverse(self):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def sort(self, key=None, reverse=False):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def __add__(self, other):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def __contains__(self, item):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def __delitem__(self, index):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def __eq__(self, other):
+        return all([
+            self.header == other.header,
+            self.datatype == other.datatype,
+            self.allow_empty == other.allow_empty,
+            super(self).__eq__(other),
+        ])
+
+    def __getitem__(self, item):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def __ge__(self, other):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def __gt__(self, other):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def __iadd__(self, other):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def __imul__(self, other):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def __iter__(self):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def __le__(self, other):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def __lt__(self, other):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def __mul__(self, other):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def __ne__(self, other):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def __reversed__(self):
+        raise NotImplementedError("subclasses must implement this method")
+
+    def __rmul__(self, other):
+        raise NotImplementedError("subclasses must implement this method")
 
     def __setitem__(self, key, value):
         self.type_check(value)
         super().__setitem__(key, value)
 
+    def __sizeof__(self):
+        raise NotImplementedError("subclasses must implement this method")
 
-class Column(CommonColumn, list):  # MRO: CC first, then list.
-    """ A list with metadata for use in the Table class. """
-    def __init__(self, header, datatype, allow_empty, data=None):
-        CommonColumn.__init__(self, header, datatype, allow_empty)  # first init the cc attrs.
+    def __hash__(self):
+        raise NotImplementedError("subclasses must implement this method")
+
+
+class StoredColumn(CommonColumn, StoredList):  # MRO: CC first, then SL.
+    """This is a sqlite backed mmaped list with headers and metadata."""
+
+    def __init__(self, header, datatype, allow_empty, data=None, metadata=None, page_size=StoredList.default_page_size):
+        CommonColumn.__init__(self, header, datatype, allow_empty, metadata=metadata)
+        StoredList.__init__(self, page_size=page_size)
+        self._init(data)
+
+    @classmethod
+    def from_json(cls, json_):
+        j = json.loads(json_)
+        j['datatype'] = dtype = getattr(DataTypes, j['datatype'])
+        j['data'] = [DataTypes.from_json(v, dtype) for v in json.loads(j['data'])]
+        return StoredColumn(**j)
+
+
+class InMemoryColumn(CommonColumn, list):  # MRO: CC first, then list.
+    """This is a list with headers and metadata."""
+
+    def __init__(self, header, datatype, allow_empty, data=None, metadata=None):
+        CommonColumn.__init__(self, header, datatype, allow_empty, metadata=metadata)
         list.__init__(self)  # then init the list attrs.
+        self._init(data)
 
-        if data:
-            for v in data:
-                self.append(v)  # append does the type check.
-
-
-class StoredColumn(CommonColumn, StoredList):  # MRO: CC first, then StoredList.
-    """ A Stored list with the necessary metadata to imitate a Column """
-    def __init__(self, header, datatype, allow_empty, data=None):
-        CommonColumn.__init__(self, header, datatype, allow_empty)  # first init the cc attrs.
-        StoredList.__init__(self)  # then init the list attrs.
-
-        if data:
-            for v in data:
-                self.append(v)  # append does the type check.
-
-
-def windows_tempfile(prefix='tmp', suffix='.db'):
-    """ generates a safe tempfile which windows can't handle. """
-    safe_folder = Path(gettempdir())
-    while 1:
-        n = "".join(choice(ascii_lowercase) for _ in range(5))
-        name = f"{prefix}{n}{suffix}"
-        p = safe_folder / name
-        if not p.exists():
-            break
-    return p
+    @classmethod
+    def from_json(cls, json_):
+        j = json.loads(json_)
+        j['datatype'] = dtype = getattr(DataTypes, j['datatype'])
+        j['data'] = [DataTypes.from_json(v, dtype) for v in json.loads(j['data'])]
+        return InMemoryColumn(**j)
