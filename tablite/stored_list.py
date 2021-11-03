@@ -1,5 +1,4 @@
 import math
-import json
 import pickle
 import sqlite3
 
@@ -9,7 +8,6 @@ from string import ascii_lowercase
 from sys import getsizeof
 from tempfile import gettempdir
 from itertools import count
-from abc import ABC
 
 from tablite.datatypes import DataTypes
 
@@ -634,6 +632,9 @@ class StoredList(object):
         if abs(key) > len(self):
             raise KeyError("index out of range")
         c = 0
+        if key < 0:
+            key = len(self) + key
+
         for page in self.pages:
             if c < key < c + page.len:
                 self._load_page(page)
@@ -661,194 +662,3 @@ class StoredList(object):
         return SL
 
 
-class CommonColumn(ABC):
-    def __init__(self, header, datatype, allow_empty, metadata=None, data=None):
-        if not isinstance(header, str) and header != "":
-            raise ValueError
-        self.header = header
-        if not isinstance(datatype, type):
-            raise ValueError
-        self.datatype = datatype
-        if not isinstance(allow_empty, bool):
-            raise TypeError
-        self.allow_empty = allow_empty
-        if metadata is not None:
-            if not isinstance(metadata, dict):
-                raise TypeError
-        self.metadata = metadata
-        if data is not None:
-            self._init(data)
-
-    def _init(self, data):
-        if isinstance(data, tuple):
-            for v in data:
-                self.append(v)
-        elif isinstance(data, (list, StoredColumn, InMemoryColumn)):
-            self.extend(data)
-        elif data is not None:
-            raise NotImplementedError(f"{type(data)} is not supported.")
-
-    def __str__(self):
-        return self.__repr__()
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.header},{self.datatype},{self.allow_empty}) # ({len(self)} rows)"
-
-    def __copy__(self):
-        return self.copy()
-
-    def copy(self):
-        return self.__class__(self.header, self.datatype, self.allow_empty, metadata=self.metadata.copy(), data=self)
-
-    def to_json(self):
-        return json.dumps({
-            'header': self.header,
-            'datatype': self.datatype.__name__,
-            'allow_empty': self.allow_empty,
-            'metadata': self.metadata,
-            'data': json.dumps([DataTypes.to_json(v) for v in self])
-        })
-
-    def type_check(self, value):
-        """ helper that does nothing unless it raises an exception. """
-        if value is None:
-            if not self.allow_empty:
-                raise ValueError("None is not permitted.")
-            return
-        if not isinstance(value, self.datatype):
-            raise TypeError(f"{value} is not of type {self.datatype}")
-
-    def __len__(self):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def append(self, value):
-        self.type_check(value)
-        super().append(value)
-
-    def replace(self, values) -> None:
-        assert isinstance(values, list)
-        if len(values) != len(self):
-            raise ValueError("input is not of same length as column.")
-        if not all(self.type_check(v) for v in values):
-            raise TypeError(f"input contains non-{self.datatype.__name__}")
-        self.clear()
-        self.extend(values)
-
-    def clear(self):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def count(self, item):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def extend(self, items):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def index(self, item):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def pop(self, index=None):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def remove(self, item):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def reverse(self):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def sort(self, key=None, reverse=False):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __add__(self, other):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __contains__(self, item):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __delitem__(self, index):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __eq__(self, other):
-        return all([
-            self.header == other.header,
-            self.datatype == other.datatype,
-            self.allow_empty == other.allow_empty,
-            super(self).__eq__(other),
-        ])
-
-    def __getitem__(self, item):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __ge__(self, other):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __gt__(self, other):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __iadd__(self, other):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __imul__(self, other):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __iter__(self):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __le__(self, other):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __lt__(self, other):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __mul__(self, other):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __ne__(self, other):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __reversed__(self):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __rmul__(self, other):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __setitem__(self, key, value):
-        self.type_check(value)
-        super().__setitem__(key, value)
-
-    def __sizeof__(self):
-        raise NotImplementedError("subclasses must implement this method")
-
-    def __hash__(self):
-        raise NotImplementedError("subclasses must implement this method")
-
-
-class StoredColumn(CommonColumn, StoredList):  # MRO: CC first, then SL.
-    """This is a sqlite backed mmaped list with headers and metadata."""
-
-    def __init__(self, header, datatype, allow_empty, data=None, metadata=None, page_size=StoredList.default_page_size):
-        CommonColumn.__init__(self, header, datatype, allow_empty, metadata=metadata)
-        StoredList.__init__(self, page_size=page_size)
-        self._init(data)
-
-    @classmethod
-    def from_json(cls, json_):
-        j = json.loads(json_)
-        j['datatype'] = dtype = getattr(DataTypes, j['datatype'])
-        j['data'] = [DataTypes.from_json(v, dtype) for v in json.loads(j['data'])]
-        return StoredColumn(**j)
-
-
-class InMemoryColumn(CommonColumn, list):  # MRO: CC first, then list.
-    """This is a list with headers and metadata."""
-
-    def __init__(self, header, datatype, allow_empty, data=None, metadata=None):
-        CommonColumn.__init__(self, header, datatype, allow_empty, metadata=metadata)
-        list.__init__(self)  # then init the list attrs.
-        self._init(data)
-
-    @classmethod
-    def from_json(cls, json_):
-        j = json.loads(json_)
-        j['datatype'] = dtype = getattr(DataTypes, j['datatype'])
-        j['data'] = [DataTypes.from_json(v, dtype) for v in json.loads(j['data'])]
-        return InMemoryColumn(**j)

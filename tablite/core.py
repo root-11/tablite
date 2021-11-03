@@ -1,20 +1,21 @@
 import json
-import tempfile
 import zipfile
 import operator
+import pyexcel
+import pyperclip
+
 from collections import defaultdict
 from itertools import count, chain
 from pathlib import Path
-
-import pyexcel
-import pyperclip
+from tempfile import gettempdir
 
 from tablite.datatypes import DataTypes
 from tablite.file_reader_utils import detect_encoding, detect_seperator, split_by_sequence, text_escape
 from tablite.groupby_utils import Max, Min, Sum, First, Last, Count, CountUnique, Average, StandardDeviation, Median, \
     Mode, GroupbyFunction
-from tablite.stored_list import StoredColumn, InMemoryColumn, tempfile
-from tablite.stored_list import tempfile as windows_tempfile
+
+from tablite.columns import StoredColumn, InMemoryColumn
+from tablite.stored_list import tempfile
 
 
 class Table(object):
@@ -52,7 +53,7 @@ class Table(object):
             raise TypeError(f"cannot compare {a} with {b}")
         if self.metadata != other.metadata:
             return False
-        if any(a != b for a, b in zip(self.columns.values(), other.columns.values())):
+        if not all(a == b for a, b in zip(self.columns.values(), other.columns.values())):
             return False
         return True
 
@@ -101,10 +102,10 @@ class Table(object):
     @staticmethod
     def copy_from_clipboard():
         """ copy data from clipboard into Table. """
-        tempfile = windows_tempfile(suffix='.csv')
-        with open(tempfile, 'w') as fo:
+        tmpfile = tempfile(suffix='.csv')
+        with open(tmpfile, 'w') as fo:
             fo.writelines(pyperclip.paste())
-        g = Table.from_file(tempfile)
+        g = Table.from_file(tmpfile)
         t = list(g)[0]
         del t.metadata['filename']
         return t
@@ -547,7 +548,7 @@ class Table(object):
             raise ValueError(f"column not found: {[h for h in headers if h not in self.columns]}")
 
         start, stop, step = DataTypes.infer_range_from_slice(slc, len(self))
-        if step > 0 and stop > start:  # this wont work for range.
+        if step > 0 and start > stop:  # this wont work for range.
             return
         if step < 0 and start < stop:  # this wont work for range.
             return
@@ -1295,26 +1296,26 @@ def zip_reader(path):
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
 
-    with tempfile.TemporaryDirectory() as temp_dir_path:
-        tempdir = Path(temp_dir_path)
+    temp_dir_path = gettempdir()
+    tempdir = Path(temp_dir_path)
 
-        with zipfile.ZipFile(path, 'r') as zipf:
+    with zipfile.ZipFile(path, 'r') as zipf:
 
-            for name in zipf.namelist():
+        for name in zipf.namelist():
 
-                zipf.extract(name, temp_dir_path)
+            zipf.extract(name, temp_dir_path)
 
-                p = tempdir / name
-                try:
-                    tables = file_reader(p)
-                    for table in tables:
-                        yield table
-                except Exception as e:  # unknown file type.
-                    print(f'reading {p} resulted in the error:')
-                    print(str(e))
-                    continue
+            p = tempdir / name
+            try:
+                tables = file_reader(p)
+                for table in tables:
+                    yield table
+            except Exception as e:  # unknown file type.
+                print(f'reading\n  {p}\nresulted in the error:')
+                print(str(e))
+                continue
 
-                p.unlink()
+            p.unlink()
 
 
 def log_reader(path, has_headers=True):
