@@ -28,7 +28,7 @@ def tempfile(prefix='tmp', suffix='.db'):
     """ generates a safe tempfile which windows can't handle. """
     safe_folder = Path(gettempdir())
     while 1:
-        n = "".join(choice(ascii_lowercase) for _ in range(5))
+        n = "".join(choice(ascii_lowercase) for _ in range(10))
         name = f"{prefix}{n}{suffix}"
         p = safe_folder / name
         if not p.exists():
@@ -36,30 +36,56 @@ def tempfile(prefix='tmp', suffix='.db'):
     return p
 
 
-class Page(object):
+class Page(list):
     ids = count()
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.pid = next(Page.ids)
-        self.data = []
-        self.len = 0
+        self._len = 0
         self.loaded = True
 
-    def __len__(self):
-        if not self.loaded:
-            return self.len
-        else:
-            return len(self.data)
+    def __str__(self):
+        return f"Page({self.pid}) {'loaded' if self.loaded else 'stored'} ({self.len} items)"
 
     def __repr__(self):
-        return f"Page({self.pid}) {'loaded' if self.loaded else 'stored'} ({len(self)} items)"
+        return self.__str__()
+
+    @property
+    def len(self):
+        """
+        `list` uses __len__ to determine list.__iter__'s stop point so we can't use __len__
+        to determine the length of the page if it hasn't been loaded.
+        return: integer.
+        """
+        if self.loaded:
+            return self.__len__()
+        else:
+            return self._len
+
+    def load(self, data):
+        self.extend(data)
+        self.loaded = True
+
+    def store(self):
+        self.loaded = False
+        self._len = self.__len__()
+        data = self.copy()
+        self.clear()
+        return data
 
 
 class StoredList(object):
     """
     Python list stored on disk using sqlite's fast mmap.
     """
-    default_page_size = 20_000
+    default_page_size = 200_000
+    storage_file = tempfile()
+    _conn = sqlite3.connect(database=str(storage_file))  # SQLite3 connection
+    with _conn as c:
+        c.execute(sql_create)
+        c.execute(sql_journal_off)
+        c.execute(sql_sync_off)
 
     def __init__(self, data=None, page_size=None):
         if page_size is None:
@@ -67,20 +93,14 @@ class StoredList(object):
         if not isinstance(page_size, int):
             raise TypeError
         self._page_size = page_size
-
-        self.storage_file = tempfile()
-        self._conn = sqlite3.connect(str(self.storage_file))  # SQLite3 connection
-        with self._conn as c:
-            c.execute(sql_create)
-            c.execute(sql_journal_off)
-            c.execute(sql_sync_off)
-
         self.pages = []
-        self._current_page = None
-        self._new_page()
 
         if data is not None:
+            if isinstance(data, int):
+                raise TypeError(f"Did you do data={data} instead of page_size={data}?")
             self.extend(data)
+
+        self._loaded_page = None
 
     @property
     def page_size(self):
@@ -100,119 +120,134 @@ class StoredList(object):
             print(f"reducing page size from {self._page_size} to {value}")
             self._page_size = value
 
-            old_pages = [page for page in self.pages]
-            self._new_page()
-            for page in old_pages:
-                self._load_page(page)
-                self.extend(page.data)  # extension runs with the new page size.
+            SL = StoredList(page_size=value, data=self)
+
+            for page in self.pages[:]:
                 self._delete_page(page)
+            assert not self.pages
+            self.extend(SL)
 
     def _new_page(self):
         """ internal method that stores current page and creates a new empty page"""
-        if self._current_page is not None:
-            self._store_page(self._current_page)
+        # if self.loaded_page is not None:
+        #     self._store_page(self.loaded_page)
+        _ = [self._store_page(p) for p in self.pages if p.loaded]
+        if any(p.loaded for p in self.pages):
+            raise AttributeError("other pages are loaded.")
 
         page = Page()
         self.pages.append(page)
-        data = zlib.compress(pickle.dumps(page.data))
-        with self._conn as c:
-            c.execute(sql_insert, (page.pid, data))  # INSERT
 
-        assert page.loaded is True
-        self._current_page = page
+        data = zlib.compress(pickle.dumps(page.copy()))  # empty list.
+        with self._conn as c:
+            c.execute(sql_insert, (page.pid, data))  # INSERT the empty list.
+
+        return page
 
     def _store_page(self, page):
         """ internal method that stores page data to disk.
         :param page: Page
         """
         assert isinstance(page, Page)
-        if not page.loaded:
-            return  # because it is already stored.
-
-        data = zlib.compress(pickle.dumps(page.data))
-        page.len = len(page.data)  # update page len.
-        page.data.clear()
-
+        data = page.store()
+        assert not page.loaded
+        data_as_bytes = zlib.compress(pickle.dumps(data))
         with self._conn as c:
-            c.execute(sql_update, (data, page.pid))  # UPDATE
-        page.loaded = False
+            c.execute(sql_update, (data_as_bytes, page.pid))  # UPDATE
+        return page
 
     def _load_page(self, page):
         """ internal method that loads the data from a page.
         :param page: Page
         """
         assert isinstance(page, Page)
-        if self._current_page == page and page.loaded:
-            return
-        self._store_page(self._current_page)
-        assert self._current_page.loaded is False
+        if page.loaded:
+            return page
+
+        _ = [self._store_page(p) for p in self.pages if p.loaded]
+
+        if any(p.loaded for p in self.pages):
+            raise AttributeError("other pages are loaded.")
 
         with self._conn as c:
             q = c.execute(sql_select, (page.pid,))  # READ
             data = q.fetchone()[0]
-        page.data = pickle.loads(zlib.decompress(data))
-        page.loaded = True
-        self._current_page = page
+            unpickled_data = pickle.loads(zlib.decompress(data))
+
+        page.load(unpickled_data.copy())
+        return page
 
     def _delete_page(self, page):
         """ internal method that deletes a page of data. """
         assert isinstance(page, Page)
-        with self._conn as c:
-            c.execute(sql_delete, (page.pid,))  # DELETE
-        page.data.clear()
+        page.clear()  # incase it holds data.
         self.pages.remove(page)
 
-        if not self.pages:  # there must always be one page available.
-            self._new_page()
+        with self._conn as c:
+            c.execute(sql_delete, (page.pid,))  # DELETE
 
-        if self._current_page == page:
-            self._current_page = self.pages[-1]
+        del page
+
+        return None
 
     # PUBLIC METHODS.
 
     def __len__(self):
-        return sum(len(p) for p in self.pages)
+        return sum(p.len for p in self.pages)
 
     def __iter__(self):
         for page in self.pages:
-            self._load_page(page)
-            for value in page.data:
+            p1 = page.pid
+            assert isinstance(page, Page)
+            page = self._load_page(page)
+            assert page.pid == p1
+
+            assert isinstance(page, list)
+            for value in page:
                 yield value
+            page = self._store_page(page)
+            assert not page.loaded
 
     def __reversed__(self):
         for page in reversed(self.pages):
             self._load_page(page)
-            for value in reversed(page.data):
+            for value in reversed(page):
                 yield value
 
     def __repr__(self):
         return f"StoredList(page_size={self._page_size}, data={len(self)})"
 
     def __str__(self):
-        if len(self) > 20:
-            a, b = [v for v in self[:5]], [v for v in self[-5:]]
-            return f"StoredList(page_size={self._page_size}, data={a}...{b})"
-        else:
-            return f"StoredList(page_size={self._page_size}, data={list(self[:])})"
+        return f"StoredList(page_size={self._page_size}, data={len(self)})"
+        # if len(self) > 20:
+        #     a, b = [v for v in self[:5]], [v for v in self[-5:]]
+        #     return f"StoredList(page_size={self._page_size}, data={a}...{b})"
+        # else:
+        #     return f"StoredList(page_size={self._page_size}, data={list(self[:])})"
 
     def append(self, value):
         """ Append object to the end of the list. """
-        assert isinstance(self._current_page, Page)
-        if len(self._current_page) == self._page_size:
-            self._new_page()
-        self._current_page.data.append(value)
+        if not self.pages:
+            last_page = self._new_page()
+        else:
+            assert self.pages, "there must be at least one page."
+            last_page = self.pages[-1]
+
+        if last_page.len == self._page_size:
+            last_page = self._new_page()
+        last_page.append(value)
 
     def clear(self):
         """ Remove all items from list. """
-        for page in self.pages[::-1]:
+        for page in self.pages[:]:
             self._delete_page(page)
 
     def copy(self):
         """ Return a shallow copy of the list. """
         SL = StoredList(page_size=self.page_size)
         for page in self.pages:
-            self._load_page(page)
-            SL.extend(page.data)
+            page = self._load_page(page)
+            SL.extend(page.copy())
         return SL
 
     def count(self, item):
@@ -221,13 +256,21 @@ class StoredList(object):
 
     def extend(self, items):
         """ Extend list by appending elements from the iterable. """
-        while items:
-            space = self._page_size - len(self._current_page)
-            data = items[:space]
-            self._current_page.data.extend(data[:])
-            items = items[space:]
-            if items:
-                self._new_page()
+        if not self.pages:
+            last_page = self._new_page()
+        else:
+            last_page = self.pages[-1]
+        # last_page = self._last_page()
+        space = self._page_size - last_page.len
+        c = 0
+        for i in items:
+            if not space:
+                last_page = self._new_page()
+                space = self._page_size
+            last_page.append(i)
+            c += 1
+            space -= 1
+        assert c == len(items), (c, len(items))
 
     def index(self, item):
         """
@@ -252,25 +295,31 @@ class StoredList(object):
         page = None
         for page in self.pages[:]:
             assert isinstance(page, Page)
-            if c <= index <= len(page) + c:
+            if c <= index <= page.len + c:
                 break
-            c += len(page)
+            c += page.len
         ix = index - c
 
         assert isinstance(page, Page)
-        self._load_page(page)
-        page.data.insert(ix, item)
+        loaded_page = self._load_page(page)
+        loaded_page.insert(ix, item)
 
-        if len(page) < self._page_size:  # if there is space on the page...
+        if page.len < self._page_size:  # if there is space on the page...
             return
-        else:  # split the data in half and insert a page.
-            n = len(page) // 2
-            page.data, new_page = page.data[:n], page.data[n:]
-            page_ix = self.pages.index(page)
-            self._new_page()
-            self._current_page.data.extend(new_page)
-            self.pages.remove(self._current_page)
-            self.pages.insert(page_ix + 1, self._current_page)
+        # else -  split the data in half and insert a page.
+        n = page.len // 2
+
+        A, B = page[:n], page[n:]
+        page.clear()
+        page.extend(A)
+
+        page_ix = self.pages.index(page)
+
+        new_page = self._new_page()
+        new_page.extend(B)
+
+        self.pages.remove(new_page)
+        self.pages.insert(page_ix + 1, new_page)
 
     def pop(self, index=None):
         """
@@ -279,7 +328,7 @@ class StoredList(object):
         Raises IndexError if list is empty or index is out of range.
         """
         if index is None:
-            index = 0
+            index = -1
         if not isinstance(index, int):
             raise TypeError
         if abs(index) > len(self):
@@ -289,15 +338,15 @@ class StoredList(object):
 
         c = 0
         for page in self.pages[:]:
-            if c <= index < len(page) + c:
-                self._load_page(page)
+            if c <= index < page.len + c:
+                page = self._load_page(page)
                 ix = index - c
-                value = page.data.pop[ix]
-                if not page.data:
+                value = page.pop(ix)
+                if len(page) == 0:
                     self._delete_page(page)
                 return value
             else:
-                c += len(page)
+                c += page.len
 
     def remove(self, item):
         """
@@ -307,10 +356,10 @@ class StoredList(object):
         """
         for page in self.pages[:]:
             self._load_page(page)
-            if item in page.data:
-                page.data.remove(item)
+            if item in page:
+                page.remove(item)
                 return
-            if not page.data:
+            if not page:
                 self._delete_page(page)
 
         raise ValueError(f"{item} not in list")
@@ -319,9 +368,10 @@ class StoredList(object):
         """ Reverse *IN PLACE*. """
         self.pages.reverse()
         for page in self.pages:
-            self._load_page(page)
-            assert isinstance(page, Page)
-            page.data.reverse()
+            page = self._load_page(page)
+            new_data = list(reversed(page))
+            page.clear()
+            page.extend(new_data)
             self._store_page(page)
 
     def sort(self, key=None, reverse=False):
@@ -331,53 +381,70 @@ class StoredList(object):
         if key is not None:
             raise NotImplementedError(f"key is not supported.")
 
+        _before = len(self)
         for page in self.pages:
-            self._load_page(page)
-            page.data.sort()
+            page = self._load_page(page)
+            assert isinstance(page, Page)
+            assert len(page) == page.len > 0
+            page.sort(reverse=reverse)
+            self._store_page(page)
+        _after = len(self)
+        if _after != _before:
+            raise Exception
 
-        working_buffer = [page for page in self.pages]
-        if len(working_buffer) == 1:
-            C = StoredList(self.page_size)
-            page = working_buffer.pop()
-            self._load_page(page)
-            C.extend(page.data)
+        if len(self.pages) == 1:  # then we're done.
+            return
+
+        # else ... merge is required.
+        working_buffer = []
+        for page in self.pages:
+            page = self._load_page(page)
+            SL = StoredList(data=page)
+            working_buffer.append(SL)
+
+        while len(working_buffer) > 1:
+            A = working_buffer.pop(0)
+            assert isinstance(A, StoredList)
+            iterA = iter(A)
+            B = working_buffer.pop(0)
+            assert isinstance(B, StoredList)
+            iterB = iter(B)
+
+            C = StoredList(page_size=self._page_size)
+            a, b = next(iterA), next(iterB)
+
+            buffer = []
+            while True:
+                if len(buffer) == self._page_size:
+                    C.extend(buffer)
+                    buffer.clear()
+
+                if (reverse and a >= b) or (not reverse and a <= b):
+                    buffer.append(a)
+                    try:
+                        a = next(iterA)
+                    except StopIteration:
+                        buffer.append(b)
+                        C.extend(buffer)
+                        C.extend(list(iterB))
+                        break
+                else:
+                    buffer.append(b)
+                    try:
+                        b = next(iterB)
+                    except StopIteration:
+                        buffer.append(a)
+                        C.extend(buffer)
+                        C.extend(list(iterA))
+                        break
+
             working_buffer.append(C)
-        else:
-            while len(working_buffer) > 1:
-                A = working_buffer.pop(0)
-                A = iter(A)
-                B = working_buffer.pop(0)
-                B = iter(B)
-
-                C = StoredList(self.page_size)
-                a, b = next(A), next(B)
-
-                while True:
-                    if (reverse and a >= b) or (not reverse and a <= b):
-                        C.append(a)
-                        try:
-                            a = next(A)
-                        except StopIteration:
-                            C.append(b)
-                            C.extend(list(B))
-                            break
-                    else:
-                        C.append(b)
-                        try:
-                            b = next(B)
-                        except StopIteration:
-                            C.append(a)
-                            C.extend(list(A))
-                            break
-                working_buffer.append(C)
 
         L = working_buffer.pop(0)
         assert len(L) == len(self)
-        old_pages = [page for page in self.pages]
-        self._new_page()
-        self.extend(L)
-        for page in old_pages:
+        for page in self.pages[:]:
             self._delete_page(page)
+        self.extend(L)
 
     def __add__(self, other):
         """
@@ -424,31 +491,36 @@ class StoredList(object):
                 item = len(self) + item
             c = 0
             for page in self.pages:
-                if c <= item <= len(page) + c:
+                if c <= item <= page.len + c:
                     ix = item - c
                     self._load_page(page)
-                    return page.data[ix]  # <--- Exit for integer item
-                c += len(page)
+                    return page[ix]  # <--- Exit for integer item
+                c += page.len
 
         assert isinstance(item, slice)
         start, stop, step = DataTypes.infer_range_from_slice(item, len(self))
 
         L = StoredList(page_size=self._page_size)
-        if step > 0 and start > stop:
-            return L
-        if step < 0 and start < stop:
-            return L
+        # TODO: Check if it makes sense to return a list if the length is less than page size.
+        # n_items = abs(stop - start) // step
+        # if n_items > self._page_size:
+        #     L = list()
+        # else:
+        #     L = StoredList(page_size=self._page_size)
 
         if step > 0:
+            if start > stop:
+                return L  # <-- Exit no data.
+            # else ....
             A = 0
             for page in self.pages:
-                B = len(page) + A
+                B = page.len + A
                 if stop < A:
                     break
                 if B < start:
-                    A += len(page)
+                    A += page.len
                     continue
-                self._load_page(page)
+
                 if start >= A:
                     start_ix = start - A
                 else:  # A > start:
@@ -457,21 +529,26 @@ class StoredList(object):
                 if stop < B:
                     stop_ix = stop - A
                 else:
-                    stop_ix = len(page)
+                    stop_ix = page.len
 
-                data = page.data[start_ix:stop_ix:step]
+                self._load_page(page)
+                data = page[start_ix:stop_ix:step]
                 L.extend(data)
-                A += len(page)
-        else:  # step < 0  # item.step < 0: backward traverse
+
+                A += page.len
+
+        else:  # step < 0 == backward traverse
+            if start < stop:
+                return L  # <-- Exit no data.
+            # else ...
             B = len(self)
             for page in reversed(self.pages):
-                A = B - len(page)
+                A = B - page.len
                 if start < A:
-                    B -= len(page)
+                    B -= page.len
                     continue
                 if B < stop:
                     break
-                self._load_page(page)
 
                 if start > B:
                     steps = abs(math.floor((start-B) / step))
@@ -484,11 +561,16 @@ class StoredList(object):
                 else:  # stop - A:
                     stop_ix = max(stop - A, 0)
 
-                data = page.data[start_ix:stop_ix:step]
-                L.extend(data)
-                B -= len(page)
+                if stop_ix is not None and start_ix < stop_ix or start_ix < 0:
+                    pass  # the step is bigger than the slice.
+                else:
+                    self._load_page(page)
+                    data = page[start_ix:stop_ix:step]
+                    L.extend(data)
 
-        return L
+                B -= page.len
+
+        return L  # <-- Exit with data.
 
     def __ge__(self, other):
         """ Return self>=value. """
@@ -519,7 +601,7 @@ class StoredList(object):
         elif value == 1:
             return self
         else:
-            new_list = StoredList(self._page_size)
+            new_list = StoredList(page_size=self._page_size)
             for i in range(value):
                 new_list.extend(self)
             return new_list
@@ -559,12 +641,14 @@ class StoredList(object):
         """ Set self[key] to value. """
         if not isinstance(key, int):
             raise TypeError
+        if abs(key) > len(self):
+            raise KeyError("index out of range")
         c = 0
         for page in self.pages:
-            if c < key < c + len(page):
+            if c < key < c + page.len:
                 self._load_page(page)
                 ix = key - c
-                page.data[ix] = value
+                page[ix] = value
                 return
 
     def __sizeof__(self):
@@ -573,7 +657,7 @@ class StoredList(object):
 
     def disk_size(self):
         """ returns the size of the stored file"""
-        self._store_page(self._current_page)
+        _ = [self._store_page(p) for p in self.pages if p.loaded]
         return self.storage_file.stat().st_size
 
     def __hash__(self):
@@ -583,7 +667,7 @@ class StoredList(object):
         SL = StoredList(self._page_size)
         for page in self.pages:
             self._load_page(page)
-            SL.extend(page.data)
+            SL.extend(page)  # page data is copied in the extend function
         return SL
 
 

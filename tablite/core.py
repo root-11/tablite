@@ -13,7 +13,8 @@ from tablite.datatypes import DataTypes
 from tablite.file_reader_utils import detect_encoding, detect_seperator, split_by_sequence, text_escape
 from tablite.groupby_utils import Max, Min, Sum, First, Last, Count, CountUnique, Average, StandardDeviation, Median, \
     Mode, GroupbyFunction
-from tablite.stored_list import StoredColumn, Column, windows_tempfile
+from tablite.stored_list import StoredColumn, InMemoryColumn, tempfile
+from tablite.stored_list import tempfile as windows_tempfile
 
 
 class Table(object):
@@ -40,7 +41,7 @@ class Table(object):
         if value is True:
             C = StoredColumn
         else:
-            C = Column
+            C = InMemoryColumn
 
         for col_name, column in self.columns.items():
             self.columns[col_name] = C(col_name, column.datatype, column.allow_empty, data=column)
@@ -162,7 +163,7 @@ class Table(object):
         c_lens = {}
         for h in headers:
             col = self.columns[h]
-            assert isinstance(col, (Column, StoredColumn))
+            assert isinstance(col, (InMemoryColumn, StoredColumn))
             c_lens[h] = max(
                 [len(col.header), len(str(col.datatype.__name__)), len(str(False))] + [len(str(v)) for v in col[slc]])
 
@@ -211,7 +212,10 @@ class Table(object):
         data = json.loads(json_)
         t.metadata = data['metadata']
         for c in data['columns']:
-            col = Column.from_json(c)
+            if cls.new_tables_use_disk:
+                col = StoredColumn.from_json(c)
+            else:
+                col = InMemoryColumn.from_json(c)
             col.header = t.check_for_duplicate_header(col.header)
             t.columns[col.header] = col
         return t
@@ -224,7 +228,7 @@ class Table(object):
             yield table
 
     def copy_columns_only(self):
-        """creates a new tablite without the data"""
+        """creates a new table with metadata but without the records"""
         t = Table()
         for col in self.columns.values():
             t.add_column(col.header, col.datatype, col.allow_empty, data=[])
@@ -272,7 +276,7 @@ class Table(object):
         assert isinstance(header, str)
         header = self.check_for_duplicate_header(header)
         if self._use_disk is False:
-            self.columns[header] = Column(header, datatype, allow_empty, data=data)
+            self.columns[header] = InMemoryColumn(header, datatype, allow_empty, data=data)
         else:
             self.columns[header] = StoredColumn(header, datatype, allow_empty, data=data)
 
@@ -330,7 +334,7 @@ class Table(object):
                         col = self.columns.get(k, None)
                         if col is None:
                             raise ValueError(f"column {k} unknown: {list(self.columns)}")
-                        assert isinstance(col, (Column, StoredColumn))
+                        assert isinstance(col, (InMemoryColumn, StoredColumn))
                         col.append(value)
                 else:
                     raise TypeError(f"no handler for {type(arg)}s: {arg}")
@@ -349,7 +353,7 @@ class Table(object):
                 col = self.columns.get(k, None)
                 if col is None:
                     raise ValueError(f"column {k} unknown: {list(self.columns)}")
-                assert isinstance(col, (Column, StoredColumn))
+                assert isinstance(col, (InMemoryColumn, StoredColumn))
                 col.append(value)
             return
 
@@ -503,7 +507,7 @@ class Table(object):
         """
         sorted_index = self._sort_index(**kwargs)
         for col_name, col in self.columns.items():
-            assert isinstance(col, (StoredColumn, Column))
+            assert isinstance(col, (StoredColumn, InMemoryColumn))
             col.replace(values=[col[ix] for ix in sorted_index])
 
     def is_sorted(self, **kwargs):
@@ -542,12 +546,14 @@ class Table(object):
         if any(h not in self.columns for h in headers):
             raise ValueError(f"column not found: {[h for h in headers if h not in self.columns]}")
 
-        sss = DataTypes.infer_range_from_slice(slc, len(self))
-        if sss is None:
+        start, stop, step = DataTypes.infer_range_from_slice(slc, len(self))
+        if step > 0 and stop > start:  # this wont work for range.
+            return
+        if step < 0 and start < stop:  # this wont work for range.
             return
 
         L = [self.columns[h] for h in headers]
-        for ix in range(*sss):
+        for ix in range(start, stop, step):
             item = tuple(c[ix] if ix < len(c) else None for c in L)
             yield item
 
@@ -988,7 +994,7 @@ class GroupBy(object):
         self._function_classes = []
         for h, fn in self.groupby_functions:
             col = table[h]
-            assert isinstance(col, (StoredColumn, Column))
+            assert isinstance(col, (StoredColumn, InMemoryColumn))
             f_instance = fn(col.datatype)
             assert isinstance(f_instance, GroupbyFunction)
             self._function_classes.append(f_instance)
@@ -1367,11 +1373,11 @@ def find_format(table):
     assert isinstance(table, Table)
 
     for col_name, column in table.columns.items():
-        assert isinstance(column, (StoredColumn, Column))
+        assert isinstance(column, (StoredColumn, InMemoryColumn))
         column.allow_empty = any(v in DataTypes.nones for v in column)
 
         values = [v for v in column if v not in DataTypes.nones]
-        assert isinstance(column, (StoredColumn, Column))
+        assert isinstance(column, (StoredColumn, InMemoryColumn))
         values.sort()
 
         works = []
@@ -1401,7 +1407,7 @@ def find_format(table):
                 if table.use_disk:
                     c2 = StoredColumn
                 else:
-                    c2 = Column
+                    c2 = InMemoryColumn
 
                 new_column = c2(column.header, dtype, column.allow_empty)
                 for v in column:
