@@ -2,13 +2,12 @@ import math
 import json
 import pickle
 import sqlite3
-import zlib
+
 from pathlib import Path
 from random import choice
 from string import ascii_lowercase
 from sys import getsizeof
 from tempfile import gettempdir
-
 from itertools import count
 from abc import ABC
 
@@ -129,8 +128,6 @@ class StoredList(object):
 
     def _new_page(self):
         """ internal method that stores current page and creates a new empty page"""
-        # if self.loaded_page is not None:
-        #     self._store_page(self.loaded_page)
         _ = [self._store_page(p) for p in self.pages if p.loaded]
         if any(p.loaded for p in self.pages):
             raise AttributeError("other pages are loaded.")
@@ -138,7 +135,7 @@ class StoredList(object):
         page = Page()
         self.pages.append(page)
 
-        data = zlib.compress(pickle.dumps(page.copy()))  # empty list.
+        data = pickle.dumps(page.copy())  # empty list.
         with self._conn as c:
             c.execute(sql_insert, (page.pid, data))  # INSERT the empty list.
 
@@ -151,7 +148,7 @@ class StoredList(object):
         assert isinstance(page, Page)
         data = page.store()
         assert not page.loaded
-        data_as_bytes = zlib.compress(pickle.dumps(data))
+        data_as_bytes = pickle.dumps(data)
         with self._conn as c:
             c.execute(sql_update, (data_as_bytes, page.pid))  # UPDATE
         return page
@@ -172,7 +169,7 @@ class StoredList(object):
         with self._conn as c:
             q = c.execute(sql_select, (page.pid,))  # READ
             data = q.fetchone()[0]
-            unpickled_data = pickle.loads(zlib.decompress(data))
+            unpickled_data = pickle.loads(data)
 
         page.load(unpickled_data.copy())
         return page
@@ -180,7 +177,7 @@ class StoredList(object):
     def _delete_page(self, page):
         """ internal method that deletes a page of data. """
         assert isinstance(page, Page)
-        page.clear()  # incase it holds data.
+        page.clear()  # in case it holds data.
         self.pages.remove(page)
 
         with self._conn as c:
@@ -219,11 +216,6 @@ class StoredList(object):
 
     def __str__(self):
         return f"StoredList(page_size={self._page_size}, data={len(self)})"
-        # if len(self) > 20:
-        #     a, b = [v for v in self[:5]], [v for v in self[-5:]]
-        #     return f"StoredList(page_size={self._page_size}, data={a}...{b})"
-        # else:
-        #     return f"StoredList(page_size={self._page_size}, data={list(self[:])})"
 
     def append(self, value):
         """ Append object to the end of the list. """
@@ -500,13 +492,11 @@ class StoredList(object):
         assert isinstance(item, slice)
         start, stop, step = DataTypes.infer_range_from_slice(item, len(self))
 
-        L = StoredList(page_size=self._page_size)
-        # TODO: Check if it makes sense to return a list if the length is less than page size.
-        # n_items = abs(stop - start) // step
-        # if n_items > self._page_size:
-        #     L = list()
-        # else:
-        #     L = StoredList(page_size=self._page_size)
+        n_items = abs(stop - start) // step
+        if n_items > self._page_size:
+            L = list()
+        else:
+            L = StoredList(page_size=self._page_size)
 
         if step > 0:
             if start > stop:
