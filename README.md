@@ -7,12 +7,12 @@
 
 --------------
 
-Version 2021/03/10+: 
-- New multi-criteria lookup functionality: table1.lookup(table2, criterias...)
-- rename_column(self, header, new_name)
-- copy_columns_only(table)
-- updated documentation.
-
+Version 2021/11/02+: 
+- Faster StoredList classes
+- Updated documentation
+- A couple of bugfixes
+  - Reverse indexing.
+- One temp file only for all stored lists.
 
 -----------
 
