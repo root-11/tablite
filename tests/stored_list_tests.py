@@ -27,7 +27,7 @@ def test_attr_comparison():
     A = list(range(10))
     B = StoredList()
     a = set(dir(A))
-    a.remove('__class_getitem__')  # PEP 585 thing for type hinting.
+    a.discard('__class_getitem__')  # PEP 585 thing for type hinting (python 3.9+)
     b = set(dir(B))
     assert a.issubset(b), [i for i in a if i not in b]
 
