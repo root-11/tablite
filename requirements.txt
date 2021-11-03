@@ -1,4 +1,4 @@
-pyexcel>=0.6.6
-pyexcel-odsr==0.6.0
-pyperclip>=1.8.1
-pyexcel-xlsx==0.6.0
+pyexcel
+pyexcel-odsr
+pyperclip
+pyexcel-xlsx

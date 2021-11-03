@@ -331,8 +331,8 @@ def test_filereader_zipped():
 
     tables = list(file_reader(zipped))
     assert len(tables) >= file_count
-
-    assert {t.metadata['filename'] for t in tables} == set(file_names)
+    a, b = {t.metadata['filename'] for t in tables}, set(file_names)
+    assert a == b, a.difference(b).union(b.difference(a))
     zipped.unlink()
 
 

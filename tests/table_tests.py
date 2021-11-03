@@ -7,26 +7,7 @@ import zlib
 import pyperclip
 
 from tablite import Table
-from tablite.stored_list import Column, StoredList
-
-
-def test_basic_column():
-    # creating a column remains easy:
-    c = Column('A', int, False)
-
-    # so does adding values:
-    c.append(44)
-    c.append(44)
-    assert len(c) == 2
-
-    # and converting to and from json
-    d = c.to_json()
-    c2 = Column.from_json(d)
-    assert len(c2) == 2
-
-    # comparing columns is easy:
-    assert c == c2
-    assert c != Column('A', str, False)
+from tablite.stored_list import StoredList
 
 
 def test_basic_table():
