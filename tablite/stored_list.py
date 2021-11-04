@@ -41,6 +41,7 @@ class Page(list):
         self.pid = next(Page.ids)
         self._len = 0
         self.loaded = True
+        self.size = 0
 
     def __str__(self):
         return f"Page({self.pid}) {'loaded' if self.loaded else 'stored'} ({self.len} items)"
@@ -147,6 +148,7 @@ class StoredList(object):
         data = page.store()
         assert not page.loaded
         data_as_bytes = pickle.dumps(data)
+        page.size = len(data_as_bytes)
         with self._conn as c:
             c.execute(sql_update, (data_as_bytes, page.pid))  # UPDATE
         return page
@@ -365,7 +367,7 @@ class StoredList(object):
             self._store_page(page)
 
     def sort(self, key=None, reverse=False):
-        """ Implements a hybrid of quicksort and merge sort.
+        """ Implements an IN PLACE hybrid of quicksort and merge sort.
         See more on https://en.wikipedia.org/wiki/External_sorting
         """
         if key is not None:
@@ -378,9 +380,7 @@ class StoredList(object):
             assert len(page) == page.len > 0
             page.sort(reverse=reverse)
             self._store_page(page)
-        _after = len(self)
-        if _after != _before:
-            raise Exception
+        assert _before == len(self), "bad logic."
 
         if len(self.pages) == 1:  # then we're done.
             return
@@ -600,7 +600,7 @@ class StoredList(object):
 
     def __lt__(self, other):
         """ Return self<value. """
-        return all(a <= b for a, b in zip(self, other))
+        return all(a < b for a, b in zip(self, other))
 
     def __mul__(self, value):
         """ Return self*value. """
@@ -643,13 +643,20 @@ class StoredList(object):
                 return
 
     def __sizeof__(self):
-        """ Return the size of the list in memory, in bytes. """
-        return getsizeof(self.pages)
+        """ Return the size of the list in memory, in bytes.
+        To drop any cached data, call
+
+        """
+        return sum(p.__sizeof__() for p in self.pages)
+
+    def clear_cache(self):
+        _ = [self._store_page(p) for p in self.pages if p.loaded]
 
     def disk_size(self):
-        """ returns the size of the stored file"""
-        _ = [self._store_page(p) for p in self.pages if p.loaded]
-        return self.storage_file.stat().st_size
+        """ drops all pages to disk using `clear_cache` and then
+        returns the number of bytes stored """
+        self.clear_cache()
+        return sum(p.size for p in self.pages)
 
     def __hash__(self):
         raise TypeError("unhashable type: List")
@@ -660,5 +667,4 @@ class StoredList(object):
             self._load_page(page)
             SL.extend(page)  # page data is copied in the extend function
         return SL
-
 

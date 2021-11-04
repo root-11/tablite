@@ -32,6 +32,17 @@ def test_attr_comparison():
     assert a.issubset(b), [i for i in a if i not in b]
 
 
+def test_info():
+    B = StoredList(page_size=3, data=list(range(10)))
+    assert B.__sizeof__() == 256  # size in ram
+    assert B.disk_size() == 51  # size on disk.
+    C = StoredList(data=list(range(10_000)))
+    assert C.__sizeof__() == 87616  # contains the cache.
+    C.clear_cache()  # drops the cached entries to disk
+    assert C.__sizeof__() == 56  # The call to C.disk_size stores
+    assert C.disk_size() == 29770  # drop to disk, and measures the bytes put to disk.
+
+
 def test_basic_stored_list():
     A = list(range(1000))
     B = StoredList(page_size=200)
