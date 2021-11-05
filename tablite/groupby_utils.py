@@ -156,7 +156,7 @@ class Median(Histogram):
                 return k
         elif keys % 2 == 0:
             A, B, total, midpoint = None, None, 0, sum(self.hist.values()) / 2
-            for k, v in self.hist.items():
+            for k, v in sorted(self.hist.items()):
                 total += v
                 A, B = B, k
                 if total > midpoint:
@@ -164,7 +164,7 @@ class Median(Histogram):
         else:
             midpoint = sum(self.hist.values()) / 2
             total = 0
-            for k, v in self.hist.items():
+            for k, v in sorted(self.hist.items()):
                 total += v
                 if total > midpoint:
                     return k
