@@ -1,8 +1,15 @@
 import json
 import zipfile
 import operator
+
+import logging
+logging.getLogger('lml').propagate = False
+logging.getLogger('pyexcel_io').propagate = False
+logging.getLogger('pyexcel').propagate = False
+
 import pyexcel
 import pyperclip
+
 
 from collections import defaultdict
 from itertools import count, chain
