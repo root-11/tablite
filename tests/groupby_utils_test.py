@@ -19,3 +19,5 @@ def test_median():
     assert median([-1, -1, 0, 1, 1]) == 0
     assert median([-1, -1, 0, 0, 1, 1]) == 0
     assert median([5, 4, 6, 3, 7, 2, 8, 1, 9]) == 5
+    assert median([i/10 for i in range(10)]) == 0.45
+    assert median([i/10 for i in range(1,10)]) == 0.5
