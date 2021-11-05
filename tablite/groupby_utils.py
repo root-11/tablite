@@ -147,12 +147,27 @@ class Median(Histogram):
 
     @property
     def value(self):
-        midpoint = sum(self.hist.values()) / 2
-        total = 0
-        for k, v in self.hist.items():
-            total += v
-            if total > midpoint:
+        if not self.hist:
+            raise ValueError("No data.")
+
+        keys = len(self.hist.keys())
+        if keys == 1:
+            for k in self.hist:
                 return k
+        elif keys % 2 == 0:
+            A, B, total, midpoint = None, None, 0, sum(self.hist.values()) / 2
+            for k, v in self.hist.items():
+                total += v
+                A, B = B, k
+                if total > midpoint:
+                    return (A + B) / 2
+        else:
+            midpoint = sum(self.hist.values()) / 2
+            total = 0
+            for k, v in self.hist.items():
+                total += v
+                if total > midpoint:
+                    return k
 
 
 class Mode(Histogram):
@@ -165,3 +180,4 @@ class Mode(Histogram):
         L.sort(reverse=True)
         frequency, most_frequent = L[0]  # top of the list.
         return most_frequent
+
