@@ -213,7 +213,7 @@ def test_index():
     A = StoredList()
     A.extend(list(range(n)))
     start = process_time()
-    m = 1000
+    m = 100
     for i in range(m):
         ix = randint(0, n)
         v = A[ix]
