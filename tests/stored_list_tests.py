@@ -1,3 +1,4 @@
+import sys
 from time import process_time
 from random import shuffle, randint
 from tablite.stored_list import StoredList, Page
@@ -33,6 +34,9 @@ def test_attr_comparison():
 
 
 def test_info():
+    v = sys.version_info
+    if (v.major, v.minor) != (3,7):
+        return
     B = StoredList(page_size=3, data=list(range(10)))
     assert B.__sizeof__() == 256  # size in ram
     assert B.disk_size() == 51, B.disk_size()  # size on disk.
