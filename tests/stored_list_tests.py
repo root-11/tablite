@@ -35,12 +35,12 @@ def test_attr_comparison():
 def test_info():
     B = StoredList(page_size=3, data=list(range(10)))
     assert B.__sizeof__() == 256  # size in ram
-    assert B.disk_size() == 51  # size on disk.
+    assert B.disk_size() == 51, B.disk_size()  # size on disk.
     C = StoredList(data=list(range(10_000)))
-    assert C.__sizeof__() == 87616  # contains the cache.
+    assert C.__sizeof__() == 87616, C.__sizeof__()  # contains the cache.
     C.clear_cache()  # drops the cached entries to disk
-    assert C.__sizeof__() == 56  # The call to C.disk_size stores
-    assert C.disk_size() == 29770  # drop to disk, and measures the bytes put to disk.
+    assert C.__sizeof__() == 56, C.__sizeof__()  # The call to C.disk_size stores
+    assert C.disk_size() == 29770, C.disk_size()  # drop to disk, and measures the bytes put to disk.
 
 
 def test_basic_stored_list():
