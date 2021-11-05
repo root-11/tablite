@@ -7,7 +7,10 @@
 
 --------------
 
-Version 2021/11/02+: 
+Version 2021/11/03+:
+- New call for StoredList.clear_cache() which drops all data to disk to free up memory.
+- Bug solved for median.
+Version 2021/11/02:
 - Faster StoredList classes
 - Updated documentation
 - A couple of bugfixes
