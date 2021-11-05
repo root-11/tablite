@@ -18,3 +18,4 @@ def test_median():
     assert median([3, 3, 3, 9, 9, 9]) == 6
     assert median([-1, -1, 0, 1, 1]) == 0
     assert median([-1, -1, 0, 0, 1, 1]) == 0
+    assert median([5, 4, 6, 3, 7, 2, 8, 1, 9]) == 5
