@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 from random import choice
 from string import ascii_lowercase
-from sys import getsizeof
+
 from tempfile import gettempdir
 from itertools import count
 
