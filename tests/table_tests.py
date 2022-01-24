@@ -271,7 +271,7 @@ def test_sql_joins():  # a couple of examples with SQL join:
 
     # left join
     # SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
-    left_join = numbers.left_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
+    left_join = numbers.left_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])
     left_join.show()
     # +======+======+
     # |number|letter|
@@ -293,7 +293,7 @@ def test_sql_joins():  # a couple of examples with SQL join:
 
     # inner join
     # SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
-    inner_join = numbers.inner_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
+    inner_join = numbers.inner_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])
     inner_join.show()
     # +======+======+
     # |number|letter|
@@ -314,7 +314,7 @@ def test_sql_joins():  # a couple of examples with SQL join:
 
     # outer join
     # SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
-    outer_join = numbers.outer_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
+    outer_join = numbers.outer_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])
     outer_join.show()
     # +======+======+
     # |number|letter|
@@ -338,6 +338,44 @@ def test_sql_joins():  # a couple of examples with SQL join:
     assert left_join != inner_join
     assert inner_join != outer_join
     assert left_join != outer_join
+
+
+def test_left_join():
+    """ joining a table on itself. Wierd but possible. """
+    numbers = Table()
+    numbers.add_column('number', int, allow_empty=True, data=[1, 2, 3, 4, None])
+    numbers.add_column('colour', str, data=['black', 'blue', 'white', 'white', 'blue'])
+
+    left_join = numbers.left_join(numbers, left_keys=['colour'], right_keys=['colour'])
+
+    assert list(left_join.rows) == [(1, 'black', 1, 'black'),
+                                    (2, 'blue', 2, 'blue'),
+                                    (2, 'blue', None, 'blue'),
+                                    (3, 'white', 3, 'white'),
+                                    (3, 'white', 4, 'white'),
+                                    (4, 'white', 3, 'white'),
+                                    (4, 'white', 4, 'white'),
+                                    (None, 'blue', 2, 'blue'),
+                                    (None, 'blue', None, 'blue')]
+
+
+def test_left_join2():
+    """ joining a table on itself. Wierd but possible. """
+    numbers = Table()
+    numbers.add_column('number', int, allow_empty=True, data=[1, 2, 3, 4, None])
+    numbers.add_column('colour', str, data=['black', 'blue', 'white', 'white', 'blue'])
+
+    left_join = numbers.left_join(numbers, left_keys=['colour'], right_keys=['colour'], left_columns=['colour', 'number'], right_columns=['number', 'colour'])
+
+    assert list(left_join.rows) == [('black', 1, 1, 'black'),
+                                    ('blue', 2, 2, 'blue'),
+                                    ('blue', 2, None, 'blue'),
+                                    ('white', 3, 3, 'white'),
+                                    ('white', 3, 4, 'white'),
+                                    ('white', 4, 3, 'white'),
+                                    ('white', 4, 4, 'white'),
+                                    ('blue', None, 2, 'blue'),
+                                    ('blue', None, None, 'blue')]
 
 
 def test_sortation():  # Sortation
