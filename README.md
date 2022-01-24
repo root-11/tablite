@@ -7,7 +7,10 @@
 
 --------------
 
-Version 2021/11/03+:
+Version 2022/01/24
+- Join api changed so that left_columns and right_columns must be declared.
+
+Version 2021/11/03:
 - New call for StoredList.clear_cache() which drops all data to disk to free up memory.
 - Bug solved for median.
 
