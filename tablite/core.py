@@ -625,12 +625,9 @@ class Table(object):
             t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
         return t
 
-    def _join_type_check(self, other, left_keys, right_keys, columns):
+    def _join_type_check(self, other, left_keys, right_keys, left_columns, right_columns):
         if not isinstance(other, Table):
             raise TypeError(f"other expected other to be type Table, not {type(other)}")
-
-        if len(left_keys) != len(right_keys):
-            raise ValueError(f"Keys do not have same length: \n{left_keys}, \n{right_keys}")
 
         if not isinstance(left_keys, list) and all(isinstance(k, str) for k in left_keys):
             raise TypeError(f"Expected keys as list of strings, not {type(left_keys)}")
@@ -641,44 +638,57 @@ class Table(object):
             raise ValueError(f"left key(s) not found: {[k for k in left_keys if k not in self.columns]}")
         if any(key not in other.columns for key in right_keys):
             raise ValueError(f"right key(s) not found: {[k for k in right_keys if k not in other.columns]}")
+
+        if len(left_keys) != len(right_keys):
+            raise ValueError(f"Keys do not have same length: \n{left_keys}, \n{right_keys}")
+
         for L, R in zip(left_keys, right_keys):
             Lcol, Rcol = self.columns[L], other.columns[R]
             if Lcol.datatype != Rcol.datatype:
                 raise TypeError(f"{L} is {Lcol.datatype}, but {R} is {Rcol.datatype}")
 
-        if columns is None:
-            pass
-        else:
-            union = list(self.columns) + list(other.columns)
-            if any(column not in union for column in columns):
-                raise ValueError(f"Column not found: {[column for column in columns if column not in union]}")
+        if not isinstance(left_columns, list) or not left_columns:
+            raise TypeError("left_columns (list of strings) are required")
+        if any(column not in self for column in left_columns):
+            raise ValueError(f"Column not found: {[c for c in left_columns if c not in self.columns]}")
 
-    def left_join(self, other, left_keys, right_keys, columns=None):
+        if not isinstance(right_columns, list) or not right_columns:
+            raise TypeError("right_columns (list or strings) are required")
+        if any(column not in other for column in right_columns):
+            raise ValueError(f"Column not found: {[c for c in right_columns if c not in other.columns]}")
+        # Input is now guaranteed to be valid.
+
+    def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
         :param right_keys: list of keys for the join
-        :param columns: list of columns to retain, if None, all are retained.
+        :param left_columns: list of left columns to retain, if None, all are retained.
+        :param right_columns: list of right columns to retain, if None, all are retained.
         :return: new Table
 
         Example:
         SQL:   SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
-        Tablite: left_join = numbers.left_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
+        Tablite: left_join = numbers.left_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])
         """
-        if columns is None:
-            columns = list(self.columns) + list(other.columns)
+        if left_columns is None:
+            left_columns = list(self.columns)
+        if right_columns is None:
+            right_columns = list(other.columns)
 
-        self._join_type_check(other, left_keys, right_keys, columns)  # raises if error
+        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
 
         left_join = Table(use_disk=self._use_disk)
-        for col_name in columns:
-            if col_name in self.columns:
-                col = self.columns[col_name]
-            elif col_name in other.columns:
-                col = other.columns[col_name]
-            else:
-                raise ValueError(f"column name '{col_name}' not in any table.")
+        for col_name in left_columns:
+            col = self.columns[col_name]
             left_join.add_column(col_name, col.datatype, allow_empty=True)
+
+        right_join_col_name = {}
+        for col_name in right_columns:
+            col = other.columns[col_name]
+            revised_name = left_join.check_for_duplicate_header(col_name)
+            right_join_col_name[revised_name] = col_name
+            left_join.add_column(revised_name, col.datatype, allow_empty=True)
 
         left_ixs = range(len(self))
         right_idx = other.index(*right_keys)
@@ -690,41 +700,47 @@ class Table(object):
                 for col_name, column in left_join.columns.items():
                     if col_name in self:
                         column.append(self[col_name][left_ix])
-                    elif col_name in other:
+                    elif col_name in right_join_col_name:
+                        original_name = right_join_col_name[col_name]
                         if right_ix is not None:
-                            column.append(other[col_name][right_ix])
+                            column.append(other[original_name][right_ix])
                         else:
                             column.append(None)
                     else:
                         raise Exception('bad logic')
         return left_join
 
-    def inner_join(self, other, left_keys, right_keys, columns=None):
+    def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
         :param right_keys: list of keys for the join
-        :param columns: list of columns to retain, if None, all are retained.
+        :param left_columns: list of left columns to retain, if None, all are retained.
+        :param right_columns: list of right columns to retain, if None, all are retained.
         :return: new Table
 
         Example:
         SQL:   SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
-        Tablite: inner_join = numbers.inner_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
+        Tablite: inner_join = numbers.inner_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])
         """
-        if columns is None:
-            columns = list(self.columns) + list(other.columns)
+        if left_columns is None:
+            left_columns = list(self.columns)
+        if right_columns is None:
+            right_columns = list(other.columns)
 
-        self._join_type_check(other, left_keys, right_keys, columns)  # raises if error
+        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
 
         inner_join = Table(use_disk=self._use_disk)
-        for col_name in columns:
-            if col_name in self.columns:
-                col = self.columns[col_name]
-            elif col_name in other.columns:
-                col = other.columns[col_name]
-            else:
-                raise ValueError(f"column name '{col_name}' not in any table.")
+        for col_name in left_columns:
+            col = self.columns[col_name]
             inner_join.add_column(col_name, col.datatype, allow_empty=True)
+
+        right_join_col_name = {}
+        for col_name in right_columns:
+            col = other.columns[col_name]
+            revised_name = inner_join.check_for_duplicate_header(col_name)
+            right_join_col_name[revised_name] = col_name
+            inner_join.add_column(revised_name, col.datatype, allow_empty=True)
 
         key_union = set(self.filter(*left_keys)).intersection(set(other.filter(*right_keys)))
 
@@ -737,38 +753,43 @@ class Table(object):
                     for col_name, column in inner_join.columns.items():
                         if col_name in self:
                             column.append(self[col_name][left_ix])
-                        elif col_name in other:
-                            column.append(other[col_name][right_ix])
-                        else:
-                            raise ValueError(f"column {col_name} not found. Duplicate names?")
+                        else:  # col_name in right_join_col_name:
+                            original_name = right_join_col_name[col_name]
+                            column.append(other[original_name][right_ix])
+
         return inner_join
 
-    def outer_join(self, other, left_keys, right_keys, columns=None):
+    def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
         :param right_keys: list of keys for the join
-        :param columns: list of columns to retain, if None, all are retained.
+        :param left_columns: list of left columns to retain, if None, all are retained.
+        :param right_columns: list of right columns to retain, if None, all are retained.
         :return: new Table
 
         Example:
         SQL:   SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
-        Tablite: outer_join = numbers.outer_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
+        Tablite: outer_join = numbers.outer_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])
         """
-        if columns is None:
-            columns = list(self.columns) + list(other.columns)
+        if left_columns is None:
+            left_columns = list(self.columns)
+        if right_columns is None:
+            right_columns = list(other.columns)
 
-        self._join_type_check(other, left_keys, right_keys, columns)  # raises if error
+        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
 
         outer_join = Table(use_disk=self._use_disk)
-        for col_name in columns:
-            if col_name in self.columns:
-                col = self.columns[col_name]
-            elif col_name in other.columns:
-                col = other.columns[col_name]
-            else:
-                raise ValueError(f"column name '{col_name}' not in any table.")
+        for col_name in left_columns:
+            col = self.columns[col_name]
             outer_join.add_column(col_name, col.datatype, allow_empty=True)
+
+        right_join_col_name = {}
+        for col_name in right_columns:
+            col = other.columns[col_name]
+            revised_name = outer_join.check_for_duplicate_header(col_name)
+            right_join_col_name[revised_name] = col_name
+            outer_join.add_column(revised_name, col.datatype, allow_empty=True)
 
         left_ixs = range(len(self))
         right_idx = other.index(*right_keys)
@@ -782,9 +803,10 @@ class Table(object):
                 for col_name, column in outer_join.columns.items():
                     if col_name in self:
                         column.append(self[col_name][left_ix])
-                    elif col_name in other:
+                    elif col_name in right_join_col_name:
+                        original_name = right_join_col_name[col_name]
                         if right_ix is not None:
-                            column.append(other[col_name][right_ix])
+                            column.append(other[original_name][right_ix])
                         else:
                             column.append(None)
                     else:
@@ -795,8 +817,9 @@ class Table(object):
                 for col_name, column in outer_join.columns.items():
                     if col_name in self:
                         column.append(None)
-                    elif col_name in other:
-                        column.append(other[col_name][right_ix])
+                    elif col_name in right_join_col_name:
+                        original_name = right_join_col_name[col_name]
+                        column.append(other[original_name][right_ix])
                     else:
                         raise Exception('bad logic')
         return outer_join
