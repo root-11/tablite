@@ -22,14 +22,14 @@ class CommonColumn(ABC):
         self.metadata = metadata
 
     def _init(self, data):
-        if isinstance(data, tuple):
+        if isinstance(data, StoredList):
+            self.extend(data)
+        elif isinstance(data, (list, tuple)):
             for v in data:
                 self.append(v)
-        elif isinstance(data, (list, StoredList)):
-            self.extend(data)
-        # elif isinstance(data, (StoredColumn, InMemoryColumn)):
-        #     self.extend(data)
-        elif data is not None:
+        elif data is None:
+            pass
+        else:
             raise NotImplementedError(f"{type(data)} is not supported.")
 
     def __str__(self):
