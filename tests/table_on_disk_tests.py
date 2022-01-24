@@ -210,7 +210,7 @@ def test_sql_joins():  # a couple of examples with SQL join:
 
     # left join
     # SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
-    left_join = numbers.left_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
+    left_join = numbers.left_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])
     left_join.show()
     # +======+======+
     # |number|letter|
@@ -232,7 +232,7 @@ def test_sql_joins():  # a couple of examples with SQL join:
 
     # inner join
     # SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
-    inner_join = numbers.inner_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
+    inner_join = numbers.inner_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])
     inner_join.show()
     # +======+======+
     # |number|letter|
@@ -253,7 +253,7 @@ def test_sql_joins():  # a couple of examples with SQL join:
 
     # outer join
     # SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
-    outer_join = numbers.outer_join(letters, left_keys=['colour'], right_keys=['color'], columns=['number', 'letter'])
+    outer_join = numbers.outer_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])
     outer_join.show()
     # +======+======+
     # |number|letter|
