@@ -7,14 +7,17 @@
 
 --------------
 
+Version 2022/01/25
+- Lookup API now accepts keyword `all` to permit search as `all` or `any`.
+
 Version 2022/01/24
 - Join api changed so that left_columns and right_columns must be declared.
 
-Version 2021/11/03:
+Version 2021/11/03
 - New call for StoredList.clear_cache() which drops all data to disk to free up memory.
 - Bug solved for median.
 
-Version 2021/11/02:
+Version 2021/11/02
 - Faster StoredList classes
 - Updated documentation
 - A couple of bugfixes
