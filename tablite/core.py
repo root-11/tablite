@@ -848,11 +848,12 @@ class Table(object):
         g += self
         return g
 
-    def lookup(self, other, *criteria):
+    def lookup(self, other, *criteria, all=True):
         """ function for looking up values in other according to criteria
         :param: other: Table
         :param: criteria: Each criteria must be a tuple with value comparisons in the form:
             (LEFT, OPERATOR, RIGHT)
+        :param: all: boolean: True=ALL, False=Any
 
         OPERATOR must be a callable that returns a boolean
         LEFT must be a value that the OPERATOR can compare.
@@ -871,9 +872,16 @@ class Table(object):
         """
         assert isinstance(self, Table)
         assert isinstance(other, Table)
+
+        all = all
+        any = not all
+
+        def not_in(a, b):
+            return not operator.contains(a, b)
+
         ops = {
             "in": operator.contains,
-            "not in": lambda left, right: not left.contains(right),
+            "not in": not_in,
             "<": operator.lt,
             "<=": operator.le,
             ">": operator.gt,
@@ -886,41 +894,50 @@ class Table(object):
         for name, col in chain(self.columns.items(), other.columns.items()):
             table3.add_column(name, col.datatype, allow_empty=True)
 
-        functions = []
-        columns = set(chain(self.columns, other.columns))
-        columns_used = set()
+        functions, left_columns, right_columns = [], set(), set()
+
         for left, op, right in criteria:
-            if left in columns: columns_used.add(left)
-            if right in columns: columns_used.add(right)
-            if not callable(op):
+            left_columns.add(left)
+            right_columns.add(right)
+            if callable(op):
+                pass  # it's a custom function.
+            else:
                 op = ops.get(op, None)
                 if not callable(op):
                     raise ValueError(f"{op} not a recognised operator for comparison.")
 
-            functions.append(lambda L, R: op(L.get(left, left), R.get(right, right)))
-            # The lambda function above does a neat trick:
-            # as L is a dict, L.get(left, L) will return a value
-            # from the columns IF left is a column name. If it isn't
-            # the function will treat left as a value.
-            # The same applies to right.
+            functions.append((op, left, right))
 
         lru_cache = {}
         empty_row = tuple(None for _ in other.columns)
 
         for row1 in self.rows:
-            row1_tup = tuple(v for v, name in zip(row1, columns_used) if name in self.columns)
-            row1d = {name: value for name, value in zip(self.columns, row1) if name in columns_used}
+            row1_tup = tuple(v for v, name in zip(row1,self.columns) if name in left_columns)
+            row1d = {name: value for name, value in zip(self.columns, row1) if name in left_columns}
 
             match_found = True if row1_tup in lru_cache else False
 
             if not match_found:  # search.
                 for row2 in other.rows:
-                    row2d = {name: value for name, value in zip(other.columns, row2) if name in columns_used}
+                    row2d = {name: value for name, value in zip(other.columns, row2) if name in right_columns}
 
-                    if all(f(row1d, row2d) for f in functions):  # match found!
-                        lru_cache[row1_tup] = row2
+                    evaluations = [op(row1d.get(left, left), row2d.get(right, right)) for op, left, right in functions]
+                    # The evaluations above does a neat trick:
+                    # as L is a dict, L.get(left, L) will return a value
+                    # from the columns IF left is a column name. If it isn't
+                    # the function will treat left as a value.
+                    # The same applies to right.
+
+                    if all and not False in evaluations:
                         match_found = True
+                        lru_cache[row1_tup] = row2
                         break
+                    elif any and True in evaluations:
+                        match_found = True
+                        lru_cache[row1_tup] = row2
+                        break
+                    else:
+                        continue
 
             if not match_found:  # no match found.
                 lru_cache[row1_tup] = empty_row
