@@ -486,8 +486,73 @@ def test_left_join_2():
     _join_left(pairs_1, pairs_1, pairs_ans, 'colour', 'colour')
 
 
-def test_sortation():  # Sortation
+def test_lookup_with_all():
+    tbl_0, tbl_1 = Table(), Table()
+    for i, tbl in enumerate([tbl_0, tbl_1]):
+        tbl.add_column("Index", int)
+        tbl.add_column("Name", str)
+        tbl.add_column("SKU", int)
+        tbl.add_row((1 - (5 * i), "Table%i" % i, 1))
+        tbl.add_row((2 - (5 * i), "Table%i" % i, 2))
+        tbl.add_row((3 - (5 * i), "Table%i" % i, 3))
+    tbl_0.add_row((4, "Table0", 42))
+    tbl_1.add_row((-1, "Table1", 13))
+    tbl_0.show()
+    tbl_1.show()
 
+    def fn_eq(a, b):
+        return a == b
+
+    def fn_neq(a, b):
+        return a != b
+
+    tbl_lookup = tbl_0.lookup(tbl_1, ("SKU", fn_eq, "SKU"), ("Index", fn_neq, "Index"))
+    assert list(tbl_lookup.rows) == [(1, 'Table0', 1, -4, 'Table1', 1),
+                                     (2, 'Table0', 2, -3, 'Table1', 2),
+                                     (3, 'Table0', 3, -2, 'Table1', 3),
+                                     (4, 'Table0', 42, None, None, None)]
+
+
+def test_lookup_with_any():
+    def fizz(b):
+        return "fizz" if b % 3 == 0 else str(b)
+
+    def buzz(b):
+        return "buzz" if b % 5 == 0 else str(b)
+
+    table1 = Table()
+    table1.add_column('A', int, data=[i for i in range(20)])
+    table1.add_column('Fizz', str, data=[fizz(i) for i in range(20)])
+    table1.add_column('Buzz', str, data=[buzz(i) for i in range(20)])
+    table1.show()
+
+    table2 = Table()
+    table2.add_column('B', str, data=[str(i) for i in range(20)])
+
+    table3 = table2.lookup(table1, ("B", "==", "Fizz"), ("B", "==", "Buzz"), all=False)
+    assert list(table3.rows) == [('0', None, None, None),
+                                 ('1', 1, '1', '1'),
+                                 ('2', 2, '2', '2'),
+                                 ('3', 3, 'fizz', '3'),
+                                 ('4', 4, '4', '4'),
+                                 ('5', 5, '5', 'buzz'),
+                                 ('6', 6, 'fizz', '6'),
+                                 ('7', 7, '7', '7'),
+                                 ('8', 8, '8', '8'),
+                                 ('9', 9, 'fizz', '9'),
+                                 ('10', 10, '10', 'buzz'),
+                                 ('11', 11, '11', '11'),
+                                 ('12', 12, 'fizz', '12'),
+                                 ('13', 13, '13', '13'),
+                                 ('14', 14, '14', '14'),
+                                 ('15', None, None, None),
+                                 ('16', 16, '16', '16'),
+                                 ('17', 17, '17', '17'),
+                                 ('18', 18, 'fizz', '18'),
+                                 ('19', 19, '19', '19')]
+
+
+def test_sortation():  # Sortation
     table7 = Table()
     table7.add_column('A', int, data=[1, None, 8, 3, 4, 6, 5, 7, 9], allow_empty=True)
     table7.add_column('B', int, data=[10, 100, 1, 1, 1, 1, 10, 10, 10])
@@ -554,13 +619,13 @@ def test_lookup():
     print("Departures from Concert Hall towards ...")
     bustable[:10].show()
 
-    lookup_1 = friends.lookup(bustable, ('time', ">=", DataTypes.time(21, 10)), ('stop', "==", 'stop'))
+    lookup_1 = friends.lookup(bustable, (DataTypes.time(21, 10), "<=", 'time'), ('stop', "==", 'stop'))
     lookup_1.sort(**{'time': False})
     lookup_1.show()
 
     expected = [
         ('Fred', 'Chicago', None, None, None),
-        ('Dorethy', 'Hillside Crescent', time(21, 5), 'Hillside Crescent', 2),
+        ('Dorethy', 'Hillside Crescent', time(23, 54), 'Hillside Crescent', 1),
         ('Betty', 'Downtown-2', time(21, 51), 'Downtown-2', 1),
         ('Edward', 'Downtown-2', time(21, 51), 'Downtown-2', 1),
         ('Charlie', 'Hillside View', time(22, 19), 'Hillside View', 2),
