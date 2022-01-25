@@ -1,7 +1,7 @@
 """
 tablite
 """
-build_tag = "0812460af5cd45a555e81fc01be1710cb1b839ed3a3cc6354b5ad6cc212d95aa"
+build_tag = "066159ec2580400438476706b8f281d7327f33ecacfedc63b452cd658f0a773d"
 from setuptools import setup
 from pathlib import Path
 
@@ -31,7 +31,7 @@ with open('requirements.txt', 'r') as fi:
 
 setup(
     name="tablite",
-    version="2021.11.5.66041",
+    version="2022.1.25.68738",
     url="https://github.com/root-11/tablite",
     license="MIT",
     author="Bjorn Madsen",
