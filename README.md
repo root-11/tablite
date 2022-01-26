@@ -7,6 +7,9 @@
 
 --------------
 
+Version 2022/01/26
+- Bugfix for csv reader. Python reads datetime.time.fromisoformat("20") as time(20,0,0) and not as an error. Obviously "20" is an integer.
+
 Version 2022/01/25
 - Lookup API now accepts keyword `all` to permit search as `all` or `any`.
 

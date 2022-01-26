@@ -380,7 +380,8 @@ class DataTypes(object):
     def _infer_time(value):
         if isinstance(value, time):
             return value
-        elif isinstance(value, str):
+        elif isinstance(value, str) and ":" in value:
+            # beware time.fromisoformat reads "20" as "20:00:00", despite that it is more likely to be an integer.
             return time.fromisoformat(value)
         else:
             raise ValueError
