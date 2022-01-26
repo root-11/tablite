@@ -18,8 +18,7 @@ from tempfile import gettempdir
 
 from tablite.datatypes import DataTypes
 from tablite.file_reader_utils import detect_encoding, detect_seperator, split_by_sequence, text_escape
-from tablite.groupby_utils import Max, Min, Sum, First, Last, Count, CountUnique, Average, StandardDeviation, Median, \
-    Mode, GroupbyFunction
+from tablite.groupby_utils import Max, Min, Sum, First, Last, Count, CountUnique, Average, StandardDeviation, Median, Mode, GroupbyFunction
 
 from tablite.columns import StoredColumn, InMemoryColumn
 from tablite.stored_list import tempfile
@@ -84,7 +83,7 @@ class Table(object):
     def __repr__(self):
         m = self.metadata.copy()
         m['use_disk'] = self._use_disk
-        kwargs = ", ".join(f"{k}={v}" for k,v in sorted(m.items()))
+        kwargs = ", ".join(f"{k}={v}" for k, v in sorted(m.items()))
         return f"{self.__class__.__name__}({kwargs})"
 
     def __str__(self):
@@ -182,6 +181,7 @@ class Table(object):
                 return v.ljust(length)
             else:
                 return str(v).rjust(length)
+
         rows = 0
         print("+", "+".join(["=" * c_lens[h] for h in headers]), "+", sep="")
         print("|", "|".join([h.center(c_lens[h], " ") for h in headers]), "|", sep="")
@@ -321,7 +321,7 @@ class Table(object):
         if args:
             if not any(isinstance(i, (list, tuple, dict)) for i in args):
                 if len(args) == len(self.columns):
-                    args = (args, )
+                    args = (args,)
                 elif len(args) < len(self.columns):
                     raise TypeError(f"{args} doesn't match the number of columns. Are values missing?")
                 elif len(args) > len(self.columns):
@@ -430,8 +430,8 @@ class Table(object):
             a, b = self.__class__.__name__, other.__class__.__name__
             raise TypeError(f"cannot compare type {b} with {a}")
 
-        if self.metadata != other.metadata:
-            raise ValueError("tables have different metadata.")
+        # if self.metadata != other.metadata:  # TODO: Develop better theory of what to do with metadata when concatenating.
+        #     raise ValueError("tables have different metadata.")
         for a, b in [[self, other], [other, self]]:  # check both dictionaries.
             for name, col in a.columns.items():
                 if name not in b.columns:
@@ -912,7 +912,7 @@ class Table(object):
         empty_row = tuple(None for _ in other.columns)
 
         for row1 in self.rows:
-            row1_tup = tuple(v for v, name in zip(row1,self.columns) if name in left_columns)
+            row1_tup = tuple(v for v, name in zip(row1, self.columns) if name in left_columns)
             row1d = {name: value for name, value in zip(self.columns, row1) if name in left_columns}
 
             match_found = True if row1_tup in lru_cache else False
@@ -1022,7 +1022,7 @@ class GroupBy(object):
 
         self.groupby_functions = functions  # list with header name and function name
 
-        self._output = None   # class Table.
+        self._output = None  # class Table.
         self._required_headers = None  # headers for reading input.
         self.aggregation_functions = defaultdict(list)  # key: [list of groupby functions]
         self._function_classes = []  # initiated functions.
@@ -1048,7 +1048,8 @@ class GroupBy(object):
             self._function_classes.append(f_instance)
 
             function_name = f"{fn.__name__}({h})"
-            self._output.add_column(header=function_name, datatype=f_instance.datatype, allow_empty=True)  # add column for fn's.
+            self._output.add_column(header=function_name, datatype=f_instance.datatype,
+                                    allow_empty=True)  # add column for fn's.
 
     def __iadd__(self, other):
         """
@@ -1158,7 +1159,7 @@ class GroupBy(object):
         """
         columns = args
         if not all(isinstance(i, str) for i in args):
-            raise TypeError(f"column name not str: {[i for i in columns if not isinstance(i,str)]}")
+            raise TypeError(f"column name not str: {[i for i in columns if not isinstance(i, str)]}")
 
         if self._output is None:
             return None
@@ -1181,7 +1182,8 @@ class GroupBy(object):
 
         tup_length = 0
         for column_key in self._output.filter(*columns):  # add horizontal groups.
-            col_name = ",".join(f"{h}={v}" for h, v in zip(columns, column_key))  # expressed "a=0,b=3" in column name "Sum(g, a=0,b=3)"
+            col_name = ",".join(
+                f"{h}={v}" for h, v in zip(columns, column_key))  # expressed "a=0,b=3" in column name "Sum(g, a=0,b=3)"
 
             for (header, function), function_instances in zip(self.groupby_functions, self._function_classes):
                 new_column_name = f"{function.__name__}({header},{col_name})"
