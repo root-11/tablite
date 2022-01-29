@@ -270,6 +270,7 @@ class Table(object):
         for name in order:
             if name == header:
                 d[new_name] = self.columns[name]
+                d[new_name].header = new_name
             else:
                 d[name] = self.columns[name]
         self.columns = d
