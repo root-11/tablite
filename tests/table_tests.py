@@ -40,8 +40,14 @@ def test_basic_table():
 
     table.rename_column('A', 'aa')
     assert list(table.columns) == ['aa','B']
+    for header, column in table.columns.items():
+        assert column.header in ['aa', 'B']
+        assert column.header not in ['A']
     table.rename_column('aa', 'A')
     assert list(table.columns) == ['A', 'B']
+    for header, column in table.columns.items():
+        assert column.header in ['A', 'B']
+        assert column.header not in ['aa']
 
     # and checking for headers is simple:
     assert 'A' in table
