@@ -2,6 +2,8 @@
 
 [Tutorial](https://github.com/root-11/tablite/blob/master/tutorial.ipynb)
 
+[API overview](https://root-11.github.io/tablite/index.html)
+
 [overview](https://github.com/root-11/tablite/blob/master/docs/../../../../../../../tablite/index.html)
 
 
