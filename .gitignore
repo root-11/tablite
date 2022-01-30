@@ -1,2 +1,5 @@
 .idea/
 *.pyc
+.ipynb_checkpoints/
+dist/
+tablite.egg-info
