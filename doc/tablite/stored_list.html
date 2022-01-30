@@ -1,0 +1,1922 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>tablite.stored_list API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>tablite.stored_list</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">import math
+import pickle
+import sqlite3
+
+from pathlib import Path
+from random import choice
+from string import ascii_lowercase
+
+from tempfile import gettempdir
+from itertools import count
+
+from tablite.datatypes import DataTypes
+
+# Queries for StoredList
+sql_create = &#34;CREATE TABLE records (id INTEGER PRIMARY KEY, data BLOB);&#34;
+sql_journal_off = &#34;PRAGMA journal_mode = OFF&#34;
+sql_sync_off = &#34;PRAGMA synchronous = OFF &#34;
+sql_delete = &#34;DELETE FROM records WHERE id = ?&#34;
+sql_insert = &#34;INSERT INTO records VALUES (?, ?);&#34;
+sql_update = &#34;UPDATE records SET data = ? WHERE id=?;&#34;
+sql_select = &#34;SELECT data FROM records WHERE id=?&#34;
+
+
+def tempfile(prefix=&#39;tmp&#39;, suffix=&#39;.db&#39;):
+    &#34;&#34;&#34; generates a safe tempfile which windows can&#39;t handle. &#34;&#34;&#34;
+    safe_folder = Path(gettempdir())
+    while 1:
+        n = &#34;&#34;.join(choice(ascii_lowercase) for _ in range(10))
+        name = f&#34;{prefix}{n}{suffix}&#34;
+        p = safe_folder / name
+        if not p.exists():
+            break
+    return p
+
+
+class Page(list):
+    ids = count()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pid = next(Page.ids)
+        self._len = 0
+        self.loaded = True
+        self.size = 0
+
+    def __str__(self):
+        return f&#34;Page({self.pid}) {&#39;loaded&#39; if self.loaded else &#39;stored&#39;} ({self.len} items)&#34;
+
+    def __repr__(self):
+        return self.__str__()
+
+    @property
+    def len(self):
+        &#34;&#34;&#34;
+        `list` uses __len__ to determine list.__iter__&#39;s stop point so we can&#39;t use __len__
+        to determine the length of the page if it hasn&#39;t been loaded.
+        return: integer.
+        &#34;&#34;&#34;
+        if self.loaded:
+            return self.__len__()
+        else:
+            return self._len
+
+    def load(self, data):
+        self.extend(data)
+        self.loaded = True
+
+    def store(self):
+        self.loaded = False
+        self._len = self.__len__()
+        data = self.copy()
+        self.clear()
+        return data
+
+
+class StoredList(object):
+    &#34;&#34;&#34;
+    Python list stored on disk using sqlite&#39;s fast mmap.
+    &#34;&#34;&#34;
+    default_page_size = 200_000
+    storage_file = tempfile()
+    _conn = sqlite3.connect(database=str(storage_file))  # SQLite3 connection
+    with _conn as c:
+        c.execute(sql_create)
+        c.execute(sql_journal_off)
+        c.execute(sql_sync_off)
+
+    def __init__(self, data=None, page_size=None):
+        if page_size is None:
+            page_size = StoredList.default_page_size
+        if not isinstance(page_size, int):
+            raise TypeError
+        self._page_size = page_size
+        self.pages = []
+
+        if data is not None:
+            if isinstance(data, int):
+                raise TypeError(f&#34;Did you do data={data} instead of page_size={data}?&#34;)
+            self.extend(data)
+
+        self._loaded_page = None
+
+    @property
+    def page_size(self):
+        return self._page_size
+
+    @page_size.setter
+    def page_size(self, value):
+        if not isinstance(value, int):
+            raise TypeError
+        elif value &lt; 0:
+            raise ValueError
+        elif self._page_size == value:
+            pass  # leave as is.
+        elif value &gt; self._page_size:  # leave the page size. It won&#39;t make a difference.
+            self._page_size = value
+        else:  # pages will have to be reduced.
+            print(f&#34;reducing page size from {self._page_size} to {value}&#34;)
+            self._page_size = value
+
+            SL = StoredList(page_size=value, data=self)
+
+            for page in self.pages[:]:
+                self._delete_page(page)
+            assert not self.pages
+            self.extend(SL)
+
+    def _new_page(self):
+        &#34;&#34;&#34; internal method that stores current page and creates a new empty page&#34;&#34;&#34;
+        _ = [self._store_page(p) for p in self.pages if p.loaded]
+        if any(p.loaded for p in self.pages):
+            raise AttributeError(&#34;other pages are loaded.&#34;)
+
+        page = Page()
+        self.pages.append(page)
+
+        data = pickle.dumps(page.copy())  # empty list.
+        with self._conn as c:
+            c.execute(sql_insert, (page.pid, data))  # INSERT the empty list.
+
+        return page
+
+    def _store_page(self, page):
+        &#34;&#34;&#34; internal method that stores page data to disk.
+        :param page: Page
+        &#34;&#34;&#34;
+        assert isinstance(page, Page)
+        data = page.store()
+        assert not page.loaded
+        data_as_bytes = pickle.dumps(data)
+        page.size = len(data_as_bytes)
+        with self._conn as c:
+            c.execute(sql_update, (data_as_bytes, page.pid))  # UPDATE
+        return page
+
+    def _load_page(self, page):
+        &#34;&#34;&#34; internal method that loads the data from a page.
+        :param page: Page
+        &#34;&#34;&#34;
+        assert isinstance(page, Page)
+        if page.loaded:
+            return page
+
+        _ = [self._store_page(p) for p in self.pages if p.loaded]
+
+        if any(p.loaded for p in self.pages):
+            raise AttributeError(&#34;other pages are loaded.&#34;)
+
+        with self._conn as c:
+            q = c.execute(sql_select, (page.pid,))  # READ
+            data = q.fetchone()[0]
+            unpickled_data = pickle.loads(data)
+
+        page.load(unpickled_data.copy())
+        return page
+
+    def _delete_page(self, page):
+        &#34;&#34;&#34; internal method that deletes a page of data. &#34;&#34;&#34;
+        assert isinstance(page, Page)
+        page.clear()  # in case it holds data.
+        self.pages.remove(page)
+
+        with self._conn as c:
+            c.execute(sql_delete, (page.pid,))  # DELETE
+
+        del page
+
+        return None
+
+    # PUBLIC METHODS.
+
+    def __len__(self):
+        return sum(p.len for p in self.pages)
+
+    def __iter__(self):
+        for page in self.pages:
+            p1 = page.pid
+            assert isinstance(page, Page)
+            page = self._load_page(page)
+            assert page.pid == p1
+
+            assert isinstance(page, list)
+            for value in page:
+                yield value
+            page = self._store_page(page)
+            assert not page.loaded
+
+    def __reversed__(self):
+        for page in reversed(self.pages):
+            self._load_page(page)
+            for value in reversed(page):
+                yield value
+
+    def __repr__(self):
+        return f&#34;StoredList(page_size={self._page_size}, data={len(self)})&#34;
+
+    def __str__(self):
+        return f&#34;StoredList(page_size={self._page_size}, data={len(self)})&#34;
+
+    def append(self, value):
+        &#34;&#34;&#34; Append object to the end of the list. &#34;&#34;&#34;
+        if not self.pages:
+            last_page = self._new_page()
+        else:
+            assert self.pages, &#34;there must be at least one page.&#34;
+            last_page = self.pages[-1]
+
+        if last_page.len == self._page_size:
+            last_page = self._new_page()
+        last_page.append(value)
+
+    def clear(self):
+        &#34;&#34;&#34; Remove all items from list. &#34;&#34;&#34;
+        for page in self.pages[:]:
+            self._delete_page(page)
+
+    def copy(self):
+        &#34;&#34;&#34; Return a shallow copy of the list. &#34;&#34;&#34;
+        SL = StoredList(page_size=self.page_size)
+        for page in self.pages:
+            page = self._load_page(page)
+            SL.extend(page.copy())
+        return SL
+
+    def count(self, item):
+        &#34;&#34;&#34; Return number of occurrences of item. &#34;&#34;&#34;
+        return sum(1 for v in self if v == item)
+
+    def extend(self, items):
+        &#34;&#34;&#34; Extend list by appending elements from the iterable. &#34;&#34;&#34;
+        if not self.pages:
+            last_page = self._new_page()
+        else:
+            last_page = self.pages[-1]
+        # last_page = self._last_page()
+        space = self._page_size - last_page.len
+        c = 0
+        for i in items:
+            if not space:
+                last_page = self._new_page()
+                space = self._page_size
+            last_page.append(i)
+            c += 1
+            space -= 1
+        assert c == len(items), (c, len(items))
+
+    def index(self, item):
+        &#34;&#34;&#34;
+        Return first index of value.
+        Raises ValueError if the value is not present.
+        &#34;&#34;&#34;
+        for ix, v in enumerate(self):
+            if v == item:
+                return ix
+        raise ValueError(f&#34;{item} is not in list&#34;)
+
+    def insert(self, index, item):
+        &#34;&#34;&#34; Insert object before index. &#34;&#34;&#34;
+        if not isinstance(index, int):
+            raise TypeError
+        if abs(index) &gt; len(self):
+            raise IndexError(&#34;index out of range&#34;)
+        if index &lt; 0:
+            index = len(self) + index
+
+        c = 0
+        page = None
+        for page in self.pages[:]:
+            assert isinstance(page, Page)
+            if c &lt;= index &lt;= page.len + c:
+                break
+            c += page.len
+        ix = index - c
+
+        assert isinstance(page, Page)
+        loaded_page = self._load_page(page)
+        loaded_page.insert(ix, item)
+
+        if page.len &lt; self._page_size:  # if there is space on the page...
+            return
+        # else -  split the data in half and insert a page.
+        n = page.len // 2
+
+        A, B = page[:n], page[n:]
+        page.clear()
+        page.extend(A)
+
+        page_ix = self.pages.index(page)
+
+        new_page = self._new_page()
+        new_page.extend(B)
+
+        self.pages.remove(new_page)
+        self.pages.insert(page_ix + 1, new_page)
+
+    def pop(self, index=None):
+        &#34;&#34;&#34;
+        Remove and return item at index (default last).
+
+        Raises IndexError if list is empty or index is out of range.
+        &#34;&#34;&#34;
+        if index is None:
+            index = -1
+        if not isinstance(index, int):
+            raise TypeError
+        if abs(index) &gt; len(self):
+            raise IndexError(&#34;list index out of range&#34;)
+        if index &lt; 0:
+            index = len(self) + index
+
+        c = 0
+        for page in self.pages[:]:
+            if c &lt;= index &lt; page.len + c:
+                page = self._load_page(page)
+                ix = index - c
+                value = page.pop(ix)
+                if len(page) == 0:
+                    self._delete_page(page)
+                return value
+            else:
+                c += page.len
+
+    def remove(self, item):
+        &#34;&#34;&#34;
+        Remove first occurrence of value.
+
+        Raises ValueError if the value is not present.
+        &#34;&#34;&#34;
+        for page in self.pages[:]:
+            self._load_page(page)
+            if item in page:
+                page.remove(item)
+                return
+            if not page:
+                self._delete_page(page)
+
+        raise ValueError(f&#34;{item} not in list&#34;)
+
+    def reverse(self):
+        &#34;&#34;&#34; Reverse *IN PLACE*. &#34;&#34;&#34;
+        self.pages.reverse()
+        for page in self.pages:
+            page = self._load_page(page)
+            new_data = list(reversed(page))
+            page.clear()
+            page.extend(new_data)
+            self._store_page(page)
+
+    def sort(self, key=None, reverse=False):
+        &#34;&#34;&#34; Implements an IN PLACE hybrid of quicksort and merge sort.
+        See more on https://en.wikipedia.org/wiki/External_sorting
+        &#34;&#34;&#34;
+        if key is not None:
+            raise NotImplementedError(f&#34;key is not supported.&#34;)
+
+        _before = len(self)
+        for page in self.pages:
+            page = self._load_page(page)
+            assert isinstance(page, Page)
+            assert len(page) == page.len &gt; 0
+            page.sort(reverse=reverse)
+            self._store_page(page)
+        assert _before == len(self), &#34;bad logic.&#34;
+
+        if len(self.pages) == 1:  # then we&#39;re done.
+            return
+
+        # else ... merge is required.
+        working_buffer = []
+        for page in self.pages:
+            page = self._load_page(page)
+            SL = StoredList(data=page)
+            working_buffer.append(SL)
+
+        while len(working_buffer) &gt; 1:
+            A = working_buffer.pop(0)
+            assert isinstance(A, StoredList)
+            iterA = iter(A)
+            B = working_buffer.pop(0)
+            assert isinstance(B, StoredList)
+            iterB = iter(B)
+
+            C = StoredList(page_size=self._page_size)
+            a, b = next(iterA), next(iterB)
+
+            buffer = []
+            while True:
+                if len(buffer) == self._page_size:
+                    C.extend(buffer)
+                    buffer.clear()
+
+                if (reverse and a &gt;= b) or (not reverse and a &lt;= b):
+                    buffer.append(a)
+                    try:
+                        a = next(iterA)
+                    except StopIteration:
+                        buffer.append(b)
+                        C.extend(buffer)
+                        C.extend(list(iterB))
+                        break
+                else:
+                    buffer.append(b)
+                    try:
+                        b = next(iterB)
+                    except StopIteration:
+                        buffer.append(a)
+                        C.extend(buffer)
+                        C.extend(list(iterA))
+                        break
+
+            working_buffer.append(C)
+
+        L = working_buffer.pop(0)
+        assert len(L) == len(self)
+        for page in self.pages[:]:
+            self._delete_page(page)
+        self.extend(L)
+
+    def __add__(self, other):
+        &#34;&#34;&#34;
+        A = [1,2,3]
+        B = [4,5,6]
+        C = A+B
+        C = [1,2,3,4,5,6]
+        &#34;&#34;&#34;
+        if not isinstance(other, (StoredList, list)):
+            raise TypeError
+        SL = StoredList(self._page_size)
+        SL.extend(self)
+        SL.extend(other)
+        return SL
+
+    def __contains__(self, item):
+        return any(item == i for i in self)
+
+    def __delitem__(self, index):
+        _ = self.pop(index)
+
+    def __eq__(self, other):
+        &#34;&#34;&#34; Return self==value. &#34;&#34;&#34;
+        if not isinstance(other, (StoredList, list)):
+            raise TypeError
+
+        if len(self) != len(other):
+            return False
+
+        if any(a != b for a, b in zip(self, other)):
+            return False
+        return True
+
+    def __getitem__(self, item):
+        if not isinstance(item, (slice, int)):
+            raise TypeError
+
+        if isinstance(item, int):
+            if not isinstance(item, int):
+                raise TypeError
+            if abs(item) &gt; len(self):
+                raise IndexError(&#34;list index out of range&#34;)
+            if item &lt; 0:
+                item = len(self) + item
+            c = 0
+            for page in self.pages:
+                if c &lt;= item &lt;= page.len + c:
+                    ix = item - c
+                    self._load_page(page)
+                    return page[ix]  # &lt;--- Exit for integer item
+                c += page.len
+
+        assert isinstance(item, slice)
+        start, stop, step = DataTypes.infer_range_from_slice(item, len(self))
+
+        n_items = abs(stop - start) // step
+        if n_items &gt; self._page_size:
+            L = list()
+        else:
+            L = StoredList(page_size=self._page_size)
+
+        if step &gt; 0:
+            if start &gt; stop:
+                return L  # &lt;-- Exit no data.
+            # else ....
+            A = 0
+            for page in self.pages:
+                B = page.len + A
+                if stop &lt; A:
+                    break
+                if B &lt; start:
+                    A += page.len
+                    continue
+
+                if start &gt;= A:
+                    start_ix = start - A
+                else:  # A &gt; start:
+                    steps = math.ceil((A-start) / step)
+                    start_ix = (start + (steps * step)) - A
+                if stop &lt; B:
+                    stop_ix = stop - A
+                else:
+                    stop_ix = page.len
+
+                self._load_page(page)
+                data = page[start_ix:stop_ix:step]
+                L.extend(data)
+
+                A += page.len
+
+        else:  # step &lt; 0 == backward traverse
+            if start &lt; stop:
+                return L  # &lt;-- Exit no data.
+            # else ...
+            B = len(self)
+            for page in reversed(self.pages):
+                A = B - page.len
+                if start &lt; A:
+                    B -= page.len
+                    continue
+                if B &lt; stop:
+                    break
+
+                if start &gt; B:
+                    steps = abs(math.floor((start-B) / step))
+                    start_ix = start + (steps * step) - A
+                else:  # start &lt;= B
+                    start_ix = start-A
+
+                if item.stop is None:
+                    stop_ix = None
+                else:  # stop - A:
+                    stop_ix = max(stop - A, 0)
+
+                if stop_ix is not None and start_ix &lt; stop_ix or start_ix &lt; 0:
+                    pass  # the step is bigger than the slice.
+                else:
+                    self._load_page(page)
+                    data = page[start_ix:stop_ix:step]
+                    L.extend(data)
+
+                B -= page.len
+
+        return L  # &lt;-- Exit with data.
+
+    def __ge__(self, other):
+        &#34;&#34;&#34; Return self&gt;=value. &#34;&#34;&#34;
+        return all(a &gt;= b for a, b in zip(self, other))
+
+    def __gt__(self, other):
+        &#34;&#34;&#34; Return self&gt;value. &#34;&#34;&#34;
+        return all(a &gt; b for a, b in zip(self, other))
+
+    def __iadd__(self, other):
+        &#34;&#34;&#34; Implement self+=value.
+        &gt;&gt;&gt; A = [1,2,3]
+        &gt;&gt;&gt; A += [4,5]
+        &gt;&gt;&gt; print(A)
+        [1,2,3,4,5]
+        &#34;&#34;&#34;
+        if not isinstance(other, (StoredList, list)):
+            raise TypeError
+        self.extend(other)
+        return self
+
+    def __imul__(self, value):
+        &#34;&#34;&#34; Implement self*=value. &#34;&#34;&#34;
+        if not isinstance(value, int):
+            raise TypeError
+        if value &lt;= 0:
+            raise ValueError
+        elif value == 1:
+            return self
+        else:
+            new_list = StoredList(page_size=self._page_size)
+            for i in range(value):
+                new_list.extend(self)
+            return new_list
+
+    def __le__(self, other):
+        &#34;&#34;&#34; Return self&lt;=value. &#34;&#34;&#34;
+        return all(a &lt;= b for a, b in zip(self, other))
+
+    def __lt__(self, other):
+        &#34;&#34;&#34; Return self&lt;value. &#34;&#34;&#34;
+        return all(a &lt; b for a, b in zip(self, other))
+
+    def __mul__(self, value):
+        &#34;&#34;&#34; Return self*value. &#34;&#34;&#34;
+        if not isinstance(value, int):
+            raise TypeError
+        if value &lt;= 0:
+            raise ValueError
+        new_list = StoredList(page_size=self._page_size)
+        for i in range(value):
+            new_list += self
+        return new_list
+
+    def __ne__(self, other):
+        &#34;&#34;&#34; Return self!=value. &#34;&#34;&#34;
+        if not isinstance(other, (StoredList, list)):
+            raise TypeError
+        if len(self) != len(other):
+            return True
+        return any(a != b for a, b in zip(self, other))
+
+    def __rmul__(self, value):
+        &#34;&#34;&#34; Return value*self. &#34;&#34;&#34;
+        return self.__mul__(value)
+
+    def __setitem__(self, key, value):
+        &#34;&#34;&#34; Set self[key] to value. &#34;&#34;&#34;
+        if not isinstance(key, int):
+            raise TypeError
+        if abs(key) &gt; len(self):
+            raise KeyError(&#34;index out of range&#34;)
+        c = 0
+        if key &lt; 0:
+            key = len(self) + key
+
+        for page in self.pages:
+            if c &lt; key &lt; c + page.len:
+                self._load_page(page)
+                ix = key - c
+                page[ix] = value
+                return
+
+    def __sizeof__(self):
+        &#34;&#34;&#34; Return the size of the list in memory, in bytes.
+        To drop any cached data, call
+
+        &#34;&#34;&#34;
+        return sum(p.__sizeof__() for p in self.pages)
+
+    def clear_cache(self):
+        _ = [self._store_page(p) for p in self.pages if p.loaded]
+
+    def disk_size(self):
+        &#34;&#34;&#34; drops all pages to disk using `clear_cache` and then
+        returns the number of bytes stored &#34;&#34;&#34;
+        self.clear_cache()
+        return sum(p.size for p in self.pages)
+
+    def __hash__(self):
+        raise TypeError(&#34;unhashable type: List&#34;)
+
+    def __copy__(self):
+        SL = StoredList(self._page_size)
+        for page in self.pages:
+            self._load_page(page)
+            SL.extend(page)  # page data is copied in the extend function
+        return SL</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="tablite.stored_list.tempfile"><code class="name flex">
+<span>def <span class="ident">tempfile</span></span>(<span>prefix='tmp', suffix='.db')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>generates a safe tempfile which windows can't handle.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def tempfile(prefix=&#39;tmp&#39;, suffix=&#39;.db&#39;):
+    &#34;&#34;&#34; generates a safe tempfile which windows can&#39;t handle. &#34;&#34;&#34;
+    safe_folder = Path(gettempdir())
+    while 1:
+        n = &#34;&#34;.join(choice(ascii_lowercase) for _ in range(10))
+        name = f&#34;{prefix}{n}{suffix}&#34;
+        p = safe_folder / name
+        if not p.exists():
+            break
+    return p</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="tablite.stored_list.Page"><code class="flex name class">
+<span>class <span class="ident">Page</span></span>
+<span>(</span><span>*args, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Built-in mutable sequence.</p>
+<p>If no argument is given, the constructor creates a new empty list.
+The argument must be an iterable if specified.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Page(list):
+    ids = count()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pid = next(Page.ids)
+        self._len = 0
+        self.loaded = True
+        self.size = 0
+
+    def __str__(self):
+        return f&#34;Page({self.pid}) {&#39;loaded&#39; if self.loaded else &#39;stored&#39;} ({self.len} items)&#34;
+
+    def __repr__(self):
+        return self.__str__()
+
+    @property
+    def len(self):
+        &#34;&#34;&#34;
+        `list` uses __len__ to determine list.__iter__&#39;s stop point so we can&#39;t use __len__
+        to determine the length of the page if it hasn&#39;t been loaded.
+        return: integer.
+        &#34;&#34;&#34;
+        if self.loaded:
+            return self.__len__()
+        else:
+            return self._len
+
+    def load(self, data):
+        self.extend(data)
+        self.loaded = True
+
+    def store(self):
+        self.loaded = False
+        self._len = self.__len__()
+        data = self.copy()
+        self.clear()
+        return data</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>builtins.list</li>
+</ul>
+<h3>Class variables</h3>
+<dl>
+<dt id="tablite.stored_list.Page.ids"><code class="name">var <span class="ident">ids</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+<h3>Instance variables</h3>
+<dl>
+<dt id="tablite.stored_list.Page.len"><code class="name">var <span class="ident">len</span></code></dt>
+<dd>
+<div class="desc"><p><code>list</code> uses <strong>len</strong> to determine list.<strong>iter</strong>'s stop point so we can't use <strong>len</strong>
+to determine the length of the page if it hasn't been loaded.
+return: integer.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def len(self):
+    &#34;&#34;&#34;
+    `list` uses __len__ to determine list.__iter__&#39;s stop point so we can&#39;t use __len__
+    to determine the length of the page if it hasn&#39;t been loaded.
+    return: integer.
+    &#34;&#34;&#34;
+    if self.loaded:
+        return self.__len__()
+    else:
+        return self._len</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="tablite.stored_list.Page.load"><code class="name flex">
+<span>def <span class="ident">load</span></span>(<span>self, data)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def load(self, data):
+    self.extend(data)
+    self.loaded = True</code></pre>
+</details>
+</dd>
+<dt id="tablite.stored_list.Page.store"><code class="name flex">
+<span>def <span class="ident">store</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def store(self):
+    self.loaded = False
+    self._len = self.__len__()
+    data = self.copy()
+    self.clear()
+    return data</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="tablite.stored_list.StoredList"><code class="flex name class">
+<span>class <span class="ident">StoredList</span></span>
+<span>(</span><span>data=None, page_size=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Python list stored on disk using sqlite's fast mmap.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class StoredList(object):
+    &#34;&#34;&#34;
+    Python list stored on disk using sqlite&#39;s fast mmap.
+    &#34;&#34;&#34;
+    default_page_size = 200_000
+    storage_file = tempfile()
+    _conn = sqlite3.connect(database=str(storage_file))  # SQLite3 connection
+    with _conn as c:
+        c.execute(sql_create)
+        c.execute(sql_journal_off)
+        c.execute(sql_sync_off)
+
+    def __init__(self, data=None, page_size=None):
+        if page_size is None:
+            page_size = StoredList.default_page_size
+        if not isinstance(page_size, int):
+            raise TypeError
+        self._page_size = page_size
+        self.pages = []
+
+        if data is not None:
+            if isinstance(data, int):
+                raise TypeError(f&#34;Did you do data={data} instead of page_size={data}?&#34;)
+            self.extend(data)
+
+        self._loaded_page = None
+
+    @property
+    def page_size(self):
+        return self._page_size
+
+    @page_size.setter
+    def page_size(self, value):
+        if not isinstance(value, int):
+            raise TypeError
+        elif value &lt; 0:
+            raise ValueError
+        elif self._page_size == value:
+            pass  # leave as is.
+        elif value &gt; self._page_size:  # leave the page size. It won&#39;t make a difference.
+            self._page_size = value
+        else:  # pages will have to be reduced.
+            print(f&#34;reducing page size from {self._page_size} to {value}&#34;)
+            self._page_size = value
+
+            SL = StoredList(page_size=value, data=self)
+
+            for page in self.pages[:]:
+                self._delete_page(page)
+            assert not self.pages
+            self.extend(SL)
+
+    def _new_page(self):
+        &#34;&#34;&#34; internal method that stores current page and creates a new empty page&#34;&#34;&#34;
+        _ = [self._store_page(p) for p in self.pages if p.loaded]
+        if any(p.loaded for p in self.pages):
+            raise AttributeError(&#34;other pages are loaded.&#34;)
+
+        page = Page()
+        self.pages.append(page)
+
+        data = pickle.dumps(page.copy())  # empty list.
+        with self._conn as c:
+            c.execute(sql_insert, (page.pid, data))  # INSERT the empty list.
+
+        return page
+
+    def _store_page(self, page):
+        &#34;&#34;&#34; internal method that stores page data to disk.
+        :param page: Page
+        &#34;&#34;&#34;
+        assert isinstance(page, Page)
+        data = page.store()
+        assert not page.loaded
+        data_as_bytes = pickle.dumps(data)
+        page.size = len(data_as_bytes)
+        with self._conn as c:
+            c.execute(sql_update, (data_as_bytes, page.pid))  # UPDATE
+        return page
+
+    def _load_page(self, page):
+        &#34;&#34;&#34; internal method that loads the data from a page.
+        :param page: Page
+        &#34;&#34;&#34;
+        assert isinstance(page, Page)
+        if page.loaded:
+            return page
+
+        _ = [self._store_page(p) for p in self.pages if p.loaded]
+
+        if any(p.loaded for p in self.pages):
+            raise AttributeError(&#34;other pages are loaded.&#34;)
+
+        with self._conn as c:
+            q = c.execute(sql_select, (page.pid,))  # READ
+            data = q.fetchone()[0]
+            unpickled_data = pickle.loads(data)
+
+        page.load(unpickled_data.copy())
+        return page
+
+    def _delete_page(self, page):
+        &#34;&#34;&#34; internal method that deletes a page of data. &#34;&#34;&#34;
+        assert isinstance(page, Page)
+        page.clear()  # in case it holds data.
+        self.pages.remove(page)
+
+        with self._conn as c:
+            c.execute(sql_delete, (page.pid,))  # DELETE
+
+        del page
+
+        return None
+
+    # PUBLIC METHODS.
+
+    def __len__(self):
+        return sum(p.len for p in self.pages)
+
+    def __iter__(self):
+        for page in self.pages:
+            p1 = page.pid
+            assert isinstance(page, Page)
+            page = self._load_page(page)
+            assert page.pid == p1
+
+            assert isinstance(page, list)
+            for value in page:
+                yield value
+            page = self._store_page(page)
+            assert not page.loaded
+
+    def __reversed__(self):
+        for page in reversed(self.pages):
+            self._load_page(page)
+            for value in reversed(page):
+                yield value
+
+    def __repr__(self):
+        return f&#34;StoredList(page_size={self._page_size}, data={len(self)})&#34;
+
+    def __str__(self):
+        return f&#34;StoredList(page_size={self._page_size}, data={len(self)})&#34;
+
+    def append(self, value):
+        &#34;&#34;&#34; Append object to the end of the list. &#34;&#34;&#34;
+        if not self.pages:
+            last_page = self._new_page()
+        else:
+            assert self.pages, &#34;there must be at least one page.&#34;
+            last_page = self.pages[-1]
+
+        if last_page.len == self._page_size:
+            last_page = self._new_page()
+        last_page.append(value)
+
+    def clear(self):
+        &#34;&#34;&#34; Remove all items from list. &#34;&#34;&#34;
+        for page in self.pages[:]:
+            self._delete_page(page)
+
+    def copy(self):
+        &#34;&#34;&#34; Return a shallow copy of the list. &#34;&#34;&#34;
+        SL = StoredList(page_size=self.page_size)
+        for page in self.pages:
+            page = self._load_page(page)
+            SL.extend(page.copy())
+        return SL
+
+    def count(self, item):
+        &#34;&#34;&#34; Return number of occurrences of item. &#34;&#34;&#34;
+        return sum(1 for v in self if v == item)
+
+    def extend(self, items):
+        &#34;&#34;&#34; Extend list by appending elements from the iterable. &#34;&#34;&#34;
+        if not self.pages:
+            last_page = self._new_page()
+        else:
+            last_page = self.pages[-1]
+        # last_page = self._last_page()
+        space = self._page_size - last_page.len
+        c = 0
+        for i in items:
+            if not space:
+                last_page = self._new_page()
+                space = self._page_size
+            last_page.append(i)
+            c += 1
+            space -= 1
+        assert c == len(items), (c, len(items))
+
+    def index(self, item):
+        &#34;&#34;&#34;
+        Return first index of value.
+        Raises ValueError if the value is not present.
+        &#34;&#34;&#34;
+        for ix, v in enumerate(self):
+            if v == item:
+                return ix
+        raise ValueError(f&#34;{item} is not in list&#34;)
+
+    def insert(self, index, item):
+        &#34;&#34;&#34; Insert object before index. &#34;&#34;&#34;
+        if not isinstance(index, int):
+            raise TypeError
+        if abs(index) &gt; len(self):
+            raise IndexError(&#34;index out of range&#34;)
+        if index &lt; 0:
+            index = len(self) + index
+
+        c = 0
+        page = None
+        for page in self.pages[:]:
+            assert isinstance(page, Page)
+            if c &lt;= index &lt;= page.len + c:
+                break
+            c += page.len
+        ix = index - c
+
+        assert isinstance(page, Page)
+        loaded_page = self._load_page(page)
+        loaded_page.insert(ix, item)
+
+        if page.len &lt; self._page_size:  # if there is space on the page...
+            return
+        # else -  split the data in half and insert a page.
+        n = page.len // 2
+
+        A, B = page[:n], page[n:]
+        page.clear()
+        page.extend(A)
+
+        page_ix = self.pages.index(page)
+
+        new_page = self._new_page()
+        new_page.extend(B)
+
+        self.pages.remove(new_page)
+        self.pages.insert(page_ix + 1, new_page)
+
+    def pop(self, index=None):
+        &#34;&#34;&#34;
+        Remove and return item at index (default last).
+
+        Raises IndexError if list is empty or index is out of range.
+        &#34;&#34;&#34;
+        if index is None:
+            index = -1
+        if not isinstance(index, int):
+            raise TypeError
+        if abs(index) &gt; len(self):
+            raise IndexError(&#34;list index out of range&#34;)
+        if index &lt; 0:
+            index = len(self) + index
+
+        c = 0
+        for page in self.pages[:]:
+            if c &lt;= index &lt; page.len + c:
+                page = self._load_page(page)
+                ix = index - c
+                value = page.pop(ix)
+                if len(page) == 0:
+                    self._delete_page(page)
+                return value
+            else:
+                c += page.len
+
+    def remove(self, item):
+        &#34;&#34;&#34;
+        Remove first occurrence of value.
+
+        Raises ValueError if the value is not present.
+        &#34;&#34;&#34;
+        for page in self.pages[:]:
+            self._load_page(page)
+            if item in page:
+                page.remove(item)
+                return
+            if not page:
+                self._delete_page(page)
+
+        raise ValueError(f&#34;{item} not in list&#34;)
+
+    def reverse(self):
+        &#34;&#34;&#34; Reverse *IN PLACE*. &#34;&#34;&#34;
+        self.pages.reverse()
+        for page in self.pages:
+            page = self._load_page(page)
+            new_data = list(reversed(page))
+            page.clear()
+            page.extend(new_data)
+            self._store_page(page)
+
+    def sort(self, key=None, reverse=False):
+        &#34;&#34;&#34; Implements an IN PLACE hybrid of quicksort and merge sort.
+        See more on https://en.wikipedia.org/wiki/External_sorting
+        &#34;&#34;&#34;
+        if key is not None:
+            raise NotImplementedError(f&#34;key is not supported.&#34;)
+
+        _before = len(self)
+        for page in self.pages:
+            page = self._load_page(page)
+            assert isinstance(page, Page)
+            assert len(page) == page.len &gt; 0
+            page.sort(reverse=reverse)
+            self._store_page(page)
+        assert _before == len(self), &#34;bad logic.&#34;
+
+        if len(self.pages) == 1:  # then we&#39;re done.
+            return
+
+        # else ... merge is required.
+        working_buffer = []
+        for page in self.pages:
+            page = self._load_page(page)
+            SL = StoredList(data=page)
+            working_buffer.append(SL)
+
+        while len(working_buffer) &gt; 1:
+            A = working_buffer.pop(0)
+            assert isinstance(A, StoredList)
+            iterA = iter(A)
+            B = working_buffer.pop(0)
+            assert isinstance(B, StoredList)
+            iterB = iter(B)
+
+            C = StoredList(page_size=self._page_size)
+            a, b = next(iterA), next(iterB)
+
+            buffer = []
+            while True:
+                if len(buffer) == self._page_size:
+                    C.extend(buffer)
+                    buffer.clear()
+
+                if (reverse and a &gt;= b) or (not reverse and a &lt;= b):
+                    buffer.append(a)
+                    try:
+                        a = next(iterA)
+                    except StopIteration:
+                        buffer.append(b)
+                        C.extend(buffer)
+                        C.extend(list(iterB))
+                        break
+                else:
+                    buffer.append(b)
+                    try:
+                        b = next(iterB)
+                    except StopIteration:
+                        buffer.append(a)
+                        C.extend(buffer)
+                        C.extend(list(iterA))
+                        break
+
+            working_buffer.append(C)
+
+        L = working_buffer.pop(0)
+        assert len(L) == len(self)
+        for page in self.pages[:]:
+            self._delete_page(page)
+        self.extend(L)
+
+    def __add__(self, other):
+        &#34;&#34;&#34;
+        A = [1,2,3]
+        B = [4,5,6]
+        C = A+B
+        C = [1,2,3,4,5,6]
+        &#34;&#34;&#34;
+        if not isinstance(other, (StoredList, list)):
+            raise TypeError
+        SL = StoredList(self._page_size)
+        SL.extend(self)
+        SL.extend(other)
+        return SL
+
+    def __contains__(self, item):
+        return any(item == i for i in self)
+
+    def __delitem__(self, index):
+        _ = self.pop(index)
+
+    def __eq__(self, other):
+        &#34;&#34;&#34; Return self==value. &#34;&#34;&#34;
+        if not isinstance(other, (StoredList, list)):
+            raise TypeError
+
+        if len(self) != len(other):
+            return False
+
+        if any(a != b for a, b in zip(self, other)):
+            return False
+        return True
+
+    def __getitem__(self, item):
+        if not isinstance(item, (slice, int)):
+            raise TypeError
+
+        if isinstance(item, int):
+            if not isinstance(item, int):
+                raise TypeError
+            if abs(item) &gt; len(self):
+                raise IndexError(&#34;list index out of range&#34;)
+            if item &lt; 0:
+                item = len(self) + item
+            c = 0
+            for page in self.pages:
+                if c &lt;= item &lt;= page.len + c:
+                    ix = item - c
+                    self._load_page(page)
+                    return page[ix]  # &lt;--- Exit for integer item
+                c += page.len
+
+        assert isinstance(item, slice)
+        start, stop, step = DataTypes.infer_range_from_slice(item, len(self))
+
+        n_items = abs(stop - start) // step
+        if n_items &gt; self._page_size:
+            L = list()
+        else:
+            L = StoredList(page_size=self._page_size)
+
+        if step &gt; 0:
+            if start &gt; stop:
+                return L  # &lt;-- Exit no data.
+            # else ....
+            A = 0
+            for page in self.pages:
+                B = page.len + A
+                if stop &lt; A:
+                    break
+                if B &lt; start:
+                    A += page.len
+                    continue
+
+                if start &gt;= A:
+                    start_ix = start - A
+                else:  # A &gt; start:
+                    steps = math.ceil((A-start) / step)
+                    start_ix = (start + (steps * step)) - A
+                if stop &lt; B:
+                    stop_ix = stop - A
+                else:
+                    stop_ix = page.len
+
+                self._load_page(page)
+                data = page[start_ix:stop_ix:step]
+                L.extend(data)
+
+                A += page.len
+
+        else:  # step &lt; 0 == backward traverse
+            if start &lt; stop:
+                return L  # &lt;-- Exit no data.
+            # else ...
+            B = len(self)
+            for page in reversed(self.pages):
+                A = B - page.len
+                if start &lt; A:
+                    B -= page.len
+                    continue
+                if B &lt; stop:
+                    break
+
+                if start &gt; B:
+                    steps = abs(math.floor((start-B) / step))
+                    start_ix = start + (steps * step) - A
+                else:  # start &lt;= B
+                    start_ix = start-A
+
+                if item.stop is None:
+                    stop_ix = None
+                else:  # stop - A:
+                    stop_ix = max(stop - A, 0)
+
+                if stop_ix is not None and start_ix &lt; stop_ix or start_ix &lt; 0:
+                    pass  # the step is bigger than the slice.
+                else:
+                    self._load_page(page)
+                    data = page[start_ix:stop_ix:step]
+                    L.extend(data)
+
+                B -= page.len
+
+        return L  # &lt;-- Exit with data.
+
+    def __ge__(self, other):
+        &#34;&#34;&#34; Return self&gt;=value. &#34;&#34;&#34;
+        return all(a &gt;= b for a, b in zip(self, other))
+
+    def __gt__(self, other):
+        &#34;&#34;&#34; Return self&gt;value. &#34;&#34;&#34;
+        return all(a &gt; b for a, b in zip(self, other))
+
+    def __iadd__(self, other):
+        &#34;&#34;&#34; Implement self+=value.
+        &gt;&gt;&gt; A = [1,2,3]
+        &gt;&gt;&gt; A += [4,5]
+        &gt;&gt;&gt; print(A)
+        [1,2,3,4,5]
+        &#34;&#34;&#34;
+        if not isinstance(other, (StoredList, list)):
+            raise TypeError
+        self.extend(other)
+        return self
+
+    def __imul__(self, value):
+        &#34;&#34;&#34; Implement self*=value. &#34;&#34;&#34;
+        if not isinstance(value, int):
+            raise TypeError
+        if value &lt;= 0:
+            raise ValueError
+        elif value == 1:
+            return self
+        else:
+            new_list = StoredList(page_size=self._page_size)
+            for i in range(value):
+                new_list.extend(self)
+            return new_list
+
+    def __le__(self, other):
+        &#34;&#34;&#34; Return self&lt;=value. &#34;&#34;&#34;
+        return all(a &lt;= b for a, b in zip(self, other))
+
+    def __lt__(self, other):
+        &#34;&#34;&#34; Return self&lt;value. &#34;&#34;&#34;
+        return all(a &lt; b for a, b in zip(self, other))
+
+    def __mul__(self, value):
+        &#34;&#34;&#34; Return self*value. &#34;&#34;&#34;
+        if not isinstance(value, int):
+            raise TypeError
+        if value &lt;= 0:
+            raise ValueError
+        new_list = StoredList(page_size=self._page_size)
+        for i in range(value):
+            new_list += self
+        return new_list
+
+    def __ne__(self, other):
+        &#34;&#34;&#34; Return self!=value. &#34;&#34;&#34;
+        if not isinstance(other, (StoredList, list)):
+            raise TypeError
+        if len(self) != len(other):
+            return True
+        return any(a != b for a, b in zip(self, other))
+
+    def __rmul__(self, value):
+        &#34;&#34;&#34; Return value*self. &#34;&#34;&#34;
+        return self.__mul__(value)
+
+    def __setitem__(self, key, value):
+        &#34;&#34;&#34; Set self[key] to value. &#34;&#34;&#34;
+        if not isinstance(key, int):
+            raise TypeError
+        if abs(key) &gt; len(self):
+            raise KeyError(&#34;index out of range&#34;)
+        c = 0
+        if key &lt; 0:
+            key = len(self) + key
+
+        for page in self.pages:
+            if c &lt; key &lt; c + page.len:
+                self._load_page(page)
+                ix = key - c
+                page[ix] = value
+                return
+
+    def __sizeof__(self):
+        &#34;&#34;&#34; Return the size of the list in memory, in bytes.
+        To drop any cached data, call
+
+        &#34;&#34;&#34;
+        return sum(p.__sizeof__() for p in self.pages)
+
+    def clear_cache(self):
+        _ = [self._store_page(p) for p in self.pages if p.loaded]
+
+    def disk_size(self):
+        &#34;&#34;&#34; drops all pages to disk using `clear_cache` and then
+        returns the number of bytes stored &#34;&#34;&#34;
+        self.clear_cache()
+        return sum(p.size for p in self.pages)
+
+    def __hash__(self):
+        raise TypeError(&#34;unhashable type: List&#34;)
+
+    def __copy__(self):
+        SL = StoredList(self._page_size)
+        for page in self.pages:
+            self._load_page(page)
+            SL.extend(page)  # page data is copied in the extend function
+        return SL</code></pre>
+</details>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="tablite.columns.StoredColumn" href="columns.html#tablite.columns.StoredColumn">StoredColumn</a></li>
+</ul>
+<h3>Class variables</h3>
+<dl>
+<dt id="tablite.stored_list.StoredList.c"><code class="name">var <span class="ident">c</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="tablite.stored_list.StoredList.default_page_size"><code class="name">var <span class="ident">default_page_size</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="tablite.stored_list.StoredList.storage_file"><code class="name">var <span class="ident">storage_file</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+<h3>Instance variables</h3>
+<dl>
+<dt id="tablite.stored_list.StoredList.page_size"><code class="name">var <span class="ident">page_size</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def page_size(self):
+    return self._page_size</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="tablite.stored_list.StoredList.append"><code class="name flex">
+<span>def <span class="ident">append</span></span>(<span>self, value)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Append object to the end of the list.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def append(self, value):
+    &#34;&#34;&#34; Append object to the end of the list. &#34;&#34;&#34;
+    if not self.pages:
+        last_page = self._new_page()
+    else:
+        assert self.pages, &#34;there must be at least one page.&#34;
+        last_page = self.pages[-1]
+
+    if last_page.len == self._page_size:
+        last_page = self._new_page()
+    last_page.append(value)</code></pre>
+</details>
+</dd>
+<dt id="tablite.stored_list.StoredList.clear"><code class="name flex">
+<span>def <span class="ident">clear</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Remove all items from list.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def clear(self):
+    &#34;&#34;&#34; Remove all items from list. &#34;&#34;&#34;
+    for page in self.pages[:]:
+        self._delete_page(page)</code></pre>
+</details>
+</dd>
+<dt id="tablite.stored_list.StoredList.clear_cache"><code class="name flex">
+<span>def <span class="ident">clear_cache</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def clear_cache(self):
+    _ = [self._store_page(p) for p in self.pages if p.loaded]</code></pre>
+</details>
+</dd>
+<dt id="tablite.stored_list.StoredList.copy"><code class="name flex">
+<span>def <span class="ident">copy</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return a shallow copy of the list.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def copy(self):
+    &#34;&#34;&#34; Return a shallow copy of the list. &#34;&#34;&#34;
+    SL = StoredList(page_size=self.page_size)
+    for page in self.pages:
+        page = self._load_page(page)
+        SL.extend(page.copy())
+    return SL</code></pre>
+</details>
+</dd>
+<dt id="tablite.stored_list.StoredList.count"><code class="name flex">
+<span>def <span class="ident">count</span></span>(<span>self, item)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return number of occurrences of item.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def count(self, item):
+    &#34;&#34;&#34; Return number of occurrences of item. &#34;&#34;&#34;
+    return sum(1 for v in self if v == item)</code></pre>
+</details>
+</dd>
+<dt id="tablite.stored_list.StoredList.disk_size"><code class="name flex">
+<span>def <span class="ident">disk_size</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>drops all pages to disk using <code>clear_cache</code> and then
+returns the number of bytes stored</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def disk_size(self):
+    &#34;&#34;&#34; drops all pages to disk using `clear_cache` and then
+    returns the number of bytes stored &#34;&#34;&#34;
+    self.clear_cache()
+    return sum(p.size for p in self.pages)</code></pre>
+</details>
+</dd>
+<dt id="tablite.stored_list.StoredList.extend"><code class="name flex">
+<span>def <span class="ident">extend</span></span>(<span>self, items)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Extend list by appending elements from the iterable.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def extend(self, items):
+    &#34;&#34;&#34; Extend list by appending elements from the iterable. &#34;&#34;&#34;
+    if not self.pages:
+        last_page = self._new_page()
+    else:
+        last_page = self.pages[-1]
+    # last_page = self._last_page()
+    space = self._page_size - last_page.len
+    c = 0
+    for i in items:
+        if not space:
+            last_page = self._new_page()
+            space = self._page_size
+        last_page.append(i)
+        c += 1
+        space -= 1
+    assert c == len(items), (c, len(items))</code></pre>
+</details>
+</dd>
+<dt id="tablite.stored_list.StoredList.index"><code class="name flex">
+<span>def <span class="ident">index</span></span>(<span>self, item)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return first index of value.
+Raises ValueError if the value is not present.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def index(self, item):
+    &#34;&#34;&#34;
+    Return first index of value.
+    Raises ValueError if the value is not present.
+    &#34;&#34;&#34;
+    for ix, v in enumerate(self):
+        if v == item:
+            return ix
+    raise ValueError(f&#34;{item} is not in list&#34;)</code></pre>
+</details>
+</dd>
+<dt id="tablite.stored_list.StoredList.insert"><code class="name flex">
+<span>def <span class="ident">insert</span></span>(<span>self, index, item)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Insert object before index.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def insert(self, index, item):
+    &#34;&#34;&#34; Insert object before index. &#34;&#34;&#34;
+    if not isinstance(index, int):
+        raise TypeError
+    if abs(index) &gt; len(self):
+        raise IndexError(&#34;index out of range&#34;)
+    if index &lt; 0:
+        index = len(self) + index
+
+    c = 0
+    page = None
+    for page in self.pages[:]:
+        assert isinstance(page, Page)
+        if c &lt;= index &lt;= page.len + c:
+            break
+        c += page.len
+    ix = index - c
+
+    assert isinstance(page, Page)
+    loaded_page = self._load_page(page)
+    loaded_page.insert(ix, item)
+
+    if page.len &lt; self._page_size:  # if there is space on the page...
+        return
+    # else -  split the data in half and insert a page.
+    n = page.len // 2
+
+    A, B = page[:n], page[n:]
+    page.clear()
+    page.extend(A)
+
+    page_ix = self.pages.index(page)
+
+    new_page = self._new_page()
+    new_page.extend(B)
+
+    self.pages.remove(new_page)
+    self.pages.insert(page_ix + 1, new_page)</code></pre>
+</details>
+</dd>
+<dt id="tablite.stored_list.StoredList.pop"><code class="name flex">
+<span>def <span class="ident">pop</span></span>(<span>self, index=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Remove and return item at index (default last).</p>
+<p>Raises IndexError if list is empty or index is out of range.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def pop(self, index=None):
+    &#34;&#34;&#34;
+    Remove and return item at index (default last).
+
+    Raises IndexError if list is empty or index is out of range.
+    &#34;&#34;&#34;
+    if index is None:
+        index = -1
+    if not isinstance(index, int):
+        raise TypeError
+    if abs(index) &gt; len(self):
+        raise IndexError(&#34;list index out of range&#34;)
+    if index &lt; 0:
+        index = len(self) + index
+
+    c = 0
+    for page in self.pages[:]:
+        if c &lt;= index &lt; page.len + c:
+            page = self._load_page(page)
+            ix = index - c
+            value = page.pop(ix)
+            if len(page) == 0:
+                self._delete_page(page)
+            return value
+        else:
+            c += page.len</code></pre>
+</details>
+</dd>
+<dt id="tablite.stored_list.StoredList.remove"><code class="name flex">
+<span>def <span class="ident">remove</span></span>(<span>self, item)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Remove first occurrence of value.</p>
+<p>Raises ValueError if the value is not present.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def remove(self, item):
+    &#34;&#34;&#34;
+    Remove first occurrence of value.
+
+    Raises ValueError if the value is not present.
+    &#34;&#34;&#34;
+    for page in self.pages[:]:
+        self._load_page(page)
+        if item in page:
+            page.remove(item)
+            return
+        if not page:
+            self._delete_page(page)
+
+    raise ValueError(f&#34;{item} not in list&#34;)</code></pre>
+</details>
+</dd>
+<dt id="tablite.stored_list.StoredList.reverse"><code class="name flex">
+<span>def <span class="ident">reverse</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Reverse <em>IN PLACE</em>.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def reverse(self):
+    &#34;&#34;&#34; Reverse *IN PLACE*. &#34;&#34;&#34;
+    self.pages.reverse()
+    for page in self.pages:
+        page = self._load_page(page)
+        new_data = list(reversed(page))
+        page.clear()
+        page.extend(new_data)
+        self._store_page(page)</code></pre>
+</details>
+</dd>
+<dt id="tablite.stored_list.StoredList.sort"><code class="name flex">
+<span>def <span class="ident">sort</span></span>(<span>self, key=None, reverse=False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Implements an IN PLACE hybrid of quicksort and merge sort.
+See more on <a href="https://en.wikipedia.org/wiki/External_sorting">https://en.wikipedia.org/wiki/External_sorting</a></p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def sort(self, key=None, reverse=False):
+    &#34;&#34;&#34; Implements an IN PLACE hybrid of quicksort and merge sort.
+    See more on https://en.wikipedia.org/wiki/External_sorting
+    &#34;&#34;&#34;
+    if key is not None:
+        raise NotImplementedError(f&#34;key is not supported.&#34;)
+
+    _before = len(self)
+    for page in self.pages:
+        page = self._load_page(page)
+        assert isinstance(page, Page)
+        assert len(page) == page.len &gt; 0
+        page.sort(reverse=reverse)
+        self._store_page(page)
+    assert _before == len(self), &#34;bad logic.&#34;
+
+    if len(self.pages) == 1:  # then we&#39;re done.
+        return
+
+    # else ... merge is required.
+    working_buffer = []
+    for page in self.pages:
+        page = self._load_page(page)
+        SL = StoredList(data=page)
+        working_buffer.append(SL)
+
+    while len(working_buffer) &gt; 1:
+        A = working_buffer.pop(0)
+        assert isinstance(A, StoredList)
+        iterA = iter(A)
+        B = working_buffer.pop(0)
+        assert isinstance(B, StoredList)
+        iterB = iter(B)
+
+        C = StoredList(page_size=self._page_size)
+        a, b = next(iterA), next(iterB)
+
+        buffer = []
+        while True:
+            if len(buffer) == self._page_size:
+                C.extend(buffer)
+                buffer.clear()
+
+            if (reverse and a &gt;= b) or (not reverse and a &lt;= b):
+                buffer.append(a)
+                try:
+                    a = next(iterA)
+                except StopIteration:
+                    buffer.append(b)
+                    C.extend(buffer)
+                    C.extend(list(iterB))
+                    break
+            else:
+                buffer.append(b)
+                try:
+                    b = next(iterB)
+                except StopIteration:
+                    buffer.append(a)
+                    C.extend(buffer)
+                    C.extend(list(iterA))
+                    break
+
+        working_buffer.append(C)
+
+    L = working_buffer.pop(0)
+    assert len(L) == len(self)
+    for page in self.pages[:]:
+        self._delete_page(page)
+    self.extend(L)</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="tablite" href="index.html">tablite</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="tablite.stored_list.tempfile" href="#tablite.stored_list.tempfile">tempfile</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="tablite.stored_list.Page" href="#tablite.stored_list.Page">Page</a></code></h4>
+<ul class="">
+<li><code><a title="tablite.stored_list.Page.ids" href="#tablite.stored_list.Page.ids">ids</a></code></li>
+<li><code><a title="tablite.stored_list.Page.len" href="#tablite.stored_list.Page.len">len</a></code></li>
+<li><code><a title="tablite.stored_list.Page.load" href="#tablite.stored_list.Page.load">load</a></code></li>
+<li><code><a title="tablite.stored_list.Page.store" href="#tablite.stored_list.Page.store">store</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="tablite.stored_list.StoredList" href="#tablite.stored_list.StoredList">StoredList</a></code></h4>
+<ul class="two-column">
+<li><code><a title="tablite.stored_list.StoredList.append" href="#tablite.stored_list.StoredList.append">append</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.c" href="#tablite.stored_list.StoredList.c">c</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.clear" href="#tablite.stored_list.StoredList.clear">clear</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.clear_cache" href="#tablite.stored_list.StoredList.clear_cache">clear_cache</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.copy" href="#tablite.stored_list.StoredList.copy">copy</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.count" href="#tablite.stored_list.StoredList.count">count</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.default_page_size" href="#tablite.stored_list.StoredList.default_page_size">default_page_size</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.disk_size" href="#tablite.stored_list.StoredList.disk_size">disk_size</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.extend" href="#tablite.stored_list.StoredList.extend">extend</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.index" href="#tablite.stored_list.StoredList.index">index</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.insert" href="#tablite.stored_list.StoredList.insert">insert</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.page_size" href="#tablite.stored_list.StoredList.page_size">page_size</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.pop" href="#tablite.stored_list.StoredList.pop">pop</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.remove" href="#tablite.stored_list.StoredList.remove">remove</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.reverse" href="#tablite.stored_list.StoredList.reverse">reverse</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.sort" href="#tablite.stored_list.StoredList.sort">sort</a></code></li>
+<li><code><a title="tablite.stored_list.StoredList.storage_file" href="#tablite.stored_list.StoredList.storage_file">storage_file</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

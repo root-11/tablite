@@ -1,0 +1,4669 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>tablite.core API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>tablite.core</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">import json
+import zipfile
+import operator
+
+import logging
+logging.getLogger(&#39;lml&#39;).propagate = False
+logging.getLogger(&#39;pyexcel_io&#39;).propagate = False
+logging.getLogger(&#39;pyexcel&#39;).propagate = False
+
+import pyexcel
+import pyperclip
+
+
+from collections import defaultdict
+from itertools import count, chain
+from pathlib import Path
+from tempfile import gettempdir
+
+from tablite.datatypes import DataTypes
+from tablite.file_reader_utils import detect_encoding, detect_seperator, split_by_sequence, text_escape
+from tablite.groupby_utils import Max, Min, Sum, First, Last, Count, CountUnique, Average, StandardDeviation, Median, Mode, GroupbyFunction
+
+from tablite.columns import StoredColumn, InMemoryColumn
+from tablite.stored_list import tempfile
+
+
+class Table(object):
+    new_tables_use_disk = False
+
+    &#34;&#34;&#34; The main workhorse for data processing. &#34;&#34;&#34;
+    def __init__(self, **kwargs):
+        self.columns = {}
+        self._use_disk = kwargs.pop(&#39;use_disk&#39;, self.new_tables_use_disk)
+        self.metadata = {**kwargs}
+
+    @property
+    def use_disk(self):
+        return self._use_disk
+
+    @use_disk.setter
+    def use_disk(self, value):
+        if not isinstance(value, bool):
+            raise TypeError(str(value))
+        if self._use_disk == value:
+            return
+
+        self._use_disk = value
+        if value is True:
+            C = StoredColumn
+        else:
+            C = InMemoryColumn
+
+        for col_name, column in self.columns.items():
+            self.columns[col_name] = C(col_name, column.datatype, column.allow_empty, data=column)
+
+    def __eq__(self, other):
+        if not isinstance(other, Table):
+            a, b = self.__class__.__name__, other.__class__.__name__
+            raise TypeError(f&#34;cannot compare {a} with {b}&#34;)
+        if self.metadata != other.metadata:
+            return False
+        if not all(a == b for a, b in zip(self.columns.values(), other.columns.values())):
+            return False
+        return True
+
+    def __len__(self):
+        &#34;&#34;&#34; returns length of longest column.&#34;&#34;&#34;
+        if self.columns.values():
+            return max(len(c) for c in self.columns.values())
+        else:
+            return 0
+
+    def __bool__(self):
+        return any(self.columns)
+
+    def __copy__(self):
+        t = Table(use_disk=self._use_disk)
+        for col in self.columns.values():
+            t.add_column(col.header, col.datatype, col.allow_empty, data=col[:])
+        t.metadata = self.metadata.copy()
+        return t
+
+    def __repr__(self):
+        m = self.metadata.copy()
+        m[&#39;use_disk&#39;] = self._use_disk
+        kwargs = &#34;, &#34;.join(f&#34;{k}={v}&#34; for k, v in sorted(m.items()))
+        return f&#34;{self.__class__.__name__}({kwargs})&#34;
+
+    def __str__(self):
+        variation = &#34;&#34;
+        lengths = {k: len(v) for k, v in self.columns.items()}
+        if len(set(lengths.values())) != 1:
+            longest_col = max(lengths.values())
+            variation = f&#34;(except {&#39;, &#39;.join([f&#39;{k}({v})&#39; for k, v in lengths.items() if v &lt; longest_col])})&#34;
+        return f&#34;{self.__class__.__name__}() # {len(self.columns)} columns x {len(self)} rows {variation}&#34;
+
+    def copy_to_clipboard(self):
+        &#34;&#34;&#34; copy data from a Table into clipboard. &#34;&#34;&#34;
+        try:
+            s = [&#34;\t&#34;.join([f&#34;{name}&#34; for name in self.columns])]
+            for row in self.rows:
+                s.append(&#34;\t&#34;.join((str(i) for i in row)))
+            s = &#34;\n&#34;.join(s)
+            pyperclip.copy(s)
+        except MemoryError:
+            raise MemoryError(&#34;Cannot copy to clipboard. Select slice instead.&#34;)
+
+    @staticmethod
+    def copy_from_clipboard():
+        &#34;&#34;&#34; copy data from clipboard into Table. &#34;&#34;&#34;
+        tmpfile = tempfile(suffix=&#39;.csv&#39;)
+        with open(tmpfile, &#39;w&#39;) as fo:
+            fo.writelines(pyperclip.paste())
+        g = Table.from_file(tmpfile)
+        t = list(g)[0]
+        del t.metadata[&#39;filename&#39;]
+        return t
+
+    def show(self, *items, blanks=None, row_count=True, metadata=False):
+        &#34;&#34;&#34; shows the tablite.
+        param: items: column names
+
+        DEFAULT                   EXAMPLE
+
+        t.show()                  t.show(&#39;A&#39;, &#39;C&#39;, slice(4), blanks=&#34;-&#34;, metadata=True)
+        +=====+=====+=====+       +=====+=====+
+        |  A  |  B  |  C  |       |  A  |  C  |
+        | int | str | str |       | int | str |
+        |False|False| True|       |False| True|
+        +-----+-----+-----+       +-----+-----+
+        |    0|0x   |None |       |    0|-    |
+        |    1|1x   |1    |       |    1|1    |
+        |    2|2x   |None |       |    2|-    |
+        |    3|3x   |3    |       |    3|3    |
+        |    4|4x   |None |       +=====+=====+
+        |    5|5x   |5    |       (showing 4 of 10 rows)
+        |    6|6x   |None |       metadata:
+        |    7|7x   |7    |          filename d:\test_data.csv
+        |    8|8x   |None |
+        |    9|9x   |9    |
+        +=====+=====+=====+
+        showing all 10 rows
+
+            Table.show(&#39;A&#39;,&#39;C&#39;, blanks=&#34;&#34;, metadata=True
+
+        param: blanks: string to replace blanks (None is default) when shown.
+        param: row_count: bool: shows rowcount at the end.
+        param: metadata: bool: displays metadata at the end.
+        :returns None. Output is printed to stdout.
+        &#34;&#34;&#34;
+        if any(not isinstance(i, (str, slice)) for i in items):
+            raise SyntaxError(f&#34;unexpected input: {[not isinstance(i, (str, slice)) for i in items]}&#34;)
+
+        slices = [i for i in items if isinstance(i, slice)]
+        if len(slices) &gt; 2:
+            raise SyntaxError(&#34;1 &gt; slices&#34;)
+        if not slices:
+            slc = slice(0, len(self), None)
+        else:
+            slc = slices[0]
+        assert isinstance(slc, slice)
+
+        headers = [i for i in items if isinstance(i, str)]
+        if any(h not in self.columns for h in headers):
+            raise ValueError(f&#34;column not found: {[h for h in headers if h not in self.columns]}&#34;)
+        if not headers:
+            headers = list(self.columns)
+
+        # starting to produce output
+        c_lens = {}
+        for h in headers:
+            col = self.columns[h]
+            assert isinstance(col, (InMemoryColumn, StoredColumn))
+            c_lens[h] = max(
+                [len(col.header), len(str(col.datatype.__name__)), len(str(False))] + [len(str(v)) for v in col[slc]])
+
+        def adjust(v, length):
+            if v is None:
+                return str(blanks).ljust(length)
+            elif isinstance(v, str):
+                return v.ljust(length)
+            else:
+                return str(v).rjust(length)
+
+        rows = 0
+        print(&#34;+&#34;, &#34;+&#34;.join([&#34;=&#34; * c_lens[h] for h in headers]), &#34;+&#34;, sep=&#34;&#34;)
+        print(&#34;|&#34;, &#34;|&#34;.join([h.center(c_lens[h], &#34; &#34;) for h in headers]), &#34;|&#34;, sep=&#34;&#34;)
+        print(&#34;|&#34;, &#34;|&#34;.join([self.columns[h].datatype.__name__.center(c_lens[h], &#34; &#34;) for h in headers]), &#34;|&#34;, sep=&#34;&#34;)
+        print(&#34;|&#34;, &#34;|&#34;.join([str(self.columns[h].allow_empty).center(c_lens[h], &#34; &#34;) for h in headers]), &#34;|&#34;, sep=&#34;&#34;)
+        print(&#34;+&#34;, &#34;+&#34;.join([&#34;-&#34; * c_lens[h] for h in headers]), &#34;+&#34;, sep=&#34;&#34;)
+        for row in self.filter(*tuple(headers) + (slc,)):
+            print(&#34;|&#34;, &#34;|&#34;.join([adjust(v, c_lens[h]) for v, h in zip(row, headers)]), &#34;|&#34;, sep=&#34;&#34;)
+            rows += 1
+        print(&#34;+&#34;, &#34;+&#34;.join([&#34;=&#34; * c_lens[h] for h in headers]), &#34;+&#34;, sep=&#34;&#34;)
+
+        if row_count:
+            if rows != len(self):
+                print(f&#34;(showing {rows} of {len(self)} rows)&#34;)
+            elif len(self) &gt; 0:
+                print(f&#34;showing all {len(self)} rows&#34;)
+            else:
+                print(&#34;no rows&#34;)
+        if metadata:
+            print(&#34;metadata:&#34;)
+            for k, v in self.metadata.items():
+                print(&#34;  &#34;, k, v)
+
+    def copy(self):
+        return self.__copy__()
+
+    def to_json(self):
+        return json.dumps({
+            &#39;metadata&#39;: self.metadata,
+            &#39;columns&#39;: [c.to_json() for c in self.columns.values()]
+        })
+
+    @classmethod
+    def from_json(cls, json_):
+        t = Table()
+        data = json.loads(json_)
+        t.metadata = data[&#39;metadata&#39;]
+        for c in data[&#39;columns&#39;]:
+            if cls.new_tables_use_disk:
+                col = StoredColumn.from_json(c)
+            else:
+                col = InMemoryColumn.from_json(c)
+            col.header = t.check_for_duplicate_header(col.header)
+            t.columns[col.header] = col
+        return t
+
+    @classmethod
+    def from_file(cls, path, **kwargs):
+        &#34;&#34;&#34; reads path and returns 1 or more tables.
+        Use `list(Table.from_file(...))` to obtain all tables &#34;&#34;&#34;
+        for table in file_reader(path, **kwargs):
+            yield table
+
+    def copy_columns_only(self):
+        &#34;&#34;&#34;creates a new table with metadata but without the records&#34;&#34;&#34;
+        t = Table()
+        for col in self.columns.values():
+            t.add_column(col.header, col.datatype, col.allow_empty, data=[])
+        t.metadata = self.metadata.copy()
+        return t
+
+    def check_for_duplicate_header(self, header):
+        &#34;&#34;&#34; Helper used to detect duplicate headers.
+        :return valid header name
+        &#34;&#34;&#34;
+        assert isinstance(header, str)
+        if not header:
+            header = &#39;None&#39;
+        new_header = header
+        counter = count(start=1)
+        while new_header in self.columns:
+            new_header = f&#34;{header}_{next(counter)}&#34;  # valid attr names must be ascii.
+        return new_header
+
+    def rename_column(self, header, new_name):
+        &#34;&#34;&#34;
+        :param header: current header name
+        :param new_name: new name
+        :return: None.
+        &#34;&#34;&#34;
+        if new_name != self.check_for_duplicate_header(new_name):
+            raise ValueError(f&#34;header name {new_name} is already in use.&#34;)
+
+        order = list(self.columns)
+        d = {}
+        for name in order:
+            if name == header:
+                d[new_name] = self.columns[name]
+                d[new_name].header = new_name
+            else:
+                d[name] = self.columns[name]
+        self.columns = d
+
+    def add_column(self, header, datatype, allow_empty=False, data=None):
+        &#34;&#34;&#34;
+        :param header: str name of column
+        :param datatype: from: int, str, float, bool, date, datetime, time
+        :param allow_empty: bool
+        :param data: list of values of given datatype.
+        &#34;&#34;&#34;
+        assert isinstance(header, str)
+        header = self.check_for_duplicate_header(header)
+        if self._use_disk is False:
+            self.columns[header] = InMemoryColumn(header, datatype, allow_empty, data=data)
+        else:
+            self.columns[header] = StoredColumn(header, datatype, allow_empty, data=data)
+
+    def add_row(self, *args, **kwargs):
+        &#34;&#34;&#34; Adds row(s) to the tablite.
+        :param args: see below
+        :param kwargs: see below
+        :return: None
+
+        Example:
+
+            t = Table()
+            t.add_column(&#39;A&#39;, int)
+            t.add_column(&#39;B&#39;, int)
+            t.add_column(&#39;C&#39;, int)
+
+        The following examples are all valid and append the row (1,2,3) to the tablite.
+
+            t.add_row(1,2,3)
+            t.add_row([1,2,3])
+            t.add_row((1,2,3))
+            t.add_row(*(1,2,3))
+            t.add_row(A=1, B=2, C=3)
+            t.add_row(**{&#39;A&#39;:1, &#39;B&#39;:2, &#39;C&#39;:3})
+
+        The following examples add two rows to the tablite
+
+            t.add_row((1,2,3), (4,5,6))
+            t.add_row([1,2,3], [4,5,6])
+            t.add_row({&#39;A&#39;:1, &#39;B&#39;:2, &#39;C&#39;:3}, {&#39;A&#39;:4, &#39;B&#39;:5, &#39;C&#39;:6}) # two (or more) dicts as args.
+            t.add_row([{&#39;A&#39;:1, &#39;B&#39;:2, &#39;C&#39;:3}, {&#39;A&#39;:1, &#39;B&#39;:2, &#39;C&#39;:3}]) # list of dicts.
+
+        &#34;&#34;&#34;
+        if args:
+            if not any(isinstance(i, (list, tuple, dict)) for i in args):
+                if len(args) == len(self.columns):
+                    args = (args,)
+                elif len(args) &lt; len(self.columns):
+                    raise TypeError(f&#34;{args} doesn&#39;t match the number of columns. Are values missing?&#34;)
+                elif len(args) &gt; len(self.columns):
+                    raise TypeError(f&#34;{args} doesn&#39;t match the number of columns. Too many values?&#34;)
+                else:
+                    raise TypeError(f&#34;{args} doesn&#39;t match the format of the tablite.&#34;)
+
+            for arg in args:
+                if len(arg) != len(self.columns):
+                    raise ValueError(f&#34;expected {len(self.columns)} columns, not {len(arg)}: {arg}&#34;)
+
+                if isinstance(arg, (list, tuple)):
+                    for value, col in zip(arg, self.columns.values()):
+                        col.append(value)
+
+                elif isinstance(arg, dict):
+                    for k, value in arg.items():
+                        col = self.columns.get(k, None)
+                        if col is None:
+                            raise ValueError(f&#34;column {k} unknown: {list(self.columns)}&#34;)
+                        assert isinstance(col, (InMemoryColumn, StoredColumn))
+                        col.append(value)
+                else:
+                    raise TypeError(f&#34;no handler for {type(arg)}s: {arg}&#34;)
+
+        if kwargs:
+            if len(kwargs) &lt; len(self.columns):
+                missing = [k for k in kwargs if k not in self.columns]
+                raise ValueError(f&#34;expected {len(self.columns)} columns, not {len(kwargs)}: Missing columns: {missing}&#34;)
+            elif len(kwargs) &gt; len(self.columns):
+                excess = [k for k in kwargs if k not in self.columns]
+                raise ValueError(f&#34;expected {len(self.columns)} columns, not {len(kwargs)}: Excess columns: {excess}&#34;)
+            else:
+                pass  # looks alright.
+
+            for k, value in kwargs.items():
+                col = self.columns.get(k, None)
+                if col is None:
+                    raise ValueError(f&#34;column {k} unknown: {list(self.columns)}&#34;)
+                assert isinstance(col, (InMemoryColumn, StoredColumn))
+                col.append(value)
+            return
+
+    def __contains__(self, item):
+        return item in self.columns
+
+    def __iter__(self):
+        raise AttributeError(&#34;use Table.rows or Table.columns&#34;)
+
+    def _slice(self, item=None):
+        &#34;&#34;&#34; transforms a slice into start,stop,step&#34;&#34;&#34;
+        if not item:
+            item = slice(None, len(self), None)
+        else:
+            assert isinstance(item, slice)
+
+        if item.stop &lt; 0:
+            start = len(self) + item.stop
+            stop = len(self)
+            step = 1 if item.step is None else item.step
+        else:
+            start = 0 if item.start is None else item.start
+            stop = item.stop
+            step = 1 if item.step is None else item.step
+        return start, stop, step
+
+    def __getitem__(self, item):
+        &#34;&#34;&#34; returns rows as a tuple &#34;&#34;&#34;
+        if isinstance(item, int):
+            item = slice(item, item + 1, 1)
+        if isinstance(item, slice):
+            t = Table(use_disk=self._use_disk)
+            for col in self.columns.values():
+                t.add_column(col.header, col.datatype, col.allow_empty, col[item])
+            return t
+        else:
+            return self.columns[item]
+
+    def __setitem__(self, key, value):
+        if key in self.columns and isinstance(value, list):
+            c = self.columns[key]
+            c.clear()
+            for v in value:
+                c.append(v)
+        else:
+            raise TypeError(f&#34;Use add_column to add_column: {key}&#34;)
+
+    def __delitem__(self, key):
+        &#34;&#34;&#34; delete column as key &#34;&#34;&#34;
+        if key in self.columns:
+            del self.columns[key]
+        else:
+            raise KeyError(f&#34;key not found&#34;)
+
+    def __setattr__(self, name, value):
+        if isinstance(name, str) and hasattr(self, name):
+            if name in self.columns and isinstance(value, list):
+                col = self.columns[name]
+                col.replace(value)
+                return
+        super().__setattr__(name, value)
+
+    def compare(self, other):
+        &#34;&#34;&#34; compares the metadata of two tables.&#34;&#34;&#34;
+        if not isinstance(other, Table):
+            a, b = self.__class__.__name__, other.__class__.__name__
+            raise TypeError(f&#34;cannot compare type {b} with {a}&#34;)
+
+        # if self.metadata != other.metadata:  # TODO: Develop better theory of what to do with metadata when concatenating.
+        #     raise ValueError(&#34;tables have different metadata.&#34;)
+        for a, b in [[self, other], [other, self]]:  # check both dictionaries.
+            for name, col in a.columns.items():
+                if name not in b.columns:
+                    raise ValueError(f&#34;Column {name} not in other&#34;)
+                col2 = b.columns[name]
+                if col.datatype != col2.datatype:
+                    raise ValueError(f&#34;Column {name}.datatype different: {col.datatype}, {col2.datatype}&#34;)
+                if col.allow_empty != col2.allow_empty:
+                    raise ValueError(f&#34;Column {name}.allow_empty is different&#34;)
+        return True
+
+    def __iadd__(self, other):
+        &#34;&#34;&#34; enables Table_1 += Table_2 &#34;&#34;&#34;
+        self.compare(other)
+        for h, col in self.columns.items():
+            c2 = other.columns[h]
+            col.extend(c2[:])
+        return self
+
+    def __add__(self, other):
+        &#34;&#34;&#34; enables Table_3 = Table_1 + Table_2 &#34;&#34;&#34;
+        self.compare(other)
+        cp = self.copy()
+        for h, col in cp.columns.items():
+            c2 = other.columns[h]
+            col.extend(c2[:])
+        return cp
+
+    @property
+    def rows(self):
+        &#34;&#34;&#34; enables iteration
+
+        for row in tablite.rows:
+            print(row)
+
+        &#34;&#34;&#34;
+        for ix in range(len(self)):
+            yield tuple(c[ix] if ix &lt; len(c) else None for c in self.columns.values())
+
+    def index(self, *args):
+        &#34;&#34;&#34; Creates index on *args columns as d[(key tuple, )] = {index1, index2, ...} &#34;&#34;&#34;
+        idx = defaultdict(set)
+        for ix, key in enumerate(self.filter(*args)):
+            idx[key].add(ix)
+        return idx
+
+    def _sort_index(self, **kwargs):
+        &#34;&#34;&#34; Helper for methods `sort` and `is_sorted` &#34;&#34;&#34;
+        if not isinstance(kwargs, dict):
+            raise ValueError(&#34;Expected keyword arguments&#34;)
+        if not kwargs:
+            kwargs = {c: False for c in self.columns}
+
+        for k, v in kwargs.items():
+            if k not in self.columns:
+                raise ValueError(f&#34;no column {k}&#34;)
+            if not isinstance(v, bool):
+                raise ValueError(f&#34;{k} was mapped to {v} - a non-boolean&#34;)
+        none_substitute = float(&#39;-inf&#39;)
+
+        rank = {i: tuple() for i in range(len(self))}
+        for key in kwargs:
+            unique_values = {v: 0 for v in self.columns[key] if v is not None}
+            for r, v in enumerate(sorted(unique_values, reverse=kwargs[key])):
+                unique_values[v] = r
+            for ix, v in enumerate(self.columns[key]):
+                rank[ix] += (unique_values.get(v, none_substitute),)
+
+        new_order = [(r, i) for i, r in rank.items()]  # tuples are listed and sort...
+        new_order.sort()
+        sorted_index = [i for r, i in new_order]  # new index is extracted.
+
+        rank.clear()  # free memory.
+        new_order.clear()
+
+        return sorted_index
+
+    def sort(self, **kwargs):
+        &#34;&#34;&#34; Perform multi-pass sorting with precedence given order of column names.
+        :param kwargs: keys: columns, values: &#39;reverse&#39; as boolean.
+        &#34;&#34;&#34;
+        sorted_index = self._sort_index(**kwargs)
+        for col_name, col in self.columns.items():
+            assert isinstance(col, (StoredColumn, InMemoryColumn))
+            col.replace(values=[col[ix] for ix in sorted_index])
+
+    def is_sorted(self, **kwargs):
+        &#34;&#34;&#34; Performs multi-pass sorting check with precedence given order of column names.
+        :return bool
+        &#34;&#34;&#34;
+        sorted_index = self._sort_index(**kwargs)
+        if any(ix != i for ix, i in enumerate(sorted_index)):
+            return False
+        return True
+
+    def filter(self, *items):
+        &#34;&#34;&#34; enables iteration on a limited number of headers:
+
+        &gt;&gt;&gt; tablite.columns
+        &#39;a&#39;,&#39;b&#39;,&#39;c&#39;,&#39;d&#39;,&#39;e&#39;
+
+        for row in tablite.filter(&#39;b&#39;, &#39;a&#39;, &#39;a&#39;, &#39;c&#39;):
+            b,a,a,c = row ...
+
+        returns values in same order as headers. &#34;&#34;&#34;
+        if any(not isinstance(i, (str, slice)) for i in items):
+            raise SyntaxError(f&#34;unexpected input: {[not isinstance(i, (str, slice)) for i in items]}&#34;)
+
+        slices = [i for i in items if isinstance(i, slice)]
+        if len(slices) &gt; 2:
+            raise SyntaxError(&#34;1 &gt; slices&#34;)
+
+        if not slices:
+            slc = slice(None, len(self), None)
+        else:
+            slc = slices[0]
+        assert isinstance(slc, slice)
+
+        headers = [i for i in items if isinstance(i, str)]
+        if any(h not in self.columns for h in headers):
+            raise ValueError(f&#34;column not found: {[h for h in headers if h not in self.columns]}&#34;)
+
+        start, stop, step = DataTypes.infer_range_from_slice(slc, len(self))
+        if step &gt; 0 and start &gt; stop:  # this wont work for range.
+            return
+        if step &lt; 0 and start &lt; stop:  # this wont work for range.
+            return
+
+        L = [self.columns[h] for h in headers]
+        for ix in range(start, stop, step):
+            item = tuple(c[ix] if ix &lt; len(c) else None for c in L)
+            yield item
+
+    def all(self, **kwargs):
+        &#34;&#34;&#34;
+        returns Table for rows where ALL kwargs match
+        :param kwargs: dictionary with headers and values / boolean callable
+        &#34;&#34;&#34;
+        if not isinstance(kwargs, dict):
+            raise TypeError(&#34;did you remember to add the ** in front of your dict?&#34;)
+        if not all(k in self.columns for k in kwargs):
+            raise ValueError(f&#34;Unknown column(s): {[k for k in kwargs if k not in self.columns]}&#34;)
+
+        ixs = None
+        for k, v in kwargs.items():
+            col = self.columns[k]
+            if ixs is None:  # first header.
+                if callable(v):
+                    ix2 = {ix for ix, i in enumerate(col) if v(i)}
+                else:
+                    ix2 = {ix for ix, i in enumerate(col) if v == i}
+
+            else:  # remaining headers.
+                if callable(v):
+                    ix2 = {ix for ix in ixs if v(col[ix])}
+                else:
+                    ix2 = {ix for ix in ixs if v == col[ix]}
+
+            if not isinstance(ixs, set):
+                ixs = ix2
+            else:
+                ixs = ixs.intersection(ix2)
+
+            if not ixs:  # There are no matches.
+                break
+
+        t = Table(use_disk=self._use_disk)
+        for col in self.columns.values():
+            t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
+        return t
+
+    def any(self, **kwargs):
+        &#34;&#34;&#34;
+        returns Table for rows where ANY kwargs match
+        :param kwargs: dictionary with headers and values / boolean callable
+        &#34;&#34;&#34;
+        if not isinstance(kwargs, dict):
+            raise TypeError(&#34;did you remember to add the ** in front of your dict?&#34;)
+
+        ixs = set()
+        for k, v in kwargs.items():
+            col = self.columns[k]
+            if callable(v):
+                ix2 = {ix for ix, r in enumerate(col) if v(r)}
+            else:
+                ix2 = {ix for ix, r in enumerate(col) if v == r}
+            ixs.update(ix2)
+
+        t = Table(use_disk=self._use_disk)
+        for col in self.columns.values():
+            t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
+        return t
+
+    def _join_type_check(self, other, left_keys, right_keys, left_columns, right_columns):
+        if not isinstance(other, Table):
+            raise TypeError(f&#34;other expected other to be type Table, not {type(other)}&#34;)
+
+        if not isinstance(left_keys, list) and all(isinstance(k, str) for k in left_keys):
+            raise TypeError(f&#34;Expected keys as list of strings, not {type(left_keys)}&#34;)
+        if not isinstance(right_keys, list) and all(isinstance(k, str) for k in right_keys):
+            raise TypeError(f&#34;Expected keys as list of strings, not {type(right_keys)}&#34;)
+
+        if any(key not in self.columns for key in left_keys):
+            raise ValueError(f&#34;left key(s) not found: {[k for k in left_keys if k not in self.columns]}&#34;)
+        if any(key not in other.columns for key in right_keys):
+            raise ValueError(f&#34;right key(s) not found: {[k for k in right_keys if k not in other.columns]}&#34;)
+
+        if len(left_keys) != len(right_keys):
+            raise ValueError(f&#34;Keys do not have same length: \n{left_keys}, \n{right_keys}&#34;)
+
+        for L, R in zip(left_keys, right_keys):
+            Lcol, Rcol = self.columns[L], other.columns[R]
+            if Lcol.datatype != Rcol.datatype:
+                raise TypeError(f&#34;{L} is {Lcol.datatype}, but {R} is {Rcol.datatype}&#34;)
+
+        if not isinstance(left_columns, list) or not left_columns:
+            raise TypeError(&#34;left_columns (list of strings) are required&#34;)
+        if any(column not in self for column in left_columns):
+            raise ValueError(f&#34;Column not found: {[c for c in left_columns if c not in self.columns]}&#34;)
+
+        if not isinstance(right_columns, list) or not right_columns:
+            raise TypeError(&#34;right_columns (list or strings) are required&#34;)
+        if any(column not in other for column in right_columns):
+            raise ValueError(f&#34;Column not found: {[c for c in right_columns if c not in other.columns]}&#34;)
+        # Input is now guaranteed to be valid.
+
+    def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
+        &#34;&#34;&#34;
+        :param other: self, other = (left, right)
+        :param left_keys: list of keys for the join
+        :param right_keys: list of keys for the join
+        :param left_columns: list of left columns to retain, if None, all are retained.
+        :param right_columns: list of right columns to retain, if None, all are retained.
+        :return: new Table
+
+        Example:
+        SQL:   SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
+        Tablite: left_join = numbers.left_join(letters, left_keys=[&#39;colour&#39;], right_keys=[&#39;color&#39;], left_columns=[&#39;number&#39;], right_columns=[&#39;letter&#39;])
+        &#34;&#34;&#34;
+        if left_columns is None:
+            left_columns = list(self.columns)
+        if right_columns is None:
+            right_columns = list(other.columns)
+
+        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+
+        left_join = Table(use_disk=self._use_disk)
+        for col_name in left_columns:
+            col = self.columns[col_name]
+            left_join.add_column(col_name, col.datatype, allow_empty=True)
+
+        right_join_col_name = {}
+        for col_name in right_columns:
+            col = other.columns[col_name]
+            revised_name = left_join.check_for_duplicate_header(col_name)
+            right_join_col_name[revised_name] = col_name
+            left_join.add_column(revised_name, col.datatype, allow_empty=True)
+
+        left_ixs = range(len(self))
+        right_idx = other.index(*right_keys)
+
+        for left_ix in left_ixs:
+            key = tuple(self[h][left_ix] for h in left_keys)
+            right_ixs = right_idx.get(key, (None,))
+            for right_ix in right_ixs:
+                for col_name, column in left_join.columns.items():
+                    if col_name in self:
+                        column.append(self[col_name][left_ix])
+                    elif col_name in right_join_col_name:
+                        original_name = right_join_col_name[col_name]
+                        if right_ix is not None:
+                            column.append(other[original_name][right_ix])
+                        else:
+                            column.append(None)
+                    else:
+                        raise Exception(&#39;bad logic&#39;)
+        return left_join
+
+    def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
+        &#34;&#34;&#34;
+        :param other: self, other = (left, right)
+        :param left_keys: list of keys for the join
+        :param right_keys: list of keys for the join
+        :param left_columns: list of left columns to retain, if None, all are retained.
+        :param right_columns: list of right columns to retain, if None, all are retained.
+        :return: new Table
+
+        Example:
+        SQL:   SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
+        Tablite: inner_join = numbers.inner_join(letters, left_keys=[&#39;colour&#39;], right_keys=[&#39;color&#39;], left_columns=[&#39;number&#39;], right_columns=[&#39;letter&#39;])
+        &#34;&#34;&#34;
+        if left_columns is None:
+            left_columns = list(self.columns)
+        if right_columns is None:
+            right_columns = list(other.columns)
+
+        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+
+        inner_join = Table(use_disk=self._use_disk)
+        for col_name in left_columns:
+            col = self.columns[col_name]
+            inner_join.add_column(col_name, col.datatype, allow_empty=True)
+
+        right_join_col_name = {}
+        for col_name in right_columns:
+            col = other.columns[col_name]
+            revised_name = inner_join.check_for_duplicate_header(col_name)
+            right_join_col_name[revised_name] = col_name
+            inner_join.add_column(revised_name, col.datatype, allow_empty=True)
+
+        key_union = set(self.filter(*left_keys)).intersection(set(other.filter(*right_keys)))
+
+        left_ixs = self.index(*left_keys)
+        right_ixs = other.index(*right_keys)
+
+        for key in sorted(key_union):
+            for left_ix in left_ixs.get(key, set()):
+                for right_ix in right_ixs.get(key, set()):
+                    for col_name, column in inner_join.columns.items():
+                        if col_name in self:
+                            column.append(self[col_name][left_ix])
+                        else:  # col_name in right_join_col_name:
+                            original_name = right_join_col_name[col_name]
+                            column.append(other[original_name][right_ix])
+
+        return inner_join
+
+    def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
+        &#34;&#34;&#34;
+        :param other: self, other = (left, right)
+        :param left_keys: list of keys for the join
+        :param right_keys: list of keys for the join
+        :param left_columns: list of left columns to retain, if None, all are retained.
+        :param right_columns: list of right columns to retain, if None, all are retained.
+        :return: new Table
+
+        Example:
+        SQL:   SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
+        Tablite: outer_join = numbers.outer_join(letters, left_keys=[&#39;colour&#39;], right_keys=[&#39;color&#39;], left_columns=[&#39;number&#39;], right_columns=[&#39;letter&#39;])
+        &#34;&#34;&#34;
+        if left_columns is None:
+            left_columns = list(self.columns)
+        if right_columns is None:
+            right_columns = list(other.columns)
+
+        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+
+        outer_join = Table(use_disk=self._use_disk)
+        for col_name in left_columns:
+            col = self.columns[col_name]
+            outer_join.add_column(col_name, col.datatype, allow_empty=True)
+
+        right_join_col_name = {}
+        for col_name in right_columns:
+            col = other.columns[col_name]
+            revised_name = outer_join.check_for_duplicate_header(col_name)
+            right_join_col_name[revised_name] = col_name
+            outer_join.add_column(revised_name, col.datatype, allow_empty=True)
+
+        left_ixs = range(len(self))
+        right_idx = other.index(*right_keys)
+        right_keyset = set(right_idx)
+
+        for left_ix in left_ixs:
+            key = tuple(self[h][left_ix] for h in left_keys)
+            right_ixs = right_idx.get(key, (None,))
+            right_keyset.discard(key)
+            for right_ix in right_ixs:
+                for col_name, column in outer_join.columns.items():
+                    if col_name in self:
+                        column.append(self[col_name][left_ix])
+                    elif col_name in right_join_col_name:
+                        original_name = right_join_col_name[col_name]
+                        if right_ix is not None:
+                            column.append(other[original_name][right_ix])
+                        else:
+                            column.append(None)
+                    else:
+                        raise Exception(&#39;bad logic&#39;)
+
+        for right_key in right_keyset:
+            for right_ix in right_idx[right_key]:
+                for col_name, column in outer_join.columns.items():
+                    if col_name in self:
+                        column.append(None)
+                    elif col_name in right_join_col_name:
+                        original_name = right_join_col_name[col_name]
+                        column.append(other[original_name][right_ix])
+                    else:
+                        raise Exception(&#39;bad logic&#39;)
+        return outer_join
+
+    def groupby(self, keys, functions):
+        &#34;&#34;&#34;
+        :param keys: headers for grouping
+        :param functions: list of headers and functions.
+        :return: GroupBy class
+
+        Example usage:
+            from tablite import Table
+
+            t = Table()
+            t.add_column(&#39;date&#39;, int, allow_empty=False, data=[1,1,1,2,2,2])
+            t.add_column(&#39;sku&#39;, int, allow_empty=False, data=[1,2,3,1,2,3])
+            t.add_column(&#39;qty&#39;, int, allow_empty=False, data=[4,5,4,5,3,7])
+
+            from tablite import GroupBy, Sum
+
+            g = t.groupby(keys=[&#39;sku&#39;], functions=[(&#39;qty&#39;, Sum)])
+            g.tablite.show()
+
+        &#34;&#34;&#34;
+        g = GroupBy(keys=keys, functions=functions)
+        g += self
+        return g
+
+    def lookup(self, other, *criteria, all=True):
+        &#34;&#34;&#34; function for looking up values in other according to criteria
+        :param: other: Table
+        :param: criteria: Each criteria must be a tuple with value comparisons in the form:
+            (LEFT, OPERATOR, RIGHT)
+        :param: all: boolean: True=ALL, False=Any
+
+        OPERATOR must be a callable that returns a boolean
+        LEFT must be a value that the OPERATOR can compare.
+        RIGHT must be a value that the OPERATOR can compare.
+
+        Examples:
+              (&#39;column A&#39;, &#34;==&#34;, &#39;column B&#39;)  # comparison of two columns
+              (&#39;Date&#39;, &#34;&lt;&#34;, DataTypes.date(24,12) )  # value from column &#39;Date&#39; is before 24/12.
+
+              f = lambda L,R: all( ord(L) &lt; ord(R) )  # uses custom function.
+
+              (&#39;text 1&#39;, f, &#39;text 2&#39;)
+
+              value from column &#39;text 1&#39; is compared with value from column &#39;text 2&#39;
+
+        &#34;&#34;&#34;
+        assert isinstance(self, Table)
+        assert isinstance(other, Table)
+
+        all = all
+        any = not all
+
+        def not_in(a, b):
+            return not operator.contains(a, b)
+
+        ops = {
+            &#34;in&#34;: operator.contains,
+            &#34;not in&#34;: not_in,
+            &#34;&lt;&#34;: operator.lt,
+            &#34;&lt;=&#34;: operator.le,
+            &#34;&gt;&#34;: operator.gt,
+            &#34;&gt;=&#34;: operator.ge,
+            &#34;!=&#34;: operator.ne,
+            &#34;==&#34;: operator.eq,
+        }
+
+        table3 = Table(use_disk=self._use_disk)
+        for name, col in chain(self.columns.items(), other.columns.items()):
+            table3.add_column(name, col.datatype, allow_empty=True)
+
+        functions, left_columns, right_columns = [], set(), set()
+
+        for left, op, right in criteria:
+            left_columns.add(left)
+            right_columns.add(right)
+            if callable(op):
+                pass  # it&#39;s a custom function.
+            else:
+                op = ops.get(op, None)
+                if not callable(op):
+                    raise ValueError(f&#34;{op} not a recognised operator for comparison.&#34;)
+
+            functions.append((op, left, right))
+
+        lru_cache = {}
+        empty_row = tuple(None for _ in other.columns)
+
+        for row1 in self.rows:
+            row1_tup = tuple(v for v, name in zip(row1, self.columns) if name in left_columns)
+            row1d = {name: value for name, value in zip(self.columns, row1) if name in left_columns}
+
+            match_found = True if row1_tup in lru_cache else False
+
+            if not match_found:  # search.
+                for row2 in other.rows:
+                    row2d = {name: value for name, value in zip(other.columns, row2) if name in right_columns}
+
+                    evaluations = [op(row1d.get(left, left), row2d.get(right, right)) for op, left, right in functions]
+                    # The evaluations above does a neat trick:
+                    # as L is a dict, L.get(left, L) will return a value
+                    # from the columns IF left is a column name. If it isn&#39;t
+                    # the function will treat left as a value.
+                    # The same applies to right.
+
+                    if all and not False in evaluations:
+                        match_found = True
+                        lru_cache[row1_tup] = row2
+                        break
+                    elif any and True in evaluations:
+                        match_found = True
+                        lru_cache[row1_tup] = row2
+                        break
+                    else:
+                        continue
+
+            if not match_found:  # no match found.
+                lru_cache[row1_tup] = empty_row
+
+            new_row = row1 + lru_cache[row1_tup]
+
+            table3.add_row(new_row)
+
+        return table3
+
+
+class GroupBy(object):
+    max = Max  # shortcuts to avoid having to type a long list of imports.
+    min = Min
+    sum = Sum
+    first = First
+    last = Last
+    count = Count
+    count_unique = CountUnique
+    avg = Average
+    stdev = StandardDeviation
+    median = Median
+    mode = Mode
+
+    _functions = [
+        Max, Min, Sum, First, Last,
+        Count, CountUnique,
+        Average, StandardDeviation, Median, Mode
+    ]
+    _function_names = {f.__name__: f for f in _functions}
+
+    def __init__(self, keys, functions):
+        &#34;&#34;&#34;
+        :param keys: headers for grouping
+        :param functions: list of headers and functions.
+        :return: None.
+
+        Example usage:
+        --------------------
+        from tablite import Table
+
+        t = Table()
+        t.add_column(&#39;date&#39;, int, allow_empty=False, data=[1,1,1,2,2,2])
+        t.add_column(&#39;sku&#39;, int, allow_empty=False, data=[1,2,3,1,2,3])
+        t.add_column(&#39;qty&#39;, int, allow_empty=False, data=[4,5,4,5,3,7])
+
+        from tablite import GroupBy, Sum
+
+        g = GroupBy(keys=[&#39;sku&#39;], functions=[(&#39;qty&#39;, Sum)])
+        g += t
+        g.tablite.show()
+
+        &#34;&#34;&#34;
+        if not isinstance(keys, list):
+            raise TypeError(f&#34;Expected keys as a list of header names, not {type(keys)}&#34;)
+
+        if len(set(keys)) != len(keys):
+            duplicates = [k for k in keys if keys.count(k) &gt; 1]
+            s = &#34;&#34; if len(duplicates) &gt; 1 else &#34;s&#34;
+            raise ValueError(f&#34;duplicate key{s} found: {duplicates}&#34;)
+
+        self.keys = keys
+
+        if not isinstance(functions, list):
+            raise TypeError(f&#34;Expected functions to be a list of tuples. Got {type(functions)}&#34;)
+
+        if not all(len(i) == 2 for i in functions):
+            raise ValueError(f&#34;Expected each tuple in functions to be of length 2. \nGot {functions}&#34;)
+
+        if not all(isinstance(a, str) for a, b in functions):
+            L = [(a, type(a)) for a, b in functions if not isinstance(a, str)]
+            raise ValueError(f&#34;Expected header names in functions to be strings. Found: {L}&#34;)
+
+        if not all(issubclass(b, GroupbyFunction) and b in GroupBy._functions for a, b in functions):
+            L = [b for a, b in functions if b not in GroupBy._functions]
+            if len(L) == 1:
+                singular = f&#34;function {L[0]} is not in GroupBy.functions&#34;
+                raise ValueError(singular)
+            else:
+                plural = f&#34;the functions {L} are not in GroupBy.functions&#34;
+                raise ValueError(plural)
+
+        self.groupby_functions = functions  # list with header name and function name
+
+        self._output = None  # class Table.
+        self._required_headers = None  # headers for reading input.
+        self.aggregation_functions = defaultdict(list)  # key: [list of groupby functions]
+        self._function_classes = []  # initiated functions.
+
+        # Order is preserved so that this is doable:
+        # for header, function, function_instances in zip(self.groupby_functions, self.function_classes) ....
+
+    def _setup(self, table):
+        &#34;&#34;&#34; helper to setup the group functions &#34;&#34;&#34;
+        self._output = Table()
+        self._required_headers = self.keys + [h for h, fn in self.groupby_functions]
+
+        for h in self.keys:
+            col = table[h]
+            self._output.add_column(header=h, datatype=col.datatype, allow_empty=True)  # add column for keys
+
+        self._function_classes = []
+        for h, fn in self.groupby_functions:
+            col = table[h]
+            assert isinstance(col, (StoredColumn, InMemoryColumn))
+            f_instance = fn(col.datatype)
+            assert isinstance(f_instance, GroupbyFunction)
+            self._function_classes.append(f_instance)
+
+            function_name = f&#34;{fn.__name__}({h})&#34;
+            self._output.add_column(header=function_name, datatype=f_instance.datatype,
+                                    allow_empty=True)  # add column for fn&#39;s.
+
+    def __iadd__(self, other):
+        &#34;&#34;&#34;
+        To view results use `for row in self.rows`
+        To add more data use self += new data (Table)
+        &#34;&#34;&#34;
+        assert isinstance(other, Table)
+        if self._output is None:
+            self._setup(other)
+        else:
+            self._output.compare(other)  # this will raise if there are problems
+
+        for row in other.filter(*self._required_headers):
+            d = {h: v for h, v in zip(self._required_headers, row)}
+            key = tuple([d[k] for k in self.keys])
+            functions = self.aggregation_functions.get(key)
+            if not functions:
+                functions = [fn.__class__(fn.datatype) for fn in self._function_classes]
+                self.aggregation_functions[key] = functions
+
+            for (h, fn), f in zip(self.groupby_functions, functions):
+                f.update(d[h])
+        return self
+
+    def _generate_table(self):
+        &#34;&#34;&#34; helper that generates the result for .tablite and .rows &#34;&#34;&#34;
+        for key, functions in self.aggregation_functions.items():
+            row = key + tuple(fn.value for fn in functions)
+            self._output.add_row(row)
+        self.aggregation_functions.clear()  # hereby we only create the tablite once.
+        self._output.sort(**{k: False for k in self.keys})
+
+    @property
+    def table(self):
+        &#34;&#34;&#34; returns Table &#34;&#34;&#34;
+        if self._output is None:
+            return None
+
+        if self.aggregation_functions:
+            self._generate_table()
+
+        assert isinstance(self._output, Table)
+        return self._output
+
+    @property
+    def rows(self):
+        &#34;&#34;&#34; returns iterator for Groupby.rows &#34;&#34;&#34;
+        if self._output is None:
+            return None
+
+        if self.aggregation_functions:
+            self._generate_table()
+
+        assert isinstance(self._output, Table)
+        for row in self._output.rows:
+            yield row
+
+    def pivot(self, *args):
+        &#34;&#34;&#34; pivots the groupby so that `columns` become new columns.
+
+        :param args: column names
+        :return: New Table
+
+        Example:
+        t = Table()
+        t.add_column(&#39;A&#39;, int, data=[1, 1, 2, 2, 3, 3] * 2)
+        t.add_column(&#39;B&#39;, int, data=[1, 2, 3, 4, 5, 6] * 2)
+        t.add_column(&#39;C&#39;, int, data=[6, 5, 4, 3, 2, 1] * 2)
+
+        t.show()
+        +=====+=====+=====+
+        |  A  |  B  |  C  |
+        | int | int | int |
+        |False|False|False|
+        +-----+-----+-----+
+        |    1|    1|    6|
+        |    1|    2|    5|
+        |    2|    3|    4|
+        |    2|    4|    3|
+        |    3|    5|    2|
+        |    3|    6|    1|
+        |    1|    1|    6|
+        |    1|    2|    5|
+        |    2|    3|    4|
+        |    2|    4|    3|
+        |    3|    5|    2|
+        |    3|    6|    1|
+        +=====+=====+=====+
+
+        g = t.groupby(keys=[&#39;A&#39;, &#39;C&#39;], functions=[(&#39;B&#39;, Sum)])
+
+        t2 = g.pivot(&#39;A&#39;)
+
+        t2.show()
+        +=====+==========+==========+==========+
+        |  C  |Sum(B,A=1)|Sum(B,A=2)|Sum(B,A=3)|
+        | int |   int    |   int    |   int    |
+        |False|   True   |   True   |   True   |
+        +-----+----------+----------+----------+
+        |    5|         4|      None|      None|
+        |    6|         2|      None|      None|
+        |    3|      None|         8|      None|
+        |    4|      None|         6|      None|
+        |    1|      None|      None|        12|
+        |    2|      None|      None|        10|
+        +=====+==========+==========+==========+
+        &#34;&#34;&#34;
+        columns = args
+        if not all(isinstance(i, str) for i in args):
+            raise TypeError(f&#34;column name not str: {[i for i in columns if not isinstance(i, str)]}&#34;)
+
+        if self._output is None:
+            return None
+
+        if self.aggregation_functions:
+            self._generate_table()
+
+        assert isinstance(self._output, Table)
+        if any(i not in self._output.columns for i in columns):
+            raise ValueError(f&#34;column not found in groupby: {[i not in self._output.columns for i in columns]}&#34;)
+
+        sort_order = {k: False for k in self.keys}
+        if not self._output.is_sorted(**sort_order):
+            self._output.sort(**sort_order)
+
+        t = Table()
+        for col_name, col in self._output.columns.items():  # add vertical groups.
+            if col_name in self.keys and col_name not in columns:
+                t.add_column(col_name, col.datatype, allow_empty=False)
+
+        tup_length = 0
+        for column_key in self._output.filter(*columns):  # add horizontal groups.
+            col_name = &#34;,&#34;.join(
+                f&#34;{h}={v}&#34; for h, v in zip(columns, column_key))  # expressed &#34;a=0,b=3&#34; in column name &#34;Sum(g, a=0,b=3)&#34;
+
+            for (header, function), function_instances in zip(self.groupby_functions, self._function_classes):
+                new_column_name = f&#34;{function.__name__}({header},{col_name})&#34;
+                if new_column_name not in t.columns:  # it&#39;s could be duplicate key value.
+                    t.add_column(new_column_name, datatype=function_instances.datatype, allow_empty=True)
+                    tup_length += 1
+                else:
+                    pass  # it&#39;s a duplicate.
+
+        # add rows.
+        key_index = {k: i for i, k in enumerate(self._output.columns)}
+        old_v_keys = tuple(None for k in self.keys if k not in columns)
+
+        for row in self._output.rows:
+            v_keys = tuple(row[key_index[k]] for k in self.keys if k not in columns)
+            if v_keys != old_v_keys:
+                t.add_row(v_keys + tuple(None for i in range(tup_length)))
+                old_v_keys = v_keys
+
+            function_values = [v for h, v in zip(self._output.columns, row) if h not in self.keys]
+
+            col_name = &#34;,&#34;.join(f&#34;{h}={row[key_index[h]]}&#34; for h in columns)
+            for (header, function), fi in zip(self.groupby_functions, function_values):
+                column_key = f&#34;{function.__name__}({header},{col_name})&#34;
+                t[column_key][-1] = fi
+
+        return t
+
+
+def text_reader(path, split_sequence=None, sep=None, has_headers=True):
+    &#34;&#34;&#34; txt, tab &amp; csv reader &#34;&#34;&#34;
+    if not isinstance(path, Path):
+        raise ValueError(f&#34;expected pathlib.Path, got {type(path)}&#34;)
+
+    # detect newline format
+    windows = &#39;\n&#39;
+    unix = &#39;\r\n&#39;
+
+    encoding = detect_encoding(path)  # detect encoding
+
+    if split_sequence is None and sep is None:  #
+        sep = detect_seperator(path, encoding)
+
+    t = Table()
+    t.metadata[&#39;filename&#39;] = path.name
+    n_columns = None
+    with path.open(&#39;r&#39;, encoding=encoding) as fi:
+        for line in fi:
+            end = windows if line.endswith(windows) else unix
+            # this is more robust if the file was concatenated by a non-programmer, than doing it once only.
+
+            line = line.rstrip(end)
+            line = line.lstrip(&#39;\ufeff&#39;)  # utf-8-sig byte order mark.
+
+            if split_sequence:
+                values = split_by_sequence(line, split_sequence)
+            elif line.count(&#39;&#34;&#39;) &gt;= 2 or line.count(&#34;&#39;&#34;) &gt;= 2:
+                values = text_escape(line, sep=sep)
+            else:
+                values = tuple((i.lstrip().rstrip() for i in line.split(sep)))
+
+            if not t.columns:
+                for idx, v in enumerate(values, 1):
+                    if not has_headers:
+                        t.add_column(f&#34;_{idx}&#34;, datatype=str, allow_empty=True)
+                    else:
+                        header = v.rstrip(&#34; &#34;).lstrip(&#34; &#34;)
+                        t.add_column(header, datatype=str, allow_empty=True)
+                n_columns = len(values)
+
+                if not has_headers:  # first line is our first row
+                    t.add_row(values)
+            else:
+                while n_columns &gt; len(values):  # this makes the reader more robust.
+                    values += (&#39;&#39;,)
+                t.add_row(values)
+    yield t
+
+
+def excel_reader(path, has_headers=True, sheet_names=None):
+    &#34;&#34;&#34;  returns Table(s) from excel path &#34;&#34;&#34;
+    if not isinstance(path, Path):
+        raise ValueError(f&#34;expected pathlib.Path, got {type(path)}&#34;)
+    book = pyexcel.get_book(file_name=str(path))
+
+    # import all sheets or a subset
+    sheets = [s for s in book if sheet_names is None or s.name in sheet_names]
+
+    for sheet in sheets:
+        if len(sheet) == 0:
+            continue
+
+        t = Table()
+        t.metadata[&#39;sheet_name&#39;] = sheet.name
+        t.metadata[&#39;filename&#39;] = path.name
+        for idx, column in enumerate(sheet.columns(), 1):
+            if has_headers:
+                header, start_row_pos = str(column[0]), 1
+            else:
+                header, start_row_pos = f&#34;_{idx}&#34;, 0
+
+            dtypes = {type(v) for v in column[start_row_pos:]}
+            allow_empty = True if None in dtypes else False
+            dtypes.discard(None)
+
+            if dtypes == {int, float}:
+                dtypes.remove(int)
+
+            if len(dtypes) == 1:
+                dtype = dtypes.pop()
+                data = [dtype(v) if not isinstance(v, dtype) else v for v in column[start_row_pos:]]
+            else:
+                dtype, data = str, [str(v) for v in column[start_row_pos:]]
+            t.add_column(header, dtype, allow_empty, data)
+        yield t
+
+
+def ods_reader(path, has_headers=True):
+    &#34;&#34;&#34;  returns Table from .ODS &#34;&#34;&#34;
+    if not isinstance(path, Path):
+        raise ValueError(f&#34;expected pathlib.Path, got {type(path)}&#34;)
+    sheets = pyexcel.get_book_dict(file_name=str(path))
+
+    for sheet_name, data in sheets.items():
+        if all((row == [] for row in data)):  # no data.
+            continue
+        for i in range(len(data)):  # remove empty lines at the end of the data.
+            if &#34;&#34; == &#34;&#34;.join(str(i) for i in data[-1]):
+                data = data[:-1]
+            else:
+                break
+
+        table = Table(filename=path.name)
+        table.metadata[&#39;filename&#39;] = path.name
+        table.metadata[&#39;sheet_name&#39;] = sheet_name
+
+        for ix, value in enumerate(data[0]):
+            if has_headers:
+                header, start_row_pos = str(value), 1
+            else:
+                header, start_row_pos = f&#34;_{ix + 1}&#34;, 0
+
+            dtypes = set(type(row[ix]) for row in data[start_row_pos:] if len(row) &gt; ix)
+            allow_empty = None in dtypes
+            dtypes.discard(None)
+            if len(dtypes) == 1:
+                dtype = dtypes.pop()
+            elif dtypes == {float, int}:
+                dtype = float
+            else:
+                dtype = str
+            values = [dtype(row[ix]) for row in data[start_row_pos:] if len(row) &gt; ix]
+            table.add_column(header, dtype, allow_empty, data=values)
+        yield table
+
+
+def zip_reader(path):
+    &#34;&#34;&#34; reads zip files and unpacks anything it can read.&#34;&#34;&#34;
+    if not isinstance(path, Path):
+        raise ValueError(f&#34;expected pathlib.Path, got {type(path)}&#34;)
+
+    temp_dir_path = gettempdir()
+    tempdir = Path(temp_dir_path)
+
+    with zipfile.ZipFile(path, &#39;r&#39;) as zipf:
+
+        for name in zipf.namelist():
+
+            zipf.extract(name, temp_dir_path)
+
+            p = tempdir / name
+            try:
+                tables = file_reader(p)
+                for table in tables:
+                    yield table
+            except Exception as e:  # unknown file type.
+                print(f&#39;reading\n  {p}\nresulted in the error:&#39;)
+                print(str(e))
+                continue
+
+            p.unlink()
+
+
+def log_reader(path, has_headers=True):
+    &#34;&#34;&#34; returns Table from log files (txt)&#34;&#34;&#34;
+    if not isinstance(path, Path):
+        raise ValueError(f&#34;expected pathlib.Path, got {type(path)}&#34;)
+    for line in path.open()[:10]:
+        print(repr(line))
+    print(&#34;please declare separators. Blank return means &#39;done&#39;.&#34;)
+    split_sequence = []
+    while True:
+        response = input(&#34;&gt;&#34;)
+        if response == &#34;&#34;:
+            break
+        print(&#34;got&#34;, repr(response))
+        split_sequence.append(response)
+    table = text_reader(path, split_sequence=split_sequence, has_headers=has_headers)
+    return table
+
+
+def file_reader(path, **kwargs):
+    &#34;&#34;&#34;
+    :param path: pathlib.Path object with extension as:
+        .csv, .tsv, .txt, .xls, .xlsx, .xlsm, .ods, .zip, .log
+
+        .zip is automatically flattened
+
+    :param kwargs: dictionary options:
+        &#39;sep&#39;: False or single character
+        &#39;split_sequence&#39;: list of characters
+
+    :return: generator of Tables.
+        to get the tablite in one line.
+
+        &gt;&gt;&gt; list(file_reader(abc.csv)[0]
+
+        use the following for Excel and Zips:
+        &gt;&gt;&gt; for tablite in file_reader(filename):
+                ...
+    &#34;&#34;&#34;
+    assert isinstance(path, Path)
+    extension = path.name.split(&#34;.&#34;)[-1]
+    if extension not in readers:
+        raise TypeError(f&#34;Filetype for {path.name} not recognised.&#34;)
+    reader, default_kwargs = readers[extension]
+    kwargs = {**default_kwargs, **kwargs}
+
+    for table in reader(path, **kwargs):
+        assert isinstance(table, Table), &#34;programmer returned something else than a Table&#34;
+        find_format(table)
+        yield table
+
+
+def find_format(table):
+    &#34;&#34;&#34; common function for harmonizing formats AFTER import. &#34;&#34;&#34;
+    assert isinstance(table, Table)
+
+    for col_name, column in table.columns.items():
+        assert isinstance(column, (StoredColumn, InMemoryColumn))
+        column.allow_empty = any(v in DataTypes.nones for v in column)
+
+        values = [v for v in column if v not in DataTypes.nones]
+        assert isinstance(column, (StoredColumn, InMemoryColumn))
+        values.sort()
+
+        works = []
+        if not values:
+            works.append((0, DataTypes.str))
+        else:
+            for dtype in DataTypes.types:  # try all datatypes.
+                last_value = None
+                c = 0
+                for v in values:
+                    if v != last_value:  # no need to repeat duplicates.
+                        try:
+                            DataTypes.infer(v, dtype)  # handles None gracefully.
+                        except (ValueError, TypeError):
+                            break
+                        last_value = v
+                    c += 1
+
+                works.append((c, dtype))
+                if c == len(values):
+                    break  # we have a complete match for the simplest
+                    # data format for all values. No need to do more work.
+
+        for c, dtype in works:
+            if c == len(values):
+                values.clear()
+                if table.use_disk:
+                    c2 = StoredColumn
+                else:
+                    c2 = InMemoryColumn
+
+                new_column = c2(column.header, dtype, column.allow_empty)
+                for v in column:
+                    new_column.append(DataTypes.infer(v, dtype) if v not in DataTypes.nones else None)
+                column.clear()
+                table.columns[col_name] = new_column
+                break
+
+
+readers = {
+    &#39;csv&#39;: [text_reader, {}],
+    &#39;tsv&#39;: [text_reader, {}],
+    &#39;txt&#39;: [text_reader, {}],
+    &#39;xls&#39;: [excel_reader, {}],
+    &#39;xlsx&#39;: [excel_reader, {}],
+    &#39;xlsm&#39;: [excel_reader, {}],
+    &#39;ods&#39;: [ods_reader, {}],
+    &#39;zip&#39;: [zip_reader, {}],
+    &#39;log&#39;: [log_reader, {&#39;sep&#39;: False}]
+}</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="tablite.core.excel_reader"><code class="name flex">
+<span>def <span class="ident">excel_reader</span></span>(<span>path, has_headers=True, sheet_names=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>returns Table(s) from excel path</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def excel_reader(path, has_headers=True, sheet_names=None):
+    &#34;&#34;&#34;  returns Table(s) from excel path &#34;&#34;&#34;
+    if not isinstance(path, Path):
+        raise ValueError(f&#34;expected pathlib.Path, got {type(path)}&#34;)
+    book = pyexcel.get_book(file_name=str(path))
+
+    # import all sheets or a subset
+    sheets = [s for s in book if sheet_names is None or s.name in sheet_names]
+
+    for sheet in sheets:
+        if len(sheet) == 0:
+            continue
+
+        t = Table()
+        t.metadata[&#39;sheet_name&#39;] = sheet.name
+        t.metadata[&#39;filename&#39;] = path.name
+        for idx, column in enumerate(sheet.columns(), 1):
+            if has_headers:
+                header, start_row_pos = str(column[0]), 1
+            else:
+                header, start_row_pos = f&#34;_{idx}&#34;, 0
+
+            dtypes = {type(v) for v in column[start_row_pos:]}
+            allow_empty = True if None in dtypes else False
+            dtypes.discard(None)
+
+            if dtypes == {int, float}:
+                dtypes.remove(int)
+
+            if len(dtypes) == 1:
+                dtype = dtypes.pop()
+                data = [dtype(v) if not isinstance(v, dtype) else v for v in column[start_row_pos:]]
+            else:
+                dtype, data = str, [str(v) for v in column[start_row_pos:]]
+            t.add_column(header, dtype, allow_empty, data)
+        yield t</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.file_reader"><code class="name flex">
+<span>def <span class="ident">file_reader</span></span>(<span>path, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>:param path: pathlib.Path object with extension as:
+.csv, .tsv, .txt, .xls, .xlsx, .xlsm, .ods, .zip, .log</p>
+<pre><code>.zip is automatically flattened
+</code></pre>
+<p>:param kwargs: dictionary options:
+'sep': False or single character
+'split_sequence': list of characters</p>
+<p>:return: generator of Tables.
+to get the tablite in one line.</p>
+<pre><code>&gt;&gt;&gt; list(file_reader(abc.csv)[0]
+
+use the following for Excel and Zips:
+&gt;&gt;&gt; for tablite in file_reader(filename):
+        ...
+</code></pre></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def file_reader(path, **kwargs):
+    &#34;&#34;&#34;
+    :param path: pathlib.Path object with extension as:
+        .csv, .tsv, .txt, .xls, .xlsx, .xlsm, .ods, .zip, .log
+
+        .zip is automatically flattened
+
+    :param kwargs: dictionary options:
+        &#39;sep&#39;: False or single character
+        &#39;split_sequence&#39;: list of characters
+
+    :return: generator of Tables.
+        to get the tablite in one line.
+
+        &gt;&gt;&gt; list(file_reader(abc.csv)[0]
+
+        use the following for Excel and Zips:
+        &gt;&gt;&gt; for tablite in file_reader(filename):
+                ...
+    &#34;&#34;&#34;
+    assert isinstance(path, Path)
+    extension = path.name.split(&#34;.&#34;)[-1]
+    if extension not in readers:
+        raise TypeError(f&#34;Filetype for {path.name} not recognised.&#34;)
+    reader, default_kwargs = readers[extension]
+    kwargs = {**default_kwargs, **kwargs}
+
+    for table in reader(path, **kwargs):
+        assert isinstance(table, Table), &#34;programmer returned something else than a Table&#34;
+        find_format(table)
+        yield table</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.find_format"><code class="name flex">
+<span>def <span class="ident">find_format</span></span>(<span>table)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>common function for harmonizing formats AFTER import.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def find_format(table):
+    &#34;&#34;&#34; common function for harmonizing formats AFTER import. &#34;&#34;&#34;
+    assert isinstance(table, Table)
+
+    for col_name, column in table.columns.items():
+        assert isinstance(column, (StoredColumn, InMemoryColumn))
+        column.allow_empty = any(v in DataTypes.nones for v in column)
+
+        values = [v for v in column if v not in DataTypes.nones]
+        assert isinstance(column, (StoredColumn, InMemoryColumn))
+        values.sort()
+
+        works = []
+        if not values:
+            works.append((0, DataTypes.str))
+        else:
+            for dtype in DataTypes.types:  # try all datatypes.
+                last_value = None
+                c = 0
+                for v in values:
+                    if v != last_value:  # no need to repeat duplicates.
+                        try:
+                            DataTypes.infer(v, dtype)  # handles None gracefully.
+                        except (ValueError, TypeError):
+                            break
+                        last_value = v
+                    c += 1
+
+                works.append((c, dtype))
+                if c == len(values):
+                    break  # we have a complete match for the simplest
+                    # data format for all values. No need to do more work.
+
+        for c, dtype in works:
+            if c == len(values):
+                values.clear()
+                if table.use_disk:
+                    c2 = StoredColumn
+                else:
+                    c2 = InMemoryColumn
+
+                new_column = c2(column.header, dtype, column.allow_empty)
+                for v in column:
+                    new_column.append(DataTypes.infer(v, dtype) if v not in DataTypes.nones else None)
+                column.clear()
+                table.columns[col_name] = new_column
+                break</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.log_reader"><code class="name flex">
+<span>def <span class="ident">log_reader</span></span>(<span>path, has_headers=True)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>returns Table from log files (txt)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def log_reader(path, has_headers=True):
+    &#34;&#34;&#34; returns Table from log files (txt)&#34;&#34;&#34;
+    if not isinstance(path, Path):
+        raise ValueError(f&#34;expected pathlib.Path, got {type(path)}&#34;)
+    for line in path.open()[:10]:
+        print(repr(line))
+    print(&#34;please declare separators. Blank return means &#39;done&#39;.&#34;)
+    split_sequence = []
+    while True:
+        response = input(&#34;&gt;&#34;)
+        if response == &#34;&#34;:
+            break
+        print(&#34;got&#34;, repr(response))
+        split_sequence.append(response)
+    table = text_reader(path, split_sequence=split_sequence, has_headers=has_headers)
+    return table</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.ods_reader"><code class="name flex">
+<span>def <span class="ident">ods_reader</span></span>(<span>path, has_headers=True)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>returns Table from .ODS</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def ods_reader(path, has_headers=True):
+    &#34;&#34;&#34;  returns Table from .ODS &#34;&#34;&#34;
+    if not isinstance(path, Path):
+        raise ValueError(f&#34;expected pathlib.Path, got {type(path)}&#34;)
+    sheets = pyexcel.get_book_dict(file_name=str(path))
+
+    for sheet_name, data in sheets.items():
+        if all((row == [] for row in data)):  # no data.
+            continue
+        for i in range(len(data)):  # remove empty lines at the end of the data.
+            if &#34;&#34; == &#34;&#34;.join(str(i) for i in data[-1]):
+                data = data[:-1]
+            else:
+                break
+
+        table = Table(filename=path.name)
+        table.metadata[&#39;filename&#39;] = path.name
+        table.metadata[&#39;sheet_name&#39;] = sheet_name
+
+        for ix, value in enumerate(data[0]):
+            if has_headers:
+                header, start_row_pos = str(value), 1
+            else:
+                header, start_row_pos = f&#34;_{ix + 1}&#34;, 0
+
+            dtypes = set(type(row[ix]) for row in data[start_row_pos:] if len(row) &gt; ix)
+            allow_empty = None in dtypes
+            dtypes.discard(None)
+            if len(dtypes) == 1:
+                dtype = dtypes.pop()
+            elif dtypes == {float, int}:
+                dtype = float
+            else:
+                dtype = str
+            values = [dtype(row[ix]) for row in data[start_row_pos:] if len(row) &gt; ix]
+            table.add_column(header, dtype, allow_empty, data=values)
+        yield table</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.text_reader"><code class="name flex">
+<span>def <span class="ident">text_reader</span></span>(<span>path, split_sequence=None, sep=None, has_headers=True)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>txt, tab &amp; csv reader</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def text_reader(path, split_sequence=None, sep=None, has_headers=True):
+    &#34;&#34;&#34; txt, tab &amp; csv reader &#34;&#34;&#34;
+    if not isinstance(path, Path):
+        raise ValueError(f&#34;expected pathlib.Path, got {type(path)}&#34;)
+
+    # detect newline format
+    windows = &#39;\n&#39;
+    unix = &#39;\r\n&#39;
+
+    encoding = detect_encoding(path)  # detect encoding
+
+    if split_sequence is None and sep is None:  #
+        sep = detect_seperator(path, encoding)
+
+    t = Table()
+    t.metadata[&#39;filename&#39;] = path.name
+    n_columns = None
+    with path.open(&#39;r&#39;, encoding=encoding) as fi:
+        for line in fi:
+            end = windows if line.endswith(windows) else unix
+            # this is more robust if the file was concatenated by a non-programmer, than doing it once only.
+
+            line = line.rstrip(end)
+            line = line.lstrip(&#39;\ufeff&#39;)  # utf-8-sig byte order mark.
+
+            if split_sequence:
+                values = split_by_sequence(line, split_sequence)
+            elif line.count(&#39;&#34;&#39;) &gt;= 2 or line.count(&#34;&#39;&#34;) &gt;= 2:
+                values = text_escape(line, sep=sep)
+            else:
+                values = tuple((i.lstrip().rstrip() for i in line.split(sep)))
+
+            if not t.columns:
+                for idx, v in enumerate(values, 1):
+                    if not has_headers:
+                        t.add_column(f&#34;_{idx}&#34;, datatype=str, allow_empty=True)
+                    else:
+                        header = v.rstrip(&#34; &#34;).lstrip(&#34; &#34;)
+                        t.add_column(header, datatype=str, allow_empty=True)
+                n_columns = len(values)
+
+                if not has_headers:  # first line is our first row
+                    t.add_row(values)
+            else:
+                while n_columns &gt; len(values):  # this makes the reader more robust.
+                    values += (&#39;&#39;,)
+                t.add_row(values)
+    yield t</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.zip_reader"><code class="name flex">
+<span>def <span class="ident">zip_reader</span></span>(<span>path)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>reads zip files and unpacks anything it can read.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def zip_reader(path):
+    &#34;&#34;&#34; reads zip files and unpacks anything it can read.&#34;&#34;&#34;
+    if not isinstance(path, Path):
+        raise ValueError(f&#34;expected pathlib.Path, got {type(path)}&#34;)
+
+    temp_dir_path = gettempdir()
+    tempdir = Path(temp_dir_path)
+
+    with zipfile.ZipFile(path, &#39;r&#39;) as zipf:
+
+        for name in zipf.namelist():
+
+            zipf.extract(name, temp_dir_path)
+
+            p = tempdir / name
+            try:
+                tables = file_reader(p)
+                for table in tables:
+                    yield table
+            except Exception as e:  # unknown file type.
+                print(f&#39;reading\n  {p}\nresulted in the error:&#39;)
+                print(str(e))
+                continue
+
+            p.unlink()</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="tablite.core.GroupBy"><code class="flex name class">
+<span>class <span class="ident">GroupBy</span></span>
+<span>(</span><span>keys, functions)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>:param keys: headers for grouping
+:param functions: list of headers and functions.
+:return: None.</p>
+<h2 id="example-usage">Example usage:</h2>
+<p>from tablite import Table</p>
+<p>t = Table()
+t.add_column('date', int, allow_empty=False, data=[1,1,1,2,2,2])
+t.add_column('sku', int, allow_empty=False, data=[1,2,3,1,2,3])
+t.add_column('qty', int, allow_empty=False, data=[4,5,4,5,3,7])</p>
+<p>from tablite import GroupBy, Sum</p>
+<p>g = GroupBy(keys=['sku'], functions=[('qty', Sum)])
+g += t
+g.tablite.show()</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class GroupBy(object):
+    max = Max  # shortcuts to avoid having to type a long list of imports.
+    min = Min
+    sum = Sum
+    first = First
+    last = Last
+    count = Count
+    count_unique = CountUnique
+    avg = Average
+    stdev = StandardDeviation
+    median = Median
+    mode = Mode
+
+    _functions = [
+        Max, Min, Sum, First, Last,
+        Count, CountUnique,
+        Average, StandardDeviation, Median, Mode
+    ]
+    _function_names = {f.__name__: f for f in _functions}
+
+    def __init__(self, keys, functions):
+        &#34;&#34;&#34;
+        :param keys: headers for grouping
+        :param functions: list of headers and functions.
+        :return: None.
+
+        Example usage:
+        --------------------
+        from tablite import Table
+
+        t = Table()
+        t.add_column(&#39;date&#39;, int, allow_empty=False, data=[1,1,1,2,2,2])
+        t.add_column(&#39;sku&#39;, int, allow_empty=False, data=[1,2,3,1,2,3])
+        t.add_column(&#39;qty&#39;, int, allow_empty=False, data=[4,5,4,5,3,7])
+
+        from tablite import GroupBy, Sum
+
+        g = GroupBy(keys=[&#39;sku&#39;], functions=[(&#39;qty&#39;, Sum)])
+        g += t
+        g.tablite.show()
+
+        &#34;&#34;&#34;
+        if not isinstance(keys, list):
+            raise TypeError(f&#34;Expected keys as a list of header names, not {type(keys)}&#34;)
+
+        if len(set(keys)) != len(keys):
+            duplicates = [k for k in keys if keys.count(k) &gt; 1]
+            s = &#34;&#34; if len(duplicates) &gt; 1 else &#34;s&#34;
+            raise ValueError(f&#34;duplicate key{s} found: {duplicates}&#34;)
+
+        self.keys = keys
+
+        if not isinstance(functions, list):
+            raise TypeError(f&#34;Expected functions to be a list of tuples. Got {type(functions)}&#34;)
+
+        if not all(len(i) == 2 for i in functions):
+            raise ValueError(f&#34;Expected each tuple in functions to be of length 2. \nGot {functions}&#34;)
+
+        if not all(isinstance(a, str) for a, b in functions):
+            L = [(a, type(a)) for a, b in functions if not isinstance(a, str)]
+            raise ValueError(f&#34;Expected header names in functions to be strings. Found: {L}&#34;)
+
+        if not all(issubclass(b, GroupbyFunction) and b in GroupBy._functions for a, b in functions):
+            L = [b for a, b in functions if b not in GroupBy._functions]
+            if len(L) == 1:
+                singular = f&#34;function {L[0]} is not in GroupBy.functions&#34;
+                raise ValueError(singular)
+            else:
+                plural = f&#34;the functions {L} are not in GroupBy.functions&#34;
+                raise ValueError(plural)
+
+        self.groupby_functions = functions  # list with header name and function name
+
+        self._output = None  # class Table.
+        self._required_headers = None  # headers for reading input.
+        self.aggregation_functions = defaultdict(list)  # key: [list of groupby functions]
+        self._function_classes = []  # initiated functions.
+
+        # Order is preserved so that this is doable:
+        # for header, function, function_instances in zip(self.groupby_functions, self.function_classes) ....
+
+    def _setup(self, table):
+        &#34;&#34;&#34; helper to setup the group functions &#34;&#34;&#34;
+        self._output = Table()
+        self._required_headers = self.keys + [h for h, fn in self.groupby_functions]
+
+        for h in self.keys:
+            col = table[h]
+            self._output.add_column(header=h, datatype=col.datatype, allow_empty=True)  # add column for keys
+
+        self._function_classes = []
+        for h, fn in self.groupby_functions:
+            col = table[h]
+            assert isinstance(col, (StoredColumn, InMemoryColumn))
+            f_instance = fn(col.datatype)
+            assert isinstance(f_instance, GroupbyFunction)
+            self._function_classes.append(f_instance)
+
+            function_name = f&#34;{fn.__name__}({h})&#34;
+            self._output.add_column(header=function_name, datatype=f_instance.datatype,
+                                    allow_empty=True)  # add column for fn&#39;s.
+
+    def __iadd__(self, other):
+        &#34;&#34;&#34;
+        To view results use `for row in self.rows`
+        To add more data use self += new data (Table)
+        &#34;&#34;&#34;
+        assert isinstance(other, Table)
+        if self._output is None:
+            self._setup(other)
+        else:
+            self._output.compare(other)  # this will raise if there are problems
+
+        for row in other.filter(*self._required_headers):
+            d = {h: v for h, v in zip(self._required_headers, row)}
+            key = tuple([d[k] for k in self.keys])
+            functions = self.aggregation_functions.get(key)
+            if not functions:
+                functions = [fn.__class__(fn.datatype) for fn in self._function_classes]
+                self.aggregation_functions[key] = functions
+
+            for (h, fn), f in zip(self.groupby_functions, functions):
+                f.update(d[h])
+        return self
+
+    def _generate_table(self):
+        &#34;&#34;&#34; helper that generates the result for .tablite and .rows &#34;&#34;&#34;
+        for key, functions in self.aggregation_functions.items():
+            row = key + tuple(fn.value for fn in functions)
+            self._output.add_row(row)
+        self.aggregation_functions.clear()  # hereby we only create the tablite once.
+        self._output.sort(**{k: False for k in self.keys})
+
+    @property
+    def table(self):
+        &#34;&#34;&#34; returns Table &#34;&#34;&#34;
+        if self._output is None:
+            return None
+
+        if self.aggregation_functions:
+            self._generate_table()
+
+        assert isinstance(self._output, Table)
+        return self._output
+
+    @property
+    def rows(self):
+        &#34;&#34;&#34; returns iterator for Groupby.rows &#34;&#34;&#34;
+        if self._output is None:
+            return None
+
+        if self.aggregation_functions:
+            self._generate_table()
+
+        assert isinstance(self._output, Table)
+        for row in self._output.rows:
+            yield row
+
+    def pivot(self, *args):
+        &#34;&#34;&#34; pivots the groupby so that `columns` become new columns.
+
+        :param args: column names
+        :return: New Table
+
+        Example:
+        t = Table()
+        t.add_column(&#39;A&#39;, int, data=[1, 1, 2, 2, 3, 3] * 2)
+        t.add_column(&#39;B&#39;, int, data=[1, 2, 3, 4, 5, 6] * 2)
+        t.add_column(&#39;C&#39;, int, data=[6, 5, 4, 3, 2, 1] * 2)
+
+        t.show()
+        +=====+=====+=====+
+        |  A  |  B  |  C  |
+        | int | int | int |
+        |False|False|False|
+        +-----+-----+-----+
+        |    1|    1|    6|
+        |    1|    2|    5|
+        |    2|    3|    4|
+        |    2|    4|    3|
+        |    3|    5|    2|
+        |    3|    6|    1|
+        |    1|    1|    6|
+        |    1|    2|    5|
+        |    2|    3|    4|
+        |    2|    4|    3|
+        |    3|    5|    2|
+        |    3|    6|    1|
+        +=====+=====+=====+
+
+        g = t.groupby(keys=[&#39;A&#39;, &#39;C&#39;], functions=[(&#39;B&#39;, Sum)])
+
+        t2 = g.pivot(&#39;A&#39;)
+
+        t2.show()
+        +=====+==========+==========+==========+
+        |  C  |Sum(B,A=1)|Sum(B,A=2)|Sum(B,A=3)|
+        | int |   int    |   int    |   int    |
+        |False|   True   |   True   |   True   |
+        +-----+----------+----------+----------+
+        |    5|         4|      None|      None|
+        |    6|         2|      None|      None|
+        |    3|      None|         8|      None|
+        |    4|      None|         6|      None|
+        |    1|      None|      None|        12|
+        |    2|      None|      None|        10|
+        +=====+==========+==========+==========+
+        &#34;&#34;&#34;
+        columns = args
+        if not all(isinstance(i, str) for i in args):
+            raise TypeError(f&#34;column name not str: {[i for i in columns if not isinstance(i, str)]}&#34;)
+
+        if self._output is None:
+            return None
+
+        if self.aggregation_functions:
+            self._generate_table()
+
+        assert isinstance(self._output, Table)
+        if any(i not in self._output.columns for i in columns):
+            raise ValueError(f&#34;column not found in groupby: {[i not in self._output.columns for i in columns]}&#34;)
+
+        sort_order = {k: False for k in self.keys}
+        if not self._output.is_sorted(**sort_order):
+            self._output.sort(**sort_order)
+
+        t = Table()
+        for col_name, col in self._output.columns.items():  # add vertical groups.
+            if col_name in self.keys and col_name not in columns:
+                t.add_column(col_name, col.datatype, allow_empty=False)
+
+        tup_length = 0
+        for column_key in self._output.filter(*columns):  # add horizontal groups.
+            col_name = &#34;,&#34;.join(
+                f&#34;{h}={v}&#34; for h, v in zip(columns, column_key))  # expressed &#34;a=0,b=3&#34; in column name &#34;Sum(g, a=0,b=3)&#34;
+
+            for (header, function), function_instances in zip(self.groupby_functions, self._function_classes):
+                new_column_name = f&#34;{function.__name__}({header},{col_name})&#34;
+                if new_column_name not in t.columns:  # it&#39;s could be duplicate key value.
+                    t.add_column(new_column_name, datatype=function_instances.datatype, allow_empty=True)
+                    tup_length += 1
+                else:
+                    pass  # it&#39;s a duplicate.
+
+        # add rows.
+        key_index = {k: i for i, k in enumerate(self._output.columns)}
+        old_v_keys = tuple(None for k in self.keys if k not in columns)
+
+        for row in self._output.rows:
+            v_keys = tuple(row[key_index[k]] for k in self.keys if k not in columns)
+            if v_keys != old_v_keys:
+                t.add_row(v_keys + tuple(None for i in range(tup_length)))
+                old_v_keys = v_keys
+
+            function_values = [v for h, v in zip(self._output.columns, row) if h not in self.keys]
+
+            col_name = &#34;,&#34;.join(f&#34;{h}={row[key_index[h]]}&#34; for h in columns)
+            for (header, function), fi in zip(self.groupby_functions, function_values):
+                column_key = f&#34;{function.__name__}({header},{col_name})&#34;
+                t[column_key][-1] = fi
+
+        return t</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="tablite.core.GroupBy.avg"><code class="name">var <span class="ident">avg</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="tablite.core.GroupBy.count"><code class="name">var <span class="ident">count</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="tablite.core.GroupBy.count_unique"><code class="name">var <span class="ident">count_unique</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="tablite.core.GroupBy.first"><code class="name">var <span class="ident">first</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="tablite.core.GroupBy.last"><code class="name">var <span class="ident">last</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="tablite.core.GroupBy.max"><code class="name">var <span class="ident">max</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="tablite.core.GroupBy.median"><code class="name">var <span class="ident">median</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="tablite.core.GroupBy.min"><code class="name">var <span class="ident">min</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="tablite.core.GroupBy.mode"><code class="name">var <span class="ident">mode</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="tablite.core.GroupBy.stdev"><code class="name">var <span class="ident">stdev</span></code></dt>
+<dd>
+<div class="desc"><p>Uses J.P. Welfords (1962) algorithm.
+For details see <a href="https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm">https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm</a></p></div>
+</dd>
+<dt id="tablite.core.GroupBy.sum"><code class="name">var <span class="ident">sum</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+<h3>Instance variables</h3>
+<dl>
+<dt id="tablite.core.GroupBy.rows"><code class="name">var <span class="ident">rows</span></code></dt>
+<dd>
+<div class="desc"><p>returns iterator for Groupby.rows</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def rows(self):
+    &#34;&#34;&#34; returns iterator for Groupby.rows &#34;&#34;&#34;
+    if self._output is None:
+        return None
+
+    if self.aggregation_functions:
+        self._generate_table()
+
+    assert isinstance(self._output, Table)
+    for row in self._output.rows:
+        yield row</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.GroupBy.table"><code class="name">var <span class="ident">table</span></code></dt>
+<dd>
+<div class="desc"><p>returns Table</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def table(self):
+    &#34;&#34;&#34; returns Table &#34;&#34;&#34;
+    if self._output is None:
+        return None
+
+    if self.aggregation_functions:
+        self._generate_table()
+
+    assert isinstance(self._output, Table)
+    return self._output</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="tablite.core.GroupBy.pivot"><code class="name flex">
+<span>def <span class="ident">pivot</span></span>(<span>self, *args)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>pivots the groupby so that <code>columns</code> become new columns.</p>
+<p>:param args: column names
+:return: New Table</p>
+<p>Example:
+t = Table()
+t.add_column('A', int, data=[1, 1, 2, 2, 3, 3] * 2)
+t.add_column('B', int, data=[1, 2, 3, 4, 5, 6] * 2)
+t.add_column('C', int, data=[6, 5, 4, 3, 2, 1] * 2)</p>
+<p>t.show()
++=====+=====+=====+
+|
+A
+|
+B
+|
+C
+|
+| int | int | int |
+|False|False|False|
++-----+-----+-----+
+|
+1|
+1|
+6|
+|
+1|
+2|
+5|
+|
+2|
+3|
+4|
+|
+2|
+4|
+3|
+|
+3|
+5|
+2|
+|
+3|
+6|
+1|
+|
+1|
+1|
+6|
+|
+1|
+2|
+5|
+|
+2|
+3|
+4|
+|
+2|
+4|
+3|
+|
+3|
+5|
+2|
+|
+3|
+6|
+1|
++=====+=====+=====+</p>
+<p>g = t.groupby(keys=['A', 'C'], functions=[('B', Sum)])</p>
+<p>t2 = g.pivot('A')</p>
+<p>t2.show()
++=====+==========+==========+==========+
+|
+C
+|Sum(B,A=1)|Sum(B,A=2)|Sum(B,A=3)|
+| int |
+int
+|
+int
+|
+int
+|
+|False|
+True
+|
+True
+|
+True
+|
++-----+----------+----------+----------+
+|
+5|
+4|
+None|
+None|
+|
+6|
+2|
+None|
+None|
+|
+3|
+None|
+8|
+None|
+|
+4|
+None|
+6|
+None|
+|
+1|
+None|
+None|
+12|
+|
+2|
+None|
+None|
+10|
++=====+==========+==========+==========+</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def pivot(self, *args):
+    &#34;&#34;&#34; pivots the groupby so that `columns` become new columns.
+
+    :param args: column names
+    :return: New Table
+
+    Example:
+    t = Table()
+    t.add_column(&#39;A&#39;, int, data=[1, 1, 2, 2, 3, 3] * 2)
+    t.add_column(&#39;B&#39;, int, data=[1, 2, 3, 4, 5, 6] * 2)
+    t.add_column(&#39;C&#39;, int, data=[6, 5, 4, 3, 2, 1] * 2)
+
+    t.show()
+    +=====+=====+=====+
+    |  A  |  B  |  C  |
+    | int | int | int |
+    |False|False|False|
+    +-----+-----+-----+
+    |    1|    1|    6|
+    |    1|    2|    5|
+    |    2|    3|    4|
+    |    2|    4|    3|
+    |    3|    5|    2|
+    |    3|    6|    1|
+    |    1|    1|    6|
+    |    1|    2|    5|
+    |    2|    3|    4|
+    |    2|    4|    3|
+    |    3|    5|    2|
+    |    3|    6|    1|
+    +=====+=====+=====+
+
+    g = t.groupby(keys=[&#39;A&#39;, &#39;C&#39;], functions=[(&#39;B&#39;, Sum)])
+
+    t2 = g.pivot(&#39;A&#39;)
+
+    t2.show()
+    +=====+==========+==========+==========+
+    |  C  |Sum(B,A=1)|Sum(B,A=2)|Sum(B,A=3)|
+    | int |   int    |   int    |   int    |
+    |False|   True   |   True   |   True   |
+    +-----+----------+----------+----------+
+    |    5|         4|      None|      None|
+    |    6|         2|      None|      None|
+    |    3|      None|         8|      None|
+    |    4|      None|         6|      None|
+    |    1|      None|      None|        12|
+    |    2|      None|      None|        10|
+    +=====+==========+==========+==========+
+    &#34;&#34;&#34;
+    columns = args
+    if not all(isinstance(i, str) for i in args):
+        raise TypeError(f&#34;column name not str: {[i for i in columns if not isinstance(i, str)]}&#34;)
+
+    if self._output is None:
+        return None
+
+    if self.aggregation_functions:
+        self._generate_table()
+
+    assert isinstance(self._output, Table)
+    if any(i not in self._output.columns for i in columns):
+        raise ValueError(f&#34;column not found in groupby: {[i not in self._output.columns for i in columns]}&#34;)
+
+    sort_order = {k: False for k in self.keys}
+    if not self._output.is_sorted(**sort_order):
+        self._output.sort(**sort_order)
+
+    t = Table()
+    for col_name, col in self._output.columns.items():  # add vertical groups.
+        if col_name in self.keys and col_name not in columns:
+            t.add_column(col_name, col.datatype, allow_empty=False)
+
+    tup_length = 0
+    for column_key in self._output.filter(*columns):  # add horizontal groups.
+        col_name = &#34;,&#34;.join(
+            f&#34;{h}={v}&#34; for h, v in zip(columns, column_key))  # expressed &#34;a=0,b=3&#34; in column name &#34;Sum(g, a=0,b=3)&#34;
+
+        for (header, function), function_instances in zip(self.groupby_functions, self._function_classes):
+            new_column_name = f&#34;{function.__name__}({header},{col_name})&#34;
+            if new_column_name not in t.columns:  # it&#39;s could be duplicate key value.
+                t.add_column(new_column_name, datatype=function_instances.datatype, allow_empty=True)
+                tup_length += 1
+            else:
+                pass  # it&#39;s a duplicate.
+
+    # add rows.
+    key_index = {k: i for i, k in enumerate(self._output.columns)}
+    old_v_keys = tuple(None for k in self.keys if k not in columns)
+
+    for row in self._output.rows:
+        v_keys = tuple(row[key_index[k]] for k in self.keys if k not in columns)
+        if v_keys != old_v_keys:
+            t.add_row(v_keys + tuple(None for i in range(tup_length)))
+            old_v_keys = v_keys
+
+        function_values = [v for h, v in zip(self._output.columns, row) if h not in self.keys]
+
+        col_name = &#34;,&#34;.join(f&#34;{h}={row[key_index[h]]}&#34; for h in columns)
+        for (header, function), fi in zip(self.groupby_functions, function_values):
+            column_key = f&#34;{function.__name__}({header},{col_name})&#34;
+            t[column_key][-1] = fi
+
+    return t</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="tablite.core.Table"><code class="flex name class">
+<span>class <span class="ident">Table</span></span>
+<span>(</span><span>**kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Table(object):
+    new_tables_use_disk = False
+
+    &#34;&#34;&#34; The main workhorse for data processing. &#34;&#34;&#34;
+    def __init__(self, **kwargs):
+        self.columns = {}
+        self._use_disk = kwargs.pop(&#39;use_disk&#39;, self.new_tables_use_disk)
+        self.metadata = {**kwargs}
+
+    @property
+    def use_disk(self):
+        return self._use_disk
+
+    @use_disk.setter
+    def use_disk(self, value):
+        if not isinstance(value, bool):
+            raise TypeError(str(value))
+        if self._use_disk == value:
+            return
+
+        self._use_disk = value
+        if value is True:
+            C = StoredColumn
+        else:
+            C = InMemoryColumn
+
+        for col_name, column in self.columns.items():
+            self.columns[col_name] = C(col_name, column.datatype, column.allow_empty, data=column)
+
+    def __eq__(self, other):
+        if not isinstance(other, Table):
+            a, b = self.__class__.__name__, other.__class__.__name__
+            raise TypeError(f&#34;cannot compare {a} with {b}&#34;)
+        if self.metadata != other.metadata:
+            return False
+        if not all(a == b for a, b in zip(self.columns.values(), other.columns.values())):
+            return False
+        return True
+
+    def __len__(self):
+        &#34;&#34;&#34; returns length of longest column.&#34;&#34;&#34;
+        if self.columns.values():
+            return max(len(c) for c in self.columns.values())
+        else:
+            return 0
+
+    def __bool__(self):
+        return any(self.columns)
+
+    def __copy__(self):
+        t = Table(use_disk=self._use_disk)
+        for col in self.columns.values():
+            t.add_column(col.header, col.datatype, col.allow_empty, data=col[:])
+        t.metadata = self.metadata.copy()
+        return t
+
+    def __repr__(self):
+        m = self.metadata.copy()
+        m[&#39;use_disk&#39;] = self._use_disk
+        kwargs = &#34;, &#34;.join(f&#34;{k}={v}&#34; for k, v in sorted(m.items()))
+        return f&#34;{self.__class__.__name__}({kwargs})&#34;
+
+    def __str__(self):
+        variation = &#34;&#34;
+        lengths = {k: len(v) for k, v in self.columns.items()}
+        if len(set(lengths.values())) != 1:
+            longest_col = max(lengths.values())
+            variation = f&#34;(except {&#39;, &#39;.join([f&#39;{k}({v})&#39; for k, v in lengths.items() if v &lt; longest_col])})&#34;
+        return f&#34;{self.__class__.__name__}() # {len(self.columns)} columns x {len(self)} rows {variation}&#34;
+
+    def copy_to_clipboard(self):
+        &#34;&#34;&#34; copy data from a Table into clipboard. &#34;&#34;&#34;
+        try:
+            s = [&#34;\t&#34;.join([f&#34;{name}&#34; for name in self.columns])]
+            for row in self.rows:
+                s.append(&#34;\t&#34;.join((str(i) for i in row)))
+            s = &#34;\n&#34;.join(s)
+            pyperclip.copy(s)
+        except MemoryError:
+            raise MemoryError(&#34;Cannot copy to clipboard. Select slice instead.&#34;)
+
+    @staticmethod
+    def copy_from_clipboard():
+        &#34;&#34;&#34; copy data from clipboard into Table. &#34;&#34;&#34;
+        tmpfile = tempfile(suffix=&#39;.csv&#39;)
+        with open(tmpfile, &#39;w&#39;) as fo:
+            fo.writelines(pyperclip.paste())
+        g = Table.from_file(tmpfile)
+        t = list(g)[0]
+        del t.metadata[&#39;filename&#39;]
+        return t
+
+    def show(self, *items, blanks=None, row_count=True, metadata=False):
+        &#34;&#34;&#34; shows the tablite.
+        param: items: column names
+
+        DEFAULT                   EXAMPLE
+
+        t.show()                  t.show(&#39;A&#39;, &#39;C&#39;, slice(4), blanks=&#34;-&#34;, metadata=True)
+        +=====+=====+=====+       +=====+=====+
+        |  A  |  B  |  C  |       |  A  |  C  |
+        | int | str | str |       | int | str |
+        |False|False| True|       |False| True|
+        +-----+-----+-----+       +-----+-----+
+        |    0|0x   |None |       |    0|-    |
+        |    1|1x   |1    |       |    1|1    |
+        |    2|2x   |None |       |    2|-    |
+        |    3|3x   |3    |       |    3|3    |
+        |    4|4x   |None |       +=====+=====+
+        |    5|5x   |5    |       (showing 4 of 10 rows)
+        |    6|6x   |None |       metadata:
+        |    7|7x   |7    |          filename d:\test_data.csv
+        |    8|8x   |None |
+        |    9|9x   |9    |
+        +=====+=====+=====+
+        showing all 10 rows
+
+            Table.show(&#39;A&#39;,&#39;C&#39;, blanks=&#34;&#34;, metadata=True
+
+        param: blanks: string to replace blanks (None is default) when shown.
+        param: row_count: bool: shows rowcount at the end.
+        param: metadata: bool: displays metadata at the end.
+        :returns None. Output is printed to stdout.
+        &#34;&#34;&#34;
+        if any(not isinstance(i, (str, slice)) for i in items):
+            raise SyntaxError(f&#34;unexpected input: {[not isinstance(i, (str, slice)) for i in items]}&#34;)
+
+        slices = [i for i in items if isinstance(i, slice)]
+        if len(slices) &gt; 2:
+            raise SyntaxError(&#34;1 &gt; slices&#34;)
+        if not slices:
+            slc = slice(0, len(self), None)
+        else:
+            slc = slices[0]
+        assert isinstance(slc, slice)
+
+        headers = [i for i in items if isinstance(i, str)]
+        if any(h not in self.columns for h in headers):
+            raise ValueError(f&#34;column not found: {[h for h in headers if h not in self.columns]}&#34;)
+        if not headers:
+            headers = list(self.columns)
+
+        # starting to produce output
+        c_lens = {}
+        for h in headers:
+            col = self.columns[h]
+            assert isinstance(col, (InMemoryColumn, StoredColumn))
+            c_lens[h] = max(
+                [len(col.header), len(str(col.datatype.__name__)), len(str(False))] + [len(str(v)) for v in col[slc]])
+
+        def adjust(v, length):
+            if v is None:
+                return str(blanks).ljust(length)
+            elif isinstance(v, str):
+                return v.ljust(length)
+            else:
+                return str(v).rjust(length)
+
+        rows = 0
+        print(&#34;+&#34;, &#34;+&#34;.join([&#34;=&#34; * c_lens[h] for h in headers]), &#34;+&#34;, sep=&#34;&#34;)
+        print(&#34;|&#34;, &#34;|&#34;.join([h.center(c_lens[h], &#34; &#34;) for h in headers]), &#34;|&#34;, sep=&#34;&#34;)
+        print(&#34;|&#34;, &#34;|&#34;.join([self.columns[h].datatype.__name__.center(c_lens[h], &#34; &#34;) for h in headers]), &#34;|&#34;, sep=&#34;&#34;)
+        print(&#34;|&#34;, &#34;|&#34;.join([str(self.columns[h].allow_empty).center(c_lens[h], &#34; &#34;) for h in headers]), &#34;|&#34;, sep=&#34;&#34;)
+        print(&#34;+&#34;, &#34;+&#34;.join([&#34;-&#34; * c_lens[h] for h in headers]), &#34;+&#34;, sep=&#34;&#34;)
+        for row in self.filter(*tuple(headers) + (slc,)):
+            print(&#34;|&#34;, &#34;|&#34;.join([adjust(v, c_lens[h]) for v, h in zip(row, headers)]), &#34;|&#34;, sep=&#34;&#34;)
+            rows += 1
+        print(&#34;+&#34;, &#34;+&#34;.join([&#34;=&#34; * c_lens[h] for h in headers]), &#34;+&#34;, sep=&#34;&#34;)
+
+        if row_count:
+            if rows != len(self):
+                print(f&#34;(showing {rows} of {len(self)} rows)&#34;)
+            elif len(self) &gt; 0:
+                print(f&#34;showing all {len(self)} rows&#34;)
+            else:
+                print(&#34;no rows&#34;)
+        if metadata:
+            print(&#34;metadata:&#34;)
+            for k, v in self.metadata.items():
+                print(&#34;  &#34;, k, v)
+
+    def copy(self):
+        return self.__copy__()
+
+    def to_json(self):
+        return json.dumps({
+            &#39;metadata&#39;: self.metadata,
+            &#39;columns&#39;: [c.to_json() for c in self.columns.values()]
+        })
+
+    @classmethod
+    def from_json(cls, json_):
+        t = Table()
+        data = json.loads(json_)
+        t.metadata = data[&#39;metadata&#39;]
+        for c in data[&#39;columns&#39;]:
+            if cls.new_tables_use_disk:
+                col = StoredColumn.from_json(c)
+            else:
+                col = InMemoryColumn.from_json(c)
+            col.header = t.check_for_duplicate_header(col.header)
+            t.columns[col.header] = col
+        return t
+
+    @classmethod
+    def from_file(cls, path, **kwargs):
+        &#34;&#34;&#34; reads path and returns 1 or more tables.
+        Use `list(Table.from_file(...))` to obtain all tables &#34;&#34;&#34;
+        for table in file_reader(path, **kwargs):
+            yield table
+
+    def copy_columns_only(self):
+        &#34;&#34;&#34;creates a new table with metadata but without the records&#34;&#34;&#34;
+        t = Table()
+        for col in self.columns.values():
+            t.add_column(col.header, col.datatype, col.allow_empty, data=[])
+        t.metadata = self.metadata.copy()
+        return t
+
+    def check_for_duplicate_header(self, header):
+        &#34;&#34;&#34; Helper used to detect duplicate headers.
+        :return valid header name
+        &#34;&#34;&#34;
+        assert isinstance(header, str)
+        if not header:
+            header = &#39;None&#39;
+        new_header = header
+        counter = count(start=1)
+        while new_header in self.columns:
+            new_header = f&#34;{header}_{next(counter)}&#34;  # valid attr names must be ascii.
+        return new_header
+
+    def rename_column(self, header, new_name):
+        &#34;&#34;&#34;
+        :param header: current header name
+        :param new_name: new name
+        :return: None.
+        &#34;&#34;&#34;
+        if new_name != self.check_for_duplicate_header(new_name):
+            raise ValueError(f&#34;header name {new_name} is already in use.&#34;)
+
+        order = list(self.columns)
+        d = {}
+        for name in order:
+            if name == header:
+                d[new_name] = self.columns[name]
+                d[new_name].header = new_name
+            else:
+                d[name] = self.columns[name]
+        self.columns = d
+
+    def add_column(self, header, datatype, allow_empty=False, data=None):
+        &#34;&#34;&#34;
+        :param header: str name of column
+        :param datatype: from: int, str, float, bool, date, datetime, time
+        :param allow_empty: bool
+        :param data: list of values of given datatype.
+        &#34;&#34;&#34;
+        assert isinstance(header, str)
+        header = self.check_for_duplicate_header(header)
+        if self._use_disk is False:
+            self.columns[header] = InMemoryColumn(header, datatype, allow_empty, data=data)
+        else:
+            self.columns[header] = StoredColumn(header, datatype, allow_empty, data=data)
+
+    def add_row(self, *args, **kwargs):
+        &#34;&#34;&#34; Adds row(s) to the tablite.
+        :param args: see below
+        :param kwargs: see below
+        :return: None
+
+        Example:
+
+            t = Table()
+            t.add_column(&#39;A&#39;, int)
+            t.add_column(&#39;B&#39;, int)
+            t.add_column(&#39;C&#39;, int)
+
+        The following examples are all valid and append the row (1,2,3) to the tablite.
+
+            t.add_row(1,2,3)
+            t.add_row([1,2,3])
+            t.add_row((1,2,3))
+            t.add_row(*(1,2,3))
+            t.add_row(A=1, B=2, C=3)
+            t.add_row(**{&#39;A&#39;:1, &#39;B&#39;:2, &#39;C&#39;:3})
+
+        The following examples add two rows to the tablite
+
+            t.add_row((1,2,3), (4,5,6))
+            t.add_row([1,2,3], [4,5,6])
+            t.add_row({&#39;A&#39;:1, &#39;B&#39;:2, &#39;C&#39;:3}, {&#39;A&#39;:4, &#39;B&#39;:5, &#39;C&#39;:6}) # two (or more) dicts as args.
+            t.add_row([{&#39;A&#39;:1, &#39;B&#39;:2, &#39;C&#39;:3}, {&#39;A&#39;:1, &#39;B&#39;:2, &#39;C&#39;:3}]) # list of dicts.
+
+        &#34;&#34;&#34;
+        if args:
+            if not any(isinstance(i, (list, tuple, dict)) for i in args):
+                if len(args) == len(self.columns):
+                    args = (args,)
+                elif len(args) &lt; len(self.columns):
+                    raise TypeError(f&#34;{args} doesn&#39;t match the number of columns. Are values missing?&#34;)
+                elif len(args) &gt; len(self.columns):
+                    raise TypeError(f&#34;{args} doesn&#39;t match the number of columns. Too many values?&#34;)
+                else:
+                    raise TypeError(f&#34;{args} doesn&#39;t match the format of the tablite.&#34;)
+
+            for arg in args:
+                if len(arg) != len(self.columns):
+                    raise ValueError(f&#34;expected {len(self.columns)} columns, not {len(arg)}: {arg}&#34;)
+
+                if isinstance(arg, (list, tuple)):
+                    for value, col in zip(arg, self.columns.values()):
+                        col.append(value)
+
+                elif isinstance(arg, dict):
+                    for k, value in arg.items():
+                        col = self.columns.get(k, None)
+                        if col is None:
+                            raise ValueError(f&#34;column {k} unknown: {list(self.columns)}&#34;)
+                        assert isinstance(col, (InMemoryColumn, StoredColumn))
+                        col.append(value)
+                else:
+                    raise TypeError(f&#34;no handler for {type(arg)}s: {arg}&#34;)
+
+        if kwargs:
+            if len(kwargs) &lt; len(self.columns):
+                missing = [k for k in kwargs if k not in self.columns]
+                raise ValueError(f&#34;expected {len(self.columns)} columns, not {len(kwargs)}: Missing columns: {missing}&#34;)
+            elif len(kwargs) &gt; len(self.columns):
+                excess = [k for k in kwargs if k not in self.columns]
+                raise ValueError(f&#34;expected {len(self.columns)} columns, not {len(kwargs)}: Excess columns: {excess}&#34;)
+            else:
+                pass  # looks alright.
+
+            for k, value in kwargs.items():
+                col = self.columns.get(k, None)
+                if col is None:
+                    raise ValueError(f&#34;column {k} unknown: {list(self.columns)}&#34;)
+                assert isinstance(col, (InMemoryColumn, StoredColumn))
+                col.append(value)
+            return
+
+    def __contains__(self, item):
+        return item in self.columns
+
+    def __iter__(self):
+        raise AttributeError(&#34;use Table.rows or Table.columns&#34;)
+
+    def _slice(self, item=None):
+        &#34;&#34;&#34; transforms a slice into start,stop,step&#34;&#34;&#34;
+        if not item:
+            item = slice(None, len(self), None)
+        else:
+            assert isinstance(item, slice)
+
+        if item.stop &lt; 0:
+            start = len(self) + item.stop
+            stop = len(self)
+            step = 1 if item.step is None else item.step
+        else:
+            start = 0 if item.start is None else item.start
+            stop = item.stop
+            step = 1 if item.step is None else item.step
+        return start, stop, step
+
+    def __getitem__(self, item):
+        &#34;&#34;&#34; returns rows as a tuple &#34;&#34;&#34;
+        if isinstance(item, int):
+            item = slice(item, item + 1, 1)
+        if isinstance(item, slice):
+            t = Table(use_disk=self._use_disk)
+            for col in self.columns.values():
+                t.add_column(col.header, col.datatype, col.allow_empty, col[item])
+            return t
+        else:
+            return self.columns[item]
+
+    def __setitem__(self, key, value):
+        if key in self.columns and isinstance(value, list):
+            c = self.columns[key]
+            c.clear()
+            for v in value:
+                c.append(v)
+        else:
+            raise TypeError(f&#34;Use add_column to add_column: {key}&#34;)
+
+    def __delitem__(self, key):
+        &#34;&#34;&#34; delete column as key &#34;&#34;&#34;
+        if key in self.columns:
+            del self.columns[key]
+        else:
+            raise KeyError(f&#34;key not found&#34;)
+
+    def __setattr__(self, name, value):
+        if isinstance(name, str) and hasattr(self, name):
+            if name in self.columns and isinstance(value, list):
+                col = self.columns[name]
+                col.replace(value)
+                return
+        super().__setattr__(name, value)
+
+    def compare(self, other):
+        &#34;&#34;&#34; compares the metadata of two tables.&#34;&#34;&#34;
+        if not isinstance(other, Table):
+            a, b = self.__class__.__name__, other.__class__.__name__
+            raise TypeError(f&#34;cannot compare type {b} with {a}&#34;)
+
+        # if self.metadata != other.metadata:  # TODO: Develop better theory of what to do with metadata when concatenating.
+        #     raise ValueError(&#34;tables have different metadata.&#34;)
+        for a, b in [[self, other], [other, self]]:  # check both dictionaries.
+            for name, col in a.columns.items():
+                if name not in b.columns:
+                    raise ValueError(f&#34;Column {name} not in other&#34;)
+                col2 = b.columns[name]
+                if col.datatype != col2.datatype:
+                    raise ValueError(f&#34;Column {name}.datatype different: {col.datatype}, {col2.datatype}&#34;)
+                if col.allow_empty != col2.allow_empty:
+                    raise ValueError(f&#34;Column {name}.allow_empty is different&#34;)
+        return True
+
+    def __iadd__(self, other):
+        &#34;&#34;&#34; enables Table_1 += Table_2 &#34;&#34;&#34;
+        self.compare(other)
+        for h, col in self.columns.items():
+            c2 = other.columns[h]
+            col.extend(c2[:])
+        return self
+
+    def __add__(self, other):
+        &#34;&#34;&#34; enables Table_3 = Table_1 + Table_2 &#34;&#34;&#34;
+        self.compare(other)
+        cp = self.copy()
+        for h, col in cp.columns.items():
+            c2 = other.columns[h]
+            col.extend(c2[:])
+        return cp
+
+    @property
+    def rows(self):
+        &#34;&#34;&#34; enables iteration
+
+        for row in tablite.rows:
+            print(row)
+
+        &#34;&#34;&#34;
+        for ix in range(len(self)):
+            yield tuple(c[ix] if ix &lt; len(c) else None for c in self.columns.values())
+
+    def index(self, *args):
+        &#34;&#34;&#34; Creates index on *args columns as d[(key tuple, )] = {index1, index2, ...} &#34;&#34;&#34;
+        idx = defaultdict(set)
+        for ix, key in enumerate(self.filter(*args)):
+            idx[key].add(ix)
+        return idx
+
+    def _sort_index(self, **kwargs):
+        &#34;&#34;&#34; Helper for methods `sort` and `is_sorted` &#34;&#34;&#34;
+        if not isinstance(kwargs, dict):
+            raise ValueError(&#34;Expected keyword arguments&#34;)
+        if not kwargs:
+            kwargs = {c: False for c in self.columns}
+
+        for k, v in kwargs.items():
+            if k not in self.columns:
+                raise ValueError(f&#34;no column {k}&#34;)
+            if not isinstance(v, bool):
+                raise ValueError(f&#34;{k} was mapped to {v} - a non-boolean&#34;)
+        none_substitute = float(&#39;-inf&#39;)
+
+        rank = {i: tuple() for i in range(len(self))}
+        for key in kwargs:
+            unique_values = {v: 0 for v in self.columns[key] if v is not None}
+            for r, v in enumerate(sorted(unique_values, reverse=kwargs[key])):
+                unique_values[v] = r
+            for ix, v in enumerate(self.columns[key]):
+                rank[ix] += (unique_values.get(v, none_substitute),)
+
+        new_order = [(r, i) for i, r in rank.items()]  # tuples are listed and sort...
+        new_order.sort()
+        sorted_index = [i for r, i in new_order]  # new index is extracted.
+
+        rank.clear()  # free memory.
+        new_order.clear()
+
+        return sorted_index
+
+    def sort(self, **kwargs):
+        &#34;&#34;&#34; Perform multi-pass sorting with precedence given order of column names.
+        :param kwargs: keys: columns, values: &#39;reverse&#39; as boolean.
+        &#34;&#34;&#34;
+        sorted_index = self._sort_index(**kwargs)
+        for col_name, col in self.columns.items():
+            assert isinstance(col, (StoredColumn, InMemoryColumn))
+            col.replace(values=[col[ix] for ix in sorted_index])
+
+    def is_sorted(self, **kwargs):
+        &#34;&#34;&#34; Performs multi-pass sorting check with precedence given order of column names.
+        :return bool
+        &#34;&#34;&#34;
+        sorted_index = self._sort_index(**kwargs)
+        if any(ix != i for ix, i in enumerate(sorted_index)):
+            return False
+        return True
+
+    def filter(self, *items):
+        &#34;&#34;&#34; enables iteration on a limited number of headers:
+
+        &gt;&gt;&gt; tablite.columns
+        &#39;a&#39;,&#39;b&#39;,&#39;c&#39;,&#39;d&#39;,&#39;e&#39;
+
+        for row in tablite.filter(&#39;b&#39;, &#39;a&#39;, &#39;a&#39;, &#39;c&#39;):
+            b,a,a,c = row ...
+
+        returns values in same order as headers. &#34;&#34;&#34;
+        if any(not isinstance(i, (str, slice)) for i in items):
+            raise SyntaxError(f&#34;unexpected input: {[not isinstance(i, (str, slice)) for i in items]}&#34;)
+
+        slices = [i for i in items if isinstance(i, slice)]
+        if len(slices) &gt; 2:
+            raise SyntaxError(&#34;1 &gt; slices&#34;)
+
+        if not slices:
+            slc = slice(None, len(self), None)
+        else:
+            slc = slices[0]
+        assert isinstance(slc, slice)
+
+        headers = [i for i in items if isinstance(i, str)]
+        if any(h not in self.columns for h in headers):
+            raise ValueError(f&#34;column not found: {[h for h in headers if h not in self.columns]}&#34;)
+
+        start, stop, step = DataTypes.infer_range_from_slice(slc, len(self))
+        if step &gt; 0 and start &gt; stop:  # this wont work for range.
+            return
+        if step &lt; 0 and start &lt; stop:  # this wont work for range.
+            return
+
+        L = [self.columns[h] for h in headers]
+        for ix in range(start, stop, step):
+            item = tuple(c[ix] if ix &lt; len(c) else None for c in L)
+            yield item
+
+    def all(self, **kwargs):
+        &#34;&#34;&#34;
+        returns Table for rows where ALL kwargs match
+        :param kwargs: dictionary with headers and values / boolean callable
+        &#34;&#34;&#34;
+        if not isinstance(kwargs, dict):
+            raise TypeError(&#34;did you remember to add the ** in front of your dict?&#34;)
+        if not all(k in self.columns for k in kwargs):
+            raise ValueError(f&#34;Unknown column(s): {[k for k in kwargs if k not in self.columns]}&#34;)
+
+        ixs = None
+        for k, v in kwargs.items():
+            col = self.columns[k]
+            if ixs is None:  # first header.
+                if callable(v):
+                    ix2 = {ix for ix, i in enumerate(col) if v(i)}
+                else:
+                    ix2 = {ix for ix, i in enumerate(col) if v == i}
+
+            else:  # remaining headers.
+                if callable(v):
+                    ix2 = {ix for ix in ixs if v(col[ix])}
+                else:
+                    ix2 = {ix for ix in ixs if v == col[ix]}
+
+            if not isinstance(ixs, set):
+                ixs = ix2
+            else:
+                ixs = ixs.intersection(ix2)
+
+            if not ixs:  # There are no matches.
+                break
+
+        t = Table(use_disk=self._use_disk)
+        for col in self.columns.values():
+            t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
+        return t
+
+    def any(self, **kwargs):
+        &#34;&#34;&#34;
+        returns Table for rows where ANY kwargs match
+        :param kwargs: dictionary with headers and values / boolean callable
+        &#34;&#34;&#34;
+        if not isinstance(kwargs, dict):
+            raise TypeError(&#34;did you remember to add the ** in front of your dict?&#34;)
+
+        ixs = set()
+        for k, v in kwargs.items():
+            col = self.columns[k]
+            if callable(v):
+                ix2 = {ix for ix, r in enumerate(col) if v(r)}
+            else:
+                ix2 = {ix for ix, r in enumerate(col) if v == r}
+            ixs.update(ix2)
+
+        t = Table(use_disk=self._use_disk)
+        for col in self.columns.values():
+            t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
+        return t
+
+    def _join_type_check(self, other, left_keys, right_keys, left_columns, right_columns):
+        if not isinstance(other, Table):
+            raise TypeError(f&#34;other expected other to be type Table, not {type(other)}&#34;)
+
+        if not isinstance(left_keys, list) and all(isinstance(k, str) for k in left_keys):
+            raise TypeError(f&#34;Expected keys as list of strings, not {type(left_keys)}&#34;)
+        if not isinstance(right_keys, list) and all(isinstance(k, str) for k in right_keys):
+            raise TypeError(f&#34;Expected keys as list of strings, not {type(right_keys)}&#34;)
+
+        if any(key not in self.columns for key in left_keys):
+            raise ValueError(f&#34;left key(s) not found: {[k for k in left_keys if k not in self.columns]}&#34;)
+        if any(key not in other.columns for key in right_keys):
+            raise ValueError(f&#34;right key(s) not found: {[k for k in right_keys if k not in other.columns]}&#34;)
+
+        if len(left_keys) != len(right_keys):
+            raise ValueError(f&#34;Keys do not have same length: \n{left_keys}, \n{right_keys}&#34;)
+
+        for L, R in zip(left_keys, right_keys):
+            Lcol, Rcol = self.columns[L], other.columns[R]
+            if Lcol.datatype != Rcol.datatype:
+                raise TypeError(f&#34;{L} is {Lcol.datatype}, but {R} is {Rcol.datatype}&#34;)
+
+        if not isinstance(left_columns, list) or not left_columns:
+            raise TypeError(&#34;left_columns (list of strings) are required&#34;)
+        if any(column not in self for column in left_columns):
+            raise ValueError(f&#34;Column not found: {[c for c in left_columns if c not in self.columns]}&#34;)
+
+        if not isinstance(right_columns, list) or not right_columns:
+            raise TypeError(&#34;right_columns (list or strings) are required&#34;)
+        if any(column not in other for column in right_columns):
+            raise ValueError(f&#34;Column not found: {[c for c in right_columns if c not in other.columns]}&#34;)
+        # Input is now guaranteed to be valid.
+
+    def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
+        &#34;&#34;&#34;
+        :param other: self, other = (left, right)
+        :param left_keys: list of keys for the join
+        :param right_keys: list of keys for the join
+        :param left_columns: list of left columns to retain, if None, all are retained.
+        :param right_columns: list of right columns to retain, if None, all are retained.
+        :return: new Table
+
+        Example:
+        SQL:   SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
+        Tablite: left_join = numbers.left_join(letters, left_keys=[&#39;colour&#39;], right_keys=[&#39;color&#39;], left_columns=[&#39;number&#39;], right_columns=[&#39;letter&#39;])
+        &#34;&#34;&#34;
+        if left_columns is None:
+            left_columns = list(self.columns)
+        if right_columns is None:
+            right_columns = list(other.columns)
+
+        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+
+        left_join = Table(use_disk=self._use_disk)
+        for col_name in left_columns:
+            col = self.columns[col_name]
+            left_join.add_column(col_name, col.datatype, allow_empty=True)
+
+        right_join_col_name = {}
+        for col_name in right_columns:
+            col = other.columns[col_name]
+            revised_name = left_join.check_for_duplicate_header(col_name)
+            right_join_col_name[revised_name] = col_name
+            left_join.add_column(revised_name, col.datatype, allow_empty=True)
+
+        left_ixs = range(len(self))
+        right_idx = other.index(*right_keys)
+
+        for left_ix in left_ixs:
+            key = tuple(self[h][left_ix] for h in left_keys)
+            right_ixs = right_idx.get(key, (None,))
+            for right_ix in right_ixs:
+                for col_name, column in left_join.columns.items():
+                    if col_name in self:
+                        column.append(self[col_name][left_ix])
+                    elif col_name in right_join_col_name:
+                        original_name = right_join_col_name[col_name]
+                        if right_ix is not None:
+                            column.append(other[original_name][right_ix])
+                        else:
+                            column.append(None)
+                    else:
+                        raise Exception(&#39;bad logic&#39;)
+        return left_join
+
+    def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
+        &#34;&#34;&#34;
+        :param other: self, other = (left, right)
+        :param left_keys: list of keys for the join
+        :param right_keys: list of keys for the join
+        :param left_columns: list of left columns to retain, if None, all are retained.
+        :param right_columns: list of right columns to retain, if None, all are retained.
+        :return: new Table
+
+        Example:
+        SQL:   SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
+        Tablite: inner_join = numbers.inner_join(letters, left_keys=[&#39;colour&#39;], right_keys=[&#39;color&#39;], left_columns=[&#39;number&#39;], right_columns=[&#39;letter&#39;])
+        &#34;&#34;&#34;
+        if left_columns is None:
+            left_columns = list(self.columns)
+        if right_columns is None:
+            right_columns = list(other.columns)
+
+        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+
+        inner_join = Table(use_disk=self._use_disk)
+        for col_name in left_columns:
+            col = self.columns[col_name]
+            inner_join.add_column(col_name, col.datatype, allow_empty=True)
+
+        right_join_col_name = {}
+        for col_name in right_columns:
+            col = other.columns[col_name]
+            revised_name = inner_join.check_for_duplicate_header(col_name)
+            right_join_col_name[revised_name] = col_name
+            inner_join.add_column(revised_name, col.datatype, allow_empty=True)
+
+        key_union = set(self.filter(*left_keys)).intersection(set(other.filter(*right_keys)))
+
+        left_ixs = self.index(*left_keys)
+        right_ixs = other.index(*right_keys)
+
+        for key in sorted(key_union):
+            for left_ix in left_ixs.get(key, set()):
+                for right_ix in right_ixs.get(key, set()):
+                    for col_name, column in inner_join.columns.items():
+                        if col_name in self:
+                            column.append(self[col_name][left_ix])
+                        else:  # col_name in right_join_col_name:
+                            original_name = right_join_col_name[col_name]
+                            column.append(other[original_name][right_ix])
+
+        return inner_join
+
+    def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
+        &#34;&#34;&#34;
+        :param other: self, other = (left, right)
+        :param left_keys: list of keys for the join
+        :param right_keys: list of keys for the join
+        :param left_columns: list of left columns to retain, if None, all are retained.
+        :param right_columns: list of right columns to retain, if None, all are retained.
+        :return: new Table
+
+        Example:
+        SQL:   SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
+        Tablite: outer_join = numbers.outer_join(letters, left_keys=[&#39;colour&#39;], right_keys=[&#39;color&#39;], left_columns=[&#39;number&#39;], right_columns=[&#39;letter&#39;])
+        &#34;&#34;&#34;
+        if left_columns is None:
+            left_columns = list(self.columns)
+        if right_columns is None:
+            right_columns = list(other.columns)
+
+        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+
+        outer_join = Table(use_disk=self._use_disk)
+        for col_name in left_columns:
+            col = self.columns[col_name]
+            outer_join.add_column(col_name, col.datatype, allow_empty=True)
+
+        right_join_col_name = {}
+        for col_name in right_columns:
+            col = other.columns[col_name]
+            revised_name = outer_join.check_for_duplicate_header(col_name)
+            right_join_col_name[revised_name] = col_name
+            outer_join.add_column(revised_name, col.datatype, allow_empty=True)
+
+        left_ixs = range(len(self))
+        right_idx = other.index(*right_keys)
+        right_keyset = set(right_idx)
+
+        for left_ix in left_ixs:
+            key = tuple(self[h][left_ix] for h in left_keys)
+            right_ixs = right_idx.get(key, (None,))
+            right_keyset.discard(key)
+            for right_ix in right_ixs:
+                for col_name, column in outer_join.columns.items():
+                    if col_name in self:
+                        column.append(self[col_name][left_ix])
+                    elif col_name in right_join_col_name:
+                        original_name = right_join_col_name[col_name]
+                        if right_ix is not None:
+                            column.append(other[original_name][right_ix])
+                        else:
+                            column.append(None)
+                    else:
+                        raise Exception(&#39;bad logic&#39;)
+
+        for right_key in right_keyset:
+            for right_ix in right_idx[right_key]:
+                for col_name, column in outer_join.columns.items():
+                    if col_name in self:
+                        column.append(None)
+                    elif col_name in right_join_col_name:
+                        original_name = right_join_col_name[col_name]
+                        column.append(other[original_name][right_ix])
+                    else:
+                        raise Exception(&#39;bad logic&#39;)
+        return outer_join
+
+    def groupby(self, keys, functions):
+        &#34;&#34;&#34;
+        :param keys: headers for grouping
+        :param functions: list of headers and functions.
+        :return: GroupBy class
+
+        Example usage:
+            from tablite import Table
+
+            t = Table()
+            t.add_column(&#39;date&#39;, int, allow_empty=False, data=[1,1,1,2,2,2])
+            t.add_column(&#39;sku&#39;, int, allow_empty=False, data=[1,2,3,1,2,3])
+            t.add_column(&#39;qty&#39;, int, allow_empty=False, data=[4,5,4,5,3,7])
+
+            from tablite import GroupBy, Sum
+
+            g = t.groupby(keys=[&#39;sku&#39;], functions=[(&#39;qty&#39;, Sum)])
+            g.tablite.show()
+
+        &#34;&#34;&#34;
+        g = GroupBy(keys=keys, functions=functions)
+        g += self
+        return g
+
+    def lookup(self, other, *criteria, all=True):
+        &#34;&#34;&#34; function for looking up values in other according to criteria
+        :param: other: Table
+        :param: criteria: Each criteria must be a tuple with value comparisons in the form:
+            (LEFT, OPERATOR, RIGHT)
+        :param: all: boolean: True=ALL, False=Any
+
+        OPERATOR must be a callable that returns a boolean
+        LEFT must be a value that the OPERATOR can compare.
+        RIGHT must be a value that the OPERATOR can compare.
+
+        Examples:
+              (&#39;column A&#39;, &#34;==&#34;, &#39;column B&#39;)  # comparison of two columns
+              (&#39;Date&#39;, &#34;&lt;&#34;, DataTypes.date(24,12) )  # value from column &#39;Date&#39; is before 24/12.
+
+              f = lambda L,R: all( ord(L) &lt; ord(R) )  # uses custom function.
+
+              (&#39;text 1&#39;, f, &#39;text 2&#39;)
+
+              value from column &#39;text 1&#39; is compared with value from column &#39;text 2&#39;
+
+        &#34;&#34;&#34;
+        assert isinstance(self, Table)
+        assert isinstance(other, Table)
+
+        all = all
+        any = not all
+
+        def not_in(a, b):
+            return not operator.contains(a, b)
+
+        ops = {
+            &#34;in&#34;: operator.contains,
+            &#34;not in&#34;: not_in,
+            &#34;&lt;&#34;: operator.lt,
+            &#34;&lt;=&#34;: operator.le,
+            &#34;&gt;&#34;: operator.gt,
+            &#34;&gt;=&#34;: operator.ge,
+            &#34;!=&#34;: operator.ne,
+            &#34;==&#34;: operator.eq,
+        }
+
+        table3 = Table(use_disk=self._use_disk)
+        for name, col in chain(self.columns.items(), other.columns.items()):
+            table3.add_column(name, col.datatype, allow_empty=True)
+
+        functions, left_columns, right_columns = [], set(), set()
+
+        for left, op, right in criteria:
+            left_columns.add(left)
+            right_columns.add(right)
+            if callable(op):
+                pass  # it&#39;s a custom function.
+            else:
+                op = ops.get(op, None)
+                if not callable(op):
+                    raise ValueError(f&#34;{op} not a recognised operator for comparison.&#34;)
+
+            functions.append((op, left, right))
+
+        lru_cache = {}
+        empty_row = tuple(None for _ in other.columns)
+
+        for row1 in self.rows:
+            row1_tup = tuple(v for v, name in zip(row1, self.columns) if name in left_columns)
+            row1d = {name: value for name, value in zip(self.columns, row1) if name in left_columns}
+
+            match_found = True if row1_tup in lru_cache else False
+
+            if not match_found:  # search.
+                for row2 in other.rows:
+                    row2d = {name: value for name, value in zip(other.columns, row2) if name in right_columns}
+
+                    evaluations = [op(row1d.get(left, left), row2d.get(right, right)) for op, left, right in functions]
+                    # The evaluations above does a neat trick:
+                    # as L is a dict, L.get(left, L) will return a value
+                    # from the columns IF left is a column name. If it isn&#39;t
+                    # the function will treat left as a value.
+                    # The same applies to right.
+
+                    if all and not False in evaluations:
+                        match_found = True
+                        lru_cache[row1_tup] = row2
+                        break
+                    elif any and True in evaluations:
+                        match_found = True
+                        lru_cache[row1_tup] = row2
+                        break
+                    else:
+                        continue
+
+            if not match_found:  # no match found.
+                lru_cache[row1_tup] = empty_row
+
+            new_row = row1 + lru_cache[row1_tup]
+
+            table3.add_row(new_row)
+
+        return table3</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="tablite.core.Table.new_tables_use_disk"><code class="name">var <span class="ident">new_tables_use_disk</span></code></dt>
+<dd>
+<div class="desc"><p>The main workhorse for data processing.</p></div>
+</dd>
+</dl>
+<h3>Static methods</h3>
+<dl>
+<dt id="tablite.core.Table.copy_from_clipboard"><code class="name flex">
+<span>def <span class="ident">copy_from_clipboard</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>copy data from clipboard into Table.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@staticmethod
+def copy_from_clipboard():
+    &#34;&#34;&#34; copy data from clipboard into Table. &#34;&#34;&#34;
+    tmpfile = tempfile(suffix=&#39;.csv&#39;)
+    with open(tmpfile, &#39;w&#39;) as fo:
+        fo.writelines(pyperclip.paste())
+    g = Table.from_file(tmpfile)
+    t = list(g)[0]
+    del t.metadata[&#39;filename&#39;]
+    return t</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.from_file"><code class="name flex">
+<span>def <span class="ident">from_file</span></span>(<span>path, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>reads path and returns 1 or more tables.
+Use <code>list(<a title="tablite.core.Table.from_file" href="#tablite.core.Table.from_file">Table.from_file()</a>(&hellip;))</code> to obtain all tables</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@classmethod
+def from_file(cls, path, **kwargs):
+    &#34;&#34;&#34; reads path and returns 1 or more tables.
+    Use `list(Table.from_file(...))` to obtain all tables &#34;&#34;&#34;
+    for table in file_reader(path, **kwargs):
+        yield table</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.from_json"><code class="name flex">
+<span>def <span class="ident">from_json</span></span>(<span>json_)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@classmethod
+def from_json(cls, json_):
+    t = Table()
+    data = json.loads(json_)
+    t.metadata = data[&#39;metadata&#39;]
+    for c in data[&#39;columns&#39;]:
+        if cls.new_tables_use_disk:
+            col = StoredColumn.from_json(c)
+        else:
+            col = InMemoryColumn.from_json(c)
+        col.header = t.check_for_duplicate_header(col.header)
+        t.columns[col.header] = col
+    return t</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Instance variables</h3>
+<dl>
+<dt id="tablite.core.Table.rows"><code class="name">var <span class="ident">rows</span></code></dt>
+<dd>
+<div class="desc"><p>enables iteration</p>
+<p>for row in tablite.rows:
+print(row)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def rows(self):
+    &#34;&#34;&#34; enables iteration
+
+    for row in tablite.rows:
+        print(row)
+
+    &#34;&#34;&#34;
+    for ix in range(len(self)):
+        yield tuple(c[ix] if ix &lt; len(c) else None for c in self.columns.values())</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.use_disk"><code class="name">var <span class="ident">use_disk</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def use_disk(self):
+    return self._use_disk</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="tablite.core.Table.add_column"><code class="name flex">
+<span>def <span class="ident">add_column</span></span>(<span>self, header, datatype, allow_empty=False, data=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>:param header: str name of column
+:param datatype: from: int, str, float, bool, date, datetime, time
+:param allow_empty: bool
+:param data: list of values of given datatype.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def add_column(self, header, datatype, allow_empty=False, data=None):
+    &#34;&#34;&#34;
+    :param header: str name of column
+    :param datatype: from: int, str, float, bool, date, datetime, time
+    :param allow_empty: bool
+    :param data: list of values of given datatype.
+    &#34;&#34;&#34;
+    assert isinstance(header, str)
+    header = self.check_for_duplicate_header(header)
+    if self._use_disk is False:
+        self.columns[header] = InMemoryColumn(header, datatype, allow_empty, data=data)
+    else:
+        self.columns[header] = StoredColumn(header, datatype, allow_empty, data=data)</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.add_row"><code class="name flex">
+<span>def <span class="ident">add_row</span></span>(<span>self, *args, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Adds row(s) to the tablite.
+:param args: see below
+:param kwargs: see below
+:return: None</p>
+<h2 id="example">Example</h2>
+<p>t = Table()
+t.add_column('A', int)
+t.add_column('B', int)
+t.add_column('C', int)</p>
+<p>The following examples are all valid and append the row (1,2,3) to the tablite.</p>
+<pre><code>t.add_row(1,2,3)
+t.add_row([1,2,3])
+t.add_row((1,2,3))
+t.add_row(*(1,2,3))
+t.add_row(A=1, B=2, C=3)
+t.add_row(**{'A':1, 'B':2, 'C':3})
+</code></pre>
+<p>The following examples add two rows to the tablite</p>
+<pre><code>t.add_row((1,2,3), (4,5,6))
+t.add_row([1,2,3], [4,5,6])
+t.add_row({'A':1, 'B':2, 'C':3}, {'A':4, 'B':5, 'C':6}) # two (or more) dicts as args.
+t.add_row([{'A':1, 'B':2, 'C':3}, {'A':1, 'B':2, 'C':3}]) # list of dicts.
+</code></pre></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def add_row(self, *args, **kwargs):
+    &#34;&#34;&#34; Adds row(s) to the tablite.
+    :param args: see below
+    :param kwargs: see below
+    :return: None
+
+    Example:
+
+        t = Table()
+        t.add_column(&#39;A&#39;, int)
+        t.add_column(&#39;B&#39;, int)
+        t.add_column(&#39;C&#39;, int)
+
+    The following examples are all valid and append the row (1,2,3) to the tablite.
+
+        t.add_row(1,2,3)
+        t.add_row([1,2,3])
+        t.add_row((1,2,3))
+        t.add_row(*(1,2,3))
+        t.add_row(A=1, B=2, C=3)
+        t.add_row(**{&#39;A&#39;:1, &#39;B&#39;:2, &#39;C&#39;:3})
+
+    The following examples add two rows to the tablite
+
+        t.add_row((1,2,3), (4,5,6))
+        t.add_row([1,2,3], [4,5,6])
+        t.add_row({&#39;A&#39;:1, &#39;B&#39;:2, &#39;C&#39;:3}, {&#39;A&#39;:4, &#39;B&#39;:5, &#39;C&#39;:6}) # two (or more) dicts as args.
+        t.add_row([{&#39;A&#39;:1, &#39;B&#39;:2, &#39;C&#39;:3}, {&#39;A&#39;:1, &#39;B&#39;:2, &#39;C&#39;:3}]) # list of dicts.
+
+    &#34;&#34;&#34;
+    if args:
+        if not any(isinstance(i, (list, tuple, dict)) for i in args):
+            if len(args) == len(self.columns):
+                args = (args,)
+            elif len(args) &lt; len(self.columns):
+                raise TypeError(f&#34;{args} doesn&#39;t match the number of columns. Are values missing?&#34;)
+            elif len(args) &gt; len(self.columns):
+                raise TypeError(f&#34;{args} doesn&#39;t match the number of columns. Too many values?&#34;)
+            else:
+                raise TypeError(f&#34;{args} doesn&#39;t match the format of the tablite.&#34;)
+
+        for arg in args:
+            if len(arg) != len(self.columns):
+                raise ValueError(f&#34;expected {len(self.columns)} columns, not {len(arg)}: {arg}&#34;)
+
+            if isinstance(arg, (list, tuple)):
+                for value, col in zip(arg, self.columns.values()):
+                    col.append(value)
+
+            elif isinstance(arg, dict):
+                for k, value in arg.items():
+                    col = self.columns.get(k, None)
+                    if col is None:
+                        raise ValueError(f&#34;column {k} unknown: {list(self.columns)}&#34;)
+                    assert isinstance(col, (InMemoryColumn, StoredColumn))
+                    col.append(value)
+            else:
+                raise TypeError(f&#34;no handler for {type(arg)}s: {arg}&#34;)
+
+    if kwargs:
+        if len(kwargs) &lt; len(self.columns):
+            missing = [k for k in kwargs if k not in self.columns]
+            raise ValueError(f&#34;expected {len(self.columns)} columns, not {len(kwargs)}: Missing columns: {missing}&#34;)
+        elif len(kwargs) &gt; len(self.columns):
+            excess = [k for k in kwargs if k not in self.columns]
+            raise ValueError(f&#34;expected {len(self.columns)} columns, not {len(kwargs)}: Excess columns: {excess}&#34;)
+        else:
+            pass  # looks alright.
+
+        for k, value in kwargs.items():
+            col = self.columns.get(k, None)
+            if col is None:
+                raise ValueError(f&#34;column {k} unknown: {list(self.columns)}&#34;)
+            assert isinstance(col, (InMemoryColumn, StoredColumn))
+            col.append(value)
+        return</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.all"><code class="name flex">
+<span>def <span class="ident">all</span></span>(<span>self, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>returns Table for rows where ALL kwargs match
+:param kwargs: dictionary with headers and values / boolean callable</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def all(self, **kwargs):
+    &#34;&#34;&#34;
+    returns Table for rows where ALL kwargs match
+    :param kwargs: dictionary with headers and values / boolean callable
+    &#34;&#34;&#34;
+    if not isinstance(kwargs, dict):
+        raise TypeError(&#34;did you remember to add the ** in front of your dict?&#34;)
+    if not all(k in self.columns for k in kwargs):
+        raise ValueError(f&#34;Unknown column(s): {[k for k in kwargs if k not in self.columns]}&#34;)
+
+    ixs = None
+    for k, v in kwargs.items():
+        col = self.columns[k]
+        if ixs is None:  # first header.
+            if callable(v):
+                ix2 = {ix for ix, i in enumerate(col) if v(i)}
+            else:
+                ix2 = {ix for ix, i in enumerate(col) if v == i}
+
+        else:  # remaining headers.
+            if callable(v):
+                ix2 = {ix for ix in ixs if v(col[ix])}
+            else:
+                ix2 = {ix for ix in ixs if v == col[ix]}
+
+        if not isinstance(ixs, set):
+            ixs = ix2
+        else:
+            ixs = ixs.intersection(ix2)
+
+        if not ixs:  # There are no matches.
+            break
+
+    t = Table(use_disk=self._use_disk)
+    for col in self.columns.values():
+        t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
+    return t</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.any"><code class="name flex">
+<span>def <span class="ident">any</span></span>(<span>self, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>returns Table for rows where ANY kwargs match
+:param kwargs: dictionary with headers and values / boolean callable</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def any(self, **kwargs):
+    &#34;&#34;&#34;
+    returns Table for rows where ANY kwargs match
+    :param kwargs: dictionary with headers and values / boolean callable
+    &#34;&#34;&#34;
+    if not isinstance(kwargs, dict):
+        raise TypeError(&#34;did you remember to add the ** in front of your dict?&#34;)
+
+    ixs = set()
+    for k, v in kwargs.items():
+        col = self.columns[k]
+        if callable(v):
+            ix2 = {ix for ix, r in enumerate(col) if v(r)}
+        else:
+            ix2 = {ix for ix, r in enumerate(col) if v == r}
+        ixs.update(ix2)
+
+    t = Table(use_disk=self._use_disk)
+    for col in self.columns.values():
+        t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
+    return t</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.check_for_duplicate_header"><code class="name flex">
+<span>def <span class="ident">check_for_duplicate_header</span></span>(<span>self, header)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Helper used to detect duplicate headers.
+:return valid header name</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def check_for_duplicate_header(self, header):
+    &#34;&#34;&#34; Helper used to detect duplicate headers.
+    :return valid header name
+    &#34;&#34;&#34;
+    assert isinstance(header, str)
+    if not header:
+        header = &#39;None&#39;
+    new_header = header
+    counter = count(start=1)
+    while new_header in self.columns:
+        new_header = f&#34;{header}_{next(counter)}&#34;  # valid attr names must be ascii.
+    return new_header</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.compare"><code class="name flex">
+<span>def <span class="ident">compare</span></span>(<span>self, other)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>compares the metadata of two tables.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def compare(self, other):
+    &#34;&#34;&#34; compares the metadata of two tables.&#34;&#34;&#34;
+    if not isinstance(other, Table):
+        a, b = self.__class__.__name__, other.__class__.__name__
+        raise TypeError(f&#34;cannot compare type {b} with {a}&#34;)
+
+    # if self.metadata != other.metadata:  # TODO: Develop better theory of what to do with metadata when concatenating.
+    #     raise ValueError(&#34;tables have different metadata.&#34;)
+    for a, b in [[self, other], [other, self]]:  # check both dictionaries.
+        for name, col in a.columns.items():
+            if name not in b.columns:
+                raise ValueError(f&#34;Column {name} not in other&#34;)
+            col2 = b.columns[name]
+            if col.datatype != col2.datatype:
+                raise ValueError(f&#34;Column {name}.datatype different: {col.datatype}, {col2.datatype}&#34;)
+            if col.allow_empty != col2.allow_empty:
+                raise ValueError(f&#34;Column {name}.allow_empty is different&#34;)
+    return True</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.copy"><code class="name flex">
+<span>def <span class="ident">copy</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def copy(self):
+    return self.__copy__()</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.copy_columns_only"><code class="name flex">
+<span>def <span class="ident">copy_columns_only</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>creates a new table with metadata but without the records</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def copy_columns_only(self):
+    &#34;&#34;&#34;creates a new table with metadata but without the records&#34;&#34;&#34;
+    t = Table()
+    for col in self.columns.values():
+        t.add_column(col.header, col.datatype, col.allow_empty, data=[])
+    t.metadata = self.metadata.copy()
+    return t</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.copy_to_clipboard"><code class="name flex">
+<span>def <span class="ident">copy_to_clipboard</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>copy data from a Table into clipboard.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def copy_to_clipboard(self):
+    &#34;&#34;&#34; copy data from a Table into clipboard. &#34;&#34;&#34;
+    try:
+        s = [&#34;\t&#34;.join([f&#34;{name}&#34; for name in self.columns])]
+        for row in self.rows:
+            s.append(&#34;\t&#34;.join((str(i) for i in row)))
+        s = &#34;\n&#34;.join(s)
+        pyperclip.copy(s)
+    except MemoryError:
+        raise MemoryError(&#34;Cannot copy to clipboard. Select slice instead.&#34;)</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.filter"><code class="name flex">
+<span>def <span class="ident">filter</span></span>(<span>self, *items)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>enables iteration on a limited number of headers:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; tablite.columns
+'a','b','c','d','e'
+</code></pre>
+<p>for row in tablite.filter('b', 'a', 'a', 'c'):
+b,a,a,c = row &hellip;</p>
+<p>returns values in same order as headers.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def filter(self, *items):
+    &#34;&#34;&#34; enables iteration on a limited number of headers:
+
+    &gt;&gt;&gt; tablite.columns
+    &#39;a&#39;,&#39;b&#39;,&#39;c&#39;,&#39;d&#39;,&#39;e&#39;
+
+    for row in tablite.filter(&#39;b&#39;, &#39;a&#39;, &#39;a&#39;, &#39;c&#39;):
+        b,a,a,c = row ...
+
+    returns values in same order as headers. &#34;&#34;&#34;
+    if any(not isinstance(i, (str, slice)) for i in items):
+        raise SyntaxError(f&#34;unexpected input: {[not isinstance(i, (str, slice)) for i in items]}&#34;)
+
+    slices = [i for i in items if isinstance(i, slice)]
+    if len(slices) &gt; 2:
+        raise SyntaxError(&#34;1 &gt; slices&#34;)
+
+    if not slices:
+        slc = slice(None, len(self), None)
+    else:
+        slc = slices[0]
+    assert isinstance(slc, slice)
+
+    headers = [i for i in items if isinstance(i, str)]
+    if any(h not in self.columns for h in headers):
+        raise ValueError(f&#34;column not found: {[h for h in headers if h not in self.columns]}&#34;)
+
+    start, stop, step = DataTypes.infer_range_from_slice(slc, len(self))
+    if step &gt; 0 and start &gt; stop:  # this wont work for range.
+        return
+    if step &lt; 0 and start &lt; stop:  # this wont work for range.
+        return
+
+    L = [self.columns[h] for h in headers]
+    for ix in range(start, stop, step):
+        item = tuple(c[ix] if ix &lt; len(c) else None for c in L)
+        yield item</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.groupby"><code class="name flex">
+<span>def <span class="ident">groupby</span></span>(<span>self, keys, functions)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>:param keys: headers for grouping
+:param functions: list of headers and functions.
+:return: GroupBy class</p>
+<p>Example usage:
+from tablite import Table</p>
+<pre><code>t = Table()
+t.add_column('date', int, allow_empty=False, data=[1,1,1,2,2,2])
+t.add_column('sku', int, allow_empty=False, data=[1,2,3,1,2,3])
+t.add_column('qty', int, allow_empty=False, data=[4,5,4,5,3,7])
+
+from tablite import GroupBy, Sum
+
+g = t.groupby(keys=['sku'], functions=[('qty', Sum)])
+g.tablite.show()
+</code></pre></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def groupby(self, keys, functions):
+    &#34;&#34;&#34;
+    :param keys: headers for grouping
+    :param functions: list of headers and functions.
+    :return: GroupBy class
+
+    Example usage:
+        from tablite import Table
+
+        t = Table()
+        t.add_column(&#39;date&#39;, int, allow_empty=False, data=[1,1,1,2,2,2])
+        t.add_column(&#39;sku&#39;, int, allow_empty=False, data=[1,2,3,1,2,3])
+        t.add_column(&#39;qty&#39;, int, allow_empty=False, data=[4,5,4,5,3,7])
+
+        from tablite import GroupBy, Sum
+
+        g = t.groupby(keys=[&#39;sku&#39;], functions=[(&#39;qty&#39;, Sum)])
+        g.tablite.show()
+
+    &#34;&#34;&#34;
+    g = GroupBy(keys=keys, functions=functions)
+    g += self
+    return g</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.index"><code class="name flex">
+<span>def <span class="ident">index</span></span>(<span>self, *args)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Creates index on *args columns as d[(key tuple, )] = {index1, index2, &hellip;}</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def index(self, *args):
+    &#34;&#34;&#34; Creates index on *args columns as d[(key tuple, )] = {index1, index2, ...} &#34;&#34;&#34;
+    idx = defaultdict(set)
+    for ix, key in enumerate(self.filter(*args)):
+        idx[key].add(ix)
+    return idx</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.inner_join"><code class="name flex">
+<span>def <span class="ident">inner_join</span></span>(<span>self, other, left_keys, right_keys, left_columns=None, right_columns=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>:param other: self, other = (left, right)
+:param left_keys: list of keys for the join
+:param right_keys: list of keys for the join
+:param left_columns: list of left columns to retain, if None, all are retained.
+:param right_columns: list of right columns to retain, if None, all are retained.
+:return: new Table</p>
+<p>Example:
+SQL:
+SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
+Tablite: inner_join = numbers.inner_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
+    &#34;&#34;&#34;
+    :param other: self, other = (left, right)
+    :param left_keys: list of keys for the join
+    :param right_keys: list of keys for the join
+    :param left_columns: list of left columns to retain, if None, all are retained.
+    :param right_columns: list of right columns to retain, if None, all are retained.
+    :return: new Table
+
+    Example:
+    SQL:   SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
+    Tablite: inner_join = numbers.inner_join(letters, left_keys=[&#39;colour&#39;], right_keys=[&#39;color&#39;], left_columns=[&#39;number&#39;], right_columns=[&#39;letter&#39;])
+    &#34;&#34;&#34;
+    if left_columns is None:
+        left_columns = list(self.columns)
+    if right_columns is None:
+        right_columns = list(other.columns)
+
+    self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+
+    inner_join = Table(use_disk=self._use_disk)
+    for col_name in left_columns:
+        col = self.columns[col_name]
+        inner_join.add_column(col_name, col.datatype, allow_empty=True)
+
+    right_join_col_name = {}
+    for col_name in right_columns:
+        col = other.columns[col_name]
+        revised_name = inner_join.check_for_duplicate_header(col_name)
+        right_join_col_name[revised_name] = col_name
+        inner_join.add_column(revised_name, col.datatype, allow_empty=True)
+
+    key_union = set(self.filter(*left_keys)).intersection(set(other.filter(*right_keys)))
+
+    left_ixs = self.index(*left_keys)
+    right_ixs = other.index(*right_keys)
+
+    for key in sorted(key_union):
+        for left_ix in left_ixs.get(key, set()):
+            for right_ix in right_ixs.get(key, set()):
+                for col_name, column in inner_join.columns.items():
+                    if col_name in self:
+                        column.append(self[col_name][left_ix])
+                    else:  # col_name in right_join_col_name:
+                        original_name = right_join_col_name[col_name]
+                        column.append(other[original_name][right_ix])
+
+    return inner_join</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.is_sorted"><code class="name flex">
+<span>def <span class="ident">is_sorted</span></span>(<span>self, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Performs multi-pass sorting check with precedence given order of column names.
+:return bool</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_sorted(self, **kwargs):
+    &#34;&#34;&#34; Performs multi-pass sorting check with precedence given order of column names.
+    :return bool
+    &#34;&#34;&#34;
+    sorted_index = self._sort_index(**kwargs)
+    if any(ix != i for ix, i in enumerate(sorted_index)):
+        return False
+    return True</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.left_join"><code class="name flex">
+<span>def <span class="ident">left_join</span></span>(<span>self, other, left_keys, right_keys, left_columns=None, right_columns=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>:param other: self, other = (left, right)
+:param left_keys: list of keys for the join
+:param right_keys: list of keys for the join
+:param left_columns: list of left columns to retain, if None, all are retained.
+:param right_columns: list of right columns to retain, if None, all are retained.
+:return: new Table</p>
+<p>Example:
+SQL:
+SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
+Tablite: left_join = numbers.left_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
+    &#34;&#34;&#34;
+    :param other: self, other = (left, right)
+    :param left_keys: list of keys for the join
+    :param right_keys: list of keys for the join
+    :param left_columns: list of left columns to retain, if None, all are retained.
+    :param right_columns: list of right columns to retain, if None, all are retained.
+    :return: new Table
+
+    Example:
+    SQL:   SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
+    Tablite: left_join = numbers.left_join(letters, left_keys=[&#39;colour&#39;], right_keys=[&#39;color&#39;], left_columns=[&#39;number&#39;], right_columns=[&#39;letter&#39;])
+    &#34;&#34;&#34;
+    if left_columns is None:
+        left_columns = list(self.columns)
+    if right_columns is None:
+        right_columns = list(other.columns)
+
+    self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+
+    left_join = Table(use_disk=self._use_disk)
+    for col_name in left_columns:
+        col = self.columns[col_name]
+        left_join.add_column(col_name, col.datatype, allow_empty=True)
+
+    right_join_col_name = {}
+    for col_name in right_columns:
+        col = other.columns[col_name]
+        revised_name = left_join.check_for_duplicate_header(col_name)
+        right_join_col_name[revised_name] = col_name
+        left_join.add_column(revised_name, col.datatype, allow_empty=True)
+
+    left_ixs = range(len(self))
+    right_idx = other.index(*right_keys)
+
+    for left_ix in left_ixs:
+        key = tuple(self[h][left_ix] for h in left_keys)
+        right_ixs = right_idx.get(key, (None,))
+        for right_ix in right_ixs:
+            for col_name, column in left_join.columns.items():
+                if col_name in self:
+                    column.append(self[col_name][left_ix])
+                elif col_name in right_join_col_name:
+                    original_name = right_join_col_name[col_name]
+                    if right_ix is not None:
+                        column.append(other[original_name][right_ix])
+                    else:
+                        column.append(None)
+                else:
+                    raise Exception(&#39;bad logic&#39;)
+    return left_join</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.lookup"><code class="name flex">
+<span>def <span class="ident">lookup</span></span>(<span>self, other, *criteria, all=True)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>function for looking up values in other according to criteria
+:param: other: Table
+:param: criteria: Each criteria must be a tuple with value comparisons in the form:
+(LEFT, OPERATOR, RIGHT)
+:param: all: boolean: True=ALL, False=Any</p>
+<p>OPERATOR must be a callable that returns a boolean
+LEFT must be a value that the OPERATOR can compare.
+RIGHT must be a value that the OPERATOR can compare.</p>
+<h2 id="examples">Examples</h2>
+<p>('column A', "==", 'column B')
+# comparison of two columns
+('Date', "&lt;", DataTypes.date(24,12) )
+# value from column 'Date' is before 24/12.</p>
+<p>f = lambda L,R: all( ord(L) &lt; ord(R) )
+# uses custom function.</p>
+<p>('text 1', f, 'text 2')</p>
+<p>value from column 'text 1' is compared with value from column 'text 2'</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def lookup(self, other, *criteria, all=True):
+    &#34;&#34;&#34; function for looking up values in other according to criteria
+    :param: other: Table
+    :param: criteria: Each criteria must be a tuple with value comparisons in the form:
+        (LEFT, OPERATOR, RIGHT)
+    :param: all: boolean: True=ALL, False=Any
+
+    OPERATOR must be a callable that returns a boolean
+    LEFT must be a value that the OPERATOR can compare.
+    RIGHT must be a value that the OPERATOR can compare.
+
+    Examples:
+          (&#39;column A&#39;, &#34;==&#34;, &#39;column B&#39;)  # comparison of two columns
+          (&#39;Date&#39;, &#34;&lt;&#34;, DataTypes.date(24,12) )  # value from column &#39;Date&#39; is before 24/12.
+
+          f = lambda L,R: all( ord(L) &lt; ord(R) )  # uses custom function.
+
+          (&#39;text 1&#39;, f, &#39;text 2&#39;)
+
+          value from column &#39;text 1&#39; is compared with value from column &#39;text 2&#39;
+
+    &#34;&#34;&#34;
+    assert isinstance(self, Table)
+    assert isinstance(other, Table)
+
+    all = all
+    any = not all
+
+    def not_in(a, b):
+        return not operator.contains(a, b)
+
+    ops = {
+        &#34;in&#34;: operator.contains,
+        &#34;not in&#34;: not_in,
+        &#34;&lt;&#34;: operator.lt,
+        &#34;&lt;=&#34;: operator.le,
+        &#34;&gt;&#34;: operator.gt,
+        &#34;&gt;=&#34;: operator.ge,
+        &#34;!=&#34;: operator.ne,
+        &#34;==&#34;: operator.eq,
+    }
+
+    table3 = Table(use_disk=self._use_disk)
+    for name, col in chain(self.columns.items(), other.columns.items()):
+        table3.add_column(name, col.datatype, allow_empty=True)
+
+    functions, left_columns, right_columns = [], set(), set()
+
+    for left, op, right in criteria:
+        left_columns.add(left)
+        right_columns.add(right)
+        if callable(op):
+            pass  # it&#39;s a custom function.
+        else:
+            op = ops.get(op, None)
+            if not callable(op):
+                raise ValueError(f&#34;{op} not a recognised operator for comparison.&#34;)
+
+        functions.append((op, left, right))
+
+    lru_cache = {}
+    empty_row = tuple(None for _ in other.columns)
+
+    for row1 in self.rows:
+        row1_tup = tuple(v for v, name in zip(row1, self.columns) if name in left_columns)
+        row1d = {name: value for name, value in zip(self.columns, row1) if name in left_columns}
+
+        match_found = True if row1_tup in lru_cache else False
+
+        if not match_found:  # search.
+            for row2 in other.rows:
+                row2d = {name: value for name, value in zip(other.columns, row2) if name in right_columns}
+
+                evaluations = [op(row1d.get(left, left), row2d.get(right, right)) for op, left, right in functions]
+                # The evaluations above does a neat trick:
+                # as L is a dict, L.get(left, L) will return a value
+                # from the columns IF left is a column name. If it isn&#39;t
+                # the function will treat left as a value.
+                # The same applies to right.
+
+                if all and not False in evaluations:
+                    match_found = True
+                    lru_cache[row1_tup] = row2
+                    break
+                elif any and True in evaluations:
+                    match_found = True
+                    lru_cache[row1_tup] = row2
+                    break
+                else:
+                    continue
+
+        if not match_found:  # no match found.
+            lru_cache[row1_tup] = empty_row
+
+        new_row = row1 + lru_cache[row1_tup]
+
+        table3.add_row(new_row)
+
+    return table3</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.outer_join"><code class="name flex">
+<span>def <span class="ident">outer_join</span></span>(<span>self, other, left_keys, right_keys, left_columns=None, right_columns=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>:param other: self, other = (left, right)
+:param left_keys: list of keys for the join
+:param right_keys: list of keys for the join
+:param left_columns: list of left columns to retain, if None, all are retained.
+:param right_columns: list of right columns to retain, if None, all are retained.
+:return: new Table</p>
+<p>Example:
+SQL:
+SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
+Tablite: outer_join = numbers.outer_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
+    &#34;&#34;&#34;
+    :param other: self, other = (left, right)
+    :param left_keys: list of keys for the join
+    :param right_keys: list of keys for the join
+    :param left_columns: list of left columns to retain, if None, all are retained.
+    :param right_columns: list of right columns to retain, if None, all are retained.
+    :return: new Table
+
+    Example:
+    SQL:   SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
+    Tablite: outer_join = numbers.outer_join(letters, left_keys=[&#39;colour&#39;], right_keys=[&#39;color&#39;], left_columns=[&#39;number&#39;], right_columns=[&#39;letter&#39;])
+    &#34;&#34;&#34;
+    if left_columns is None:
+        left_columns = list(self.columns)
+    if right_columns is None:
+        right_columns = list(other.columns)
+
+    self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+
+    outer_join = Table(use_disk=self._use_disk)
+    for col_name in left_columns:
+        col = self.columns[col_name]
+        outer_join.add_column(col_name, col.datatype, allow_empty=True)
+
+    right_join_col_name = {}
+    for col_name in right_columns:
+        col = other.columns[col_name]
+        revised_name = outer_join.check_for_duplicate_header(col_name)
+        right_join_col_name[revised_name] = col_name
+        outer_join.add_column(revised_name, col.datatype, allow_empty=True)
+
+    left_ixs = range(len(self))
+    right_idx = other.index(*right_keys)
+    right_keyset = set(right_idx)
+
+    for left_ix in left_ixs:
+        key = tuple(self[h][left_ix] for h in left_keys)
+        right_ixs = right_idx.get(key, (None,))
+        right_keyset.discard(key)
+        for right_ix in right_ixs:
+            for col_name, column in outer_join.columns.items():
+                if col_name in self:
+                    column.append(self[col_name][left_ix])
+                elif col_name in right_join_col_name:
+                    original_name = right_join_col_name[col_name]
+                    if right_ix is not None:
+                        column.append(other[original_name][right_ix])
+                    else:
+                        column.append(None)
+                else:
+                    raise Exception(&#39;bad logic&#39;)
+
+    for right_key in right_keyset:
+        for right_ix in right_idx[right_key]:
+            for col_name, column in outer_join.columns.items():
+                if col_name in self:
+                    column.append(None)
+                elif col_name in right_join_col_name:
+                    original_name = right_join_col_name[col_name]
+                    column.append(other[original_name][right_ix])
+                else:
+                    raise Exception(&#39;bad logic&#39;)
+    return outer_join</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.rename_column"><code class="name flex">
+<span>def <span class="ident">rename_column</span></span>(<span>self, header, new_name)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>:param header: current header name
+:param new_name: new name
+:return: None.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def rename_column(self, header, new_name):
+    &#34;&#34;&#34;
+    :param header: current header name
+    :param new_name: new name
+    :return: None.
+    &#34;&#34;&#34;
+    if new_name != self.check_for_duplicate_header(new_name):
+        raise ValueError(f&#34;header name {new_name} is already in use.&#34;)
+
+    order = list(self.columns)
+    d = {}
+    for name in order:
+        if name == header:
+            d[new_name] = self.columns[name]
+            d[new_name].header = new_name
+        else:
+            d[name] = self.columns[name]
+    self.columns = d</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.show"><code class="name flex">
+<span>def <span class="ident">show</span></span>(<span>self, *items, blanks=None, row_count=True, metadata=False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>shows the tablite.
+param: items: column names</p>
+<p>DEFAULT
+EXAMPLE</p>
+<p>t.show()
+t.show('A', 'C', slice(4), blanks="-", metadata=True)
++=====+=====+=====+
++=====+=====+
+|
+A
+|
+B
+|
+C
+|
+|
+A
+|
+C
+|
+| int | str | str |
+| int | str |
+|False|False| True|
+|False| True|
++-----+-----+-----+
++-----+-----+
+|
+0|0x
+|None |
+|
+0|-
+|
+|
+1|1x
+|1
+|
+|
+1|1
+|
+|
+2|2x
+|None |
+|
+2|-
+|
+|
+3|3x
+|3
+|
+|
+3|3
+|
+|
+4|4x
+|None |
++=====+=====+
+|
+5|5x
+|5
+|
+(showing 4 of 10 rows)
+|
+6|6x
+|None |
+metadata:
+|
+7|7x
+|7
+|
+filename d:
+est_data.csv
+|
+8|8x
+|None |
+|
+9|9x
+|9
+|
++=====+=====+=====+
+showing all 10 rows</p>
+<pre><code>Table.show('A','C', blanks="", metadata=True
+</code></pre>
+<p>param: blanks: string to replace blanks (None is default) when shown.
+param: row_count: bool: shows rowcount at the end.
+param: metadata: bool: displays metadata at the end.
+:returns None. Output is printed to stdout.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def show(self, *items, blanks=None, row_count=True, metadata=False):
+    &#34;&#34;&#34; shows the tablite.
+    param: items: column names
+
+    DEFAULT                   EXAMPLE
+
+    t.show()                  t.show(&#39;A&#39;, &#39;C&#39;, slice(4), blanks=&#34;-&#34;, metadata=True)
+    +=====+=====+=====+       +=====+=====+
+    |  A  |  B  |  C  |       |  A  |  C  |
+    | int | str | str |       | int | str |
+    |False|False| True|       |False| True|
+    +-----+-----+-----+       +-----+-----+
+    |    0|0x   |None |       |    0|-    |
+    |    1|1x   |1    |       |    1|1    |
+    |    2|2x   |None |       |    2|-    |
+    |    3|3x   |3    |       |    3|3    |
+    |    4|4x   |None |       +=====+=====+
+    |    5|5x   |5    |       (showing 4 of 10 rows)
+    |    6|6x   |None |       metadata:
+    |    7|7x   |7    |          filename d:\test_data.csv
+    |    8|8x   |None |
+    |    9|9x   |9    |
+    +=====+=====+=====+
+    showing all 10 rows
+
+        Table.show(&#39;A&#39;,&#39;C&#39;, blanks=&#34;&#34;, metadata=True
+
+    param: blanks: string to replace blanks (None is default) when shown.
+    param: row_count: bool: shows rowcount at the end.
+    param: metadata: bool: displays metadata at the end.
+    :returns None. Output is printed to stdout.
+    &#34;&#34;&#34;
+    if any(not isinstance(i, (str, slice)) for i in items):
+        raise SyntaxError(f&#34;unexpected input: {[not isinstance(i, (str, slice)) for i in items]}&#34;)
+
+    slices = [i for i in items if isinstance(i, slice)]
+    if len(slices) &gt; 2:
+        raise SyntaxError(&#34;1 &gt; slices&#34;)
+    if not slices:
+        slc = slice(0, len(self), None)
+    else:
+        slc = slices[0]
+    assert isinstance(slc, slice)
+
+    headers = [i for i in items if isinstance(i, str)]
+    if any(h not in self.columns for h in headers):
+        raise ValueError(f&#34;column not found: {[h for h in headers if h not in self.columns]}&#34;)
+    if not headers:
+        headers = list(self.columns)
+
+    # starting to produce output
+    c_lens = {}
+    for h in headers:
+        col = self.columns[h]
+        assert isinstance(col, (InMemoryColumn, StoredColumn))
+        c_lens[h] = max(
+            [len(col.header), len(str(col.datatype.__name__)), len(str(False))] + [len(str(v)) for v in col[slc]])
+
+    def adjust(v, length):
+        if v is None:
+            return str(blanks).ljust(length)
+        elif isinstance(v, str):
+            return v.ljust(length)
+        else:
+            return str(v).rjust(length)
+
+    rows = 0
+    print(&#34;+&#34;, &#34;+&#34;.join([&#34;=&#34; * c_lens[h] for h in headers]), &#34;+&#34;, sep=&#34;&#34;)
+    print(&#34;|&#34;, &#34;|&#34;.join([h.center(c_lens[h], &#34; &#34;) for h in headers]), &#34;|&#34;, sep=&#34;&#34;)
+    print(&#34;|&#34;, &#34;|&#34;.join([self.columns[h].datatype.__name__.center(c_lens[h], &#34; &#34;) for h in headers]), &#34;|&#34;, sep=&#34;&#34;)
+    print(&#34;|&#34;, &#34;|&#34;.join([str(self.columns[h].allow_empty).center(c_lens[h], &#34; &#34;) for h in headers]), &#34;|&#34;, sep=&#34;&#34;)
+    print(&#34;+&#34;, &#34;+&#34;.join([&#34;-&#34; * c_lens[h] for h in headers]), &#34;+&#34;, sep=&#34;&#34;)
+    for row in self.filter(*tuple(headers) + (slc,)):
+        print(&#34;|&#34;, &#34;|&#34;.join([adjust(v, c_lens[h]) for v, h in zip(row, headers)]), &#34;|&#34;, sep=&#34;&#34;)
+        rows += 1
+    print(&#34;+&#34;, &#34;+&#34;.join([&#34;=&#34; * c_lens[h] for h in headers]), &#34;+&#34;, sep=&#34;&#34;)
+
+    if row_count:
+        if rows != len(self):
+            print(f&#34;(showing {rows} of {len(self)} rows)&#34;)
+        elif len(self) &gt; 0:
+            print(f&#34;showing all {len(self)} rows&#34;)
+        else:
+            print(&#34;no rows&#34;)
+    if metadata:
+        print(&#34;metadata:&#34;)
+        for k, v in self.metadata.items():
+            print(&#34;  &#34;, k, v)</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.sort"><code class="name flex">
+<span>def <span class="ident">sort</span></span>(<span>self, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Perform multi-pass sorting with precedence given order of column names.
+:param kwargs: keys: columns, values: 'reverse' as boolean.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def sort(self, **kwargs):
+    &#34;&#34;&#34; Perform multi-pass sorting with precedence given order of column names.
+    :param kwargs: keys: columns, values: &#39;reverse&#39; as boolean.
+    &#34;&#34;&#34;
+    sorted_index = self._sort_index(**kwargs)
+    for col_name, col in self.columns.items():
+        assert isinstance(col, (StoredColumn, InMemoryColumn))
+        col.replace(values=[col[ix] for ix in sorted_index])</code></pre>
+</details>
+</dd>
+<dt id="tablite.core.Table.to_json"><code class="name flex">
+<span>def <span class="ident">to_json</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def to_json(self):
+    return json.dumps({
+        &#39;metadata&#39;: self.metadata,
+        &#39;columns&#39;: [c.to_json() for c in self.columns.values()]
+    })</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="tablite" href="index.html">tablite</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="two-column">
+<li><code><a title="tablite.core.excel_reader" href="#tablite.core.excel_reader">excel_reader</a></code></li>
+<li><code><a title="tablite.core.file_reader" href="#tablite.core.file_reader">file_reader</a></code></li>
+<li><code><a title="tablite.core.find_format" href="#tablite.core.find_format">find_format</a></code></li>
+<li><code><a title="tablite.core.log_reader" href="#tablite.core.log_reader">log_reader</a></code></li>
+<li><code><a title="tablite.core.ods_reader" href="#tablite.core.ods_reader">ods_reader</a></code></li>
+<li><code><a title="tablite.core.text_reader" href="#tablite.core.text_reader">text_reader</a></code></li>
+<li><code><a title="tablite.core.zip_reader" href="#tablite.core.zip_reader">zip_reader</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="tablite.core.GroupBy" href="#tablite.core.GroupBy">GroupBy</a></code></h4>
+<ul class="two-column">
+<li><code><a title="tablite.core.GroupBy.avg" href="#tablite.core.GroupBy.avg">avg</a></code></li>
+<li><code><a title="tablite.core.GroupBy.count" href="#tablite.core.GroupBy.count">count</a></code></li>
+<li><code><a title="tablite.core.GroupBy.count_unique" href="#tablite.core.GroupBy.count_unique">count_unique</a></code></li>
+<li><code><a title="tablite.core.GroupBy.first" href="#tablite.core.GroupBy.first">first</a></code></li>
+<li><code><a title="tablite.core.GroupBy.last" href="#tablite.core.GroupBy.last">last</a></code></li>
+<li><code><a title="tablite.core.GroupBy.max" href="#tablite.core.GroupBy.max">max</a></code></li>
+<li><code><a title="tablite.core.GroupBy.median" href="#tablite.core.GroupBy.median">median</a></code></li>
+<li><code><a title="tablite.core.GroupBy.min" href="#tablite.core.GroupBy.min">min</a></code></li>
+<li><code><a title="tablite.core.GroupBy.mode" href="#tablite.core.GroupBy.mode">mode</a></code></li>
+<li><code><a title="tablite.core.GroupBy.pivot" href="#tablite.core.GroupBy.pivot">pivot</a></code></li>
+<li><code><a title="tablite.core.GroupBy.rows" href="#tablite.core.GroupBy.rows">rows</a></code></li>
+<li><code><a title="tablite.core.GroupBy.stdev" href="#tablite.core.GroupBy.stdev">stdev</a></code></li>
+<li><code><a title="tablite.core.GroupBy.sum" href="#tablite.core.GroupBy.sum">sum</a></code></li>
+<li><code><a title="tablite.core.GroupBy.table" href="#tablite.core.GroupBy.table">table</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="tablite.core.Table" href="#tablite.core.Table">Table</a></code></h4>
+<ul class="">
+<li><code><a title="tablite.core.Table.add_column" href="#tablite.core.Table.add_column">add_column</a></code></li>
+<li><code><a title="tablite.core.Table.add_row" href="#tablite.core.Table.add_row">add_row</a></code></li>
+<li><code><a title="tablite.core.Table.all" href="#tablite.core.Table.all">all</a></code></li>
+<li><code><a title="tablite.core.Table.any" href="#tablite.core.Table.any">any</a></code></li>
+<li><code><a title="tablite.core.Table.check_for_duplicate_header" href="#tablite.core.Table.check_for_duplicate_header">check_for_duplicate_header</a></code></li>
+<li><code><a title="tablite.core.Table.compare" href="#tablite.core.Table.compare">compare</a></code></li>
+<li><code><a title="tablite.core.Table.copy" href="#tablite.core.Table.copy">copy</a></code></li>
+<li><code><a title="tablite.core.Table.copy_columns_only" href="#tablite.core.Table.copy_columns_only">copy_columns_only</a></code></li>
+<li><code><a title="tablite.core.Table.copy_from_clipboard" href="#tablite.core.Table.copy_from_clipboard">copy_from_clipboard</a></code></li>
+<li><code><a title="tablite.core.Table.copy_to_clipboard" href="#tablite.core.Table.copy_to_clipboard">copy_to_clipboard</a></code></li>
+<li><code><a title="tablite.core.Table.filter" href="#tablite.core.Table.filter">filter</a></code></li>
+<li><code><a title="tablite.core.Table.from_file" href="#tablite.core.Table.from_file">from_file</a></code></li>
+<li><code><a title="tablite.core.Table.from_json" href="#tablite.core.Table.from_json">from_json</a></code></li>
+<li><code><a title="tablite.core.Table.groupby" href="#tablite.core.Table.groupby">groupby</a></code></li>
+<li><code><a title="tablite.core.Table.index" href="#tablite.core.Table.index">index</a></code></li>
+<li><code><a title="tablite.core.Table.inner_join" href="#tablite.core.Table.inner_join">inner_join</a></code></li>
+<li><code><a title="tablite.core.Table.is_sorted" href="#tablite.core.Table.is_sorted">is_sorted</a></code></li>
+<li><code><a title="tablite.core.Table.left_join" href="#tablite.core.Table.left_join">left_join</a></code></li>
+<li><code><a title="tablite.core.Table.lookup" href="#tablite.core.Table.lookup">lookup</a></code></li>
+<li><code><a title="tablite.core.Table.new_tables_use_disk" href="#tablite.core.Table.new_tables_use_disk">new_tables_use_disk</a></code></li>
+<li><code><a title="tablite.core.Table.outer_join" href="#tablite.core.Table.outer_join">outer_join</a></code></li>
+<li><code><a title="tablite.core.Table.rename_column" href="#tablite.core.Table.rename_column">rename_column</a></code></li>
+<li><code><a title="tablite.core.Table.rows" href="#tablite.core.Table.rows">rows</a></code></li>
+<li><code><a title="tablite.core.Table.show" href="#tablite.core.Table.show">show</a></code></li>
+<li><code><a title="tablite.core.Table.sort" href="#tablite.core.Table.sort">sort</a></code></li>
+<li><code><a title="tablite.core.Table.to_json" href="#tablite.core.Table.to_json">to_json</a></code></li>
+<li><code><a title="tablite.core.Table.use_disk" href="#tablite.core.Table.use_disk">use_disk</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>
