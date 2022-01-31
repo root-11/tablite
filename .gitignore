@@ -3,3 +3,4 @@
 .ipynb_checkpoints/
 dist/
 tablite.egg-info
+identifier.sqlite
