@@ -644,7 +644,7 @@ class StoredList(object):
 
     def __sizeof__(self):
         """ Return the size of the list in memory, in bytes.
-        To drop any cached data, call
+        To drop any cached data, call `clear_cache()`
 
         """
         return sum(p.__sizeof__() for p in self.pages)
