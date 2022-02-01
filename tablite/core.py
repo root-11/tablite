@@ -1396,6 +1396,7 @@ def file_reader(path, **kwargs):
     :param kwargs: dictionary options:
         'sep': False or single character
         'split_sequence': list of characters
+        'no_type_detection': bool - set to False to suspend datatype detection and load defaults.
 
     :return: generator of Tables.
         to get the tablite in one line.
@@ -1415,7 +1416,10 @@ def file_reader(path, **kwargs):
 
     for table in reader(path, **kwargs):
         assert isinstance(table, Table), "programmer returned something else than a Table"
-        find_format(table)
+        if kwargs.get("no_type_detection", False):
+            pass
+        else:
+            find_format(table)
         yield table
 
 
