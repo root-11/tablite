@@ -1214,7 +1214,7 @@ class GroupBy(object):
         return t
 
 
-def text_reader(path, split_sequence=None, sep=None, has_headers=True):
+def text_reader(path, split_sequence=None, sep=None, has_headers=True, **kwargs):
     """ txt, tab & csv reader """
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
