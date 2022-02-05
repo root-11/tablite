@@ -147,7 +147,7 @@ class StoredList(object):
         assert isinstance(page, Page)
         data = page.store()
         assert not page.loaded
-        data_as_bytes = pickle.dumps(data)
+        data_as_bytes = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
         page.size = len(data_as_bytes)
         with self._conn as c:
             c.execute(sql_update, (data_as_bytes, page.pid))  # UPDATE

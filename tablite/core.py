@@ -1214,8 +1214,19 @@ class GroupBy(object):
         return t
 
 
-def text_reader(path, split_sequence=None, sep=None, has_headers=True, **kwargs):
-    """ txt, tab & csv reader """
+def text_reader(path, split_sequence=None, sep=None, has_headers=True,
+                start=None, limit=None, chunk_size=None, **kwargs):
+    """
+    :param path: pathlib.Path
+    :param split_sequence: (optional) list of characters that is used for splitting each line.
+    :param sep: delimiter / separator
+    :param has_headers: boolean
+    :param start: (optional) integer starting line number (0 includes headers)
+    :param limit: (optional) integer limit of lines. F.ex. 10.
+    :param chunk_size: (optional) integer limit of lines per table
+    :param kwargs: See each file_reader type for details.
+    :return: generator
+    """
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
 
@@ -1231,8 +1242,34 @@ def text_reader(path, split_sequence=None, sep=None, has_headers=True, **kwargs)
     t = Table()
     t.metadata['filename'] = path.name
     n_columns = None
+
+    start = 0 if not (isinstance(start, int) and start >=0) else start
+
+    if isinstance(limit, int) and limit > 0:
+        counter_limit = limit
+    else:
+        counter_limit = float('inf')
+
+    if chunk_size is None:
+        chunk_size = float('inf')
+    elif isinstance(chunk_size, int) and chunk_size > 0:
+        pass
+    else:
+        raise TypeError("expected chunk_size as integer > 0")
+
     with path.open('r', encoding=encoding) as fi:
-        for line in fi:
+        for line_count, line in enumerate(fi):
+
+            if line_count < start:
+                continue
+            if line_count > start + counter_limit:
+                break
+
+            if len(t) % chunk_size == 0 and len(t) > 0:
+                t2 = t.copy_columns_only()  # resetting the chunk.
+                yield t
+                t = t2
+
             end = windows if line.endswith(windows) else unix
             # this is more robust if the file was concatenated by a non-programmer, than doing it once only.
 
