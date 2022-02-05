@@ -145,6 +145,36 @@ def test_filereader_book1txt():
     assert len(table) == 45
 
 
+def test_filereader_book1_txt_chunks():
+    path = Path(__file__).parent / "data" / 'book1.txt'
+    assert path.exists()
+    all_chunks = None
+    for table_chunk in file_reader(path, chunk_size=5, no_type_detection=True):
+        if all_chunks is None:
+            all_chunks = table_chunk
+        else:
+            all_chunks += table_chunk
+
+    ref_table = next(file_reader(path, no_type_detection=True))
+
+    assert ref_table == all_chunks
+
+
+def test_filereader_book1_txt_chunks_and_offset():
+    path = Path(__file__).parent / "data" / 'book1.txt'
+    assert path.exists()
+    all_chunks = None
+    for table_chunk in file_reader(path, start=2, chunk_size=5, limit=15, no_type_detection=True):
+        if all_chunks is None:
+            all_chunks = table_chunk
+        else:
+            all_chunks += table_chunk
+
+    ref_table = next(file_reader(path, start=2, limit=15, no_type_detection=True))
+
+    assert ref_table == all_chunks
+
+
 def test_filereader_gdocsc1tsv():
     path = Path(__file__).parent / "data" / 'gdocs1.tsv'
     assert path.exists()
