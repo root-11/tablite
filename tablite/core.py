@@ -1332,7 +1332,7 @@ def text_reader(path, split_sequence=None, sep=None, has_headers=True,
     yield t
 
 
-def excel_reader(path, has_headers=True, sheet_names=None):
+def excel_reader(path, has_headers=True, sheet_names=None, **kwargs):
     """  returns Table(s) from excel path """
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
@@ -1370,7 +1370,7 @@ def excel_reader(path, has_headers=True, sheet_names=None):
         yield t
 
 
-def ods_reader(path, has_headers=True):
+def ods_reader(path, has_headers=True, **kwargs):
     """  returns Table from .ODS """
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
@@ -1409,7 +1409,7 @@ def ods_reader(path, has_headers=True):
         yield table
 
 
-def zip_reader(path):
+def zip_reader(path, **kwargs):
     """ reads zip files and unpacks anything it can read."""
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
@@ -1425,7 +1425,7 @@ def zip_reader(path):
 
             p = tempdir / name
             try:
-                tables = file_reader(p)
+                tables = file_reader(p, **kwargs)
                 for table in tables:
                     yield table
             except Exception as e:  # unknown file type.
@@ -1436,25 +1436,30 @@ def zip_reader(path):
             p.unlink()
 
 
-def log_reader(path, has_headers=True):
+def log_reader(path, has_headers=True, interactive=True, **kwargs):
     """ returns Table from log files (txt)"""
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
-    for line in path.open()[:10]:
-        print(repr(line))
-    print("please declare separators. Blank return means 'done'.")
-    split_sequence = []
-    while True:
-        response = input(">")
-        if response == "":
-            break
-        print("got", repr(response))
+    if interactive:
+        for line in path.open()[:10]:
+            print(repr(line))
+        print("please declare separators. Blank return means 'done'.")
+        split_sequence = []
+        while True:
+            response = input(">")
+            if response == "":
+                break
+            print("got", repr(response))
         split_sequence.append(response)
+    else:
+        split_sequence = kwargs.get('split_sequence')
     table = text_reader(path, split_sequence=split_sequence, has_headers=has_headers)
     return table
 
 
-def file_reader(path, **kwargs):
+def file_reader(path, sep=None, split_sequence=None, no_type_detection=None,
+                start=None, limit=None, chunk_size=None,
+                keep=None, skip=None, datatypes=None, has_headers=None, **kwargs):
     """
     :param path: pathlib.Path object with extension as:
         .csv, .tsv, .txt, .xls, .xlsx, .xlsm, .ods, .zip, .log
@@ -1462,9 +1467,16 @@ def file_reader(path, **kwargs):
         .zip is automatically flattened
 
     :param kwargs: dictionary options:
-        'sep': False or single character
-        'split_sequence': list of characters
-        'no_type_detection': bool - set to False to suspend datatype detection and load defaults.
+    :param sep: False or single character (for text files)
+    :param split_sequence: list of characters (for text files)
+    :param no_type_detection: bool - set to False to suspend datatype detection and load defaults.
+    :param start: start row number
+    :param limit: number of rows
+    :param chunk_size: max size of each table.
+    :param keep: columns to keep
+    :param skip: columns to skip
+    :param datatypes: desired datatype
+    :param has_headers: the first line has column names
 
     :return: generator of Tables.
         to get the tablite in one line.
@@ -1475,6 +1487,53 @@ def file_reader(path, **kwargs):
         >>> for tablite in file_reader(filename):
                 ...
     """
+    
+    if keep is not None:
+        if not isinstance(keep, (list, set, tuple)):
+            raise TypeError("expects keep as list, set or tuple")
+        if not all(isinstance(i, str) for i in keep):
+            raise TypeError("expects all items in keep to be string")
+        kwargs['keep'] = keep
+    if skip is not None:
+        if not isinstance(skip, (list, set, tuple)):
+            raise TypeError("expects keep as list, set or tuple")
+        if not all(isinstance(i, str) for i in skip):
+            raise TypeError("expects all items in keep to be string")
+        kwargs['skip'] = skip
+    if keep and skip:
+        raise ValueError("Use skip OR keep. Not both at the same time?")
+    
+    if sep is not None and isinstance(sep, str):
+        kwargs['sep'] = sep
+    if split_sequence is not None and all((isinstance(i,str) for i in split_sequence)):
+        kwargs['split_sequence'] = split_sequence
+    if no_type_detection is not None:
+        kwargs['no_type_detection'] = True
+    if start is not None:
+        if isinstance(start, int) and start>=0:
+            kwargs['start'] = start
+        else:
+            raise TypeError("start must be integer >= 0")
+    if limit is not None:
+        if isinstance(limit, int) and limit >0:
+            kwargs['limit'] = limit
+        else:
+            raise TypeError("limit must be integer > 0")
+    if chunk_size is not None:
+        if isinstance(chunk_size, int) and chunk_size >0:
+            kwargs['chunk_size'] = chunk_size
+        else:
+            raise TypeError("chunk_size must be integer > 0")
+    if has_headers is not None:
+        if not isinstance(has_headers, bool):
+            raise TypeError("has_headers must be boolean")
+        kwargs['has_headers'] = has_headers
+    if datatypes is not None:
+        if isinstance(datatypes, dict) and all((i in DataTypes.types for i in datatypes.values())):
+            kwargs['datatypes'] = datatypes
+        else:
+            raise TypeError(f"datatypes must be in {DataTypes.types}")
+    
     assert isinstance(path, Path)
     extension = path.name.split(".")[-1]
     if extension not in readers:
@@ -1557,5 +1616,5 @@ readers = {
     'xlsm': [excel_reader, {}],
     'ods': [ods_reader, {}],
     'zip': [zip_reader, {}],
-    'log': [log_reader, {'sep': False}]
+    'log': [log_reader, {'sep': False, 'interactive':False}]
 }
