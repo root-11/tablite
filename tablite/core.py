@@ -601,7 +601,7 @@ class Table(object):
                 break
 
         t = Table(use_disk=self._use_disk)
-        for col in self.columns.values():
+        for col in tqdm(self.columns.values(), total=len(self.columns), desc="columns"):
             t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
         return t
 
@@ -623,7 +623,7 @@ class Table(object):
             ixs.update(ix2)
 
         t = Table(use_disk=self._use_disk)
-        for col in self.columns.values():
+        for col in tqdm(self.columns.values(), total=len(self.columns), desc="columns"):
             t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
         return t
 
@@ -695,7 +695,7 @@ class Table(object):
         left_ixs = range(len(self))
         right_idx = other.index(*right_keys)
 
-        for left_ix in left_ixs:
+        for left_ix in tqdm(left_ixs, total=len(left_ixs)):
             key = tuple(self[h][left_ix] for h in left_keys)
             right_ixs = right_idx.get(key, (None,))
             for right_ix in right_ixs:
@@ -749,7 +749,7 @@ class Table(object):
         left_ixs = self.index(*left_keys)
         right_ixs = other.index(*right_keys)
 
-        for key in sorted(key_union):
+        for key in tqdm(sorted(key_union), total=len(key_union)):
             for left_ix in left_ixs.get(key, set()):
                 for right_ix in right_ixs.get(key, set()):
                     for col_name, column in inner_join.columns.items():
@@ -797,7 +797,7 @@ class Table(object):
         right_idx = other.index(*right_keys)
         right_keyset = set(right_idx)
 
-        for left_ix in left_ixs:
+        for left_ix in tqdm(left_ixs, total=left_ixs.stop, desc="left side outer join"):
             key = tuple(self[h][left_ix] for h in left_keys)
             right_ixs = right_idx.get(key, (None,))
             right_keyset.discard(key)
@@ -814,7 +814,7 @@ class Table(object):
                     else:
                         raise Exception('bad logic')
 
-        for right_key in right_keyset:
+        for right_key in tqdm(right_keyset, total=len(right_keyset), desc="right side outer join"):
             for right_ix in right_idx[right_key]:
                 for col_name, column in outer_join.columns.items():
                     if col_name in self:
@@ -913,7 +913,7 @@ class Table(object):
         lru_cache = {}
         empty_row = tuple(None for _ in other.columns)
 
-        for row1 in self.rows:
+        for row1 in tqdm(self.rows, total=self.__len__()):
             row1_tup = tuple(v for v, name in zip(row1, self.columns) if name in left_columns)
             row1d = {name: value for name, value in zip(self.columns, row1) if name in left_columns}
 
@@ -1244,6 +1244,8 @@ def text_reader(path, split_sequence=None, sep=None, has_headers=True,
             raise TypeError("expects keep as list, set or tuple")
         if not all(isinstance(i, str) for i in skip):
             raise TypeError("expects all items in keep to be string")
+    if keep and skip:
+        raise ValueError("Use skip OR keep. Not both at the same time?")
 
     # detect newline format
     windows = '\n'
@@ -1274,13 +1276,11 @@ def text_reader(path, split_sequence=None, sep=None, has_headers=True,
 
     filter, add_all = [], False
 
-    num_lines = sum(1 for _ in path.open('r', encoding=encoding))
-    if limit is not None:
-        num_lines = min(num_lines, limit)
-
+    path.stat()
+    pbar = tqdm(total=path.stat().st_size, unit='iB', unit_scale=True, desc=path.name)
     with path.open('r', encoding=encoding) as fi:
-        for line_count, line in enumerate(tqdm(fi, total=num_lines, desc=path.name)):
-
+        for line_count, line in enumerate(fi):
+            pbar.update(len(line) + 1)
             if line_count < start:
                 continue
             if line_count > start + counter_limit:
@@ -1310,24 +1310,16 @@ def text_reader(path, split_sequence=None, sep=None, has_headers=True,
                         t.add_column(f"_{idx}", datatype=str, allow_empty=True)
                     else:
                         header = v.rstrip(" ").lstrip(" ")
-
-                        if skip is None and keep is None:
-                            to_add = True
-                        elif skip:
-                            if header in skip:
-                                to_add = False
-                            else:
-                                to_add = True
-                        elif keep:
-                            if header in keep:
-                                to_add = True
-                            else:
-                                to_add = False
-
+                        to_add = True
+                        if skip and header in skip:
+                            to_add = False
+                        if keep and header not in keep:
+                            to_add = False
+                        filter.append(to_add)
                         if to_add:
-                            filter.append(to_add)
                             t.add_column(header, datatype=str, allow_empty=True)
-                n_columns = len(values)
+
+                n_columns = filter.count(True)
                 add_all = all(filter)
                 if not has_headers:  # first line is our first row
                     t.add_row(values)
@@ -1335,7 +1327,7 @@ def text_reader(path, split_sequence=None, sep=None, has_headers=True,
                 while n_columns > len(values):  # this makes the reader more robust.
                     values += ('',)
                 if not add_all:
-                    values = [v for v, f in zip(values, filter)]
+                    values = [v for v, f in zip(values, filter) if f]
                 t.add_row(values)
     yield t
 
@@ -1495,36 +1487,47 @@ def file_reader(path, **kwargs):
         if kwargs.get("no_type_detection", False):
             pass
         else:
-            find_format(table)
+            find_format(table, **kwargs)
         yield table
 
 
-def find_format(table):
-    """ common function for harmonizing formats AFTER import. """
+def find_format(table, **kwargs):
+    """
+    common function for harmonizing formats AFTER import.
+    :param table: class Table
+    :param datatypes: dict with column name and datatype
+    :return: converted table.
+    """
     assert isinstance(table, Table)
+
+    type_guess = kwargs.get('datatypes', {})
+    if not isinstance(type_guess, dict):
+        raise ValueError("type guess must be a dict with {column name: type}")
 
     for col_name, column in table.columns.items():
         assert isinstance(column, (StoredColumn, InMemoryColumn))
         column.allow_empty = any(v in DataTypes.nones for v in column)
 
-        values = [v for v in column if v not in DataTypes.nones]
+        values = {v: None for v in column if v not in DataTypes.nones}
         assert isinstance(column, (StoredColumn, InMemoryColumn))
-        values.sort()
 
         works = []
         if not values:
             works.append((0, DataTypes.str))
         else:
-            for dtype in DataTypes.types:  # try all datatypes.
-                last_value = None
+            type_list = [type_guess.get(col_name, None)]
+            if type_list == [None]:
+                type_list = DataTypes.types  # try all datatypes.
+            else:
+                type_list = [t for t in DataTypes.types[-1:] if t in type_list] + [str]
+
+            for dtype in type_list:
                 c = 0
                 for v in values:
-                    if v != last_value:  # no need to repeat duplicates.
-                        try:
-                            DataTypes.infer(v, dtype)  # handles None gracefully.
-                        except (ValueError, TypeError):
-                            break
-                        last_value = v
+                    try:
+                        values[v] = DataTypes.infer(v, dtype)  # handles None gracefully.
+                    except (ValueError, TypeError):
+                        break
                     c += 1
 
                 works.append((c, dtype))
@@ -1534,15 +1537,12 @@ def find_format(table):
 
         for c, dtype in works:
             if c == len(values):
-                values.clear()
                 if table.use_disk:
                     c2 = StoredColumn
                 else:
                     c2 = InMemoryColumn
 
-                new_column = c2(column.header, dtype, column.allow_empty)
-                for v in column:
-                    new_column.append(DataTypes.infer(v, dtype) if v not in DataTypes.nones else None)
+                new_column = c2(column.header, dtype, column.allow_empty, data=[values.get(v, None) for v in column])
                 column.clear()
                 table.columns[col_name] = new_column
                 break
