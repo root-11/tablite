@@ -9,6 +9,7 @@ logging.getLogger('pyexcel').propagate = False
 
 import pyexcel
 import pyperclip
+from tqdm import tqdm
 
 
 from collections import defaultdict
@@ -1215,7 +1216,8 @@ class GroupBy(object):
 
 
 def text_reader(path, split_sequence=None, sep=None, has_headers=True,
-                start=None, limit=None, chunk_size=None, **kwargs):
+                start=None, limit=None, chunk_size=None, keep=None, skip=None,
+                **kwargs):
     """
     :param path: pathlib.Path
     :param split_sequence: (optional) list of characters that is used for splitting each line.
@@ -1224,11 +1226,24 @@ def text_reader(path, split_sequence=None, sep=None, has_headers=True,
     :param start: (optional) integer starting line number (0 includes headers)
     :param limit: (optional) integer limit of lines. F.ex. 10.
     :param chunk_size: (optional) integer limit of lines per table
+    :param keep: (optional) column names to keep
+    :param skip: (optional) column names to skip
     :param kwargs: See each file_reader type for details.
     :return: generator
     """
     if not isinstance(path, Path):
         raise ValueError(f"expected pathlib.Path, got {type(path)}")
+
+    if keep is not None:
+        if not isinstance(keep, (list, set, tuple)):
+            raise TypeError("expects keep as list, set or tuple")
+        if not all(isinstance(i, str) for i in keep):
+            raise TypeError("expects all items in keep to be string")
+    if skip is not None:
+        if not isinstance(skip, (list, set, tuple)):
+            raise TypeError("expects keep as list, set or tuple")
+        if not all(isinstance(i, str) for i in skip):
+            raise TypeError("expects all items in keep to be string")
 
     # detect newline format
     windows = '\n'
@@ -1257,8 +1272,14 @@ def text_reader(path, split_sequence=None, sep=None, has_headers=True,
     else:
         raise TypeError("expected chunk_size as integer > 0")
 
+    filter, add_all = [], False
+
+    num_lines = sum(1 for _ in path.open('r', encoding=encoding))
+    if limit is not None:
+        num_lines = min(num_lines, limit)
+
     with path.open('r', encoding=encoding) as fi:
-        for line_count, line in enumerate(fi):
+        for line_count, line in enumerate(tqdm(fi, total=num_lines, desc=path.name)):
 
             if line_count < start:
                 continue
@@ -1289,14 +1310,32 @@ def text_reader(path, split_sequence=None, sep=None, has_headers=True,
                         t.add_column(f"_{idx}", datatype=str, allow_empty=True)
                     else:
                         header = v.rstrip(" ").lstrip(" ")
-                        t.add_column(header, datatype=str, allow_empty=True)
-                n_columns = len(values)
 
+                        if skip is None and keep is None:
+                            to_add = True
+                        elif skip:
+                            if header in skip:
+                                to_add = False
+                            else:
+                                to_add = True
+                        elif keep:
+                            if header in keep:
+                                to_add = True
+                            else:
+                                to_add = False
+
+                        if to_add:
+                            filter.append(to_add)
+                            t.add_column(header, datatype=str, allow_empty=True)
+                n_columns = len(values)
+                add_all = all(filter)
                 if not has_headers:  # first line is our first row
                     t.add_row(values)
             else:
                 while n_columns > len(values):  # this makes the reader more robust.
                     values += ('',)
+                if not add_all:
+                    values = [v for v, f in zip(values, filter)]
                 t.add_row(values)
     yield t
 
