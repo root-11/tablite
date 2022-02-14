@@ -460,3 +460,39 @@ def test_filereader_gdocs1xlsx_import_single_sheet():
 
     tables = list(file_reader(path, has_headers=False, sheet_names='Sheet2'))
     assert len(tables) == 1
+
+
+def test_keep():
+    path = Path(__file__).parent / "data" / 'book1.csv'
+    assert path.exists()
+    table = next(file_reader(path, keep=['a', 'b']))
+    assert set(table.columns) == {'a', 'b'}
+    assert len(table) == 45
+
+
+def test_skip():
+    path = Path(__file__).parent / "data" / 'book1.csv'
+    assert path.exists()
+    table = next(file_reader(path, skip=['a', 'b']))
+    assert set(table.columns) == {'c', 'd', 'e', 'f'}
+    assert len(table) == 45
+
+
+def test_skip_and_keep():
+    path = Path(__file__).parent / "data" / 'book1.csv'
+    assert path.exists()
+    try:
+        _ = next(file_reader(path, skip=['a', 'b'], keep=['c', 'd']))
+        assert False
+    except ValueError:
+        assert True
+
+
+def test_datatype_from_user():
+    """ tests that datatype guess from user is used. """
+    path = Path(__file__).parent / "data" / 'book1.csv'
+    assert path.exists()
+    table = next(file_reader(path, keep=['a', 'b'], datatypes={'a': int, 'b': str}))
+    assert set(table.columns) == {'a', 'b'}
+    assert len(table) == 45
+    assert table['b'].datatype == str
