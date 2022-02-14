@@ -29,10 +29,22 @@ class Table(object):
     new_tables_use_disk = False
 
     """ The main workhorse for data processing. """
-    def __init__(self, **kwargs):
+    def __init__(self, use_disk=None, **kwargs):
+        """
+        :param use_disk: boolean, string or pathlib.Path
+            Table(use_disk=False)
+            Table(use_disk=True)
+            Table(use_disk=localfile)
+            Table(use_disk=localdir)
+
+        :param kwargs: dict stored as metadata.
+        """
         self.columns = {}
-        self._use_disk = kwargs.pop('use_disk', self.new_tables_use_disk)
         self.metadata = {**kwargs}
+        self._use_disk = self.new_tables_use_disk
+        if use_disk is not None:
+            self.use_disk = use_disk
+
 
     @property
     def use_disk(self):
@@ -40,16 +52,27 @@ class Table(object):
 
     @use_disk.setter
     def use_disk(self, value):
-        if not isinstance(value, bool):
-            raise TypeError(str(value))
         if self._use_disk == value:
             return
 
-        self._use_disk = value
-        if value is True:
-            C = StoredColumn
-        else:
+        if value is False:
             C = InMemoryColumn
+            self._use_disk = False
+        else:
+            C = StoredColumn
+            self._use_disk = True
+
+        if isinstance(value, str):
+            value = Path(value)
+        if isinstance(value, Path):
+            if value.is_dir():
+                filename = tempfile(value, 'tablite', 'h5')
+            else:
+                filename = value
+            self.metadata['localfile'] = filename
+
+        if not isinstance(value, (bool, Path)):
+            raise TypeError(str(value))
 
         for col_name, column in self.columns.items():
             self.columns[col_name] = C(col_name, column.datatype, column.allow_empty, data=column)
@@ -1256,7 +1279,7 @@ def text_reader(path, split_sequence=None, sep=None, has_headers=True,
     if split_sequence is None and sep is None:  #
         sep = detect_seperator(path, encoding)
 
-    t = Table()
+    t = Table(use_disk=kwargs.get('use_disk', None))
     t.metadata['filename'] = path.name
     n_columns = None
 
@@ -1345,7 +1368,7 @@ def excel_reader(path, has_headers=True, sheet_names=None, **kwargs):
         if len(sheet) == 0:
             continue
 
-        t = Table()
+        t = Table(use_disk=kwargs.get('use_disk',None))
         t.metadata['sheet_name'] = sheet.name
         t.metadata['filename'] = path.name
         for idx, column in enumerate(sheet.columns(), 1):
@@ -1385,7 +1408,7 @@ def ods_reader(path, has_headers=True, **kwargs):
             else:
                 break
 
-        table = Table(filename=path.name)
+        table = Table(use_disk=kwargs.get('use_disk', None))
         table.metadata['filename'] = path.name
         table.metadata['sheet_name'] = sheet_name
 
@@ -1452,8 +1475,8 @@ def log_reader(path, has_headers=True, interactive=True, **kwargs):
             print("got", repr(response))
         split_sequence.append(response)
     else:
-        split_sequence = kwargs.get('split_sequence')
-    table = text_reader(path, split_sequence=split_sequence, has_headers=has_headers)
+        split_sequence = kwargs.get('split_sequence', None)
+    table = text_reader(path, split_sequence=split_sequence, has_headers=has_headers, **kwargs)
     return table
 
 
