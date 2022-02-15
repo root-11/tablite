@@ -21,15 +21,19 @@ sql_update = "UPDATE records SET data = ? WHERE id=?;"
 sql_select = "SELECT data FROM records WHERE id=?"
 
 
-def tempfile(prefix='tmp', suffix='.db'):
+def tempfile(dir=None, prefix='tmp', suffix='.db'):
     """ generates a safe tempfile which windows can't handle. """
-    safe_folder = Path(gettempdir())
+    if dir is None:
+        safe_folder = Path(gettempdir())
+    else:
+        safe_folder = dir
+    n = 1
     while 1:
-        n = "".join(choice(ascii_lowercase) for _ in range(10))
         name = f"{prefix}{n}{suffix}"
         p = safe_folder / name
         if not p.exists():
             break
+        n += 1
     return p
 
 
