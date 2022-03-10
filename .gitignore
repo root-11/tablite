@@ -1,5 +1,12 @@
+# IDE configs.
 .idea/
+*.code-workspace
+
+# Compiled files
 *.pyc
+
+# Notebook checkpoints
 .ipynb_checkpoints/
+
+# Packages
 dist/
-identifier.sqlite
