@@ -3,3 +3,4 @@ pyexcel-odsr
 pyperclip
 pyexcel-xlsx
 tqdm
+graph-theory
