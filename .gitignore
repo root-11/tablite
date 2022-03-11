@@ -1,6 +1,7 @@
 # IDE configs.
 .idea/
 *.code-workspace
+.vscode/
 
 # Compiled files
 *.pyc
