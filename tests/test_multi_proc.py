@@ -1,72 +1,99 @@
 from graph import Graph
 import math
+import time
 import weakref
 # from numpy import np
 from itertools import count
 from collections import deque
-# from typing import List, Set, Dict, Tuple, Optional
-# from typing import Callable, Iterator, Union, Optional
-# from typing import Union, Any, Optional, cast
 
 
 class TaskManager(object):
-    registry = weakref.WeakValueDictionary()
-
-    def __init__(self) -> None:
-        self.reference_map = Graph()  # Documents relations between Table, Column & Datablock.
-        self.lru_tracker = {}  
-        self.process_pool=None
-        self.tasks = []
-        
+    registry = weakref.WeakValueDictionary()  # {Object ID: Object}
+    lru_tracker = {}  # {DataBlockId: process_time, ...}
+    map = Graph()  # Documents relations between Table, Column & Datablock.
+    process_pool = None
+    tasks = None
+    
     def __del__(self):
+        # + import gc; gc.collect()
         # shm.close()
         # shm.unlink()
         # pool.close()
         pass
 
-    def remove(self, node_id) -> None:
-        g = self.reference_map
-        nodes = deque([node_id])
+    @classmethod
+    def register(cls, obj):
+        cls.registry[id(obj)] = obj
+    @classmethod
+    def remove(cls, obj) -> None:
+        nodes = deque([id(obj)])
         while nodes:
             n1 = nodes.popleft()
-            if g.in_degree(n1) == 0:
-                for n2 in g.nodes(from_node=n1):
+            if cls.map.in_degree(n1) == 0:
+                for n2 in cls.map.nodes(from_node=n1):
                     nodes.append(n2)
-                g.del_node(n1)
+                cls.map.del_node(n1)
+                cls.lru_tracker.pop(n1,None)
+    @classmethod
+    def link(cls,a,b):
+        a = cls.registry[a] if isinstance(a, int) else a
+        b = cls.registry[b] if isinstance(b, int) else b
 
-    def inventory(self):
+        cls.map.add_edge(id(a),id(b))
+        if isinstance(b, DataBlock):
+            cls.map.add_node(id(b), b)
+    @classmethod
+    def unlink(cls, a,b):
+        cls.map.del_edge(id(a), id(b))
+        if isinstance(b, DataBlock):
+            if cls.map.in_degree(id(b)) == 0:
+                cls.map.del_node(id(b))
+    @classmethod
+    def __getitem__(cls, node_id):
+        cls.lru_tracker[node_id] = time.process_time()
+        return cls.map.node(node_id)
+
+    @classmethod
+    def get(cls, node_id):
+        cls.lru_tracker[node_id] = time.process_time()
+        return cls.map.node(node_id)
+
+    @classmethod
+    def inventory(cls):
         c = count()
-        n = math.ceil(math.log10(len(self.reference_map.nodes())))+2
+        n = math.ceil(math.log10(len(cls.map.nodes())))+2
         L = []
-        add = L.append
         d = {id(obj): name for name,obj in globals().copy().items() if isinstance(obj, (Table))}
 
-        for node_id in self.reference_map.nodes(in_degree=0):
+        for node_id in cls.map.nodes(in_degree=0):
             name = d.get(node_id, "")
-            obj = self.registry.get(node_id,None)
+            obj = cls.registry.get(node_id,None)
             if obj:
                 columns = [] if obj is None else list(obj.columns.keys())
-                add(f"{next(c)}|".zfill(n) + f" {name}, columns = {columns}")
+                L.append(f"{next(c)}|".zfill(n) + f" {name}, columns = {columns}")
                 for name, mc in obj.columns.items():
-                    add(f"{next(c)}|".zfill(n) + f" └─┬ {name} {mc.__class__.__name__}, length = {len(mc)}")
+                    L.append(f"{next(c)}|".zfill(n) + f" └─┬ {name} {mc.__class__.__name__}, length = {len(mc)}")
                     for i, block_id in enumerate(mc.order):
-                        block = self.reference_map.node(block_id)
-                        add(f"{next(c)}|".zfill(n) + f"   └── {i} {block.__class__.__name__}, length = {len(block)}")
+                        block = cls.map.node(block_id)
+                        L.append(f"{next(c)}|".zfill(n) + f"   └── {i} {block.__class__.__name__}, length = {len(block)}")
         return "\n".join(L)
 
-task_manager = TaskManager()
-tmap = task_manager.reference_map
+# task_manager = TaskManager()
+# tmap = task_manager.reference_map
 
 
 class DataBlock(object):
+
     def __init__(self, data):
-        TaskManager.registry[id(self)] = self
+        TaskManager.register(self)
         self._on_disk = False
         self._len = len(data)
-        self._data = data  # in hdf5 or in memory
-        self._location = None
+        self._data = data  # hdf5 or shm 
+        self._location = None  
+    
     def __len__(self) -> int:
         return self._len
+        
     def __del__(self):
         if self._on_disk:
             pass   # del file
@@ -76,18 +103,18 @@ class DataBlock(object):
 
 class ManagedColumn(object):  # Behaves like an immutable list.
     def __init__(self) -> None:
+        TaskManager.register(self)
         self.order = []  # strict order of datablocks.
-        TaskManager.registry[id(self)] = self
 
     def __len__(self):
-        return sum(len(tmap.node(node_id)) for node_id in self.order)
+        return sum(len(TaskManager.get(block_id)) for block_id in self.order)
 
     def __del__(self):
-        task_manager.remove(id(self))
+        TaskManager.remove(self)
 
     def __iter__(self):
-        for node_id in self.order:
-            datablock = tmap.node(node_id)
+        for block_id in self.order:
+            datablock = TaskManager[block_id]
             for value in datablock:
                 yield value
 
@@ -95,12 +122,11 @@ class ManagedColumn(object):  # Behaves like an immutable list.
         if isinstance(data, ManagedColumn):  # It's data we've seen before.
             for block_id in data.order:
                 self.order.append(block_id)
-                tmap.add_edge(id(self), block_id)
+                TaskManager.link(self, block_id)
         else:  # It's new data.
             data = DataBlock(data)
             self.order.append(id(data))
-            tmap.add_node(node_id=id(data), obj=data)  # Add the datablock to tmap.
-            tmap.add_edge(node1=id(self), node2=id(data))  # Add link from Column to DataBlock
+            TaskManager.link(self, data)  # Add link from Column to DataBlock
         
     def append(self, value):
         raise AttributeError("Append is slow. Use extend instead")
@@ -108,29 +134,29 @@ class ManagedColumn(object):  # Behaves like an immutable list.
 
 class Table(object):
     def __init__(self) -> None:
+        TaskManager.register(self)
         self.columns = {}
-        TaskManager.registry[id(self)] = self
     
     def __len__(self) -> int:
         if not self.columns:
             return 0
         else:
-            return len(list(self.columns.values())[0])
+            return max(len(mc) for mc in self.columns.values())
     
     def __del__(self):
-        task_manager.remove(id(self))
+        TaskManager.remove(self)
 
     def __delitem__(self, item):
         if isinstance(item, str):
             mc = self.columns[item]
             del self.columns[item]
-            tmap.del_edge(id(self), id(mc))
-            task_manager.remove(id(mc))
+            TaskManager.unlink(self, mc)
+            TaskManager.remove(mc)
 
         elif isinstance(item, slice):
             raise NotImplementedError
 
-    def del_column(self, name):
+    def del_column(self, name):  # alias for summetry to add_column
         self.__delitem__(name)
  
     def add_column(self, name, data):
@@ -139,7 +165,7 @@ class Table(object):
         mc = ManagedColumn()
         mc.extend(data)
         self.columns[name] = mc
-        tmap.add_edge(node1=id(self), node2=id(mc))  # Add link from Table to Column
+        TaskManager.link(self, mc)  # Add link from Table to Column
         
     def __add__(self, other):
         if self.columns.keys() != other.columns.keys():
@@ -177,24 +203,24 @@ tables = 3
 managed_columns_per_table = 2 
 datablocks = 2
 
-assert len(tmap.nodes()) == tables + (tables * managed_columns_per_table) + datablocks
-assert len(tmap.edges()) == tables * managed_columns_per_table + 8 - 2  # the -2 is because of double reference to 1 and 2 in Table3
+assert len(TaskManager.map.nodes()) == tables + (tables * managed_columns_per_table) + datablocks
+assert len(TaskManager.map.edges()) == tables * managed_columns_per_table + 8 - 2  # the -2 is because of double reference to 1 and 2 in Table3
 assert len(table1) + len(table2) + len(table3) == 3 + 3 + 6
 
 
 
 # delete table
-assert len(tmap.nodes()) == 11, "3 tables, 6 managed columns and 2 datablocks"
-assert len(tmap.edges()) == 12
+assert len(TaskManager.map.nodes()) == 11, "3 tables, 6 managed columns and 2 datablocks"
+assert len(TaskManager.map.edges()) == 12
 del table1  # removes 2 refs to ManagedColumns and 2 refs to DataBlocks
-assert len(tmap.nodes()) == 8, "removed 1 table and 2 managed columns"
-assert len(tmap.edges()) == 8 
+assert len(TaskManager.map.nodes()) == 8, "removed 1 table and 2 managed columns"
+assert len(TaskManager.map.edges()) == 8 
 # delete column
 del table2['A']
-assert len(tmap.nodes()) == 7, "removed 1 managed column reference"
-assert len(tmap.edges()) == 6
+assert len(TaskManager.map.nodes()) == 7, "removed 1 managed column reference"
+assert len(TaskManager.map.edges()) == 6
 
-print(task_manager.inventory())
+print(TaskManager.inventory())
 
 print('done')
 
