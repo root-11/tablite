@@ -54,7 +54,7 @@ class TaskManager(object):
                 cls.map.del_node(n1)
     @classmethod
     def get(cls, node_id):
-        cls.lru_tracker[node_id] = time.process_time()
+        cls.lru_tracker[node_id] = time.process_time()  # keep the lru tracker up to date.
         return cls.map.node(node_id)
     @classmethod
     def inventory(cls):
@@ -132,8 +132,8 @@ class ManagedColumn(object):  # Behaves like an immutable list.
 
     def extend(self, data):
         if isinstance(data, ManagedColumn):  # It's data we've seen before.
+            self.order.extend(data.order[:])
             for block_id in data.order:
-                self.order.append(block_id)
                 TaskManager.link(self, block_id)
         else:  # It's new data.
             data = DataBlock(data)
