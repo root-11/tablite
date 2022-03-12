@@ -8,7 +8,7 @@ from collections import deque
 
 
 class TaskManager(object):
-    registry = weakref.WeakValueDictionary()  # {Object ID: Object}
+    registry = weakref.WeakValueDictionary()  # {Object ID: Object} The weakref presents blocking of garbage collection.
     lru_tracker = {}  # {DataBlockId: process_time, ...}
     map = Graph()  # Documents relations between Table, Column & Datablock.
     process_pool = None
@@ -22,18 +22,13 @@ class TaskManager(object):
         pass
 
     @classmethod
-    def register(cls, obj):
+    def register(cls, obj):  # used at __init__
         cls.registry[id(obj)] = obj
+        cls.lru_tracker[id(obj)] = time.process_time()
     @classmethod
-    def remove(cls, obj) -> None:
-        nodes = deque([id(obj)])
-        while nodes:
-            n1 = nodes.popleft()
-            if cls.map.in_degree(n1) == 0:
-                for n2 in cls.map.nodes(from_node=n1):
-                    nodes.append(n2)
-                cls.map.del_node(n1)
-                cls.lru_tracker.pop(n1,None)
+    def deregister(cls, obj):  # used at __del__
+        cls.registry.pop(id(obj),None)
+        cls.lru_tracker.pop(id(obj),None)
     @classmethod
     def link(cls,a,b):
         a = cls.registry[a] if isinstance(a, int) else a
@@ -49,15 +44,18 @@ class TaskManager(object):
             if cls.map.in_degree(id(b)) == 0:
                 cls.map.del_node(id(b))
     @classmethod
-    def __getitem__(cls, node_id):
-        cls.lru_tracker[node_id] = time.process_time()
-        return cls.map.node(node_id)
-
+    def unlink_tree(cls, a):
+        nodes = deque([id(a)])
+        while nodes:
+            n1 = nodes.popleft()
+            if cls.map.in_degree(n1) == 0:
+                for n2 in cls.map.nodes(from_node=n1):
+                    nodes.append(n2)
+                cls.map.del_node(n1)
     @classmethod
     def get(cls, node_id):
         cls.lru_tracker[node_id] = time.process_time()
         return cls.map.node(node_id)
-
     @classmethod
     def inventory(cls):
         """ returns printable overview of the registered tables, managed columns and datablocs. """
@@ -91,14 +89,26 @@ class DataBlock(object):
         self._data = data  # hdf5 or shm 
         self._location = None  
     
+    @property
+    def data(self):
+        return self._data  # TODO: Needs to cope with data not being loaded.
+
+    @data.setter
+    def data(self,value):
+        raise AttributeError("DataBlock.data is immutable.")
+
     def __len__(self) -> int:
         return self._len
+    
+    def __iter__(self):
+        raise AttributeError("Use vectorised functions on DataBlock.data instead of __iter__")
         
     def __del__(self):
         if self._on_disk:
             pass   # del file
         else:
             pass  # close shm
+        TaskManager.deregister(self)
 
 
 class ManagedColumn(object):  # Behaves like an immutable list.
@@ -110,12 +120,14 @@ class ManagedColumn(object):  # Behaves like an immutable list.
         return sum(len(TaskManager.get(block_id)) for block_id in self.order)
 
     def __del__(self):
-        TaskManager.remove(self)
+        TaskManager.unlink_tree(self)
+        TaskManager.deregister(self)
 
     def __iter__(self):
         for block_id in self.order:
             datablock = TaskManager[block_id]
-            for value in datablock:
+            assert isinstance(datablock, DataBlock)
+            for value in datablock.data:
                 yield value
 
     def extend(self, data):
@@ -129,7 +141,7 @@ class ManagedColumn(object):  # Behaves like an immutable list.
             TaskManager.link(self, data)  # Add link from Column to DataBlock
         
     def append(self, value):
-        raise AttributeError("Append is slow. Use extend instead")
+        raise AttributeError("Append items is slow. Use extend on a batch instead")
     
 
 class Table(object):
@@ -144,17 +156,18 @@ class Table(object):
             return max(len(mc) for mc in self.columns.values())
     
     def __del__(self):
-        TaskManager.remove(self)
+        TaskManager.unlink_tree(self)
+        # columns are automatically garbage collected.
+        TaskManager.deregister(self)
 
     def __delitem__(self, item):
         if isinstance(item, str):
             mc = self.columns[item]
             del self.columns[item]
             TaskManager.unlink(self, mc)
-            TaskManager.remove(mc)
-
+            TaskManager.unlink_tree(mc)
         elif isinstance(item, slice):
-            raise NotImplementedError
+            raise AttributeError("Tables are immutable. Create a new table using filter or using an index")
 
     def del_column(self, name):  # alias for summetry to add_column
         self.__delitem__(name)
