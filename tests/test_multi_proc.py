@@ -15,7 +15,7 @@ class TaskManager(object):
     tasks = None
     
     def __del__(self):
-        # + import gc; gc.collect()
+        # Use `import gc; del TaskManager; gc.collect()` to delete the TaskManager class.
         # shm.close()
         # shm.unlink()
         # pool.close()
@@ -60,6 +60,7 @@ class TaskManager(object):
 
     @classmethod
     def inventory(cls):
+        """ returns printable overview of the registered tables, managed columns and datablocs. """
         c = count()
         node_count = len(cls.map.nodes())
         if node_count == 0:
@@ -73,12 +74,12 @@ class TaskManager(object):
             obj = cls.registry.get(node_id,None)
             if obj:
                 columns = [] if obj is None else list(obj.columns.keys())
-                L.append(f"{next(c)}|".zfill(n) + f" {name}, columns = {columns}")
+                L.append(f"{next(c)}|".zfill(n) + f" {name}, columns = {columns}, registry id: {node_id}")
                 for name, mc in obj.columns.items():
-                    L.append(f"{next(c)}|".zfill(n) + f" └─┬ {name} {mc.__class__.__name__}, length = {len(mc)}")
+                    L.append(f"{next(c)}|".zfill(n) + f" └─┬ column \'{name}\' {mc.__class__.__name__}, length = {len(mc)}, registry id: {id(mc)}")
                     for i, block_id in enumerate(mc.order):
                         block = cls.map.node(block_id)
-                        L.append(f"{next(c)}|".zfill(n) + f"   └── {i} {block.__class__.__name__}, length = {len(block)}")
+                        L.append(f"{next(c)}|".zfill(n) + f"   └── {block.__class__.__name__}-{i}, length = {len(block)}, registry id: {block_id}")
         return "\n".join(L)
 
 
