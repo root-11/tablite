@@ -70,13 +70,13 @@ class TaskManager(object):
         d = {id(obj): name for name,obj in globals().copy().items() if isinstance(obj, (Table))}
 
         for node_id in cls.map.nodes(in_degree=0):
-            name = d.get(node_id, "")
+            name = d.get(node_id, "Table")
             obj = cls.registry.get(node_id,None)
             if obj:
                 columns = [] if obj is None else list(obj.columns.keys())
                 L.append(f"{next(c)}|".zfill(n) + f" {name}, columns = {columns}, registry id: {node_id}")
                 for name, mc in obj.columns.items():
-                    L.append(f"{next(c)}|".zfill(n) + f" └─┬ column \'{name}\' {mc.__class__.__name__}, length = {len(mc)}, registry id: {id(mc)}")
+                    L.append(f"{next(c)}|".zfill(n) + f" └─┬ {mc.__class__.__name__} \'{name}\', length = {len(mc)}, registry id: {id(mc)}")
                     for i, block_id in enumerate(mc.order):
                         block = cls.map.node(block_id)
                         L.append(f"{next(c)}|".zfill(n) + f"   └── {block.__class__.__name__}-{i}, length = {len(block)}, registry id: {block_id}")
@@ -198,50 +198,50 @@ class Table(object):
         return t
 
 
-# creating a tablite incrementally is straight forward:
-table1 = Table()
-assert len(table1) == 0
-table1.add_column('A', data=[1,2,3])
-assert 'A' in table1.columns
-assert len(table1) == 3
+def test_basics():
+    # creating a tablite incrementally is straight forward:
+    table1 = Table()
+    assert len(table1) == 0
+    table1.add_column('A', data=[1,2,3])
+    assert 'A' in table1.columns
+    assert len(table1) == 3
 
-table1.add_column('B', data=['a','b','c'])
-assert 'B' in table1.columns
-assert len(table1) == 3
+    table1.add_column('B', data=['a','b','c'])
+    assert 'B' in table1.columns
+    assert len(table1) == 3
 
-table2 = table1.copy()
+    table2 = table1.copy()
 
-table3 = table1 + table2
-assert len(table3) == len(table1) + len(table2)
+    table3 = table1 + table2
+    assert len(table3) == len(table1) + len(table2)
 
-tables = 3
-managed_columns_per_table = 2 
-datablocks = 2
+    tables = 3
+    managed_columns_per_table = 2 
+    datablocks = 2
 
-assert len(TaskManager.map.nodes()) == tables + (tables * managed_columns_per_table) + datablocks
-assert len(TaskManager.map.edges()) == tables * managed_columns_per_table + 8 - 2  # the -2 is because of double reference to 1 and 2 in Table3
-assert len(table1) + len(table2) + len(table3) == 3 + 3 + 6
+    assert len(TaskManager.map.nodes()) == tables + (tables * managed_columns_per_table) + datablocks
+    assert len(TaskManager.map.edges()) == tables * managed_columns_per_table + 8 - 2  # the -2 is because of double reference to 1 and 2 in Table3
+    assert len(table1) + len(table2) + len(table3) == 3 + 3 + 6
 
-# delete table
-assert len(TaskManager.map.nodes()) == 11, "3 tables, 6 managed columns and 2 datablocks"
-assert len(TaskManager.map.edges()) == 12
-del table1  # removes 2 refs to ManagedColumns and 2 refs to DataBlocks
-assert len(TaskManager.map.nodes()) == 8, "removed 1 table and 2 managed columns"
-assert len(TaskManager.map.edges()) == 8 
-# delete column
-del table2['A']
-assert len(TaskManager.map.nodes()) == 7, "removed 1 managed column reference"
-assert len(TaskManager.map.edges()) == 6
+    # delete table
+    assert len(TaskManager.map.nodes()) == 11, "3 tables, 6 managed columns and 2 datablocks"
+    assert len(TaskManager.map.edges()) == 12
+    del table1  # removes 2 refs to ManagedColumns and 2 refs to DataBlocks
+    assert len(TaskManager.map.nodes()) == 8, "removed 1 table and 2 managed columns"
+    assert len(TaskManager.map.edges()) == 8 
+    # delete column
+    del table2['A']
+    assert len(TaskManager.map.nodes()) == 7, "removed 1 managed column reference"
+    assert len(TaskManager.map.edges()) == 6
 
-print(TaskManager.inventory())
+    print(TaskManager.inventory())
 
-del table3
-del table2
-assert len(TaskManager.map.nodes()) == 0
-assert len(TaskManager.map.edges()) == 0
+    del table3
+    del table2
+    assert len(TaskManager.map.nodes()) == 0
+    assert len(TaskManager.map.edges()) == 0
 
-print('done')
-
+  
 # drop datablock to hdf5
 # load datablack from hdf5
 
@@ -257,3 +257,13 @@ print('done')
 # memory limit
 # set task manager memory limit relative to using psutil
 # update LRU cache based on access.
+
+if __name__ == "__main__":
+    for k,v in globals().copy().items():
+        if k.startswith("test") and callable(v):
+            try:
+                v()
+                print(f"{k} ... pass")
+            except Exception:
+                print(f"{k} ... fail")
+
