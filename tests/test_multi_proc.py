@@ -2,9 +2,11 @@ from graph import Graph
 import math
 import time
 import weakref
-# from numpy import np
 from itertools import count
 from collections import deque
+
+import numpy as np
+from multiprocessing import cpu_count, shared_memory, Pool
 
 
 class TaskManager(object):
