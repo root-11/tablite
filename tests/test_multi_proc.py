@@ -61,7 +61,10 @@ class TaskManager(object):
     @classmethod
     def inventory(cls):
         c = count()
-        n = math.ceil(math.log10(len(cls.map.nodes())))+2
+        node_count = len(cls.map.nodes())
+        if node_count == 0:
+            return "no nodes" 
+        n = math.ceil(math.log10(node_count))+2
         L = []
         d = {id(obj): name for name,obj in globals().copy().items() if isinstance(obj, (Table))}
 
@@ -78,12 +81,8 @@ class TaskManager(object):
                         L.append(f"{next(c)}|".zfill(n) + f"   └── {i} {block.__class__.__name__}, length = {len(block)}")
         return "\n".join(L)
 
-# task_manager = TaskManager()
-# tmap = task_manager.reference_map
-
 
 class DataBlock(object):
-
     def __init__(self, data):
         TaskManager.register(self)
         self._on_disk = False
@@ -207,8 +206,6 @@ assert len(TaskManager.map.nodes()) == tables + (tables * managed_columns_per_ta
 assert len(TaskManager.map.edges()) == tables * managed_columns_per_table + 8 - 2  # the -2 is because of double reference to 1 and 2 in Table3
 assert len(table1) + len(table2) + len(table3) == 3 + 3 + 6
 
-
-
 # delete table
 assert len(TaskManager.map.nodes()) == 11, "3 tables, 6 managed columns and 2 datablocks"
 assert len(TaskManager.map.edges()) == 12
@@ -221,6 +218,11 @@ assert len(TaskManager.map.nodes()) == 7, "removed 1 managed column reference"
 assert len(TaskManager.map.edges()) == 6
 
 print(TaskManager.inventory())
+
+del table3
+del table2
+assert len(TaskManager.map.nodes()) == 0
+assert len(TaskManager.map.edges()) == 0
 
 print('done')
 
