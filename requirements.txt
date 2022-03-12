@@ -4,3 +4,5 @@ pyperclip
 pyexcel-xlsx
 tqdm
 graph-theory
+numpy>=1.2.0
+h5py
