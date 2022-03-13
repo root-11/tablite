@@ -164,7 +164,7 @@ class ManagedColumn(object):  # Behaves like an immutable list.
         if self.dtype is None:
             self.dtype = other.dtype
         elif self.dtype != other.dtype:
-            raise TypeError(f"the column expects {self.dtype}, but data is of dtype {data.dtype}.")
+            raise TypeError(f"the column expects {self.dtype}, but received {other.dtype}.")
         else:
             pass
 
