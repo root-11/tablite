@@ -97,7 +97,7 @@ if __name__ == "__main__":
         'id':1,
         'address': shm.name, 'type': 'shm', 
         'dtype': a.dtype, 'shape': a.shape, 
-        'script': f"""# from multiprocssing import shared_memory
+        'script': f"""# from multiprocssing import shared_memory - is already imported.
 existing_shm = shared_memory.SharedMemory(name='{shm.name}')
 c = np.ndarray((6,), dtype=np.{a.dtype}, buffer=existing_shm.buf)
 c[-1] = 888
@@ -108,7 +108,8 @@ existing_shm.close()
     tm.add(task)
     tm.execute()
     tm.stop()
-    print(b)  # assert b[-1] == 888, b
+    print(b, f"assertion that b[-1] == 888 is {b[-1] == 888}")  
+    
     shm.close()
     shm.unlink()
     for k,v in tm.results.items():
