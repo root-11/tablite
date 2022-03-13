@@ -140,7 +140,7 @@ class ManagedColumn(object):  # Behaves like an immutable list.
     def __init__(self) -> None:
         MemoryManager.register(self)
         self.order = []  # strict order of datablocks.
-        self.dtype = {}
+        self.dtype = None
 
     def __len__(self):
         return sum(len(MemoryManager.get(block_id)) for block_id in self.order)
@@ -158,21 +158,30 @@ class ManagedColumn(object):  # Behaves like an immutable list.
 
     def blocks(self):
         return [MemoryManager.get(block_id).address for block_id in self.order]           
-        
+
+    def _dtype_check(self, other):
+        assert isinstance(other, (np.ndarray, ManagedColumn))
+        if self.dtype is None:
+            self.dtype = other.dtype
+        elif self.dtype != other.dtype:
+            raise TypeError(f"the column expects {self.dtype}, but data is of dtype {data.dtype}.")
+        else:
+            pass
+
     def extend(self, data):
         if isinstance(data, ManagedColumn):  # It's data we've seen before.
+            self._dtype_check(data)
+
             self.order.extend(data.order[:])
             for block_id in data.order:
                 MemoryManager.link(self, block_id)
+            
         else:  # It's supposedly new data.
             if not isinstance(data, np.ndarray):
                 data = np.array(data)
 
-            if self.dtype is None:
-                self.dtype = data.dtype
-            elif data.dtype != self.dtype:
-                raise TypeError(f"the column expects {self.dtype}, but data is of dtype {data.dtype}.")
-            
+            self._dtype_check(data)
+
             m = hashlib.sha256()  # let's check if it really is new data...
             m.update(data.data.tobytes())
             sha256sign = m.hexdigest()
@@ -283,8 +292,8 @@ class Table(object):
                 col2 = b.columns[name]
                 if col.dtype != col2.dtype:
                     raise ValueError(f"Column {name}.datatype different: {col.dtype}, {col2.dtype}")
-                if col.allow_empty != col2.allow_empty:
-                    raise ValueError(f"Column {name}.allow_empty is different")
+                # if col.allow_empty != col2.allow_empty:
+                #     raise ValueError(f"Column {name}.allow_empty is different")
 
     def copy(self):
         t = Table()
