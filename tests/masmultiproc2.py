@@ -21,9 +21,10 @@ class TaskManager(object):
             raise TypeError
         if not 'id' in task:
             raise KeyError("expect task to have id, to preserve order")
-        if task['id'] in self.tasks:
-            raise KeyError(f"task {task['id']} already in use.")
-        self.tasks[id] = task
+        task_id = task['id']
+        if task_id in self.tasks:
+            raise KeyError(f"task {task_id} already in use.")
+        self.tasks[task_id] = task
         self.tq.put(task)
     
     def __enter__(self):
@@ -32,6 +33,8 @@ class TaskManager(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
+        self.tasks.clear()
+        self.results.clear()
 
     def start(self):
         self.pool = [Worker(name=str(i), tq=self.tq, rq=self.rq) for i in range(2)]
@@ -49,7 +52,6 @@ class TaskManager(object):
             except queue.Empty:
                 time.sleep(0.01)
             t.update(len(self.results))
-        print("all tasks accounted for")
         t.close()
         
     def stop(self):
@@ -74,7 +76,7 @@ class Worker(multiprocessing.Process):
             try:
                 task = self.tq.get_nowait()
             except queue.Empty:
-                time.sleep(0.1)
+                time.sleep(0.01)
                 continue
             
             if task == "stop":
@@ -114,18 +116,36 @@ c[-1] = 888
 existing_shm.close()
 """}
 
+    tasks = [task]
+    for i in range(4):
+        task2 = task.copy()
+        task2['id'] = 2+i
+        task2['script'] = f"""existing_shm = shared_memory.SharedMemory(name='{shm.name}')
+c = np.ndarray((6,), dtype=np.{a.dtype}, buffer=existing_shm.buf)
+c[{i}] = 111+{i}  # DIFFERENT!
+existing_shm.close()
+time.sleep(0.1)  # Added delay to distribute the few tasks amongst the workers.
+"""
+        tasks.append(task2)
+    
     with TaskManager() as tm:
-        tm.add(task)
+        for task in tasks:
+            tm.add(task)
         tm.execute()
 
+        for v in tm.results.items():
+            print(v)
+
+    # Alternative "low level usage":
     # tm = TaskManager()
     # tm.add(task)
+    # tm.start()
     # tm.execute()
     # tm.stop()
     print(b, f"assertion that b[-1] == 888 is {b[-1] == 888}")  
+    print(b, f"assertion that b[-1] == 888 is {b[1] == 111}")  
     
     shm.close()
     shm.unlink()
-    for k,v in tm.results.items():
-        print(k,v)
+    
 
