@@ -4,9 +4,17 @@ import time
 import weakref
 from itertools import count
 from collections import deque
-
+import h5py
 import numpy as np
-from multiprocessing import cpu_count, shared_memory, Pool
+from multiprocessing import cpu_count, shared_memory, Pool, freeze_support
+
+
+_pool = None
+def _get_pool():
+    global _pool
+    if _pool is None:
+        _pool = Pool()
+    return _pool
 
 
 class TaskManager(object):
@@ -15,13 +23,18 @@ class TaskManager(object):
     map = Graph()  # Documents relations between Table, Column & Datablock.
     process_pool = None
     tasks = None
-    
-    def __del__(self):
+
+    @classmethod
+    def get_pool(cls):
+        cls.process_pool = _get_pool()
+
+    @classmethod
+    def __del__(cls):
         # Use `import gc; del TaskManager; gc.collect()` to delete the TaskManager class.
         # shm.close()
         # shm.unlink()
-        # pool.close()
-        pass
+        if cls.process_pool is not None:
+            cls.process_pool.close()
 
     @classmethod
     def register(cls, obj):  # used at __init__
@@ -87,14 +100,29 @@ class DataBlock(object):
     def __init__(self, data):
         TaskManager.register(self)
         self._on_disk = False
+        
+        if not isinstance(data, np.ndarray):
+            data = np.array(data)
+
+        self._shm = shared_memory.SharedMemory(create=True, size=data.nbytes)
+        self._address = self._shm.name
+
+        self._data = np.ndarray(data.shape, dtype=data.dtype, buffer=self._shm.buf)
+        self._data = data[:] # copy the source data into the shm
         self._len = len(data)
-        self._data = data  # hdf5 or shm 
-        self._location = None  
-    
+        self._dtype = data.dtype
+        # np in shared memory: address = psm_21467_46075
+	    # h5 on disk: address = path/to/hdf5.h5/table_name/column_name/block_name
+    @property
+    def address(self):
+        if self._shm is not None:
+            return (self._data.shape, self._dtype, self._address)
+        else:
+            raise NotImplementedError("h5 isn't implemented yet.")
+
     @property
     def data(self):
         return self._data  # TODO: Needs to cope with data not being loaded.
-
     @data.setter
     def data(self,value):
         raise AttributeError("DataBlock.data is immutable.")
@@ -106,6 +134,13 @@ class DataBlock(object):
         raise AttributeError("Use vectorised functions on DataBlock.data instead of __iter__")
         
     def __del__(self):
+        if self._shm is not None:
+            try:
+                self._shm.close()
+                self._shm.unlink()
+            except Exception as e:
+                print(e)
+
         if self._on_disk:
             pass   # del file
         else:
@@ -127,11 +162,14 @@ class ManagedColumn(object):  # Behaves like an immutable list.
 
     def __iter__(self):
         for block_id in self.order:
-            datablock = TaskManager[block_id]
+            datablock = TaskManager.get(block_id)
             assert isinstance(datablock, DataBlock)
             for value in datablock.data:
                 yield value
 
+    def blocks(self):
+        return [TaskManager.get(block_id).address for block_id in self.order]           
+        
     def extend(self, data):
         if isinstance(data, ManagedColumn):  # It's data we've seen before.
             self.order.extend(data.order[:])
@@ -158,9 +196,16 @@ class Table(object):
             return max(len(mc) for mc in self.columns.values())
     
     def __del__(self):
-        TaskManager.unlink_tree(self)
-        # columns are automatically garbage collected.
+        TaskManager.unlink_tree(self)  # columns are automatically garbage collected.
         TaskManager.deregister(self)
+
+    def __getitem__(self, item):
+        if isinstance(item, str):
+            return self.columns[item]
+        elif isinstance(item, slice):
+            raise NotImplementedError("coming!")
+        else:
+            raise NotImplemented(f"? {type(item)}")
 
     def __delitem__(self, item):
         if isinstance(item, str):
@@ -241,7 +286,29 @@ def test_basics():
     assert len(TaskManager.map.nodes()) == 0
     assert len(TaskManager.map.edges()) == 0
 
-  
+def fx2(address):
+    shape, dtype, name = address
+    existing_shm = shared_memory.SharedMemory(name=name)
+    c = np.ndarray(shape, dtype=dtype, buffer=existing_shm.buf)
+    result = 2*c
+    existing_shm.close()  # emphasising that shm is no longer used.
+    return result
+
+def test_shm():
+    table1 = Table()
+    assert len(table1) == 0
+    table1.add_column('A', data=[1,2,3])  # block1
+    table1['A'].extend(data=[4,4,8])  # block2
+    table1['A'].extend(data=[8,9,10])  # block3
+    assert [v for v in table1['A']] == [1,2,3,4,4,8,8,9,10]
+    blocks = table1['A'].blocks()
+
+    print(blocks)
+    result = TaskManager.process_pool.map(fx2, blocks)
+    print(result)
+    
+
+
 # drop datablock to hdf5
 # load datablack from hdf5
 
@@ -259,11 +326,12 @@ def test_basics():
 # update LRU cache based on access.
 
 if __name__ == "__main__":
-    for k,v in globals().copy().items():
-        if k.startswith("test") and callable(v):
-            try:
-                v()
-                print(f"{k} ... pass")
-            except Exception:
-                print(f"{k} ... fail")
-
+    # freeze_support()
+    # for k,v in globals().copy().items():
+    #     if k.startswith("test") and callable(v):
+    #         v()
+    TaskManager.get_pool()
+    test_shm()
+    TaskManager.process_pool.close()
+    TaskManager.process_pool.join()
+    TaskManager.process_pool = None
