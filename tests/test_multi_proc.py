@@ -7,7 +7,7 @@ from itertools import count
 from collections import deque
 import h5py
 import numpy as np
-from multiprocessing import cpu_count, shared_memory, Pool, freeze_support
+from multiprocessing import cpu_count, shared_memory
 
 
 class MemoryManager(object):
@@ -113,9 +113,9 @@ class DataBlock(object):  # DataBlocks are IMMUTABLE!
             raise NotImplementedError("h5 isn't implemented yet.")
     @property
     def data(self):
-        return self._data  # TODO: Needs to cope with data not being loaded.
+        return self._data  # TODO: Needs to cope with data being on HDF5.
     @data.setter
-    def data(self,value):
+    def data(self, value):
         raise AttributeError("DataBlock.data is immutable.")
     def __len__(self) -> int:
         return self._len
@@ -140,6 +140,7 @@ class ManagedColumn(object):  # Behaves like an immutable list.
     def __init__(self) -> None:
         MemoryManager.register(self)
         self.order = []  # strict order of datablocks.
+        self.dtype = {}
 
     def __len__(self):
         return sum(len(MemoryManager.get(block_id)) for block_id in self.order)
@@ -166,6 +167,11 @@ class ManagedColumn(object):  # Behaves like an immutable list.
         else:  # It's supposedly new data.
             if not isinstance(data, np.ndarray):
                 data = np.array(data)
+
+            if self.dtype is None:
+                self.dtype = data.dtype
+            elif data.dtype != self.dtype:
+                raise TypeError(f"the column expects {self.dtype}, but data is of dtype {data.dtype}.")
             
             m = hashlib.sha256()  # let's check if it really is new data...
             m.update(data.data.tobytes())
@@ -225,16 +231,61 @@ class Table(object):
         mc.extend(data)
         self.columns[name] = mc
         MemoryManager.link(self, mc)  # Add link from Table to Column
-        
+            
+    def __iadd__(self, other):
+        """ 
+        enables extension of self with data from other.
+        Example: Table_1 += Table_2 
+        """
+        self.compare(other)
+        for name,mc in self.columns.items():
+            mc.extend(other.columns[name])
+
     def __add__(self, other):
-        if self.columns.keys() != other.columns.keys():
-            raise ValueError("Columns are different")
+        """
+        returns the joint extension of self and other
+        Example:  Table_3 = Table_1 + Table_2 
+        """
+        self.compare(other)
         t = self.copy()
         for name,mc in other.columns.items():
             mc2 = t.columns[name]
             mc2.extend(mc)
         return t
-    
+
+    def stack(self,other):
+        """
+        returns the joint stack of tables
+
+        | Table A|  +  | Table B| = |  Table AB |
+        | A| B| C|     | A| B| D|   | A| B| C| -|
+                                    | A| B| -| D|
+        """
+        t = self.copy()
+        for name,mc2 in other.columns.items():
+            if name not in t.columns:
+                t.add_column(name, data=[None] * len(mc2))
+            mc = t.columns[name]
+            mc.extend(mc2)
+        for name, mc in t.columns.items():
+            if name not in other.columns:
+                mc.extend(data=[None]*len(other))
+        return t
+
+    def compare(self,other):
+        if not isinstance(other, Table):
+            a, b = self.__class__.__name__, other.__class__.__name__
+            raise TypeError(f"cannot compare type {b} with {a}")
+        for a, b in [[self, other], [other, self]]:  # check both dictionaries.
+            for name, col in a.columns.items():
+                if name not in b.columns:
+                    raise ValueError(f"Column {name} not in other")
+                col2 = b.columns[name]
+                if col.dtype != col2.dtype:
+                    raise ValueError(f"Column {name}.datatype different: {col.dtype}, {col2.dtype}")
+                if col.allow_empty != col2.allow_empty:
+                    raise ValueError(f"Column {name}.allow_empty is different")
+
     def copy(self):
         t = Table()
         for name,mc in self.columns.items():
