@@ -10,16 +10,16 @@ import numpy as np
 
 class TaskManager(object):
     def __init__(self) -> None:
-        self.tq = multiprocessing.Queue()
-        self.tasks = {}
-        self.results = {}
-        self.rq = multiprocessing.Queue()
-        # self.logq = multiprocessing.Queue()
+        self.tq = multiprocessing.Queue()  # task queue for workers.
+        self.rq = multiprocessing.Queue()  # result queue for workers.
         self.pool = [Worker(name=str(i), tq=self.tq, rq=self.rq) for i in range(2)]
         for p in self.pool:
             p.start()
         while not all(p.is_alive() for p in self.pool):
             time.sleep(0.01)
+        
+        self.tasks = {}  # task register for progress tracking
+        self.results = {}  # result register for progress tracking
     
     def add(self, task):
         if not isinstance(task, dict):
@@ -34,11 +34,6 @@ class TaskManager(object):
     def execute(self):
         t = tqdm.tqdm(total=len(self.tasks))
         while len(self.tasks) != len(self.results):
-
-            # try:
-            #     print(tm.logq.get_nowait())
-            # except queue.Empty:
-            #     pass
             try:
                 result = self.rq.get_nowait()
                 self.results[result['id']] = result
@@ -65,7 +60,7 @@ class Worker(multiprocessing.Process):
         print(f"Worker-{self.name}: ready")
                 
     def update(self):
-        while not self._quit:
+        while True:
             try:
                 task = self.tq.get_nowait()
             except queue.Empty:
@@ -75,7 +70,6 @@ class Worker(multiprocessing.Process):
             if task == "stop":
                 print(f"Worker-{self.name}: stop signal received.")
                 self.tq.put_nowait(task)  # this assures that everyone gets it.
-                self._quit = True
                 self.exit.set()
                 break
             error = ""
@@ -92,7 +86,8 @@ class Worker(multiprocessing.Process):
 
 
 if __name__ == "__main__":
-    
+
+    # Create shared_memory array for workers to access.
     a = np.array([1, 1, 2, 3, 5, 8])
     shm = shared_memory.SharedMemory(create=True, size=a.nbytes)
     b = np.ndarray(a.shape, dtype=a.dtype, buffer=shm.buf)
@@ -102,7 +97,7 @@ if __name__ == "__main__":
         'id':1,
         'address': shm.name, 'type': 'shm', 
         'dtype': a.dtype, 'shape': a.shape, 
-        'script': f"""from multiprocssing import shared_memory
+        'script': f"""# from multiprocssing import shared_memory
 existing_shm = shared_memory.SharedMemory(name='{shm.name}')
 c = np.ndarray((6,), dtype=np.{a.dtype}, buffer=existing_shm.buf)
 c[-1] = 888
@@ -112,23 +107,8 @@ existing_shm.close()
     tm = TaskManager()
     tm.add(task)
     tm.execute()
-        
-    # while tm.tasks:
-    #     try:
-    #         print(tm.logq.get_nowait())
-    #     except queue.Empty:
-    #         pass
-    #     try:
-    #         result = tm.rq.get_nowait()
-    #         print(result)
-    #         break
-    #     except queue.Empty:
-    #         pass
-
-    # assert b[-1] == 888, b
-
     tm.stop()
-    print(b)
+    print(b)  # assert b[-1] == 888, b
     shm.close()
     shm.unlink()
     for k,v in tm.results.items():
