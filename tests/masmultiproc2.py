@@ -12,12 +12,7 @@ class TaskManager(object):
     def __init__(self) -> None:
         self.tq = multiprocessing.Queue()  # task queue for workers.
         self.rq = multiprocessing.Queue()  # result queue for workers.
-        self.pool = [Worker(name=str(i), tq=self.tq, rq=self.rq) for i in range(2)]
-        for p in self.pool:
-            p.start()
-        while not all(p.is_alive() for p in self.pool):
-            time.sleep(0.01)
-        
+        self.pool = []
         self.tasks = {}  # task register for progress tracking
         self.results = {}  # result register for progress tracking
     
@@ -31,6 +26,20 @@ class TaskManager(object):
         self.tasks[id] = task
         self.tq.put(task)
     
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
+
+    def start(self):
+        self.pool = [Worker(name=str(i), tq=self.tq, rq=self.rq) for i in range(2)]
+        for p in self.pool:
+            p.start()
+        while not all(p.is_alive() for p in self.pool):
+            time.sleep(0.01)
+
     def execute(self):
         t = tqdm.tqdm(total=len(self.tasks))
         while len(self.tasks) != len(self.results):
@@ -42,13 +51,14 @@ class TaskManager(object):
             t.update(len(self.results))
         print("all tasks accounted for")
         t.close()
-    
+        
     def stop(self):
         self.tq.put("stop")
         while all(p.is_alive() for p in self.pool):
             time.sleep(0.01)
         print("all workers stopped")
-
+        self.pool.clear()
+  
 
 class Worker(multiprocessing.Process):
     def __init__(self, name, tq, rq):
@@ -104,10 +114,14 @@ c[-1] = 888
 existing_shm.close()
 """}
 
-    tm = TaskManager()
-    tm.add(task)
-    tm.execute()
-    tm.stop()
+    with TaskManager() as tm:
+        tm.add(task)
+        tm.execute()
+
+    # tm = TaskManager()
+    # tm.add(task)
+    # tm.execute()
+    # tm.stop()
     print(b, f"assertion that b[-1] == 888 is {b[-1] == 888}")  
     
     shm.close()
