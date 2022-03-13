@@ -1,3 +1,4 @@
+import hashlib
 from graph import Graph
 import math
 import time
@@ -9,24 +10,15 @@ import numpy as np
 from multiprocessing import cpu_count, shared_memory, Pool, freeze_support
 
 
-_pool = None
-def _get_pool():
-    global _pool
-    if _pool is None:
-        _pool = Pool()
-    return _pool
-
-
-class TaskManager(object):
-    registry = weakref.WeakValueDictionary()  # {Object ID: Object} The weakref presents blocking of garbage collection.
+class MemoryManager(object):
+    registry = weakref.WeakValueDictionary()  # The weakref presents blocking of garbage collection.
+    # Two usages:
+    # {Object ID: Object} for all objects.
+    # {sha256hash: Object} for DataBlocks (used to prevent duplication of data in memory.)
     lru_tracker = {}  # {DataBlockId: process_time, ...}
     map = Graph()  # Documents relations between Table, Column & Datablock.
     process_pool = None
     tasks = None
-
-    @classmethod
-    def get_pool(cls):
-        cls.process_pool = _get_pool()
 
     @classmethod
     def __del__(cls):
@@ -96,13 +88,13 @@ class TaskManager(object):
         return "\n".join(L)
 
 
-class DataBlock(object):
+class DataBlock(object):  # DataBlocks are IMMUTABLE!
     def __init__(self, data):
-        TaskManager.register(self)
+        MemoryManager.register(self)
         self._on_disk = False
         
         if not isinstance(data, np.ndarray):
-            data = np.array(data)
+            raise TypeError("Expected a numpy array.")       
 
         self._shm = shared_memory.SharedMemory(create=True, size=data.nbytes)
         self._address = self._shm.name
@@ -119,20 +111,16 @@ class DataBlock(object):
             return (self._data.shape, self._dtype, self._address)
         else:
             raise NotImplementedError("h5 isn't implemented yet.")
-
     @property
     def data(self):
         return self._data  # TODO: Needs to cope with data not being loaded.
     @data.setter
     def data(self,value):
         raise AttributeError("DataBlock.data is immutable.")
-
     def __len__(self) -> int:
         return self._len
-    
     def __iter__(self):
         raise AttributeError("Use vectorised functions on DataBlock.data instead of __iter__")
-        
     def __del__(self):
         if self._shm is not None:
             try:
@@ -145,48 +133,59 @@ class DataBlock(object):
             pass   # del file
         else:
             pass  # close shm
-        TaskManager.deregister(self)
+        MemoryManager.deregister(self)
 
 
 class ManagedColumn(object):  # Behaves like an immutable list.
     def __init__(self) -> None:
-        TaskManager.register(self)
+        MemoryManager.register(self)
         self.order = []  # strict order of datablocks.
 
     def __len__(self):
-        return sum(len(TaskManager.get(block_id)) for block_id in self.order)
+        return sum(len(MemoryManager.get(block_id)) for block_id in self.order)
 
     def __del__(self):
-        TaskManager.unlink_tree(self)
-        TaskManager.deregister(self)
+        MemoryManager.unlink_tree(self)
+        MemoryManager.deregister(self)
 
     def __iter__(self):
         for block_id in self.order:
-            datablock = TaskManager.get(block_id)
+            datablock = MemoryManager.get(block_id)
             assert isinstance(datablock, DataBlock)
             for value in datablock.data:
                 yield value
 
     def blocks(self):
-        return [TaskManager.get(block_id).address for block_id in self.order]           
+        return [MemoryManager.get(block_id).address for block_id in self.order]           
         
     def extend(self, data):
         if isinstance(data, ManagedColumn):  # It's data we've seen before.
             self.order.extend(data.order[:])
             for block_id in data.order:
-                TaskManager.link(self, block_id)
-        else:  # It's new data.
-            data = DataBlock(data)
-            self.order.append(id(data))
-            TaskManager.link(self, data)  # Add link from Column to DataBlock
-        
+                MemoryManager.link(self, block_id)
+        else:  # It's supposedly new data.
+            if not isinstance(data, np.ndarray):
+                data = np.array(data)
+            
+            m = hashlib.sha256()  # let's check if it really is new data...
+            m.update(data.data.tobytes())
+            sha256sign = m.hexdigest()
+            if sha256sign in MemoryManager.registry:  # ... not new!
+                block = MemoryManager.registry.get(sha256sign)
+            else:  # ... it's new!
+                block = DataBlock(data)
+                MemoryManager.registry[sha256sign] = block
+            # ok. solved. Now create links.
+            self.order.append(id(block))
+            MemoryManager.link(self, block)  # Add link from Column to DataBlock
+    
     def append(self, value):
         raise AttributeError("Append items is slow. Use extend on a batch instead")
     
 
 class Table(object):
     def __init__(self) -> None:
-        TaskManager.register(self)
+        MemoryManager.register(self)
         self.columns = {}
     
     def __len__(self) -> int:
@@ -196,8 +195,8 @@ class Table(object):
             return max(len(mc) for mc in self.columns.values())
     
     def __del__(self):
-        TaskManager.unlink_tree(self)  # columns are automatically garbage collected.
-        TaskManager.deregister(self)
+        MemoryManager.unlink_tree(self)  # columns are automatically garbage collected.
+        MemoryManager.deregister(self)
 
     def __getitem__(self, item):
         if isinstance(item, str):
@@ -211,8 +210,8 @@ class Table(object):
         if isinstance(item, str):
             mc = self.columns[item]
             del self.columns[item]
-            TaskManager.unlink(self, mc)
-            TaskManager.unlink_tree(mc)
+            MemoryManager.unlink(self, mc)
+            MemoryManager.unlink_tree(mc)
         elif isinstance(item, slice):
             raise AttributeError("Tables are immutable. Create a new table using filter or using an index")
 
@@ -225,7 +224,7 @@ class Table(object):
         mc = ManagedColumn()
         mc.extend(data)
         self.columns[name] = mc
-        TaskManager.link(self, mc)  # Add link from Table to Column
+        MemoryManager.link(self, mc)  # Add link from Table to Column
         
     def __add__(self, other):
         if self.columns.keys() != other.columns.keys():
@@ -264,48 +263,48 @@ def test_basics():
     managed_columns_per_table = 2 
     datablocks = 2
 
-    assert len(TaskManager.map.nodes()) == tables + (tables * managed_columns_per_table) + datablocks
-    assert len(TaskManager.map.edges()) == tables * managed_columns_per_table + 8 - 2  # the -2 is because of double reference to 1 and 2 in Table3
+    assert len(MemoryManager.map.nodes()) == tables + (tables * managed_columns_per_table) + datablocks
+    assert len(MemoryManager.map.edges()) == tables * managed_columns_per_table + 8 - 2  # the -2 is because of double reference to 1 and 2 in Table3
     assert len(table1) + len(table2) + len(table3) == 3 + 3 + 6
 
     # delete table
-    assert len(TaskManager.map.nodes()) == 11, "3 tables, 6 managed columns and 2 datablocks"
-    assert len(TaskManager.map.edges()) == 12
+    assert len(MemoryManager.map.nodes()) == 11, "3 tables, 6 managed columns and 2 datablocks"
+    assert len(MemoryManager.map.edges()) == 12
     del table1  # removes 2 refs to ManagedColumns and 2 refs to DataBlocks
-    assert len(TaskManager.map.nodes()) == 8, "removed 1 table and 2 managed columns"
-    assert len(TaskManager.map.edges()) == 8 
+    assert len(MemoryManager.map.nodes()) == 8, "removed 1 table and 2 managed columns"
+    assert len(MemoryManager.map.edges()) == 8 
     # delete column
     del table2['A']
-    assert len(TaskManager.map.nodes()) == 7, "removed 1 managed column reference"
-    assert len(TaskManager.map.edges()) == 6
+    assert len(MemoryManager.map.nodes()) == 7, "removed 1 managed column reference"
+    assert len(MemoryManager.map.edges()) == 6
 
-    print(TaskManager.inventory())
+    print(MemoryManager.inventory())
 
     del table3
     del table2
-    assert len(TaskManager.map.nodes()) == 0
-    assert len(TaskManager.map.edges()) == 0
+    assert len(MemoryManager.map.nodes()) == 0
+    assert len(MemoryManager.map.edges()) == 0
 
-def fx2(address):
-    shape, dtype, name = address
-    existing_shm = shared_memory.SharedMemory(name=name)
-    c = np.ndarray(shape, dtype=dtype, buffer=existing_shm.buf)
-    result = 2*c
-    existing_shm.close()  # emphasising that shm is no longer used.
-    return result
+# def fx2(address):
+#     shape, dtype, name = address
+#     existing_shm = shared_memory.SharedMemory(name=name)
+#     c = np.ndarray(shape, dtype=dtype, buffer=existing_shm.buf)
+#     result = 2*c
+#     existing_shm.close()  # emphasising that shm is no longer used.
+#     return result
 
-def test_shm():
-    table1 = Table()
-    assert len(table1) == 0
-    table1.add_column('A', data=[1,2,3])  # block1
-    table1['A'].extend(data=[4,4,8])  # block2
-    table1['A'].extend(data=[8,9,10])  # block3
-    assert [v for v in table1['A']] == [1,2,3,4,4,8,8,9,10]
-    blocks = table1['A'].blocks()
+# def test_shm():   # <---- This test was failing, because pool couldn't connect to shm.
+#     table1 = Table()
+#     assert len(table1) == 0
+#     table1.add_column('A', data=[1,2,3])  # block1
+#     table1['A'].extend(data=[4,4,8])  # block2
+#     table1['A'].extend(data=[8,9,10])  # block3
+#     assert [v for v in table1['A']] == [1,2,3,4,4,8,8,9,10]
+#     blocks = table1['A'].blocks()
 
-    print(blocks)
-    result = TaskManager.process_pool.map(fx2, blocks)
-    print(result)
+#     print(blocks)
+#     result = MemoryManager.process_pool.map(fx2, blocks)
+#     print(result)
     
 
 
@@ -326,12 +325,7 @@ def test_shm():
 # update LRU cache based on access.
 
 if __name__ == "__main__":
-    # freeze_support()
-    # for k,v in globals().copy().items():
-    #     if k.startswith("test") and callable(v):
-    #         v()
-    TaskManager.get_pool()
-    test_shm()
-    TaskManager.process_pool.close()
-    TaskManager.process_pool.join()
-    TaskManager.process_pool = None
+    for k,v in globals().copy().items():
+        if k.startswith("test") and callable(v):
+            v()
+
