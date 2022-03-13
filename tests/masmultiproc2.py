@@ -143,7 +143,7 @@ time.sleep(0.1)  # Added delay to distribute the few tasks amongst the workers.
     # tm.execute()
     # tm.stop()
     print(b, f"assertion that b[-1] == 888 is {b[-1] == 888}")  
-    print(b, f"assertion that b[-1] == 888 is {b[1] == 111}")  
+    print(b, f"assertion that b[0] == 111 is {b[0] == 111}")  
     
     shm.close()
     shm.unlink()
