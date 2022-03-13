@@ -141,7 +141,7 @@ class ManagedColumn(object):  # Behaves like an immutable list.
         MemoryManager.register(self)
         self.order = []  # strict order of datablocks.
         self.dtype = None
-
+       
     def __len__(self):
         return sum(len(MemoryManager.get(block_id)) for block_id in self.order)
 
@@ -240,7 +240,27 @@ class Table(object):
         mc.extend(data)
         self.columns[name] = mc
         MemoryManager.link(self, mc)  # Add link from Table to Column
-            
+    
+    def __eq__(self, other) -> bool:
+        """
+        enables comparison of self with other
+        Example: TableA == TableB
+        """
+        if not isinstance(other, Table):
+            a, b = self.__class__.__name__, other.__class__.__name__
+            raise TypeError(f"cannot compare {a} with {b}")
+        
+        try:
+            self.compare(other)
+        except (TypeError, ValueError):
+            return False
+
+        for name, mc in self.columns.items():
+            mc2 = other.columns[name]
+            if any(a!=b for a,b in zip(mc,mc2)):
+                return False
+        return True
+
     def __iadd__(self, other):
         """ 
         enables extension of self with data from other.
@@ -292,7 +312,7 @@ class Table(object):
                 col2 = b.columns[name]
                 if col.dtype != col2.dtype:
                     raise ValueError(f"Column {name}.datatype different: {col.dtype}, {col2.dtype}")
-                # if col.allow_empty != col2.allow_empty:
+                # if col.allow_empty != col2.allow_empty:  // TODO!
                 #     raise ValueError(f"Column {name}.allow_empty is different")
 
     def copy(self):
@@ -300,6 +320,32 @@ class Table(object):
         for name,mc in self.columns.items():
             t.add_column(name,mc)
         return t
+
+    def rename_column(self, old_name, new_name):
+        if old_name not in self.columns:
+            raise ValueError(f"'{old_name}' doesn't exist. See Table.columns ")
+        if new_name in self.columns:
+            raise ValueError(f"'{new_name}' is already in use.")
+
+    def __iter__(self):
+        raise AttributeError("use Table.rows or Table.columns")
+
+    def __setitem__(self, key, value):
+        raise TypeError(f"Use Table.add_column")
+
+    @property
+    def rows(self):
+        """
+        enables iteration
+
+        for row in Table.rows:
+            print(row)
+        """
+        generators = [iter(mc) for mc in self.columns.values()]
+        for _ in range(len(self)):
+            yield [next(i) for i in generators]
+
+
 
 
 def test_basics():
@@ -318,6 +364,8 @@ def test_basics():
 
     table3 = table1 + table2
     assert len(table3) == len(table1) + len(table2)
+    for row in table3.rows:
+        print(row)
 
     tables = 3
     managed_columns_per_table = 2 
