@@ -10,6 +10,49 @@ import numpy as np
 from multiprocessing import cpu_count, shared_memory
 
 
+def intercept(A,B):
+    """
+    A: range
+    B: range
+    returns range as intercept of ranges A and B.
+    """
+    assert isinstance(A, range)
+    if A.step < 0: # turn the range around
+        A = range(A.stop, A.start, abs(A.step))
+    assert isinstance(B, range)
+    if B.step < 0:  # turn the range around
+        B = range(B.stop, B.start, abs(B.step))
+    
+    boundaries = [A.start, A.stop, B.start, B.stop]
+    boundaries.sort()
+    a,b,c,d = boundaries
+    if [A.start, A.stop] in [[a,b],[c,d]]:
+        return range(0) # then there is no intercept
+    # else: The inner range (subset) is b,c, limited by the first shared step.
+    A_start_steps = math.ceil((b - A.start) / A.step)
+    A_start = A_start_steps * A.step + A.start
+
+    B_start_steps = math.ceil((b - B.start) / B.step)
+    B_start = B_start_steps * B.step + B.start
+
+    if A.step == 1 or B.step == 1:
+        start = max(A_start,B_start)
+        step = B.step if A.step==1 else A.step
+        end = c
+    else:
+        intersection = set(range(A_start, c, A.step)).intersection(set(range(B_start, c, B.step)))
+        if not intersection:
+            return range(0)
+        start = min(intersection)
+        end = max(c, max(intersection))
+        intersection.remove(start)
+        step = min(intersection) - start
+    
+    return range(start, end, step)
+
+
+
+
 class MemoryManager(object):
     registry = weakref.WeakValueDictionary()  # The weakref presents blocking of garbage collection.
     # Two usages:
@@ -156,7 +199,98 @@ class ManagedColumn(object):  # Behaves like an immutable list.
             for value in datablock.data:
                 yield value
 
+    def _slice(self, item=None):
+        """ transforms slice into start,stop,step"""
+        if item is None:
+            item = slice(None, len(self), None)
+        assert isinstance(item, slice)
+
+        if item.stop < 0:
+            start = len(self) + item.stop
+            stop = len(self)
+            step = 1 if item.step is None else item.step
+        else:
+            start = 0 if item.start is None else item.start
+            stop = item.stop
+            step = 1 if item.step is None else item.step
+        return start, stop, step
+
+    def islice(self, item):
+        """
+        enables memory efficient iteration using a slice
+        """
+        if not isinstance(item, slice):
+            raise TypeError(f"expected slice not {type(item)}")
+
+        r = range(*self._slice(item))
+        page_start = 0
+        for block_id in self.order:
+            block = MemoryManager.get(block_id)
+            block_range = range(page_start, page_start+len(block))
+            intercept_range = intercept(r,block_range)  # very effective!
+            if len(intercept_range)==0:
+                continue
+            for ix in intercept_range:
+                yield block[ix-page_start]
+            
+    def __getitem__(self, item):
+        mc = ManagedColumn()
+
+        if isinstance(item, slice):
+            r = range(*self._slice(item))
+            page_start = 0
+            for block_id in self.order:
+                block = MemoryManager.get(block_id)
+                block_range = range(page_start, page_start+len(block))
+
+
+
+                if r.step==1 and page_start <= r.start and page_start+len(block) <= r.end:
+                    mc.append(block_id)
+                    continue
+                
+                intercept_range = intercept(r,block_range)  # very effective!
+                if len(intercept_range)==0:
+                    continue
+
+            return mc
+
+
+
+
+            x = set(range(*self._slice(item))) # be smarter about this!
+            # if step = 1, then it's a continuous slice from start to stop
+            # if slice < 50 items long (like head, tail) then run through block_ids
+            # 
+            mask = np.array([i in x for i in len(self)])
+            # 1. make new ManagedColumn --> mc2
+            # 2. for block_id in self:
+            #       get the DataBlock
+            #       apply a slice of the mask on the DataBlock
+            #       add the DataBlock to mc2
+
+            # how to mask!
+            # >>> a = np.array([1,2,3,4,5])
+            # >>> b = np.array([True,False,True,False,True])
+            # >>> b
+            # array([ True, False,  True, False,  True])
+            # >>> b.dtype
+            # dtype('bool')
+            # >>> a[np.where(b)]
+            # array([1, 3, 5])
+
+            # Finally - when it works - implement Table.select(*items) to run each
+            # column on each worker.
+
+            
+        elif isinstance(item, int):
+            pass
+        else:
+            raise KeyError
+
+
     def blocks(self):
+        """ returns the address of all blocks. """
         return [MemoryManager.get(block_id).address for block_id in self.order]           
 
     def _dtype_check(self, other):
@@ -241,7 +375,7 @@ class Table(object):
         self.columns[name] = mc
         MemoryManager.link(self, mc)  # Add link from Table to Column
     
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other) -> bool:  # TODO: Add tests for each condition.
         """
         enables comparison of self with other
         Example: TableA == TableB
@@ -253,6 +387,9 @@ class Table(object):
         try:
             self.compare(other)
         except (TypeError, ValueError):
+            return False
+
+        if len(self) != len(other):
             return False
 
         for name, mc in self.columns.items():
@@ -282,7 +419,7 @@ class Table(object):
             mc2.extend(mc)
         return t
 
-    def stack(self,other):
+    def stack(self,other):  # TODO: Add tests.
         """
         returns the joint stack of tables
 
@@ -302,6 +439,9 @@ class Table(object):
         return t
 
     def compare(self,other):
+        """
+        compares the metadata of the two tables and raises on the first difference.
+        """
         if not isinstance(other, Table):
             a, b = self.__class__.__name__, other.__class__.__name__
             raise TypeError(f"cannot compare type {b} with {a}")
@@ -316,16 +456,22 @@ class Table(object):
                 #     raise ValueError(f"Column {name}.allow_empty is different")
 
     def copy(self):
+        """
+        returns a copy of the table
+        """
         t = Table()
         for name,mc in self.columns.items():
             t.add_column(name,mc)
         return t
 
-    def rename_column(self, old_name, new_name):
-        if old_name not in self.columns:
-            raise ValueError(f"'{old_name}' doesn't exist. See Table.columns ")
-        if new_name in self.columns:
-            raise ValueError(f"'{new_name}' is already in use.")
+    def rename_column(self, old, new):
+        """
+        renames existing column from old name to new name
+        """
+        if old not in self.columns:
+            raise ValueError(f"'{old}' doesn't exist. See Table.columns ")
+        if new in self.columns:
+            raise ValueError(f"'{new}' is already in use.")
 
     def __iter__(self):
         raise AttributeError("use Table.rows or Table.columns")
@@ -345,6 +491,43 @@ class Table(object):
         for _ in range(len(self)):
             yield [next(i) for i in generators]
 
+    def select(self, *items):  # Was `filter` in Tablite < feature15
+        """
+        enables selection of existing columns with repetition
+
+        Example:
+        >>> Table.columns
+        'a','b','c','d','e'
+
+        >>> for row in Table.select('b', 'a', 'a', 'c', slice(2,20,2)):
+        >>>    b,a,a,c = row ...
+
+        returns values in same order as selection.
+        """
+        generators = []
+        for name in items:
+            _,mc = self.columns[name]
+            generators.append(iter(mc))
+        #######
+
+
+def test_range_intercept():
+    A = range(500,700,3)
+    B = range(520,700,3)
+    C = range(10,1000,30)
+
+    assert intercept(A,C) == range(0)
+    assert set(intercept(B,C)) == set(B).intersection(set(C))
+
+    A = range(500_000, 700_000, 1)
+    B = range(10, 10_000_000, 1000)
+
+    assert set(intercept(A,B)) == set(A).intersection(set(B))
+
+    A = range(500_000, 700_000, 1)
+    B = range(10, 10_000_000, 1)
+
+    assert set(intercept(A,B)) == set(A).intersection(set(B))
 
 
 
@@ -433,7 +616,8 @@ def test_basics():
 # update LRU cache based on access.
 
 if __name__ == "__main__":
-    for k,v in globals().copy().items():
-        if k.startswith("test") and callable(v):
-            v()
+    test_range_intercept()
+    # for k,v in globals().copy().items():
+    #     if k.startswith("test") and callable(v):
+    #         v()
 
