@@ -481,11 +481,18 @@ class Table(object):
 
         returns values in same order as selection.
         """
-        generators = []
+        names, slc = [], slice(len(self))
+        for i in items:
+            if isinstance(i,slice):
+                slc = i
+            else:
+                names.append(i)
+        
+        t = Table()
         for name in items:
-            _,mc = self.columns[name]
-            generators.append(iter(mc))
-        #######
+            mc = self.columns[name]
+            t.add_column(name, data=mc[slc])
+        return t       
 
 
 def test_range_intercept():
