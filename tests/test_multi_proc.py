@@ -51,8 +51,6 @@ def intercept(A,B):
     return range(start, end, step)
 
 
-
-
 class MemoryManager(object):
     registry = weakref.WeakValueDictionary()  # The weakref presents blocking of garbage collection.
     # Two usages:
@@ -68,8 +66,7 @@ class MemoryManager(object):
         # Use `import gc; del TaskManager; gc.collect()` to delete the TaskManager class.
         # shm.close()
         # shm.unlink()
-        if cls.process_pool is not None:
-            cls.process_pool.close()
+        pass
 
     @classmethod
     def register(cls, obj):  # used at __init__
@@ -86,15 +83,18 @@ class MemoryManager(object):
 
         cls.map.add_edge(id(a),id(b))
         if isinstance(b, DataBlock):
-            cls.map.add_node(id(b), b)
+            cls.map.add_node(id(b), b)  # keep the datablocks!
     @classmethod
     def unlink(cls, a,b):
         cls.map.del_edge(id(a), id(b))
         if isinstance(b, DataBlock):
-            if cls.map.in_degree(id(b)) == 0:
-                cls.map.del_node(id(b))
+            if cls.map.in_degree(id(b)) == 0:  # remove the datablock if in-degree == 0
+                cls.map.del_node(id(b))  
     @classmethod
     def unlink_tree(cls, a):
+        """
+        removes `a` and descendents of `a` if descendant does not have other incoming edges.
+        """
         nodes = deque([id(a)])
         while nodes:
             n1 = nodes.popleft()
@@ -104,11 +104,17 @@ class MemoryManager(object):
                 cls.map.del_node(n1)
     @classmethod
     def get(cls, node_id):
+        """
+        maintains lru_tracker
+        returns DataBlock
+        """
         cls.lru_tracker[node_id] = time.process_time()  # keep the lru tracker up to date.
         return cls.map.node(node_id)
     @classmethod
     def inventory(cls):
-        """ returns printable overview of the registered tables, managed columns and datablocs. """
+        """
+        returns printable overview of the registered tables, managed columns and datablocs.
+        """
         c = count()
         node_count = len(cls.map.nodes())
         if node_count == 0:
@@ -199,8 +205,11 @@ class ManagedColumn(object):  # Behaves like an immutable list.
             for value in datablock.data:
                 yield value
 
-    def _slice(self, item=None):
-        """ transforms slice into start,stop,step"""
+    def _normalize_slice(self, item=None):
+        """
+        transforms slice into range inputs
+        returns start,stop,step
+        """
         if item is None:
             item = slice(None, len(self), None)
         assert isinstance(item, slice)
@@ -214,80 +223,45 @@ class ManagedColumn(object):  # Behaves like an immutable list.
             stop = item.stop
             step = 1 if item.step is None else item.step
         return start, stop, step
-
-    def islice(self, item):
-        """
-        enables memory efficient iteration using a slice
-        """
-        if not isinstance(item, slice):
-            raise TypeError(f"expected slice not {type(item)}")
-
-        r = range(*self._slice(item))
-        page_start = 0
-        for block_id in self.order:
-            block = MemoryManager.get(block_id)
-            block_range = range(page_start, page_start+len(block))
-            intercept_range = intercept(r,block_range)  # very effective!
-            if len(intercept_range)==0:
-                continue
-            for ix in intercept_range:
-                yield block[ix-page_start]
             
     def __getitem__(self, item):
+        """
+        returns a slice (item) of a column.
+        """
         mc = ManagedColumn()
 
         if isinstance(item, slice):
-            r = range(*self._slice(item))
+            r = range(*self._normalize_slice(item))
             page_start = 0
             for block_id in self.order:
                 block = MemoryManager.get(block_id)
-                block_range = range(page_start, page_start+len(block))
-
-
 
                 if r.step==1 and page_start <= r.start and page_start+len(block) <= r.end:
                     mc.append(block_id)
                     continue
                 
+                block_range = range(page_start, page_start+len(block))
                 intercept_range = intercept(r,block_range)  # very effective!
                 if len(intercept_range)==0:
                     continue
 
+                x = {i - page_start for i in intercept_range}
+                mask = np.array([i in x for i in len(block)])
+                new_block = block.data[np.where(mask)]
+                mc.extend(new_block)
+
             return mc
-
-
-
-
-            x = set(range(*self._slice(item))) # be smarter about this!
-            # if step = 1, then it's a continuous slice from start to stop
-            # if slice < 50 items long (like head, tail) then run through block_ids
-            # 
-            mask = np.array([i in x for i in len(self)])
-            # 1. make new ManagedColumn --> mc2
-            # 2. for block_id in self:
-            #       get the DataBlock
-            #       apply a slice of the mask on the DataBlock
-            #       add the DataBlock to mc2
-
-            # how to mask!
-            # >>> a = np.array([1,2,3,4,5])
-            # >>> b = np.array([True,False,True,False,True])
-            # >>> b
-            # array([ True, False,  True, False,  True])
-            # >>> b.dtype
-            # dtype('bool')
-            # >>> a[np.where(b)]
-            # array([1, 3, 5])
-
-            # Finally - when it works - implement Table.select(*items) to run each
-            # column on each worker.
-
             
         elif isinstance(item, int):
-            pass
+            page_start = 0
+            for block_id in self.order:
+                block = MemoryManager.get(block_id)
+                page_end = len(block)
+                if page_start <= item < page_end:
+                    ix = item-page_start
+                    return block.data[ix]
         else:
             raise KeyError
-
 
     def blocks(self):
         """ returns the address of all blocks. """
@@ -303,6 +277,9 @@ class ManagedColumn(object):  # Behaves like an immutable list.
             pass
 
     def extend(self, data):
+        """
+        extends ManagedColumn with data
+        """
         if isinstance(data, ManagedColumn):  # It's data we've seen before.
             self._dtype_check(data)
 
@@ -530,7 +507,6 @@ def test_range_intercept():
     assert set(intercept(A,B)) == set(A).intersection(set(B))
 
 
-
 def test_basics():
     # creating a tablite incrementally is straight forward:
     table1 = Table()
@@ -616,8 +592,7 @@ def test_basics():
 # update LRU cache based on access.
 
 if __name__ == "__main__":
-    test_range_intercept()
-    # for k,v in globals().copy().items():
-    #     if k.startswith("test") and callable(v):
-    #         v()
+    for k,v in globals().copy().items():
+        if k.startswith("test") and callable(v):
+            v()
 
