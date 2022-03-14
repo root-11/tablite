@@ -51,6 +51,9 @@ def intercept(A,B):
     return range(start, end, step)
 
 
+
+
+
 class MemoryManager(object):
     registry = weakref.WeakValueDictionary()  # The weakref presents blocking of garbage collection.
     # Two usages:
@@ -207,7 +210,7 @@ class ManagedColumn(object):  # Behaves like an immutable list.
 
     def _normalize_slice(self, item=None):
         """
-        transforms slice into range inputs
+        helper: transforms slice into range inputs
         returns start,stop,step
         """
         if item is None:
@@ -226,11 +229,11 @@ class ManagedColumn(object):  # Behaves like an immutable list.
             
     def __getitem__(self, item):
         """
-        returns a slice (item) of a column.
+        returns a value or a ManagedColumn (slice).
         """
-        mc = ManagedColumn()
-
         if isinstance(item, slice):
+            mc = ManagedColumn()  # to be returned.
+
             r = range(*self._normalize_slice(item))
             page_start = 0
             for block_id in self.order:
@@ -238,17 +241,20 @@ class ManagedColumn(object):  # Behaves like an immutable list.
 
                 if r.step==1 and page_start <= r.start and page_start+len(block) <= r.end:
                     mc.append(block_id)
+                    page_start += len(block)
                     continue
                 
                 block_range = range(page_start, page_start+len(block))
                 intercept_range = intercept(r,block_range)  # very effective!
                 if len(intercept_range)==0:
+                    page_start += len(block)
                     continue
 
-                x = {i - page_start for i in intercept_range}
-                mask = np.array([i in x for i in len(block)])
+                x = {i for i in intercept_range}  # TODO: Candidate for TaskManager.
+                mask = np.array([i in x for i in block_range])
                 new_block = block.data[np.where(mask)]
                 mc.extend(new_block)
+                page_start += len(block)
 
             return mc
             
@@ -306,6 +312,9 @@ class ManagedColumn(object):  # Behaves like an immutable list.
             MemoryManager.link(self, block)  # Add link from Column to DataBlock
     
     def append(self, value):
+        """
+        Disabled. Append items is slow. Use extend on a batch instead
+        """
         raise AttributeError("Append items is slow. Use extend on a batch instead")
     
 
@@ -324,13 +333,39 @@ class Table(object):
         MemoryManager.unlink_tree(self)  # columns are automatically garbage collected.
         MemoryManager.deregister(self)
 
-    def __getitem__(self, item):
-        if isinstance(item, str):
-            return self.columns[item]
-        elif isinstance(item, slice):
-            raise NotImplementedError("coming!")
-        else:
-            raise NotImplemented(f"? {type(item)}")
+    def __getitem__(self, items):
+        """
+        Enables selection of columns and rows
+        Examples: table['a','b', slice(3:20:2)]        
+
+        Example:
+        >>> Table.columns
+        'a','b','c','d','e'
+
+        >>> for row in Table['b', 'a', 'a', 'c', 2:20:3]:
+        >>>    b,a,a,c = row ...
+
+        returns values in same order as selection.
+        """
+        if isinstance(items, slice):
+            names, slc = list(self.columns.keys()), items
+        else:        
+            names, slc = [], slice(len(self))
+            for i in items:
+                if isinstance(i,slice):
+                    slc = i
+                elif isinstance(i, str) and i in self.columns:
+                    names.append(i)
+                else:
+                    raise KeyError(f"{i} is not a slice and not in column names")
+        if not names:
+            raise ValueError("No columns?")
+        
+        t = Table()
+        for name in names:
+            mc = self.columns[name]
+            t.add_column(name, data=mc[slc])
+        return t       
 
     def __delitem__(self, item):
         if isinstance(item, str):
@@ -383,6 +418,7 @@ class Table(object):
         self.compare(other)
         for name,mc in self.columns.items():
             mc.extend(other.columns[name])
+        return self
 
     def __add__(self, other):
         """
@@ -413,6 +449,18 @@ class Table(object):
         for name, mc in t.columns.items():
             if name not in other.columns:
                 mc.extend(data=[None]*len(other))
+        return t
+
+    def __mul__(self, other):
+        """
+        enables repetition of a table
+        Example: Table_x_10 = table * 10
+        """
+        if not isinstance(other, int):
+            raise TypeError(f"repetition of a table is only supported with integers, not {type(other)}")
+        t = self.copy()
+        for _ in range(other-1):  # minus, because the copy is the first.
+            t += self
         return t
 
     def compare(self,other):
@@ -467,32 +515,6 @@ class Table(object):
         generators = [iter(mc) for mc in self.columns.values()]
         for _ in range(len(self)):
             yield [next(i) for i in generators]
-
-    def select(self, *items):  # Was `filter` in Tablite < feature15
-        """
-        enables selection of existing columns with repetition
-
-        Example:
-        >>> Table.columns
-        'a','b','c','d','e'
-
-        >>> for row in Table.select('b', 'a', 'a', 'c', slice(2,20,2)):
-        >>>    b,a,a,c = row ...
-
-        returns values in same order as selection.
-        """
-        names, slc = [], slice(len(self))
-        for i in items:
-            if isinstance(i,slice):
-                slc = i
-            else:
-                names.append(i)
-        
-        t = Table()
-        for name in items:
-            mc = self.columns[name]
-            t.add_column(name, data=mc[slc])
-        return t       
 
 
 def test_range_intercept():
@@ -558,6 +580,20 @@ def test_basics():
     del table2
     assert len(MemoryManager.map.nodes()) == 0
     assert len(MemoryManager.map.edges()) == 0
+
+    # <--- TEST Table.select(...)
+
+def test_slicing():
+    table1 = Table()
+    base_data = list(range(10_000))
+    table1.add_column('A', data=base_data)
+    table1.add_column('B', data=[v*10 for v in base_data])
+    table1.add_column('C', data=[-v for v in base_data])
+    big_table = table1 * 100
+    
+    a_preview = big_table['A', 'B', 1_000:900_000:700]
+    print(a_preview[3:15:3])
+
 
 # def fx2(address):
 #     shape, dtype, name = address
