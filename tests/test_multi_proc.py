@@ -336,14 +336,12 @@ class Table(object):
     def __getitem__(self, items):
         """
         Enables selection of columns and rows
-        Examples: table['a','b', slice(3:20:2)]        
+        Examples: 
 
-        Example:
-        >>> Table.columns
-        'a','b','c','d','e'
-
-        >>> for row in Table['b', 'a', 'a', 'c', 2:20:3]:
-        >>>    b,a,a,c = row ...
+            table['a']   # selects column 'a'
+            table[:10]   # selects first 10 rows from all columns
+            table['a','b', slice(3:20:2)]  # selects a slice from columns 'a' and 'b'
+            table['b', 'a', 'a', 'c', 2:20:3]  # selects column 'b' and 'c' and 'a' twice for a slice.
 
         returns values in same order as selection.
         """
@@ -592,7 +590,8 @@ def test_slicing():
     big_table = table1 * 100
     
     a_preview = big_table['A', 'B', 1_000:900_000:700]
-    print(a_preview[3:15:3])
+    for row in a_preview[3:15:3].rows:
+        print(row)
 
 
 # def fx2(address):
