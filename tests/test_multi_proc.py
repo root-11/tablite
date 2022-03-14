@@ -214,17 +214,23 @@ class ManagedColumn(object):  # Behaves like an immutable list.
         returns start,stop,step
         """
         if item is None:
-            item = slice(None, len(self), None)
+            item = slice(0, len(self), 1)
         assert isinstance(item, slice)
+        
 
-        if item.stop < 0:
-            start = len(self) + item.stop
-            stop = len(self)
-            step = 1 if item.step is None else item.step
-        else:
-            start = 0 if item.start is None else item.start
-            stop = item.stop
-            step = 1 if item.step is None else item.step
+        stop = len(self) if item.stop is None else item.stop
+        start = 0 if item.start is None else len(self) + item.start if item.start < 0 else item.start
+        start, stop = min(start,stop), max(start,stop)
+        step = 1 if item.step is None else item.step
+
+        # if item.stop is None or item.stop < 0:
+        #     start = len(self) + item.stop
+        #     stop = len(self)
+        #     step = 1 if item.step is None else item.step
+        # else:
+        #     start = 0 if item.start is None else item.start
+        #     stop = item.stop
+        #     step = 1 if item.step is None else item.step
         return start, stop, step
             
     def __getitem__(self, item):
@@ -237,16 +243,24 @@ class ManagedColumn(object):  # Behaves like an immutable list.
             r = range(*self._normalize_slice(item))
             page_start = 0
             for block_id in self.order:
+                if page_start > r.stop:
+                    break
                 block = MemoryManager.get(block_id)
-
-                if r.step==1 and page_start <= r.start and page_start+len(block) <= r.end:
-                    mc.append(block_id)
+                if page_start + len(block) < r.start:
                     page_start += len(block)
                     continue
+
+                if r.step==1:
+                    if r.start <= page_start and page_start + len(block) <= r.stop: # then we take the whole block.
+                        mc.extend(block.data)
+                        page_start += len(block)
+                        continue
+                    else:
+                        pass # the block doesn't match.
                 
                 block_range = range(page_start, page_start+len(block))
                 intercept_range = intercept(r,block_range)  # very effective!
-                if len(intercept_range)==0:
+                if len(intercept_range)==0:  # no match.
                     page_start += len(block)
                     continue
 
@@ -514,6 +528,101 @@ class Table(object):
         for _ in range(len(self)):
             yield [next(i) for i in generators]
 
+    def show(self, blanks=None, format='ascii'):
+        """
+        prints a _preview_ of the table.
+        
+        blanks: string to replace blanks (None is default) when shown.
+        formats: 
+          - 'ascii' --> ASCII (see also self.to_ascii)
+          - 'md' --> markdown (see also self.to_markdown)
+          - 'html' --> HTML (see also self.to_html)
+
+        """
+        converters = {
+            'ascii': self.to_ascii,
+            'md': self.to_markdown,
+            'html': self.to_html
+        }
+        converter = converters.get(format, None)
+        
+        if converter is None:
+            raise ValueError(f"format={format} not in known formats: {list(converters)}")
+
+        if len(self) < 20:
+            t = Table()
+            t.add_column('#', data=[str(i) for i in range(len(self))])
+            for n,mc in self.columns.items():
+                t.add_column(n,data=[str(i) for i in mc])
+            print(converter(t,blanks))
+
+        else:
+            t,mc,n = Table(), ManagedColumn(), len(self)
+            data = [str(i) for i in range(7)] + ["..."] + [str(i) for i in range(n-7, n)]
+            mc.extend(data)
+            t.add_column('#', data=mc)
+            for name, mc in self.columns.items():
+                data = [str(i) for i in mc[:7]] + ["..."] + [str(i) for i in mc[-7:]]
+                t.add_column(name, data)
+
+        print(converter(t, blanks))
+
+    @staticmethod
+    def to_ascii(table, blanks):
+        """
+        enables viewing in terminals
+        returns the table as ascii string
+        """
+        widths = {}
+        names = list(table.columns)
+        for name,mc in table.columns.items():
+            widths[name] = max([len(name), len(str(mc.dtype))] + [len(str(v)) for v in mc])
+
+        def adjust(v, length):
+            if v is None:
+                return str(blanks).ljust(length)
+            elif isinstance(v, str):
+                return v.ljust(length)
+            else:
+                return str(v).rjust(length)
+
+        s = []
+        s.append("+ " + "+".join(["=" * widths[n] for n in names]) + " +")
+        s.append("| " + "|".join([n.center(widths[n], " ") for n in names]) + " |")
+        s.append("| " + "|".join([str(table.columns[n].dtype).center(widths[n], " ") for n in names]) + " |")
+        # s.append("| " + "|".join([str(table.columns[n].allow_empty).center(widths[n], " ") for n in names]) + " |")
+        s.append("+ " + "+".join(["-" * widths[n] for n in names]) + " +")
+        for row in table.rows:
+            s.append("| " + "|".join([adjust(v, widths[n]) for v, n in zip(row, names)]) + " |")
+        s.append("+ " + "+".join(["=" * widths[h] for h in names]) + " +")
+        return "\n".join(s)
+
+    @staticmethod
+    def to_markdown(table, blanks):
+        widths = {}
+        names = list(table.columns)
+        for name, mc in table.columns.items():
+            widths[name] = max([len(name)] + [len(str(i)) for i in mc])
+        
+        def adjust(v, length):
+            if v is None:
+                return str(blanks).ljust(length)
+            elif isinstance(v, str):
+                return v.ljust(length)
+            else:
+                return str(v).rjust(length)
+
+        s = []
+        s.append("| " + "|".join([n.center(widths[n], " ") for n in names]) + " |")
+        s.append("| " + "|".join(["-" * widths[n] for n in names]) + " |")
+        for row in table.rows:
+            s.append("| " + "|".join([adjust(v, widths[n]) for v, n in zip(row, names)]) + " |")
+        return "\n".join(s)
+
+    @staticmethod
+    def to_html(table, blanks):
+        raise NotImplemented("coming soon!")
+
 
 def test_range_intercept():
     A = range(500,700,3)
@@ -579,7 +688,6 @@ def test_basics():
     assert len(MemoryManager.map.nodes()) == 0
     assert len(MemoryManager.map.edges()) == 0
 
-    # <--- TEST Table.select(...)
 
 def test_slicing():
     table1 = Table()
@@ -592,7 +700,9 @@ def test_slicing():
     a_preview = big_table['A', 'B', 1_000:900_000:700]
     for row in a_preview[3:15:3].rows:
         print(row)
+    a_preview.show()
 
+    a_preview.show(format='md')
 
 # def fx2(address):
 #     shape, dtype, name = address
