@@ -1,4 +1,5 @@
 from datetime import date, datetime, time
+from collections import defaultdict
 
 
 class DataTypes(object):
@@ -206,6 +207,27 @@ class DataTypes(object):
         else:
             raise TypeError(f"The datatype {str(dtype)} is not supported.")
 
+    # Order is very important!
+    types = [datetime, date, time, int, bool, float, str]
+
+    @staticmethod
+    def guess(*values):
+        """
+        Attempts to guess the datatype for *values
+        returns dict with matching datatypes and probabilities
+        """
+        d = defaultdict(int)
+        for value in values:
+            for dtype in DataTypes.types[:-1]:
+                try:
+                    _ = DataTypes.infer(value, dtype)
+                    d[dtype] += 1
+                except (ValueError, TypeError):
+                    continue
+        if not d:
+            d[str]=len(values)
+        return {k:round(v/len(values),3) for k,v in d.items()}
+
     @staticmethod
     def infer(v, dtype):
         if v in DataTypes.nones:
@@ -392,9 +414,6 @@ class DataTypes(object):
             return value
         else:
             return str(value)
-
-    # Order is very important!
-    types = [datetime, date, time, int, bool, float, str]
 
     @staticmethod
     def infer_range_from_slice(slice_item, length):
