@@ -1,57 +1,110 @@
 import hashlib
-from graph import Graph
 import math
+import pathlib
 import time
 import weakref
+import numpy as np
+import h5py
+import io
+import traceback
+import queue
+import tqdm
+import multiprocessing
+import chardet
+from graph import Graph
 from itertools import count
 from collections import deque
-import h5py
-import numpy as np
 from multiprocessing import cpu_count, shared_memory
+from ..tablite.file_reader_utils import text_escape
+from ..tablite.datatypes import DataTypes
 
-
-def intercept(A,B):
-    """
-    A: range
-    B: range
-    returns range as intercept of ranges A and B.
-    """
-    assert isinstance(A, range)
-    if A.step < 0: # turn the range around
-        A = range(A.stop, A.start, abs(A.step))
-    assert isinstance(B, range)
-    if B.step < 0:  # turn the range around
-        B = range(B.stop, B.start, abs(B.step))
+class TaskManager(object):
+    def __init__(self) -> None:
+        self.tq = multiprocessing.Queue()  # task queue for workers.
+        self.rq = multiprocessing.Queue()  # result queue for workers.
+        self.pool = []
+        self.tasks = {}  # task register for progress tracking
+        self.results = {}  # result register for progress tracking
     
-    boundaries = [A.start, A.stop, B.start, B.stop]
-    boundaries.sort()
-    a,b,c,d = boundaries
-    if [A.start, A.stop] in [[a,b],[c,d]]:
-        return range(0) # then there is no intercept
-    # else: The inner range (subset) is b,c, limited by the first shared step.
-    A_start_steps = math.ceil((b - A.start) / A.step)
-    A_start = A_start_steps * A.step + A.start
-
-    B_start_steps = math.ceil((b - B.start) / B.step)
-    B_start = B_start_steps * B.step + B.start
-
-    if A.step == 1 or B.step == 1:
-        start = max(A_start,B_start)
-        step = B.step if A.step==1 else A.step
-        end = c
-    else:
-        intersection = set(range(A_start, c, A.step)).intersection(set(range(B_start, c, B.step)))
-        if not intersection:
-            return range(0)
-        start = min(intersection)
-        end = max(c, max(intersection))
-        intersection.remove(start)
-        step = min(intersection) - start
+    def add(self, task):
+        if not isinstance(task, dict):
+            raise TypeError
+        if not 'id' in task:
+            raise KeyError("expect task to have id, to preserve order")
+        task_id = task['id']
+        if task_id in self.tasks:
+            raise KeyError(f"task {task_id} already in use.")
+        self.tasks[task_id] = task
+        self.tq.put(task)
     
-    return range(start, end, step)
+    def __enter__(self):
+        self.start()
+        return self
 
+    def __exit__(self, exc_type, exc_val, exc_tb): # signature requires these, though I don't use them.
+        self.stop()
+        self.tasks.clear()
+        self.results.clear()
 
+    def start(self):
+        self.pool = [Worker(name=str(i), tq=self.tq, rq=self.rq) for i in range(2)]
+        for p in self.pool:
+            p.start()
+        while not all(p.is_alive() for p in self.pool):
+            time.sleep(0.01)
 
+    def execute(self):
+        t = tqdm.tqdm(total=len(self.tasks), unit='task')
+        while len(self.tasks) != len(self.results):
+            try:
+                result = self.rq.get_nowait()
+                self.results[result['id']] = result
+            except queue.Empty:
+                time.sleep(0.01)
+            t.update(len(self.results))
+        t.close()
+        
+    def stop(self):
+        self.tq.put("stop")
+        while all(p.is_alive() for p in self.pool):
+            time.sleep(0.01)
+        print("all workers stopped")
+        self.pool.clear()
+  
+
+class Worker(multiprocessing.Process):
+    def __init__(self, name, tq, rq):
+        super().__init__(group=None, target=self.update, name=name, daemon=False)
+        self.exit = multiprocessing.Event()
+        self.tq = tq  # workers task queue
+        self.rq = rq  # workers result queue
+        self._quit = False
+        print(f"Worker-{self.name}: ready")
+                
+    def update(self):
+        while True:
+            try:
+                task = self.tq.get_nowait()
+            except queue.Empty:
+                time.sleep(0.01)
+                continue
+            
+            if task == "stop":
+                print(f"Worker-{self.name}: stop signal received.")
+                self.tq.put_nowait(task)  # this assures that everyone gets it.
+                self.exit.set()
+                break
+            error = ""
+            try:
+                exec(task['script'])
+            except Exception as e:
+                f = io.StringIO()
+                traceback.print_exc(limit=3, file=f)
+                f.seek(0)
+                error = f.read()
+                f.close()
+
+            self.rq.put({'id': task['id'], 'handled by': self.name, 'error': error})
 
 
 class MemoryManager(object):
@@ -188,6 +241,47 @@ class DataBlock(object):  # DataBlocks are IMMUTABLE!
         MemoryManager.deregister(self)
 
 
+def intercept(A,B):
+    """
+    A: range
+    B: range
+    returns range as intercept of ranges A and B.
+    """
+    assert isinstance(A, range)
+    if A.step < 0: # turn the range around
+        A = range(A.stop, A.start, abs(A.step))
+    assert isinstance(B, range)
+    if B.step < 0:  # turn the range around
+        B = range(B.stop, B.start, abs(B.step))
+    
+    boundaries = [A.start, A.stop, B.start, B.stop]
+    boundaries.sort()
+    a,b,c,d = boundaries
+    if [A.start, A.stop] in [[a,b],[c,d]]:
+        return range(0) # then there is no intercept
+    # else: The inner range (subset) is b,c, limited by the first shared step.
+    A_start_steps = math.ceil((b - A.start) / A.step)
+    A_start = A_start_steps * A.step + A.start
+
+    B_start_steps = math.ceil((b - B.start) / B.step)
+    B_start = B_start_steps * B.step + B.start
+
+    if A.step == 1 or B.step == 1:
+        start = max(A_start,B_start)
+        step = B.step if A.step==1 else A.step
+        end = c
+    else:
+        intersection = set(range(A_start, c, A.step)).intersection(set(range(B_start, c, B.step)))
+        if not intersection:
+            return range(0)
+        start = min(intersection)
+        end = max(c, max(intersection))
+        intersection.remove(start)
+        step = min(intersection) - start
+    
+    return range(start, end, step)
+
+
 class ManagedColumn(object):  # Behaves like an immutable list.
     def __init__(self) -> None:
         MemoryManager.register(self)
@@ -217,20 +311,11 @@ class ManagedColumn(object):  # Behaves like an immutable list.
             item = slice(0, len(self), 1)
         assert isinstance(item, slice)
         
-
         stop = len(self) if item.stop is None else item.stop
         start = 0 if item.start is None else len(self) + item.start if item.start < 0 else item.start
         start, stop = min(start,stop), max(start,stop)
         step = 1 if item.step is None else item.step
 
-        # if item.stop is None or item.stop < 0:
-        #     start = len(self) + item.stop
-        #     stop = len(self)
-        #     step = 1 if item.step is None else item.step
-        # else:
-        #     start = 0 if item.start is None else item.start
-        #     stop = item.stop
-        #     step = 1 if item.step is None else item.step
         return start, stop, step
             
     def __getitem__(self, item):
@@ -281,7 +366,7 @@ class ManagedColumn(object):  # Behaves like an immutable list.
                     ix = item-page_start
                     return block.data[ix]
         else:
-            raise KeyError
+            raise KeyError(f"{item}")
 
     def blocks(self):
         """ returns the address of all blocks. """
@@ -408,7 +493,8 @@ class Table(object):
             a, b = self.__class__.__name__, other.__class__.__name__
             raise TypeError(f"cannot compare {a} with {b}")
         
-        try:
+        # fast simple checks.
+        try:  
             self.compare(other)
         except (TypeError, ValueError):
             return False
@@ -416,9 +502,10 @@ class Table(object):
         if len(self) != len(other):
             return False
 
+        # the longer check.
         for name, mc in self.columns.items():
             mc2 = other.columns[name]
-            if any(a!=b for a,b in zip(mc,mc2)):
+            if any(a!=b for a,b in zip(mc,mc2)):  # exit at the earliest possible option.
                 return False
         return True
 
@@ -447,6 +534,7 @@ class Table(object):
     def stack(self,other):  # TODO: Add tests.
         """
         returns the joint stack of tables
+        Example:
 
         | Table A|  +  | Table B| = |  Table AB |
         | A| B| C|     | A| B| D|   | A| B| C| -|
@@ -511,6 +599,9 @@ class Table(object):
             raise ValueError(f"'{new}' is already in use.")
 
     def __iter__(self):
+        """
+        Disabled. Users should use Table.rows or Table.columns
+        """
         raise AttributeError("use Table.rows or Table.columns")
 
     def __setitem__(self, key, value):
@@ -622,8 +713,238 @@ class Table(object):
     @staticmethod
     def to_html(table, blanks):
         raise NotImplemented("coming soon!")
+           
+    @classmethod
+    def import_file(cls, path, config):
+        """
+        reads path and imports 1 or more tables as hdf5
+        """
+        if isinstance(path, str):
+            path = pathlib.Path(path)
+        if not isinstance(path, pathlib.Path):
+            raise TypeError(f"expected pathlib.Path, got {type(path)}")
+        if not path.exists():
+            raise ValueError(f"file not found: {path}")
+
+        if not config['import_as']:
+            raise ValueError("import_as is empty")
+            
+        config = {
+            "import_as": "csv",
+            'newline': b'\n', 'text_qualifier':None,
+            'delimiter':b',', 'first_row_headers':True,
+            'columns': {}, 'chunk_size': 1_000_000
+        }.update(config.copy())
+        
+        with TaskManager() as tm:
+            pass
+
+    def load_file(cls, path):
+        raise NotImplementedError("coming soon!")
 
 
+# FILE READER UTILS 2.0 ----------------------------
+def text_escape(s, escape=b'"', sep=b';'):
+    """ escapes text marks using a depth measure. """
+    assert isinstance(s, bytes)
+    word, words = [], tuple()
+    in_esc_seq = False
+    for ix, c in enumerate(s):
+        if c == escape:
+            if in_esc_seq:
+                if ix+1 != len(s) and s[ix + 1] != sep:
+                    word.append(c)
+                    continue  # it's a fake escape.
+                in_esc_seq = False
+            else:
+                in_esc_seq = True
+            if word:
+                words += (b"".join(word),)
+                word.clear()
+        elif c == sep and not in_esc_seq:
+            if word:
+                words += (b"".join(word),)
+                word.clear()
+        else:
+            word.append(c)
+
+    if word:
+        if word:
+            words += (b"".join(word),)
+            word.clear()
+    return words
+
+
+def detect_seperator(bytes):
+    """
+    After reviewing the logic in the CSV sniffer, I concluded that all it
+    really does is to look for a non-text character. As the separator is
+    determined by the first line, which almost always is a line of headers,
+    the text characters will be utf-8,16 or ascii letters plus white space.
+    This leaves the characters ,;:| and \t as potential separators, with one
+    exception: files that use whitespace as separator. My logic is therefore
+    to (1) find the set of characters that intersect with ',;:|\t' which in
+    practice is a single character, unless (2) it is empty whereby it must
+    be whitespace.
+    """
+    seps = {b',', b'\t', b';', b':', b'|', b'\t'}.intersection(bytes)
+    if not seps:
+        if b" " in bytes:
+            return b" "
+    else:
+        frq = [(bytes.count(i), i) for i in seps]
+        frq.sort(reverse=True)  # most frequent first.
+        return {k:v for k,v in frq}
+
+
+def interactive_file_import():
+    """
+    interactive file import for commandline use.
+    """
+    def get_file():
+        while 1:
+            path = input("| file path > ")
+            path = pathlib.Path(path)
+            if not path.exists():
+                print(f"| file not found > {path}")
+                continue
+            print(f"| importing > {p.absolute()}")
+            r = input("| is this correct? [Y/N] >")
+            if "Y" in r.upper():
+                return p
+    
+    def csv_menu(path):
+        config = {
+            'newline': None,
+            'text_qualifier':None,
+            'delimiter':None,
+            'first_row_headers':None,
+            'columns': {}
+        }
+        with path.open('rb', encoding=encoding) as fi:
+            # read first 5 rows
+            s, new_line_counter = [], 5
+            while new_line_counter > 0:
+                c = fi.read(1)
+                s.append(c)
+                if c == '\n':
+                    new_line_counter -= 1
+        s = s.join()
+        encoding = chardet.detect(s)
+        print(f"| file encoding > {encoding}")
+        config.update(encoding)
+        if b'\r\n' in s:
+            newline = b'\r\n'
+        else:
+            newline = b'\n'
+        print(f"| newline > {newline} ")
+
+        config['newline'] = newline
+
+        for line in s.split(newline):
+            print(line)
+        
+        config['first_row_headers'] = "y" in input("| first row are column names? > Y/N").lower()
+
+        text_escape_char = input("| text escape character > ")
+        config['text escape']= None if text_escape_char=="" else text_escape_char
+        
+        seps = detect_seperator(s)
+        
+        print(f"| delimiters detected > {seps}")
+
+        delimiter = input("| delimiter ? >")
+        config['delimiter'] = delimiter
+
+        def preview(s, text_esc, delimit):
+            array = []
+            for line in s.split(newline):
+                fields = text_escape(line, text_esc, delimit)
+                array.append(fields)
+            return array
+
+        def is_done(array):
+            print("| rotating the first 5 lines > ")
+            print("\n".join(map(" | ".join, zip(*(array)))))
+            answer = input("| does this look right? Y/N >")
+            return answer.lower(), array
+        
+        array = preview(s,text_escape_char,delimiter)
+        if "n" in is_done(array):
+            print("| update keys and values. Enter blank key when done.")
+            while 1:
+                key = input("| key > ")
+                if key == "":
+                    array = preview(s,text_escape_char,delimiter)
+                    if "y" in is_done(array):
+                        break
+                value = input("| value > ")
+                config[key]= value
+
+        cols = input(f"| select columns ? [all/some] > ")
+        config['columns'] = {}
+        if "a" in cols:
+            pass  # empty dict means import all .
+            for ix, colname in enumerate(array[0]):
+                sample = [array[i][ix] for i in range(1,len(array))]
+                datatype = DataTypes.guess(*sample)
+                for dtype in DataTypes.types: # strict order.
+                    if dtype in datatype:
+                        break
+                config['columns'][colname] = dtype
+
+        else:
+            print("| Enter columns to keep. Enter blank when done.")
+            while 1: 
+                key = input("| column name > ")
+                ix = array[0].index(key)
+                if ix == -1:
+                    print(f"| {key} not found.")
+                    continue
+                sample = [array[i][ix] for i in range(1,6)]
+                datatype = DataTypes.guess(*sample)
+                print(f"| > {datatypes}")
+                for dtype in DataTypes.types: # strict order.
+                    if dtype in datatype:
+                        break
+                config['columns'][colname] = dtype
+                while 1:
+                    guess = input(f"| is {dtype} correct datatype ?\n| > Enter accepts / type name if different >")
+                    if guess == "":
+                        break
+                    elif guess in [str(t) for t in DataTypes.types]:
+                        config['columns'][colname] = dtype
+                    else:
+                        print(f"| {guess} > No such type.")
+                
+        print(f"| using config > \n{config}")
+        return config       
+
+    def get_config(p):
+        assert isinstance(p, pathlib.Path)
+        ext = path.name.split(".")[-1].lower()
+        if ext == "csv":
+            config = csv_menu(p)
+        elif ext == "xlsx":
+            config = xlsx_menu()
+        elif ext == "txt":
+            config = txt_menu(p)
+        elif ext == '.h5':
+            print("| {p} is already imported!")
+        else:
+            print(f"no method for .{ext}'s")
+        
+    try:
+        p = get_file()
+        config = get_config(p)
+        new_p = Table.import_file(p,config)
+        t = Table.load_file(new_p)
+        return t
+    except KeyboardInterrupt:
+        return
+
+    
+# TESTS -----------------
 def test_range_intercept():
     A = range(500,700,3)
     B = range(520,700,3)
@@ -695,14 +1016,76 @@ def test_slicing():
     table1.add_column('A', data=base_data)
     table1.add_column('B', data=[v*10 for v in base_data])
     table1.add_column('C', data=[-v for v in base_data])
+    start = time.time()
     big_table = table1 * 100
+    print(f"it took {time.time()-start} to extend a table to {len(big_table)} rows")
+    start = time.time()
+    _ = big_table.copy()
+    print(f"it took {time.time()-start} to copy {len(big_table)} rows")
     
     a_preview = big_table['A', 'B', 1_000:900_000:700]
     for row in a_preview[3:15:3].rows:
         print(row)
-    a_preview.show()
-
+    a_preview.show(format='ascii')
     a_preview.show(format='md')
+
+
+def test_multiprocessing():
+    # Create shared_memory array for workers to access.
+    a = np.array([1, 1, 2, 3, 5, 8])
+    shm = shared_memory.SharedMemory(create=True, size=a.nbytes)
+    b = np.ndarray(a.shape, dtype=a.dtype, buffer=shm.buf)
+    b[:] = a[:]
+
+    task = {
+        'id':1,
+        'address': shm.name, 'type': 'shm', 
+        'dtype': a.dtype, 'shape': a.shape, 
+        'script': f"""# from multiprocessing import shared_memory - is already imported.
+existing_shm = shared_memory.SharedMemory(name='{shm.name}')
+c = np.ndarray((6,), dtype=np.{a.dtype}, buffer=existing_shm.buf)
+c[-1] = 888
+existing_shm.close()
+"""}
+
+    tasks = [task]
+    for i in range(4):
+        task2 = task.copy()
+        task2['id'] = 2+i
+        task2['script'] = f"""existing_shm = shared_memory.SharedMemory(name='{shm.name}')
+c = np.ndarray((6,), dtype=np.{a.dtype}, buffer=existing_shm.buf)
+c[{i}] = 111+{i}  # DIFFERENT!
+existing_shm.close()
+time.sleep(0.1)  # Added delay to distribute the few tasks amongst the workers.
+"""
+        tasks.append(task2)
+    
+    with TaskManager() as tm:
+        for task in tasks:
+            tm.add(task)
+        tm.execute()
+
+        for v in tm.results.items():
+            print(v)
+
+    # Alternative "low level usage":
+    # tm = TaskManager()
+    # tm.add(task)
+    # tm.start()
+    # tm.execute()
+    # tm.stop()
+    print(b, f"assertion that b[-1] == 888 is {b[-1] == 888}")  
+    print(b, f"assertion that b[0] == 111 is {b[0] == 111}")  
+    
+    shm.close()
+    shm.unlink()
+
+def test_file_importer():
+    p = r"d:\remove_duplicates.csv"
+    assert pathlib.Path(p).exists(), "?"
+    config = {'encoding': 'ascii', 'delimiter': ',', 'text escape': '"'}
+    Table.import_file(p,config)
+
 
 # def fx2(address):
 #     shape, dtype, name = address
