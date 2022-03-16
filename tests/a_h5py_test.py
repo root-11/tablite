@@ -66,10 +66,22 @@ grp4.create_dataset("D", (200,), dtype='i8')
 grp5 = f.create_group("c.zip/t.txt")
 grp5.create_dataset('logs', (100,))
 
-grp6 = f.create_group("d.csv")
-grp6.create_dataset('col_1', (9,))
-grp6.create_dataset('col_2', (9,))
-grp6.create_dataset('col_3', (9,))
+# grp6 = f.create_group("d.csv")
+f.create_dataset('col_1', (9,))
+f.create_dataset('col_2', (9,))
+f.create_dataset('col_3', (9,))
+
+f.close()
+
+# Append to dataset
+f = h5py.File(filename, 'a')
+dset = f.create_dataset('/sha256sum', data=[2,5,6],chunks=True, maxshape=(None, ))
+print(dset[:])
+new_data = [3,8,4]
+new_length = len(dset) + len(new_data)
+dset.resize((new_length, ))
+dset[-len(new_data):] = new_data
+print(dset[:])
 
 print(list(f.keys()))
 
