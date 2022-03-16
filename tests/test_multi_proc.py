@@ -1143,7 +1143,6 @@ def text_reader(path, delimiter, columns, newline,
     assert isinstance(path, pathlib.Path)
     assert isinstance(delimiter, bytes)
     assert isinstance(columns, dict)
-    assert all(isinstance
 
     text_escape = TextEscape(delimiter=delimiter)
 
