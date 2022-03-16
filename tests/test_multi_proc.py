@@ -6,20 +6,34 @@ import weakref
 import numpy as np
 import h5py
 import io
+import os
+import json
 import traceback
 import queue
-import tqdm
+from tqdm import tqdm, trange
 import multiprocessing
 import chardet
+import psutil
 from graph import Graph
 from itertools import count
+from abc import ABC
 from collections import deque
 from multiprocessing import cpu_count, shared_memory
-from ..tablite.file_reader_utils import text_escape
+
+from tablite.file_reader_utils import text_escape
+from tests.a_text_escape_test import TextEscape
+
 from ..tablite.datatypes import DataTypes
 
+
 class TaskManager(object):
+    memory_usage_ceiling = 0.9  # 90%
+
     def __init__(self) -> None:
+        self._memory = psutil.virtual_memory().available
+        self._cpus = psutil.cpu_count()
+        self._disk_space = psutil.disk_usage('/').free
+        
         self.tq = multiprocessing.Queue()  # task queue for workers.
         self.rq = multiprocessing.Queue()  # result queue for workers.
         self.pool = []
@@ -54,16 +68,15 @@ class TaskManager(object):
             time.sleep(0.01)
 
     def execute(self):
-        t = tqdm.tqdm(total=len(self.tasks), unit='task')
-        while len(self.tasks) != len(self.results):
-            try:
-                result = self.rq.get_nowait()
-                self.results[result['id']] = result
-            except queue.Empty:
-                time.sleep(0.01)
-            t.update(len(self.results))
-        t.close()
-        
+        with tqdm(total=len(self.tasks), unit='task') as pbar:
+            while len(self.tasks) != len(self.results):
+                try:
+                    result = self.rq.get_nowait()
+                    self.results[result['id']] = result
+                except queue.Empty:
+                    time.sleep(0.01)
+                pbar.update(len(self.results))
+                
     def stop(self):
         self.tq.put("stop")
         while all(p.is_alive() for p in self.pool):
@@ -71,6 +84,16 @@ class TaskManager(object):
         print("all workers stopped")
         self.pool.clear()
   
+    def chunk_size_per_cpu(self, working_memory_required):
+        if working_memory_required < psutil.virtual_memory().free:
+            chunk_size = math.ceil(working_memory_required / self._cpus)
+        else:
+            memory_ceiling = int(psutil.virtual_memory().total * self.memory_usage_ceiling)
+            memory_used = psutil.virtual_memory().used
+            available = memory_ceiling - memory_used  # 6,321,123,321 = 6 Gb
+            mem_per_cpu = int(available / self._cpus)  # 790,140,415 = 0.8Gb/cpu
+            chunk_size = math.ceil((working_memory_required) / mem_per_cpu)
+        return chunk_size
 
 class Worker(multiprocessing.Process):
     def __init__(self, name, tq, rq):
@@ -116,56 +139,89 @@ class MemoryManager(object):
     map = Graph()  # Documents relations between Table, Column & Datablock.
     process_pool = None
     tasks = None
+    cache_path = pathlib.Path(os.getcwd()) / 'tablite_cache.h5'
+    cache_file = h5py.File(cache_path, mode='a') # 'a': Read/write if exists, create otherwise
+    
+    @classmethod
+    def reset(cls):
+        """
+        enables user to erase any cached hdf5 data.
+        Useful for testing where the user wants a clean working directory.
+
+        Example:
+        # new test case:
+        >>> import MemoryManager
+        >>> MemoryManager.reset()
+        >>> ... start on testcase ...
+        """
+        cls.cache_file.close()
+        cls.cache_file = h5py.File(cls.cache_path, mode='w')  # 'w' Create file, truncate if exists
+        cls.cache_file.close()
+        cls.cache_file = h5py.File(cls.cache_path, mode='a')
+        for obj in list(cls.registry.values()):
+            del obj
 
     @classmethod
     def __del__(cls):
-        # Use `import gc; del TaskManager; gc.collect()` to delete the TaskManager class.
+        # Use `import gc; del MemoryManager; gc.collect()` to delete the MemoryManager class.
         # shm.close()
         # shm.unlink()
-        pass
+        cls.cache_file.close()  # no loss of data.
 
     @classmethod
     def register(cls, obj):  # used at __init__
-        cls.registry[id(obj)] = obj
-        cls.lru_tracker[id(obj)] = time.process_time()
+        assert isinstance(obj, MemoryManagedObject)
+        cls.registry[obj.mem_id] = obj
+        cls.lru_tracker[obj.mem_id] = time.process_time()
+
     @classmethod
     def deregister(cls, obj):  # used at __del__
-        cls.registry.pop(id(obj),None)
-        cls.lru_tracker.pop(id(obj),None)
-    @classmethod
-    def link(cls,a,b):
-        a = cls.registry[a] if isinstance(a, int) else a
-        b = cls.registry[b] if isinstance(b, int) else b
+        assert isinstance(obj, MemoryManagedObject)
+        cls.registry.pop(obj.mem_id, None)
+        cls.lru_tracker.pop(obj.mem_id, None)
 
-        cls.map.add_edge(id(a),id(b))
-        if isinstance(b, DataBlock):
-            cls.map.add_node(id(b), b)  # keep the datablocks!
     @classmethod
-    def unlink(cls, a,b):
-        cls.map.del_edge(id(a), id(b))
+    def link(cls, a, b):
+        assert isinstance(a, MemoryManagedObject)
+        assert isinstance(b, MemoryManagedObject)
+        
+        cls.map.add_edge(a.mem_id, b.mem_id)
         if isinstance(b, DataBlock):
-            if cls.map.in_degree(id(b)) == 0:  # remove the datablock if in-degree == 0
-                cls.map.del_node(id(b))  
+            # as the registry is a weakref, I need a hard ref to the datablocks!
+            cls.map.add_node(b.mem_id, b)  # <-- Hard ref.
+
+    @classmethod
+    def unlink(cls, a, b):
+        assert isinstance(a, MemoryManagedObject)
+        assert isinstance(b, MemoryManagedObject)
+
+        cls.map.del_edge(a.mem_id, b.mem_id)
+        if isinstance(b, DataBlock):
+            if cls.map.in_degree(b.mem_id) == 0:  # remove the datablock if in-degree == 0
+                cls.map.del_node(b.mem_id)
+
     @classmethod
     def unlink_tree(cls, a):
         """
         removes `a` and descendents of `a` if descendant does not have other incoming edges.
         """
-        nodes = deque([id(a)])
+        assert isinstance(a,MemoryManagedObject)
+        
+        nodes = deque([a.mem_id])
         while nodes:
             n1 = nodes.popleft()
             if cls.map.in_degree(n1) == 0:
                 for n2 in cls.map.nodes(from_node=n1):
                     nodes.append(n2)
-                cls.map.del_node(n1)
+                cls.map.del_node(n1)  # removes all edges automatically.
     @classmethod
-    def get(cls, node_id):
+    def get(cls, mem_id):
         """
         maintains lru_tracker
         returns DataBlock
         """
-        cls.lru_tracker[node_id] = time.process_time()  # keep the lru tracker up to date.
-        return cls.map.node(node_id)
+        cls.lru_tracker[mem_id] = time.process_time()  # keep the lru tracker up to date.
+        return cls.map.node(mem_id)
     @classmethod
     def inventory(cls):
         """
@@ -177,7 +233,7 @@ class MemoryManager(object):
             return "no nodes" 
         n = math.ceil(math.log10(node_count))+2
         L = []
-        d = {id(obj): name for name,obj in globals().copy().items() if isinstance(obj, (Table))}
+        d = {obj.mem_id: name for name,obj in globals().copy().items() if isinstance(obj, (Table))}
 
         for node_id in cls.map.nodes(in_degree=0):
             name = d.get(node_id, "Table")
@@ -193,32 +249,127 @@ class MemoryManager(object):
         return "\n".join(L)
 
 
-class DataBlock(object):  # DataBlocks are IMMUTABLE!
-    def __init__(self, data):
+class MemoryManagedObject(ABC):
+    """
+    Base Class for Memory Managed Objects
+    """
+    _ids = count()
+    def __init__(self, mem_id) -> None:
+        self._mem_id = mem_id
         MemoryManager.register(self)
-        self._on_disk = False
-        
-        if not isinstance(data, np.ndarray):
-            raise TypeError("Expected a numpy array.")       
+    @property
+    def mem_id(self):
+        return self._mem_id
+    @mem_id.setter
+    def mem_id(self,value):
+        raise AttributeError("mem_id is immutable")
+    def __del__(self):
+        MemoryManager.deregister(self)
 
-        self._shm = shared_memory.SharedMemory(create=True, size=data.nbytes)
-        self._address = self._shm.name
 
-        self._data = np.ndarray(data.shape, dtype=data.dtype, buffer=self._shm.buf)
-        self._data = data[:] # copy the source data into the shm
-        self._len = len(data)
-        self._dtype = data.dtype
-        # np in shared memory: address = psm_21467_46075
-	    # h5 on disk: address = path/to/hdf5.h5/table_name/column_name/block_name
+class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
+    hdf5 = 'hdf5'
+    shm = 'shm'
+
+    def __init__(self, mem_id, data=None, address=None):
+        """
+        mem_id: sha256sum of the datablock. Why? Because of storage.
+
+        All datablocks are either imported or created at runtime.
+        Imported datablocks reside in HDF and are immutable (otherwise you'd mess 
+        with the initial state). They are stored in the users filetree.
+        Datablocks created at runtime reside in the MemoryManager's 
+
+        kwargs: (only one required)
+        data: np.array
+        address: tuple: 
+            shared memory address: str: "psm_21467_46075"
+            h5 address: tuple: ("path/to/hdf5.h5", "/table_name/column_name/sha256sum")
+        """
+        super().__init__(mem_id=mem_id)
+
+        if (data is not None and address is None):
+            self._type = self.shm
+                        
+            if not isinstance(data, np.ndarray):
+                raise TypeError("Expected a numpy array.")       
+
+            self._handle = shared_memory.SharedMemory(create=True, size=data.nbytes)
+            self._address = self._handle.name  # Example: "psm_21467_46075"
+
+            self._data = np.ndarray(data.shape, dtype=data.dtype, buffer=self._handle.buf)  
+            self._data = data[:]  # copy the source data into the shm (source may be a np.view)
+            self._len = len(data)
+            self._dtype = data.dtype.name
+
+        elif (address is not None and data is None):
+            self._type = self.hdf5
+            if not isinstance(address, tuple) or len(address)!=2:
+                raise TypeError("Expected pathlib.Path and h5 dataset address")
+            path, address = address
+            # Address is expected as:
+            # if import: ("path/to/hdf5.h5", "/table_name/column_name/sha256sum")
+            # if use_disk: ("path/to/MemoryManagers/tmp/dir", "/sha256sum")
+
+            if not isinstance(path, pathlib.Path):
+                raise TypeError(f"expected pathlib.Path, not {type(path)}")
+            if not path.exists():
+                raise ValueError(f"file not found: {path}")
+            if not isinstance(address,str):
+                raise TypeError(f"expected address as str, but got {type(address)}")
+            if not address.startswith('/'):
+                raise ValueError(f"address doesn't start at root.")
+            
+            self._handle = h5py.File(path,'r')
+            self._address = address
+
+            self._data = self._handle[address]            
+            self._len = len(self._data)
+            self._dtype = self.data.dtype.name
+        else:
+            raise ValueError("Either address or data must be None")
+
+    @property
+    def use_disk(self):
+        return self._type == self.hdf5
+    
+    def use_disk(self, value, path=None, column_name=None):
+        if value is False:
+            if self._type == self.shm:  
+                return  # nothing to do. Already in shm mode.
+            else:  # load from hdf5 to shm
+                data = self._data[:]
+                self._handle = shared_memory.SharedMemory(create=True, size=data.nbytes)
+                self._address = self._handle.name
+                self._data = np.ndarray(data.shape, dtype=data.dtype, buffer=self._handle.buf)
+                self._data = data[:] # copy the source data into the shm
+                self._type = self.shm
+                return
+        else:  # if value is True:
+            if isinstance(path, str):
+                path = pathlib.Path(path)
+            if not path.is_file():
+                raise ValueError("needs a file or path.")            
+            if column_name is None or not isinstance(column_name,str) or column_name == "":  
+                raise ValueError("name must be an ascii string")
+
+            # hdf5_name = f"{column_name}/{self.mem_id}"
+            self._handle = h5py.File(path, 'a')  # 'a' Read/write if exists, create otherwise
+            self._address = (path, f"/{column_name}")
+            self._data = self._handle.create_dataset(column_name, data=self._data)       
+
+    @property
+    def sha256sum(self):
+        return self._mem_id
+    @sha256sum.setter
+    def sha256sum(self,value):
+        raise AttributeError("sha256sum is immutable.")
     @property
     def address(self):
-        if self._shm is not None:
-            return (self._data.shape, self._dtype, self._address)
-        else:
-            raise NotImplementedError("h5 isn't implemented yet.")
+        return (self._data.shape, self._dtype, self._address)
     @property
     def data(self):
-        return self._data  # TODO: Needs to cope with data being on HDF5.
+        return self._data[:]
     @data.setter
     def data(self, value):
         raise AttributeError("DataBlock.data is immutable.")
@@ -227,18 +378,18 @@ class DataBlock(object):  # DataBlocks are IMMUTABLE!
     def __iter__(self):
         raise AttributeError("Use vectorised functions on DataBlock.data instead of __iter__")
     def __del__(self):
-        if self._shm is not None:
+        if self._type == self.shm:
             try:
-                self._shm.close()
-                self._shm.unlink()
+                self._handle.close()
+                self._handle.unlink()
             except Exception as e:
                 print(e)
-
-        if self._on_disk:
-            pass   # del file
-        else:
-            pass  # close shm
-        MemoryManager.deregister(self)
+        elif self._type == self.hdf5:
+            try:
+                self._handle.close()
+            except Exception as e:
+                print(e)
+        super().__del__(self)
 
 
 def intercept(A,B):
@@ -282,9 +433,11 @@ def intercept(A,B):
     return range(start, end, step)
 
 
-class ManagedColumn(object):  # Behaves like an immutable list.
+class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
+    _ids = count()
     def __init__(self) -> None:
-        MemoryManager.register(self)
+        super().__init__(mem_id=f"MC-{next(self._ids)}")
+
         self.order = []  # strict order of datablocks.
         self.dtype = None
        
@@ -293,7 +446,7 @@ class ManagedColumn(object):  # Behaves like an immutable list.
 
     def __del__(self):
         MemoryManager.unlink_tree(self)
-        MemoryManager.deregister(self)
+        super().__del__(self)
 
     def __iter__(self):
         for block_id in self.order:
@@ -302,7 +455,7 @@ class ManagedColumn(object):  # Behaves like an immutable list.
             for value in datablock.data:
                 yield value
 
-    def _normalize_slice(self, item=None):
+    def _normalize_slice(self, item=None):  # There's an outdated version sitting in utils.py
         """
         helper: transforms slice into range inputs
         returns start,stop,step
@@ -368,7 +521,7 @@ class ManagedColumn(object):  # Behaves like an immutable list.
         else:
             raise KeyError(f"{item}")
 
-    def blocks(self):
+    def blocks(self):  # NOT USED ANYWHERE.
         """ returns the address of all blocks. """
         return [MemoryManager.get(block_id).address for block_id in self.order]           
 
@@ -400,14 +553,14 @@ class ManagedColumn(object):  # Behaves like an immutable list.
 
             m = hashlib.sha256()  # let's check if it really is new data...
             m.update(data.data.tobytes())
-            sha256sign = m.hexdigest()
-            if sha256sign in MemoryManager.registry:  # ... not new!
-                block = MemoryManager.registry.get(sha256sign)
+            sha256sum = m.hexdigest()
+            if sha256sum in MemoryManager.registry:  # ... not new!
+                block = MemoryManager.registry.get(sha256sum)
             else:  # ... it's new!
-                block = DataBlock(data)
-                MemoryManager.registry[sha256sign] = block
+                block = DataBlock(mem_id=sha256sum, data=data)
+                MemoryManager.registry[sha256sum] = block
             # ok. solved. Now create links.
-            self.order.append(id(block))
+            self.order.append(block.mem_id)
             MemoryManager.link(self, block)  # Add link from Column to DataBlock
     
     def append(self, value):
@@ -417,9 +570,10 @@ class ManagedColumn(object):  # Behaves like an immutable list.
         raise AttributeError("Append items is slow. Use extend on a batch instead")
     
 
-class Table(object):
+class Table(MemoryManagedObject):
+    _ids = count()
     def __init__(self) -> None:
-        MemoryManager.register(self)
+        super().__init__(mem_id=f"T-{next(self._ids)}")
         self.columns = {}
     
     def __len__(self) -> int:
@@ -430,7 +584,7 @@ class Table(object):
     
     def __del__(self):
         MemoryManager.unlink_tree(self)  # columns are automatically garbage collected.
-        MemoryManager.deregister(self)
+        super().__del__(self)
 
     def __getitem__(self, items):
         """
@@ -715,9 +869,31 @@ class Table(object):
         raise NotImplemented("coming soon!")
            
     @classmethod
-    def import_file(cls, path, config):
+    def import_file(cls, path, 
+        import_as, newline=b'\n', text_qualifier=None,
+        delimiter=b',', first_row_has_headers=True, columns=None, sheet=None):
         """
+        TABLES FROM IMPORTED FILES ARE IMMUTABLE.
+        TABLES CREATED FROM OTHER TABLES EXIST IN 
+        MEMORY MANAGERs CACHE IF USE DISK == True
+
         reads path and imports 1 or more tables as hdf5
+
+        path: pathlib.Path or str
+        import_as: 'csv','xlsx','txt'                               *123
+        newline: newline character '\n', '\r\n' or b'\n', b'\r\n'   *13
+        text_qualifier: character: " or '                           +13
+        delimiter: character: typically ",", ";" or "|"             *1+3
+        first_row_has_headers: boolean                              *123
+        columns: dict with column names and datatypes               *123
+            {'A': int, 'B': str, 'C': float, D: datetime}
+            columns not found excess column names are ignored. 
+        sheet: sheet name to import (e.g. 'sheet_1')                 *2
+            sheets not found excess names are ignored.
+            filenames will be {path}+{sheet}.h5
+        
+        (*) required, (+) optional, (1) csv, (2) xlsx, (3) txt, (4) h5
+
         """
         if isinstance(path, str):
             path = pathlib.Path(path)
@@ -726,53 +902,188 @@ class Table(object):
         if not path.exists():
             raise ValueError(f"file not found: {path}")
 
-        if not config['import_as']:
-            raise ValueError("import_as is empty")
-            
-        config = {
-            "import_as": "csv",
-            'newline': b'\n', 'text_qualifier':None,
-            'delimiter':b',', 'first_row_headers':True,
-            'columns': {}, 'chunk_size': 1_000_000
-        }.update(config.copy())
+        if not isinstance(import_as,str) and import_as in ['csv','txt','xlsx']:
+            raise ValueError(f"{import_as} is not supported")
         
-        with TaskManager() as tm:
-            pass
+        # check the inputs.
+        if import_as in {'xlsx'}:
+            raise NotImplementedError("coming soon!")
+            # 1. create a task for each the sheet.
 
+        if import_as in {'csv', 'txt'}:
+            # TODO: Check if file already has been imported.
+            # TODO: Check if reimport is necessary.
+
+            # Ok. File doesn't exist, has been changed or it's a new import config.
+            with path.open('rb') as fi:
+                if first_row_has_headers:
+                    end = find_first(fi, 0, newline)
+                    headers = fi.read(end).rstrip(newline)
+                    headers = text_escape(headers, delimiter=delimiter)
+                    indices = []
+                    for name in columns:
+                        if name not in headers:
+                            raise ValueError(f"column not found: {name}")
+                        indices.append(headers.index(name))
+                else:
+                    indices = [int(v) for v in columns]
+                    headers = [str(v) for v in columns]
+            
+            config = {
+                'import_as': import_as,
+                'path': str(path),
+                'filesize': file_length,  # if this changes - re-import.
+                'delimiter': delimiter,
+                'columns': columns, 
+                'newline': newline,
+                'first_row_has_headers': first_row_has_headers,
+                'chunk_size': chunk_size,
+                'text_qualifier': text_qualifier
+            }
+
+            h5 = pathlib.Path(str(path) + '.h5')
+            with h5py.File(h5,'w') as f:  # Create file, truncate if exists
+                root = f['/']
+                root.attrs['config'] = json.dumps(config)
+
+            with TaskManager() as tm:
+                working_overhead = 3.1415  # random guess. TODO: Calibrate.
+                file_length = path.stat().st_size  #9,998,765,432 = 10Gb
+                chunk_size = tm.chunk_size_per_cpu(file_length*working_overhead)
+                task_size = int(chunk_size / working_overhead)
+                
+                tasks = []
+                for i in range(int(math.ceil(file_length/task_size))):
+                    # add task for each chunk for working
+                    script = f"""text_reader({str(path)}, delimiter={delimiter}, columns={str(columns)}, newline={newline}, first_row_has_headers={first_row_has_headers}, start={i}, limit={task_size})"""
+                    task = {'id': 1, "script": script} 
+                    tm.add(task)
+                # add task for merging chunks in hdf5 into single columns
+                
+
+    @classmethod
+    def inspect_h5_file(cls, path, group='/'):
+        """
+        enables inspection of contents of HDF5 file 
+        path: str or pathlib.Path
+        group: you can give a specific group, defaults to the root group
+        """
+        def descend_obj(obj,sep='  ', offset=''):
+            """
+            Iterate through groups in a HDF5 file and prints the groups and datasets names and datasets attributes
+            """
+            if type(obj) in [h5py._hl.group.Group,h5py._hl.files.File]:
+                if obj.attrs.keys():  
+                    for k,v in obj.attrs.items():
+                        print(offset, k,":",v)  # prints config
+                for key in obj.keys():
+                    print(offset, key,':',obj[key])  # prints groups
+                    descend_obj(obj[key],sep=sep, offset=offset+sep)
+            elif type(obj)==h5py._hl.dataset.Dataset:
+                for key in obj.attrs.keys():
+                    print(offset, key,':',obj.attrs[key])  # prints datasets.
+
+        with h5py.File(path,'r') as f:
+            print(f"{path} contents")
+            descend_obj(f[group])
+    @classmethod
     def load_file(cls, path):
-        raise NotImplementedError("coming soon!")
+        if isinstance(path, str):
+            path = pathlib.Path(path)
+        if not isinstance(path, pathlib.Path):
+            raise TypeError(f"expected pathlib.Path, got {type(path)}")
+        if not path.exists():
+            raise ValueError(f"file not found: {path}")
+        if not path.name.endswith(".h5"):
+            raise TypeError(f"expected .h5 file, not {path.name}")
+        
+        # read the file and create managed columns
+        # no need for task manager as the job will be IO bound.
+        t = Table()
+        with h5py.File(path,'r+') as f:  # 'r+' in case the sha256sum is missing.
+            root = f['/']
+            for name in root.keys():
+                h5_name = f"{root}{name}"
+                sha256sum = f[h5_name].attrs.get('sha256sum',None)
+                if sha256sum is None:
+                    m = hashlib.sha256()  # let's check if it really is new data...
+                    dset = f[h5_name]
+                    step = 100_000
+                    desc = f"Calculating missing sha256sum for {h5_name}: "
+                    for i in trange(0,len(dset), step, desc=desc):
+                        chunk = dset[i:i+step]
+                        m.update(chunk.tobytes())
+                    sha256sum = m.hexdigest()
+                    f[h5_name].attrs['sha256sum'] = sha256sum
+                
+                mc = ManagedColumn()
+                t.columns[name] = mc
+                MemoryManager.link(t, mc)
+                db = DataBlock(mem_id=sha256sum, address=(path, h5_name))
+                mc.order.append(db)
+                MemoryManager.link(mc, db)
+        return t
+
+    def to_hdf5(self, path):
+        """
+        creates a copy of the table as hdf5
+        the hdf5 layout can be viewed using Table.inspect_h5_file(path/to.hdf5)
+        """
+        if isinstance(path, str):
+            path = pathlib.Path(path)
+        
+        total = ":,".format(len(self.columns) * len(self))
+        print(f"writing {total} records to {path}")
+
+        with h5py.File(path, 'a') as f:
+            with tqdm(total=len(self.columns), unit='columns') as pbar:
+                n = 0
+                for name, mc in self.columns.values():
+                    f.create_dataset(name, data=mc[:])  # stored in hdf5 as '/name'
+                    n += 1
+                    pbar.update(n)
 
 
 # FILE READER UTILS 2.0 ----------------------------
-def text_escape(s, escape=b'"', sep=b';'):
-    """ escapes text marks using a depth measure. """
-    assert isinstance(s, bytes)
-    word, words = [], tuple()
-    in_esc_seq = False
-    for ix, c in enumerate(s):
-        if c == escape:
-            if in_esc_seq:
-                if ix+1 != len(s) and s[ix + 1] != sep:
-                    word.append(c)
-                    continue  # it's a fake escape.
-                in_esc_seq = False
-            else:
-                in_esc_seq = True
-            if word:
-                words += (b"".join(word),)
-                word.clear()
-        elif c == sep and not in_esc_seq:
-            if word:
-                words += (b"".join(word),)
-                word.clear()
-        else:
-            word.append(c)
 
-    if word:
-        if word:
-            words += (b"".join(word),)
-            word.clear()
-    return words
+class TextEscape(object):
+    """
+    enables parsing of CSV with respecting brackets and text marks.
+
+    Example:
+    text_escape = TextEscape()  # set up the instance.
+    for line in somefile.readlines():
+        list_of_words = text_escape(line)  # use the instance.
+        ...
+    """
+    def __init__(self, openings='"({[', closures=']})"', delimiter=','):
+        self.delimiter = ord(delimiter)
+        self.openings = {ord(c) for c in openings}
+        self.closures = {ord(c) for c in closures}
+
+    def __call__(self, s):
+        
+        words = []
+        L = list(s)
+        
+        ix,depth = 0,0
+        while ix < len(L):  # TODO: Compile some REGEX for this instead.
+            c = L[ix]
+            if depth == 0 and c == self.delimiter:
+                word, L = L[:ix], L[ix+1:]
+                words.append("".join(chr(c) for c in word).encode('utf-8'))
+                ix = -1
+            elif c in self.openings:
+                depth += 1
+            elif c in self.closures:
+                depth -= 1
+            else:
+                pass
+            ix += 1
+
+        if L:
+            words.append("".join(chr(c) for c in L).encode('utf-8'))
+        return words
 
 
 def detect_seperator(bytes):
@@ -796,152 +1107,78 @@ def detect_seperator(bytes):
         frq.sort(reverse=True)  # most frequent first.
         return {k:v for k,v in frq}
 
-
-def interactive_file_import():
+def find_first(fh, start, c):
     """
-    interactive file import for commandline use.
+    fh: filehandle (fh = pathlib.Path.open() )
+    start: fh.seek(start) integer
+    c: character to search for.
+
+    as start + chunk_size may not equal the next newline index,
+    start is read as a "soft start":
+    +-------+
+    x       |  
+    |    y->+  if the 2nd start index is y, then I seek the 
+    |       |  next newline character and start after that.
     """
-    def get_file():
-        while 1:
-            path = input("| file path > ")
-            path = pathlib.Path(path)
-            if not path.exists():
-                print(f"| file not found > {path}")
-                continue
-            print(f"| importing > {p.absolute()}")
-            r = input("| is this correct? [Y/N] >")
-            if "Y" in r.upper():
-                return p
-    
-    def csv_menu(path):
-        config = {
-            'newline': None,
-            'text_qualifier':None,
-            'delimiter':None,
-            'first_row_headers':None,
-            'columns': {}
-        }
-        with path.open('rb', encoding=encoding) as fi:
-            # read first 5 rows
-            s, new_line_counter = [], 5
-            while new_line_counter > 0:
-                c = fi.read(1)
-                s.append(c)
-                if c == '\n':
-                    new_line_counter -= 1
-        s = s.join()
-        encoding = chardet.detect(s)
-        print(f"| file encoding > {encoding}")
-        config.update(encoding)
-        if b'\r\n' in s:
-            newline = b'\r\n'
-        else:
-            newline = b'\n'
-        print(f"| newline > {newline} ")
+    c, snippet_size = 0, 1000
+    fh.seek(start)
+    while 1:
+        try:
+            snippet = fh.read(snippet_size)
+        except EOFError:
+            return len(fh)
+        ix = snippet.index(c)
+        if ix != -1:
+            fh.seek(0)
+            return start + c + ix
+        c += snippet_size
 
-        config['newline'] = newline
 
-        for line in s.split(newline):
-            print(line)
-        
-        config['first_row_headers'] = "y" in input("| first row are column names? > Y/N").lower()
 
-        text_escape_char = input("| text escape character > ")
-        config['text escape']= None if text_escape_char=="" else text_escape_char
-        
-        seps = detect_seperator(s)
-        
-        print(f"| delimiters detected > {seps}")
+def text_reader(path, delimiter, columns, newline,
+                first_row_has_headers=True, start=None, limit=None):
+    """
+    reads columnsname + path[start:limit] into hdf5.
+    """
+    assert isinstance(path, pathlib.Path)
+    assert isinstance(delimiter, bytes)
+    assert isinstance(columns, dict)
+    assert all(isinstance
 
-        delimiter = input("| delimiter ? >")
-        config['delimiter'] = delimiter
+    text_escape = TextEscape(delimiter=delimiter)
 
-        def preview(s, text_esc, delimit):
-            array = []
-            for line in s.split(newline):
-                fields = text_escape(line, text_esc, delimit)
-                array.append(fields)
-            return array
+    with path.open('rb') as fi:
+        if first_row_has_headers:
+            end = find_first(fi, 0, newline)
+            headers = fi.read(end).rstrip(newline)
+            headers = text_escape(headers, delimiter=delimiter)
+            
+            indices = {name: headers.index(name) for name in columns}
+        else:        
+            indices = {name: int(name) for name in columns}
 
-        def is_done(array):
-            print("| rotating the first 5 lines > ")
-            print("\n".join(map(" | ".join, zip(*(array)))))
-            answer = input("| does this look right? Y/N >")
-            return answer.lower(), array
-        
-        array = preview(s,text_escape_char,delimiter)
-        if "n" in is_done(array):
-            print("| update keys and values. Enter blank key when done.")
-            while 1:
-                key = input("| key > ")
-                if key == "":
-                    array = preview(s,text_escape_char,delimiter)
-                    if "y" in is_done(array):
-                        break
-                value = input("| value > ")
-                config[key]= value
+        if start != 0:  # find the true beginning.
+            start = find_first(fi, start, newline)
+        end = find_first(fi, start + chunk_size, newline)  # find the true end.
+        fi.seek(start)
+        blob = fi.read(end-start)  # 1 hard iOps. Done.
+        line_count = blob.count(newline)
 
-        cols = input(f"| select columns ? [all/some] > ")
-        config['columns'] = {}
-        if "a" in cols:
-            pass  # empty dict means import all .
-            for ix, colname in enumerate(array[0]):
-                sample = [array[i][ix] for i in range(1,len(array))]
-                datatype = DataTypes.guess(*sample)
-                for dtype in DataTypes.types: # strict order.
-                    if dtype in datatype:
-                        break
-                config['columns'][colname] = dtype
+        data = {}
+        for name, dtype in columns.items():
+            data[name] = np.array(shape=(line_count, ), dtype=dtype)
 
-        else:
-            print("| Enter columns to keep. Enter blank when done.")
-            while 1: 
-                key = input("| column name > ")
-                ix = array[0].index(key)
-                if ix == -1:
-                    print(f"| {key} not found.")
-                    continue
-                sample = [array[i][ix] for i in range(1,6)]
-                datatype = DataTypes.guess(*sample)
-                print(f"| > {datatypes}")
-                for dtype in DataTypes.types: # strict order.
-                    if dtype in datatype:
-                        break
-                config['columns'][colname] = dtype
-                while 1:
-                    guess = input(f"| is {dtype} correct datatype ?\n| > Enter accepts / type name if different >")
-                    if guess == "":
-                        break
-                    elif guess in [str(t) for t in DataTypes.types]:
-                        config['columns'][colname] = dtype
-                    else:
-                        print(f"| {guess} > No such type.")
-                
-        print(f"| using config > \n{config}")
-        return config       
+        for line_no, line in enumerate(blob.split(newline)):
+            fields = text_escape(line)
+            for name, ix in indices.items():
+                data[name][line_no] = np.frombuffer(fields[ix])  # should convert to dtype>?!
 
-    def get_config(p):
-        assert isinstance(p, pathlib.Path)
-        ext = path.name.split(".")[-1].lower()
-        if ext == "csv":
-            config = csv_menu(p)
-        elif ext == "xlsx":
-            config = xlsx_menu()
-        elif ext == "txt":
-            config = txt_menu(p)
-        elif ext == '.h5':
-            print("| {p} is already imported!")
-        else:
-            print(f"no method for .{ext}'s")
-        
-    try:
-        p = get_file()
-        config = get_config(p)
-        new_p = Table.import_file(p,config)
-        t = Table.load_file(new_p)
-        return t
-    except KeyboardInterrupt:
-        return
+    h5 = pathlib.Path(str(path) + '.h5')
+    with h5py.File(h5, 'a') as f:
+        root = f['/']
+        for name,arr in data.items():
+            f.create_dataset({root}/{name}/{start}, data=arr)  
+            # `start` declares the slice id which order will be used for sorting
 
     
 # TESTS -----------------
@@ -963,6 +1200,12 @@ def test_range_intercept():
 
     assert set(intercept(A,B)) == set(A).intersection(set(B))
 
+
+def test_text_escape():
+    s = b"this,is,a,,b,(comma,sep'd),text"
+    L = text_escape(s, delimiter=b',')
+    assert L == [b"this", b"is", b"a", b"",b"b", b"(comma,sep'd)", b"text"]
+    
 
 def test_basics():
     # creating a tablite incrementally is straight forward:
@@ -1080,11 +1323,50 @@ time.sleep(0.1)  # Added delay to distribute the few tasks amongst the workers.
     shm.close()
     shm.unlink()
 
+
+def test_h5_inspection():
+    filename = 'a.csv.h5'
+
+    with h5py.File(filename, 'w') as f:
+        print(f.name)
+
+        print(list(f.keys()))
+
+        config = json.dumps({
+            'import_as': 'csv',
+            'newline': '\r\n',
+            'text_qualifier':'"',
+            'delimiter':",",
+            'first_row_headers':True,
+            'columns': {"col1": 'i8', "col2": 'int64'}
+        })
+        f.attrs['config']=config
+        dset = f.create_dataset("col1", dtype='i8', data=[1,2,3,4,5,6])
+        dset = f.create_dataset("col2", dtype='int64', data=[5,5,5,5,5,2**33])
+
+    # Append to dataset
+    # must have chunks=True and maxshape=(None,)
+    with h5py.File(filename, 'a') as f:
+        dset = f.create_dataset('/sha256sum', data=[2,5,6],chunks=True, maxshape=(None, ))
+        print(dset[:])
+        new_data = [3,8,4]
+        new_length = len(dset) + len(new_data)
+        dset.resize((new_length, ))
+        dset[-len(new_data):] = new_data
+        print(dset[:])
+
+    print(list(f.keys()))
+
+    Table.inspect_h5_file(filename)
+    pathlib.Path(filename).unlink()  # cleanup.
+
+
 def test_file_importer():
     p = r"d:\remove_duplicates.csv"
     assert pathlib.Path(p).exists(), "?"
     config = {'encoding': 'ascii', 'delimiter': ',', 'text escape': '"'}
-    Table.import_file(p,config)
+    Table.import_file(p, **config)
+
 
 
 # def fx2(address):
