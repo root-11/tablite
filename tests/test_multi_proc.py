@@ -1179,7 +1179,7 @@ def text_reader(path, columns, newline,
                 data[name][line_no] = value 
 
     h5 = pathlib.Path(str(path) + '.h5')
-    with h5py.File(h5, 'w-') as f:
+    with h5py.File(h5, 'a') as f:
         for name,arr in data.items():
             f.create_dataset(f"/{name}/{start}", data=arr)  
             # `start` declares the slice id which order will be used for sorting
@@ -1386,10 +1386,19 @@ def test_file_importer():
         "columns": columns, 
         "first_row_has_headers": True
     }  
-    text_reader(path=p, start=0, limit=10000, **config)
     p2 = pathlib.Path(str(p) + '.h5')
+    print("--- 1st worker done ---")
+    text_reader(path=p, start=0, limit=10000, **config)
+    Table.inspect_h5_file(p2)
+    print("--- 2nd worker done ---")
+    text_reader(path=p, start=10000, limit=10000, **config)
+    Table.inspect_h5_file(p2)
+    print("--- 3rd worker done ---")
+    text_reader(path=p, start=20000, limit=10000, **config)
     Table.inspect_h5_file(p2)
     # Table.import_file(p, **config)
+    # CONSOLIDATE...!
+
     p2.unlink()  # cleanup!
 
 
