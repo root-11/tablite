@@ -20,11 +20,6 @@ from abc import ABC
 from collections import deque
 from multiprocessing import cpu_count, shared_memory
 
-from tablite.file_reader_utils import text_escape
-from tests.a_text_escape_test import TextEscape
-
-from ..tablite.datatypes import DataTypes
-
 
 class TaskManager(object):
     memory_usage_ceiling = 0.9  # 90%
@@ -84,7 +79,7 @@ class TaskManager(object):
         print("all workers stopped")
         self.pool.clear()
   
-    def chunk_size_per_cpu(self, working_memory_required):
+    def chunk_size_per_cpu(self, working_memory_required):  # 39,683,483,123 = 39 Gb.
         if working_memory_required < psutil.virtual_memory().free:
             chunk_size = math.ceil(working_memory_required / self._cpus)
         else:
@@ -140,8 +135,9 @@ class MemoryManager(object):
     process_pool = None
     tasks = None
     cache_path = pathlib.Path(os.getcwd()) / 'tablite_cache.h5'
-    cache_file = h5py.File(cache_path, mode='a') # 'a': Read/write if exists, create otherwise
     
+    # cache_file = h5py.File(cache_path, mode='a') # 'a': Read/write if exists, create otherwise
+        
     @classmethod
     def reset(cls):
         """
@@ -154,10 +150,8 @@ class MemoryManager(object):
         >>> MemoryManager.reset()
         >>> ... start on testcase ...
         """
-        cls.cache_file.close()
         cls.cache_file = h5py.File(cls.cache_path, mode='w')  # 'w' Create file, truncate if exists
         cls.cache_file.close()
-        cls.cache_file = h5py.File(cls.cache_path, mode='a')
         for obj in list(cls.registry.values()):
             del obj
 
@@ -166,7 +160,7 @@ class MemoryManager(object):
         # Use `import gc; del MemoryManager; gc.collect()` to delete the MemoryManager class.
         # shm.close()
         # shm.unlink()
-        cls.cache_file.close()  # no loss of data.
+        cls.cache_file.unlink()  # no loss of data.
 
     @classmethod
     def register(cls, obj):  # used at __init__
@@ -320,7 +314,7 @@ class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
             if not address.startswith('/'):
                 raise ValueError(f"address doesn't start at root.")
             
-            self._handle = h5py.File(path,'r')
+            self._handle = h5py.File(path,'r')  # imported data is immutable.
             self._address = address
 
             self._data = self._handle[address]            
@@ -333,7 +327,7 @@ class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
     def use_disk(self):
         return self._type == self.hdf5
     
-    def use_disk(self, value, path=None, column_name=None):
+    def use_disk(self, value):
         if value is False:
             if self._type == self.shm:  
                 return  # nothing to do. Already in shm mode.
@@ -346,18 +340,13 @@ class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
                 self._type = self.shm
                 return
         else:  # if value is True:
-            if isinstance(path, str):
-                path = pathlib.Path(path)
-            if not path.is_file():
-                raise ValueError("needs a file or path.")            
-            if column_name is None or not isinstance(column_name,str) or column_name == "":  
-                raise ValueError("name must be an ascii string")
-
+            if self._type == self.hdf5:
+                return  # nothing to do. Already in HDF5 mode.
             # hdf5_name = f"{column_name}/{self.mem_id}"
-            self._handle = h5py.File(path, 'a')  # 'a' Read/write if exists, create otherwise
-            self._address = (path, f"/{column_name}")
-            self._data = self._handle.create_dataset(column_name, data=self._data)       
-
+            self._handle = h5py.File(MemoryManager.cache_path, 'a')
+            self._address = f"/{self.sha256sum}"
+            self._data = self._handle.create_dataset(self._address, data=self._data)
+            
     @property
     def sha256sum(self):
         return self._mem_id
@@ -379,17 +368,11 @@ class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
         raise AttributeError("Use vectorised functions on DataBlock.data instead of __iter__")
     def __del__(self):
         if self._type == self.shm:
-            try:
-                self._handle.close()
-                self._handle.unlink()
-            except Exception as e:
-                print(e)
+            self._handle.close()
+            self._handle.unlink()
         elif self._type == self.hdf5:
-            try:
-                self._handle.close()
-            except Exception as e:
-                print(e)
-        super().__del__(self)
+            self._handle.close()
+        super().__del__()
 
 
 def intercept(A,B):
@@ -446,7 +429,7 @@ class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
 
     def __del__(self):
         MemoryManager.unlink_tree(self)
-        super().__del__(self)
+        super().__del__()
 
     def __iter__(self):
         for block_id in self.order:
@@ -543,7 +526,8 @@ class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
 
             self.order.extend(data.order[:])
             for block_id in data.order:
-                MemoryManager.link(self, block_id)
+                block = MemoryManager.get(block_id)
+                MemoryManager.link(self, block)
             
         else:  # It's supposedly new data.
             if not isinstance(data, np.ndarray):
@@ -584,7 +568,7 @@ class Table(MemoryManagedObject):
     
     def __del__(self):
         MemoryManager.unlink_tree(self)  # columns are automatically garbage collected.
-        super().__del__(self)
+        super().__del__()
 
     def __getitem__(self, items):
         """
@@ -1056,10 +1040,23 @@ class TextEscape(object):
         list_of_words = text_escape(line)  # use the instance.
         ...
     """
-    def __init__(self, openings='"({[', closures=']})"', delimiter=','):
+    def __init__(self, openings=b'"({[', closures=b']})"', delimiter=b','):
+        """
+        As an example, the Danes and Germans use " for inches and ' for feet, 
+        so we will see data that contains nail (75 x 4 mm, 3" x 3/12"), so 
+        for this case ( and ) are valid escapes, but " and ' aren't.
+
+        """
+        if not isinstance(openings, bytes):
+            raise TypeError(f"expected bytes, got {type(openings)}")
+        if not isinstance(closures, bytes):
+            raise TypeError(f"expected bytes, got {type(closures)}")
+        if not isinstance(delimiter, bytes):
+            raise TypeError(f"expected bytes, got {type(delimiter)}")
+        
         self.delimiter = ord(delimiter)
-        self.openings = {ord(c) for c in openings}
-        self.closures = {ord(c) for c in closures}
+        self.openings = {c for c in openings}
+        self.closures = {c for c in closures}
 
     def __call__(self, s):
         
@@ -1107,7 +1104,7 @@ def detect_seperator(bytes):
         frq.sort(reverse=True)  # most frequent first.
         return {k:v for k,v in frq}
 
-def find_first(fh, start, c):
+def find_first(fh, start, chars):
     """
     fh: filehandle (fh = pathlib.Path.open() )
     start: fh.seek(start) integer
@@ -1127,56 +1124,64 @@ def find_first(fh, start, c):
             snippet = fh.read(snippet_size)
         except EOFError:
             return len(fh)
-        ix = snippet.index(c)
+        ix = snippet.index(chars)
         if ix != -1:
             fh.seek(0)
             return start + c + ix
         c += snippet_size
 
 
-
-def text_reader(path, delimiter, columns, newline,
+def text_reader(path, columns, newline,
+                text_escape_openings=b'"([{', text_escape_closures=b'}])"',
+                delimiter=b',', 
                 first_row_has_headers=True, start=None, limit=None):
     """
     reads columnsname + path[start:limit] into hdf5.
     """
-    assert isinstance(path, pathlib.Path)
+    if isinstance(path, str):
+        path = pathlib.Path(path)
+
+    if not isinstance(path, pathlib.Path):
+        raise TypeError
+    if not path.exists():
+        raise ValueError(f"File not found: {path}")
     assert isinstance(delimiter, bytes)
     assert isinstance(columns, dict)
 
-    text_escape = TextEscape(delimiter=delimiter)
+    text_escape = TextEscape(text_escape_openings, text_escape_closures, delimiter)
 
     with path.open('rb') as fi:
         if first_row_has_headers:
             end = find_first(fi, 0, newline)
             headers = fi.read(end).rstrip(newline)
-            headers = text_escape(headers, delimiter=delimiter)
+            start = len(headers) if start ==0 else start  # special case for 1st slice.
+            headers = text_escape(headers)
             
             indices = {name: headers.index(name) for name in columns}
         else:        
             indices = {name: int(name) for name in columns}
 
         if start != 0:  # find the true beginning.
-            start = find_first(fi, start, newline)
-        end = find_first(fi, start + chunk_size, newline)  # find the true end.
+            start = find_first(fi, start, newline) + len(newline)
+        end = find_first(fi, start + limit, newline)  # find the true end.
         fi.seek(start)
         blob = fi.read(end-start)  # 1 hard iOps. Done.
-        line_count = blob.count(newline)
+        line_count = blob.count(newline) +1  # +1 because the last line will not have it's newline.
 
         data = {}
         for name, dtype in columns.items():
-            data[name] = np.array(shape=(line_count, ), dtype=dtype)
+            data[name] = np.empty((line_count, ), dtype=dtype)
 
         for line_no, line in enumerate(blob.split(newline)):
             fields = text_escape(line)
             for name, ix in indices.items():
-                data[name][line_no] = np.frombuffer(fields[ix])  # should convert to dtype>?!
+                value = fields[ix]  # should convert to dtype>?!
+                data[name][line_no] = value 
 
     h5 = pathlib.Path(str(path) + '.h5')
-    with h5py.File(h5, 'a') as f:
-        root = f['/']
+    with h5py.File(h5, 'w-') as f:
         for name,arr in data.items():
-            f.create_dataset({root}/{name}/{start}, data=arr)  
+            f.create_dataset(f"/{name}/{start}", data=arr)  
             # `start` declares the slice id which order will be used for sorting
 
     
@@ -1202,7 +1207,8 @@ def test_range_intercept():
 
 def test_text_escape():
     s = b"this,is,a,,b,(comma,sep'd),text"
-    L = text_escape(s, delimiter=b',')
+    te = TextEscape(delimiter=b',')
+    L = te(s)
     assert L == [b"this", b"is", b"a", b"",b"b", b"(comma,sep'd)", b"text"]
     
 
@@ -1331,15 +1337,16 @@ def test_h5_inspection():
 
         print(list(f.keys()))
 
-        config = json.dumps({
+        config = {
             'import_as': 'csv',
-            'newline': '\r\n',
-            'text_qualifier':'"',
-            'delimiter':",",
+            'newline': b'\r\n',
+            'text_qualifier':b'"',
+            'delimiter':b",",
             'first_row_headers':True,
             'columns': {"col1": 'i8', "col2": 'int64'}
-        })
-        f.attrs['config']=config
+        }
+        
+        f.attrs['config']=str(config)
         dset = f.create_dataset("col1", dtype='i8', data=[1,2,3,4,5,6])
         dset = f.create_dataset("col2", dtype='int64', data=[5,5,5,5,5,2**33])
 
@@ -1354,7 +1361,7 @@ def test_h5_inspection():
         dset[-len(new_data):] = new_data
         print(dset[:])
 
-    print(list(f.keys()))
+        print(list(f.keys()))
 
     Table.inspect_h5_file(filename)
     pathlib.Path(filename).unlink()  # cleanup.
@@ -1363,8 +1370,27 @@ def test_h5_inspection():
 def test_file_importer():
     p = r"d:\remove_duplicates.csv"
     assert pathlib.Path(p).exists(), "?"
-    config = {'encoding': 'ascii', 'delimiter': ',', 'text escape': '"'}
-    Table.import_file(p, **config)
+
+    columns = {  # numpy type codes: https://numpy.org/doc/stable/reference/generated/numpy.dtype.kind.html
+        b'SKU ID': 'i', # integer
+        b'SKU description':'S', # np variable length str
+        b'Shipped date' : 'S', #datetime
+        b'Shipped time' : 'S', # integer to become time
+        b'vendor case weight' : 'f'  # float
+    }  
+    config = {
+        'delimiter': b',', 
+        'text_escape_openings': b'"({[', 
+        "text_escape_closures": b']})"', 
+        "newline": b"\r\n",
+        "columns": columns, 
+        "first_row_has_headers": True
+    }  
+    text_reader(path=p, start=0, limit=10000, **config)
+    p2 = pathlib.Path(str(p) + '.h5')
+    Table.inspect_h5_file(p2)
+    # Table.import_file(p, **config)
+    p2.unlink()  # cleanup!
 
 
 
@@ -1408,7 +1434,7 @@ def test_file_importer():
 # update LRU cache based on access.
 
 if __name__ == "__main__":
-    for k,v in globals().copy().items():
-        if k.startswith("test") and callable(v):
-            v()
+    for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
+        print(20 * "-" + k + "-" * 20)
+        v()
 
