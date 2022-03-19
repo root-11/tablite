@@ -91,3 +91,28 @@ h5dump('a.zip.h5')
 
 import pathlib
 pathlib.Path(filename).unlink()
+
+
+with h5py.File('this.h5', 'a') as f:
+    dset1 = f.create_dataset('/imports/1', data=(1,2,3))
+    dset2 = f.create_dataset('/imports/2', data=(4,5,6))
+    dset3 = f.create_dataset('/imports/3', data=(7,8,9,10))
+    
+    dsets = [dset1,dset2,dset3]
+
+    layout = h5py.VirtualLayout(shape=(10, ), dtype=dset1.dtype)
+
+    a,b=0,0
+    for dset in dsets:
+        h5py.VirtualSource(dset)
+        b += len(dset)
+        vsource = h5py.VirtualSource(dset)
+        layout[a:b] = vsource
+        a=b 
+        
+    f.create_virtual_dataset('data', layout)
+
+h5dump('this.h5')
+pathlib.Path('this.h5').unlink()
+
+
