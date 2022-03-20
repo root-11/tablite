@@ -910,19 +910,19 @@ class Table(MemoryManagedObject):
             text_escape = TextEscape(delimiter=delimiter)  # configure t.e.
 
             with path.open('r', encoding=encoding) as fi:
-                if first_row_has_headers:
-                    end = find_first(fi, 0, newline)
-                    headers = fi.read(end).rstrip(newline)
-                    headers = text_escape(headers) # use t.e.
-                    indices = []
+                end = find_first(fi, 0, newline)
+                headers = fi.read(end)
+                headers = text_escape(headers) # use t.e.
+                
+                if first_row_has_headers:    
                     for name in columns:
                         if name not in headers:
                             raise ValueError(f"column not found: {name}")
-                        indices.append(headers.index(name))
                 else:
-                    indices = [int(v) for v in columns]
-                    headers = [str(v) for v in columns]
-            
+                    for index in columns:
+                        if index not in range(len(headers)):
+                            raise IndexError(f"{index} out of range({len(headers)})")
+                                
             config = {
                 'import_as': import_as,
                 'path': str(path),
@@ -935,10 +935,15 @@ class Table(MemoryManagedObject):
                 'text_qualifier': text_qualifier
             }
 
-            h5 = pathlib.Path(str(path) + '.h5')
-            with h5py.File(h5,'w') as f:  # Create file, truncate if exists
-                root = f['/']
-                root.attrs['config'] = json.dumps(config)
+            h5 = pathlib.Path(str(path) + '.hdf5')
+            if h5.exists():
+                with h5py.File(h5,'r') as f:  # Create file, truncate if exists
+                    stored_config = f.attrs['config']
+                    if stored_config == json.dumps(config):
+                        return  # data already imported.
+            else:
+                with h5py.File(h5,'w') as f:  # Create file, truncate if exists
+                    f.attrs['config'] = json.dumps(config)
 
             with TaskManager() as tm:
                 working_overhead = 3.1415  # random guess. TODO: Calibrate.
