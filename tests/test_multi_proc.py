@@ -1,7 +1,9 @@
 import hashlib
 import math
+import pickle
 import pathlib
 import time
+from typing import Type
 import weakref
 import numpy as np
 import h5py
@@ -17,7 +19,7 @@ import psutil
 from graph import Graph
 from itertools import count
 from abc import ABC
-from collections import deque
+from collections import defaultdict, deque
 from multiprocessing import cpu_count, shared_memory
 
 
@@ -308,7 +310,7 @@ class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
             if not isinstance(path, pathlib.Path):
                 raise TypeError(f"expected pathlib.Path, not {type(path)}")
             if not path.exists():
-                raise ValueError(f"file not found: {path}")
+                raise FileNotFoundError(f"file not found: {path}")
             if not isinstance(address,str):
                 raise TypeError(f"expected address as str, but got {type(address)}")
             if not address.startswith('/'):
@@ -854,7 +856,7 @@ class Table(MemoryManagedObject):
            
     @classmethod
     def import_file(cls, path, 
-        import_as, newline=b'\n', text_qualifier=None,
+        import_as, newline='\n', text_qualifier=None,
         delimiter=b',', first_row_has_headers=True, columns=None, sheet=None):
         """
         TABLES FROM IMPORTED FILES ARE IMMUTABLE.
@@ -884,7 +886,7 @@ class Table(MemoryManagedObject):
         if not isinstance(path, pathlib.Path):
             raise TypeError(f"expected pathlib.Path, got {type(path)}")
         if not path.exists():
-            raise ValueError(f"file not found: {path}")
+            raise FileNotFoundError(f"file not found: {path}")
 
         if not isinstance(import_as,str) and import_as in ['csv','txt','xlsx']:
             raise ValueError(f"{import_as} is not supported")
@@ -900,10 +902,16 @@ class Table(MemoryManagedObject):
 
             # Ok. File doesn't exist, has been changed or it's a new import config.
             with path.open('rb') as fi:
+                rawdata = fi.read(10000)
+                encoding = chardet.detect(rawdata)['encoding']
+            
+            text_escape = TextEscape(delimiter=delimiter)  # configure t.e.
+
+            with path.open('r', encoding=encoding) as fi:
                 if first_row_has_headers:
                     end = find_first(fi, 0, newline)
                     headers = fi.read(end).rstrip(newline)
-                    headers = text_escape(headers, delimiter=delimiter)
+                    headers = text_escape(headers) # use t.e.
                     indices = []
                     for name in columns:
                         if name not in headers:
@@ -943,7 +951,7 @@ class Table(MemoryManagedObject):
                     task = {'id': 1, "script": script} 
                     tm.add(task)
                 # add task for merging chunks in hdf5 into single columns
-                
+                tm.execute()
 
     @classmethod
     def inspect_h5_file(cls, path, group='/'):
@@ -977,7 +985,7 @@ class Table(MemoryManagedObject):
         if not isinstance(path, pathlib.Path):
             raise TypeError(f"expected pathlib.Path, got {type(path)}")
         if not path.exists():
-            raise ValueError(f"file not found: {path}")
+            raise FileNotFoundError(f"file not found: {path}")
         if not path.name.endswith(".h5"):
             raise TypeError(f"expected .h5 file, not {path.name}")
         
@@ -1040,35 +1048,45 @@ class TextEscape(object):
         list_of_words = text_escape(line)  # use the instance.
         ...
     """
-    def __init__(self, openings=b'"({[', closures=b']})"', delimiter=b','):
+    def __init__(self, openings='({[', closures=']})', qoute='"', delimiter=','):
         """
         As an example, the Danes and Germans use " for inches and ' for feet, 
         so we will see data that contains nail (75 x 4 mm, 3" x 3/12"), so 
         for this case ( and ) are valid escapes, but " and ' aren't.
 
         """
-        if not isinstance(openings, bytes):
-            raise TypeError(f"expected bytes, got {type(openings)}")
-        if not isinstance(closures, bytes):
-            raise TypeError(f"expected bytes, got {type(closures)}")
-        if not isinstance(delimiter, bytes):
-            raise TypeError(f"expected bytes, got {type(delimiter)}")
+        if not isinstance(openings, str):
+            raise TypeError(f"expected str, got {type(openings)}")
+        if not isinstance(closures, str):
+            raise TypeError(f"expected str, got {type(closures)}")
+        if not isinstance(delimiter, str):
+            raise TypeError(f"expected str, got {type(delimiter)}")
+        if qoute in openings or qoute in closures:
+            raise ValueError("It's a bad idea to have qoute character appears in openings or closures.")
         
-        self.delimiter = ord(delimiter)
+        self.delimiter = delimiter
+        self._delimiter_length = len(delimiter)
         self.openings = {c for c in openings}
         self.closures = {c for c in closures}
+        self.qoute = qoute
 
     def __call__(self, s):
-        
         words = []
-        L = list(s)
-        
+        qoute = False
         ix,depth = 0,0
-        while ix < len(L):  # TODO: Compile some REGEX for this instead.
-            c = L[ix]
+        while ix < len(s):  # TODO: Compile some REGEX for this instead.
+            c = s[ix]
+
+            if c == self.qoute:
+                qoute = not qoute
+
+            if qoute:
+                ix+=1
+                continue
+
             if depth == 0 and c == self.delimiter:
-                word, L = L[:ix], L[ix+1:]
-                words.append("".join(chr(c) for c in word).encode('utf-8'))
+                word, s = s[:ix], s[ix+self._delimiter_length:]
+                words.append(word)
                 ix = -1
             elif c in self.openings:
                 depth += 1
@@ -1078,12 +1096,12 @@ class TextEscape(object):
                 pass
             ix += 1
 
-        if L:
-            words.append("".join(chr(c) for c in L).encode('utf-8'))
+        if s:
+            words.append(s)
         return words
 
 
-def detect_seperator(bytes):
+def detect_seperator(text):
     """
     After reviewing the logic in the CSV sniffer, I concluded that all it
     really does is to look for a non-text character. As the separator is
@@ -1095,18 +1113,18 @@ def detect_seperator(bytes):
     practice is a single character, unless (2) it is empty whereby it must
     be whitespace.
     """
-    seps = {b',', b'\t', b';', b':', b'|', b'\t'}.intersection(bytes)
+    seps = {',', '\t', ';', ':', '|'}.intersection(text)
     if not seps:
-        if b" " in bytes:
-            return b" "
+        if " " in text:
+            return " "
     else:
-        frq = [(bytes.count(i), i) for i in seps]
+        frq = [(text.count(i), i) for i in seps]
         frq.sort(reverse=True)  # most frequent first.
         return {k:v for k,v in frq}
 
 def find_first(fh, start, chars):
     """
-    fh: filehandle (fh = pathlib.Path.open() )
+    fh: filehandle (e.g. fh = pathlib.Path.open() )
     start: fh.seek(start) integer
     c: character to search for.
 
@@ -1121,40 +1139,65 @@ def find_first(fh, start, chars):
     fh.seek(start)
     while 1:
         try:
-            snippet = fh.read(snippet_size)
-        except EOFError:
-            return len(fh)
-        ix = snippet.index(chars)
-        if ix != -1:
+            snippet = fh.read(snippet_size)  # EOFerror?
+            ix = snippet.index(chars)
+        except ValueError:
+            c += snippet_size
+            continue
+        else:
             fh.seek(0)
             return start + c + ix
-        c += snippet_size
+        
 
 
-def text_reader(path, columns, newline,
-                text_escape_openings=b'"([{', text_escape_closures=b'}])"',
-                delimiter=b',', 
-                first_row_has_headers=True, start=None, limit=None):
+def text_reader(source, destination, columns, 
+                newline, delimiter=',', first_row_has_headers=True, qoute='"',
+                text_escape_openings='"([{', text_escape_closures='}])"',
+                start=None, limit=None,
+                encoding='utf-8', root='hdf5_imports'):
     """
     reads columnsname + path[start:limit] into hdf5.
-    """
-    if isinstance(path, str):
-        path = pathlib.Path(path)
 
-    if not isinstance(path, pathlib.Path):
+    source: csv or txt file
+    destination: available filename
+    
+    columns: column names or indices to import
+
+    newline: '\r\n' or '\n'
+    delimiter: ',' ';' or '|'
+    first_row_has_headers: boolean
+    text_escape_openings: str: default: "({[ 
+    text_escape_closures: str: default: ]})" 
+
+    start: integer: The first newline after the start will be start of blob.
+    limit: integer: appx size of blob. The first newline after start of 
+                    blob + limit will be the real end.
+
+    encoding: chardet encoding ('utf-8, 'ascii', ..., 'ISO-22022-CN')
+    root: hdf5 root, cannot be the same as a column name.
+    """
+    if isinstance(source, str):
+        source = pathlib.Path(source)
+    if not isinstance(source, pathlib.Path):
         raise TypeError
-    if not path.exists():
-        raise ValueError(f"File not found: {path}")
-    assert isinstance(delimiter, bytes)
+    if not source.exists():
+        raise FileNotFoundError(f"File not found: {source}")
+
+    if isinstance(destination, str):
+        destination = pathlib.Path(destination)
+    if not isinstance(destination, pathlib.Path):
+        raise TypeError
+
     assert isinstance(columns, dict)
 
-    text_escape = TextEscape(text_escape_openings, text_escape_closures, delimiter)
+    text_escape = TextEscape(text_escape_openings, text_escape_closures, qoute=qoute, delimiter=delimiter)
 
-    with path.open('rb') as fi:
+    with source.open('r', newline='', encoding=encoding) as fi:
+        
         if first_row_has_headers:
             end = find_first(fi, 0, newline)
-            headers = fi.read(end).rstrip(newline)
-            start = len(headers) if start ==0 else start  # special case for 1st slice.
+            headers = fi.read(end)
+            start = len(headers) + len(newline) if start == 0 else start   # revise start for 1st slice.
             headers = text_escape(headers)
             
             indices = {name: headers.index(name) for name in columns}
@@ -1162,27 +1205,100 @@ def text_reader(path, columns, newline,
             indices = {name: int(name) for name in columns}
 
         if start != 0:  # find the true beginning.
-            start = find_first(fi, start, newline) + len(newline)
-        end = find_first(fi, start + limit, newline)  # find the true end.
+            start = find_first(fi, start, newline) + len(newline)  # + newline!
+        end = find_first(fi, start + limit, newline)  # find the true end ex newline.
         fi.seek(start)
         blob = fi.read(end-start)  # 1 hard iOps. Done.
         line_count = blob.count(newline) +1  # +1 because the last line will not have it's newline.
 
         data = {}
         for name, dtype in columns.items():
-            data[name] = np.empty((line_count, ), dtype=dtype)
+            if dtype == 'S': # np requires string lengths to be known.
+                # so the data needs to be extracted before this is possible.
+                # The solution is therefore to store data as python objects, using 
+                # a numpy array only fore references.
+                # Once all data is collected, the reference array can be converted into
+                # a fixed size array of dtype 'S', so that np.str-methods can be used.
+                data[name] = np.empty((line_count, ), dtype='O') 
+            else:
+                data[name] = np.empty((line_count, ), dtype=dtype)  # in the first attempt
+                # the user declared datatype is used. Should this however fail at any time,
+                # the array will be turned into 'O' type.
 
         for line_no, line in enumerate(blob.split(newline)):
             fields = text_escape(line)
             for name, ix in indices.items():
-                value = fields[ix]  # should convert to dtype>?!
-                data[name][line_no] = value 
+                try:
+                    data[name][line_no] = fields[ix]
+                except TypeError: # if the line above blows up, the dataset is converted
+                    default_data = np.empty((line_count, ), dtype='O')   # ... to bytes
+                    default_data[:] = data[name][:]                      # ... and replaced.
+                    data[name] = default_data                            # this switch should only happen once per column.
+                    # ^-- all the data has been copied, so finish the operation below --v
+                    data[name][line_no] = fields[ix]
+                except IndexError:
+                    print(f"Found {len(fields)}, but index is {ix}")
+                    fields = text_escape(line)
+                
+                except Exception as e:
+                    print(f"error in {name} ({ix}) {line_no} for line\n\t{line}\nerror:")
+                    raise e
 
-    h5 = pathlib.Path(str(path) + '.h5')
-    with h5py.File(h5, 'a') as f:
-        for name,arr in data.items():
-            f.create_dataset(f"/{name}/{start}", data=arr)  
-            # `start` declares the slice id which order will be used for sorting
+
+        for name, dtype in columns.items():
+            arr = data[name]
+            if arr.dtype == 'O':
+                data[name] = np.array(arr[:], dtype='S')
+            arr = None
+
+    with h5py.File(destination, 'a') as f:
+        for name, arr in data.items():
+            f.create_dataset(f"/{root}/{name}/{start}", data=arr)  # `start` declares the slice id which order will be used for sorting
+
+
+def consolidate(path, root='hdf5_imports'):
+    """
+    enables consolidation of hdf5 imports from root into column named folders.
+    
+    path: pathlib.Path
+    root: text, root for consolidation
+    """
+    if not isinstance(path, pathlib.Path):
+        raise TypeError
+    if not path.exists():
+        raise FileNotFoundError(path)
+    if root not in f.keys():
+        raise ValueError(f"root={root} not in {f.keys()}")
+
+    with h5py.File(path, 'a') as f:
+        lengths = defaultdict(int)
+        dtypes = defaultdict(set)  # necessary to track as data is dirty.
+        for col_name in f.keys():
+            for start in sorted(f[f"/{root}/{col_name}"].keys()):
+                dset = f[f"/{root}/{col_name}/{start}"]
+                lengths[col_name] += len(dset)
+                dtypes[col_name].add(dset.dtype)
+        
+        if len(set(lengths.values())) != 1:
+            d = {k:v for k,v in lengths.items()}
+            raise ValueError(f"assymmetric dataset: {d}")
+        for k,v in dtypes.items():
+            if len(v) != 1:
+                dtypes[k] = 'S'  # np.bytes
+            else:
+                dtypes[k] = v.pop()
+        
+        for col_name in f[root].keys():
+            shape = (lengths[col_name], )
+            layout = h5py.VirtualLayout(shape=shape, dtype=dtypes[col_name])
+            a, b = 0, 0
+            for start in sorted(f[f"{root}/{col_name}"].keys()):
+                dset = f[f"{root}/{col_name}/{start}"]
+                b += len(dset)
+                vsource = h5py.VirtualSource(dset)
+                layout[a:b] = vsource
+                a = b
+            f.create_virtual_dataset(f'/{col_name}', layout=layout)   
 
     
 # TESTS -----------------
@@ -1206,10 +1322,12 @@ def test_range_intercept():
 
 
 def test_text_escape():
-    s = b"this,is,a,,b,(comma,sep'd),text"
-    te = TextEscape(delimiter=b',')
-    L = te(s)
-    assert L == [b"this", b"is", b"a", b"",b"b", b"(comma,sep'd)", b"text"]
+    # set up
+    text_escape = TextEscape(openings='({[', closures=']})', qoute='"', delimiter=',')
+    s = "this,is,a,,嗨,(comma,sep'd),\"text\""
+    # use
+    L = text_escape(s)
+    assert L == ["this", "is", "a", "","嗨", "(comma,sep'd)", "\"text\""]
     
 
 def test_basics():
@@ -1265,7 +1383,7 @@ def test_slicing():
     table1.add_column('B', data=[v*10 for v in base_data])
     table1.add_column('C', data=[-v for v in base_data])
     start = time.time()
-    big_table = table1 * 100
+    big_table = table1 * 10_000  # = 100_000_000
     print(f"it took {time.time()-start} to extend a table to {len(big_table)} rows")
     start = time.time()
     _ = big_table.copy()
@@ -1275,8 +1393,7 @@ def test_slicing():
     for row in a_preview[3:15:3].rows:
         print(row)
     a_preview.show(format='ascii')
-    a_preview.show(format='md')
-
+    
 
 def test_multiprocessing():
     # Create shared_memory array for workers to access.
@@ -1370,36 +1487,43 @@ def test_h5_inspection():
 def test_file_importer():
     p = r"d:\remove_duplicates.csv"
     assert pathlib.Path(p).exists(), "?"
+    p2 = pathlib.Path(p + '.hdf5')
+    if p2.exists():
+        p2.unlink()
 
     columns = {  # numpy type codes: https://numpy.org/doc/stable/reference/generated/numpy.dtype.kind.html
-        b'SKU ID': 'i', # integer
-        b'SKU description':'S', # np variable length str
-        b'Shipped date' : 'S', #datetime
-        b'Shipped time' : 'S', # integer to become time
-        b'vendor case weight' : 'f'  # float
+        'SKU ID': 'i', # integer
+        'SKU description':'S', # np variable length str
+        'Shipped date' : 'S', #datetime
+        'Shipped time' : 'S', # integer to become time
+        'vendor case weight' : 'f'  # float
     }  
     config = {
-        'delimiter': b',', 
-        'text_escape_openings': b'"({[', 
-        "text_escape_closures": b']})"', 
-        "newline": b"\r\n",
+        'delimiter': ',', 
+        'text_escape_openings': '', 
+        "text_escape_closures": '', 
+        "qoute": '"',
+        "newline": "\r\n",
         "columns": columns, 
-        "first_row_has_headers": True
+        "first_row_has_headers": True,
+        "root": '/imports',
+        "encoding": "ascii"
     }  
-    p2 = pathlib.Path(str(p) + '.h5')
-    print("--- 1st worker done ---")
-    text_reader(path=p, start=0, limit=10000, **config)
+    start, limit = 0, 10_000
+    for _ in range(4):
+        text_reader(source=p, destination=p2, start=start, limit=limit, **config)
+        start = start + limit
+        limit += 10_000
+
+    consolidate(target=p2)
+    
     Table.inspect_h5_file(p2)
-    print("--- 2nd worker done ---")
-    text_reader(path=p, start=10000, limit=10000, **config)
-    Table.inspect_h5_file(p2)
-    print("--- 3rd worker done ---")
-    text_reader(path=p, start=20000, limit=10000, **config)
-    Table.inspect_h5_file(p2)
-    # Table.import_file(p, **config)
-    # CONSOLIDATE...!
 
     p2.unlink()  # cleanup!
+    # now use multiprocessing
+    # Table.import_file(p, **config)
+    
+
 
 
 
@@ -1443,7 +1567,11 @@ def test_file_importer():
 # update LRU cache based on access.
 
 if __name__ == "__main__":
-    for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
-        print(20 * "-" + k + "-" * 20)
-        v()
+    test_text_escape()
+    test_file_importer()
+
+
+    # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
+    #     print(20 * "-" + k + "-" * 20)
+    #     v()
 
