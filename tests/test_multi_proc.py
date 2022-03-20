@@ -159,7 +159,7 @@ class TextReaderTask(Task):
         ]
         return ", ".join(L)
 
-    def json(self):
+    def script(self):
         return {
             'id': self.task_id,
             'script': self.script()
@@ -994,7 +994,7 @@ class Table(MemoryManagedObject):
                 for i in range(int(math.ceil(file_length/task_size))):
                     # add task for each chunk for working
                     task = TextReaderTask(path,delimiter,columns,newline,first_row_has_headers,start=i,limit=task_size)
-                    tm.add(task.json())
+                    tm.add(task.script())
                 
                 tm.execute()
             # finally: Add task for merging chunks in hdf5 into single columns
@@ -1293,9 +1293,10 @@ def text_reader(source, destination, columns,
                     data[name] = default_data                            # this switch should only happen once per column.
                     # ^-- all the data has been copied, so finish the operation below --v
                     data[name][line_no] = fields[ix]
-                except IndexError:
+                except IndexError as e:
                     print(f"Found {len(fields)}, but index is {ix}")
                     fields = text_escape(line)
+                    raise e
                 
                 except Exception as e:
                     print(f"error in {name} ({ix}) {line_no} for line\n\t{line}\nerror:")
@@ -1329,7 +1330,7 @@ def consolidate(path):
 
     with h5py.File(path, 'a') as f:
         if root not in f.keys():
-            raise ValueError(f"root={root} not in {f.keys()}")
+            raise ValueError(f"hdf5 root={root} not in {f.keys()}")
 
         lengths = defaultdict(int)
         dtypes = defaultdict(set)  # necessary to track as data is dirty.
@@ -1546,7 +1547,7 @@ def test_h5_inspection():
 
 def test_task():
     trt = TextReaderTask(1,2,3,4,5,6,7)
-    msg = trt.json()
+    msg = trt.script()
     print(msg)
     assert msg == {'id': 1, 'script': 'text_reader(1, delimiter=2, columns=3, newline=4, first_row_has_headers=5, start=6, limit=7)'}
     
@@ -1635,12 +1636,9 @@ def test_file_importer():
 # update LRU cache based on access.
 
 if __name__ == "__main__":
-    test_task()
-    # test_text_escape()
     # test_file_importer()
 
-
-    # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
-    #     print(20 * "-" + k + "-" * 20)
-    #     v()
+    for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
+        print(20 * "-" + k + "-" * 20)
+        v()
 
