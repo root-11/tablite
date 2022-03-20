@@ -5,12 +5,14 @@ import time
 import weakref
 import numpy as np
 import h5py
+import random
 import io
 import os
 import json
 import traceback
 import queue
 import multiprocessing
+import copy
 from multiprocessing import shared_memory
 
 from itertools import count
@@ -41,18 +43,13 @@ class TaskManager(object):
         self.pool = []
         self.tasks = {}  # task register for progress tracking
         self.results = {}  # result register for progress tracking
-        self._tq = []
+        self._tempq = []
     
     def add(self, task):
-        if not isinstance(task, dict):
-            raise TypeError
-        if not 'id' in task:
-            raise KeyError("expect task to have id, to preserve order")
-        task_id = task['id']
-        if task_id in self.tasks:
-            raise KeyError(f"task {task_id} already in use.")
-        self.tasks[task_id] = task
-        self._tq.append(task)
+        if not isinstance(task, Task):
+            raise TypeError(f"expected instance of Task, got {type(task)}")
+        self.tasks[task.tid] = task
+        self._tempq.append(task)
     
     def __enter__(self):
         self.start()
@@ -71,18 +68,21 @@ class TaskManager(object):
             time.sleep(0.01)
 
     def execute(self):
-        for t in self._tq:
+        for t in self._tempq:
             self.tq.put(t)
-        self._tq = []
+        self._tempq = []
         with tqdm(total=len(self.tasks), unit='task') as pbar:
             while len(self.tasks) != len(self.results):
                 try:
-                    result = self.rq.get_nowait()
-                    self.results[result['id']] = result
+                    task = self.rq.get_nowait()
+                    if task.exception: 
+                        print(task)
+                        raise Exception(task.exception)
+                    self.results[task.tid] = task
+                    pbar.update(1)
                 except queue.Empty:
                     time.sleep(0.01)
-                pbar.update(len(self.results))
-                
+                        
     def stop(self):
         self.tq.put("stop")
         while all(p.is_alive() for p in self.pool):
@@ -99,6 +99,7 @@ class TaskManager(object):
             available = memory_ceiling - memory_used  # 6,321,123,321 = 6 Gb
             mem_per_cpu = int(available / self._cpus)  # 790,140,415 = 0.8Gb/cpu
         return mem_per_cpu
+
 
 class Worker(multiprocessing.Process):
     def __init__(self, name, tq, rq):
@@ -122,52 +123,45 @@ class Worker(multiprocessing.Process):
                 self.tq.put_nowait(task)  # this assures that everyone gets it.
                 self.exit.set()
                 break
-            error = ""
-            try:
-                exec(task['script'])
-            except Exception as e:
-                f = io.StringIO()
-                traceback.print_exc(limit=3, file=f)
-                f.seek(0)
-                error = f.read()
-                f.close()
-
-            self.rq.put({'id': task['id'], 'handled by': self.name, 'error': error})
+            elif isinstance(task, Task):
+                task.execute(f"Worker-{self.name}")
+                self.rq.put(task)
+            else:
+                raise Exception(f"What is {task}?")
 
 
 class Task(ABC):
     ids = count(start=1)
-    def __init__(self) -> None:
-        self.task_id = next(self.ids)
+    def __init__(self, f, *args, **kwargs) -> None:
+        assert callable(f)
+        self._id = next(self.ids)
+        self.f = f
+        self.args = copy.deepcopy(args)  # deep copy is slow unless the data is shallow.
+        self.kwargs = copy.deepcopy(kwargs)
+        self.result = None
+        self.exception = None
+    @property
+    def tid(self):
+        return self._id
 
-class TextReaderTask(Task):
-    def __init__(self, path, delimiter, columns, newline, first_row_has_headers, start, limit) -> None:
-        super().__init__()
-        self.path = path
-        self.delimiter = delimiter
-        self.columns=columns
-        self.newline=newline
-        self.first_row_has_headers=first_row_has_headers
-        self.start = start 
-        self.limit = limit
+    def __str__(self) -> str:
+        if self.exception:
+            return f"Call to {self.f.__name__}(*{self.args}, **{self.kwargs}) --> Error: {self.exception}"
+        else:
+            return f"Call to{self.f.__name__}(*{self.args}, **{self.kwargs}) --> Result: {self.result}"
 
-    def _script(self):
-        L = [
-            f"text_reader({self.path}",
-            f"delimiter={self.delimiter}",
-            f"columns={str(self.columns)}",
-            f"newline={self.newline}", 
-            f"first_row_has_headers={self.first_row_has_headers}", 
-            f"start={self.start}, limit={self.limit})"
-        ]
-        return ", ".join(L)
+    def execute(self,name):
+        self.name = name
+        try:
+            self.result = self.f(*self.args, **self.kwargs)
+        except Exception as e:
+            f = io.StringIO()
+            traceback.print_exc(limit=3, file=f)
+            f.seek(0)
+            error = f.read()
+            f.close()
+            self.exception = error
 
-    def script(self):
-        return {
-            'id': self.task_id,
-            'script': self._script()
-        }
-        
 
 class MemoryManager(object):
     registry = weakref.WeakValueDictionary()  # The weakref presents blocking of garbage collection.
@@ -999,10 +993,24 @@ class Table(MemoryManagedObject):
                     mem_per_task = mem_per_cpu // working_overhead  # 1 Gb / 10x = 100Mb
                     tasks = math.ceil(file_length / mem_per_task)
                     
+                    tr_cfg = {
+                        "source":path, 
+                        "destination":h5, 
+                        "columns":columns, 
+                        "newline":newline, 
+                        "delimiter":delimiter, 
+                        "first_row_has_headers":first_row_has_headers,
+                        "qoute":text_qualifier,
+                        "text_escape_openings":'', "text_escape_closures":'',
+                        "start":None, "limit":mem_per_task,
+                        "encoding":encoding
+                    }
+
                     for i in range(tasks):
                         # add task for each chunk for working
-                        task = TextReaderTask(path,delimiter,columns,newline,first_row_has_headers,start=i * mem_per_task,limit=mem_per_task)
-                        tm.add(task.script())
+                        tr_cfg['start'] = i * mem_per_task
+                        task = Task(f=text_reader, **tr_cfg)
+                        tm.add(task)
                     
                     tm.execute()
                 # Merging chunks in hdf5 into single columns
@@ -1141,12 +1149,45 @@ class TextEscape(object):
         self.openings = {c for c in openings}
         self.closures = {c for c in closures}
         self.qoute = qoute
+        
+        if not self.qoute:
+            self.c = self._call1
+        elif openings + closures == "":
+            self.c = self._call2
+        else:
+            self.c = self._call3
 
-    def __call__(self, s):
+    def __call__(self,s):
+        return self.c(s)
+       
+    def _call1(self,s):  # just looks for delimiter.
+        return s.split(self.delimiter)
+
+    def _call2(self,s): # looks for qoutes.
+        words = []
+        qoute= False
+        ix = 0
+        while ix < len(s):  
+            c = s[ix]
+            if c == self.qoute:
+                qoute = not qoute
+            if qoute:
+                ix += 1
+                continue
+            if c == self.delimiter:
+                word, s = s[:ix], s[ix+self._delimiter_length:]
+                words.append(word)
+                ix = -1
+            ix+=1
+        if s:
+            words.append(s)
+        return words
+
+    def _call3(self, s):  # looks for qoutes, openings and closures.
         words = []
         qoute = False
         ix,depth = 0,0
-        while ix < len(s):  # TODO: Compile some REGEX for this instead.
+        while ix < len(s):  
             c = s[ix]
 
             if c == self.qoute:
@@ -1209,7 +1250,7 @@ def find_first(fh, start, chars):
     """
     c, snippet_size = 0, 1000
     fh.seek(start)
-    while 1:
+    for _ in range(1000):
         try:
             snippet = fh.read(snippet_size)  # EOFerror?
             ix = snippet.index(chars)
@@ -1219,6 +1260,7 @@ def find_first(fh, start, chars):
         else:
             fh.seek(0)
             return start + c + ix
+    raise Exception("!")
         
 
 def text_reader(source, destination, columns, 
@@ -1325,9 +1367,15 @@ def text_reader(source, destination, columns,
                 data[name] = np.array(arr[:], dtype='S')
             arr = None
 
-    with h5py.File(destination, 'a') as f:
-        for name, arr in data.items():
-            f.create_dataset(f"/{root}/{name}/{start}", data=arr)  # `start` declares the slice id which order will be used for sorting
+    for _ in range(100):
+        try:
+            with h5py.File(destination, 'a') as f:
+                for name, arr in data.items():
+                    f.create_dataset(f"/{root}/{name}/{start}", data=arr)  # `start` declares the slice id which order will be used for sorting
+            return
+        except OSError as e:
+            time.sleep(random.randint(10,200)/1000)
+    raise TimeoutError("Couldn't connect to OS.")
 
 
 def consolidate(path):
@@ -1472,6 +1520,13 @@ def test_slicing():
     a_preview.show(format='ascii')
     
 
+def mem_test_job(shm_name, dtype, shape,index,value):
+    existing_shm = shared_memory.SharedMemory(name=shm_name)
+    c = np.ndarray((6,), dtype=dtype, buffer=existing_shm.buf)
+    c[index] = value
+    existing_shm.close()
+    time.sleep(0.1)
+
 def test_multiprocessing():
     # Create shared_memory array for workers to access.
     a = np.array([1, 1, 2, 3, 5, 8])
@@ -1479,43 +1534,28 @@ def test_multiprocessing():
     b = np.ndarray(a.shape, dtype=a.dtype, buffer=shm.buf)
     b[:] = a[:]
 
-    task = {
-        'id':1,
-        'address': shm.name, 'type': 'shm', 
-        'dtype': a.dtype, 'shape': a.shape, 
-        'script': f"""# from multiprocessing import shared_memory - is already imported.
-existing_shm = shared_memory.SharedMemory(name='{shm.name}')
-c = np.ndarray((6,), dtype=np.{a.dtype}, buffer=existing_shm.buf)
-c[-1] = 888
-existing_shm.close()
-"""}
+    task = Task(f=mem_test_job, shm_name=shm.name, dtype=a.dtype, shape=a.shape, index=-1, value=888)
 
     tasks = [task]
     for i in range(4):
-        task2 = task.copy()
-        task2['id'] = 2+i
-        task2['script'] = f"""existing_shm = shared_memory.SharedMemory(name='{shm.name}')
-c = np.ndarray((6,), dtype=np.{a.dtype}, buffer=existing_shm.buf)
-c[{i}] = 111+{i}  # DIFFERENT!
-existing_shm.close()
-time.sleep(0.1)  # Added delay to distribute the few tasks amongst the workers.
-"""
-        tasks.append(task2)
-    
+        task = Task(f=mem_test_job, shm_name=shm.name, dtype=a.dtype, shape=a.shape, index=i, value=111+i)
+        tasks.append(task)
+        
     with TaskManager() as tm:
+        # Alternative "low level usage" instead of using `with` is:
+        # tm = TaskManager()
+        # tm.add(task)
+        # tm.start()
+        # tm.execute()
+        # tm.stop()
+
         for task in tasks:
             tm.add(task)
         tm.execute()
 
-        for v in tm.results.items():
-            print(v)
+        for k,v in tm.results.items():
+            print(k, str(v))
 
-    # Alternative "low level usage":
-    # tm = TaskManager()
-    # tm.add(task)
-    # tm.start()
-    # tm.execute()
-    # tm.stop()
     print(b, f"assertion that b[-1] == 888 is {b[-1] == 888}")  
     print(b, f"assertion that b[0] == 111 is {b[0] == 111}")  
     
@@ -1561,13 +1601,6 @@ def test_h5_inspection():
     pathlib.Path(filename).unlink()  # cleanup.
 
 
-def test_task():
-    trt = TextReaderTask(1,2,3,4,5,6,7)
-    msg = trt.script()
-    print(msg)
-    assert msg == {'id': 1, 'script': 'text_reader(1, delimiter=2, columns=3, newline=4, first_row_has_headers=5, start=6, limit=7)'}
-    
-
 def test_file_importer():
     p = r"d:\remove_duplicates.csv"
     assert pathlib.Path(p).exists(), "?"
@@ -1585,7 +1618,7 @@ def test_file_importer():
     config = {
         'delimiter': ',', 
         "qoute": '"',
-        "newline": "\r\n",
+        "newline": "\n",
         "columns": columns, 
         "first_row_has_headers": True,
         "encoding": "ascii"
@@ -1605,10 +1638,13 @@ def test_file_importer():
     
     # now use multiprocessing
     start = time.time()
-    t1 = Table.import_file(p, import_as='csv', columns=columns)
+    t1 = Table.import_file(p, import_as='csv', columns=columns, delimiter=',', text_qualifier='"', newline='\n')
     end = time.time()
     print(f"import took {round(end-start)} secs.")
+    start = time.time()
     t2 = Table.load(p2)
+    end = time.time()
+    print(f"reloading an imported table took {round(end-start),4} secs.")
     t1.show()
 
     p2.unlink()  # cleanup!
@@ -1657,9 +1693,10 @@ def test_file_importer():
 # update LRU cache based on access.
 
 if __name__ == "__main__":
+    # test_multiprocessing()
     test_file_importer()
 
-    for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
-        print(20 * "-" + k + "-" * 20)
-        v()
+    # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
+    #     print(20 * "-" + k + "-" * 20)
+    #     v()
 
