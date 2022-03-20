@@ -22,6 +22,8 @@ from abc import ABC
 from collections import defaultdict, deque
 from multiprocessing import cpu_count, shared_memory
 
+HDF5_IMPORT_ROOT = "__h5_import"  # the hdf5 base name for imports. f.x. f['/__h5_import/column A']
+
 
 class TaskManager(object):
     memory_usage_ceiling = 0.9  # 90%
@@ -1154,7 +1156,7 @@ def text_reader(source, destination, columns,
                 newline, delimiter=',', first_row_has_headers=True, qoute='"',
                 text_escape_openings='"([{', text_escape_closures='}])"',
                 start=None, limit=None,
-                encoding='utf-8', root='hdf5_imports'):
+                encoding='utf-8'):
     """
     reads columnsname + path[start:limit] into hdf5.
 
@@ -1190,6 +1192,8 @@ def text_reader(source, destination, columns,
 
     assert isinstance(columns, dict)
 
+    root=HDF5_IMPORT_ROOT
+    
     text_escape = TextEscape(text_escape_openings, text_escape_closures, qoute=qoute, delimiter=delimiter)
 
     with source.open('r', newline='', encoding=encoding) as fi:
@@ -1256,7 +1260,7 @@ def text_reader(source, destination, columns,
             f.create_dataset(f"/{root}/{name}/{start}", data=arr)  # `start` declares the slice id which order will be used for sorting
 
 
-def consolidate(path, root='hdf5_imports'):
+def consolidate(path):
     """
     enables consolidation of hdf5 imports from root into column named folders.
     
@@ -1267,13 +1271,16 @@ def consolidate(path, root='hdf5_imports'):
         raise TypeError
     if not path.exists():
         raise FileNotFoundError(path)
-    if root not in f.keys():
-        raise ValueError(f"root={root} not in {f.keys()}")
+    
+    root=HDF5_IMPORT_ROOT
 
     with h5py.File(path, 'a') as f:
+        if root not in f.keys():
+            raise ValueError(f"root={root} not in {f.keys()}")
+
         lengths = defaultdict(int)
         dtypes = defaultdict(set)  # necessary to track as data is dirty.
-        for col_name in f.keys():
+        for col_name in f[f"/{root}"].keys():
             for start in sorted(f[f"/{root}/{col_name}"].keys()):
                 dset = f[f"/{root}/{col_name}/{start}"]
                 lengths[col_name] += len(dset)
@@ -1506,7 +1513,6 @@ def test_file_importer():
         "newline": "\r\n",
         "columns": columns, 
         "first_row_has_headers": True,
-        "root": '/imports',
         "encoding": "ascii"
     }  
     start, limit = 0, 10_000
@@ -1515,9 +1521,11 @@ def test_file_importer():
         start = start + limit
         limit += 10_000
 
-    consolidate(target=p2)
+    consolidate(p2)
     
     Table.inspect_h5_file(p2)
+
+    # Table.load(p2)
 
     p2.unlink()  # cleanup!
     # now use multiprocessing
