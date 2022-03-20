@@ -112,7 +112,12 @@ with h5py.File('this.h5', 'a') as f:
         
     f.create_virtual_dataset('data', layout)
 
+    assert [v for v in f['data']] == list(range(1,11))
+
 h5dump('this.h5')
+
+
+
 pathlib.Path('this.h5').unlink()
 
 
