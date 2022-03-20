@@ -1,9 +1,7 @@
 import hashlib
 import math
-import pickle
 import pathlib
 import time
-from typing import Type
 import weakref
 import numpy as np
 import h5py
@@ -12,18 +10,23 @@ import os
 import json
 import traceback
 import queue
-from tqdm import tqdm, trange
 import multiprocessing
-import chardet
-import psutil
-from graph import Graph
+from multiprocessing import shared_memory
+
 from itertools import count
 from abc import ABC
 from collections import defaultdict, deque
-from multiprocessing import cpu_count, shared_memory
+
+import chardet
+import psutil
+from pyparsing import col
+from tqdm import tqdm, trange
+from graph import Graph
+
 
 HDF5_IMPORT_ROOT = "__h5_import"  # the hdf5 base name for imports. f.x. f['/__h5_import/column A']
-
+MEMORY_MANAGER_CACHE_DIR = os.getcwd()
+MEMORY_MANAGER_CACHE_FILE = "tablite_cache.hdf5"
 
 class TaskManager(object):
     memory_usage_ceiling = 0.9  # 90%
@@ -129,6 +132,40 @@ class Worker(multiprocessing.Process):
             self.rq.put({'id': task['id'], 'handled by': self.name, 'error': error})
 
 
+class Task(ABC):
+    ids = count(start=1)
+    def __init__(self) -> None:
+        self.task_id = next(self.ids)
+
+class TextReaderTask(Task):
+    def __init__(self, path, delimiter, columns, newline, first_row_has_headers, start, limit) -> None:
+        super().__init__()
+        self.path = path
+        self.delimiter = delimiter
+        self.columns=columns
+        self.newline=newline
+        self.first_row_has_headers=first_row_has_headers
+        self.start = start 
+        self.limit = limit
+
+    def script(self):
+        L = [
+            f"text_reader({self.path}",
+            f"delimiter={self.delimiter}",
+            f"columns={str(self.columns)}",
+            f"newline={self.newline}", 
+            f"first_row_has_headers={self.first_row_has_headers}", 
+            f"start={self.start}, limit={self.limit})"
+        ]
+        return ", ".join(L)
+
+    def json(self):
+        return {
+            'id': self.task_id,
+            'script': self.script()
+        }
+        
+
 class MemoryManager(object):
     registry = weakref.WeakValueDictionary()  # The weakref presents blocking of garbage collection.
     # Two usages:
@@ -138,10 +175,8 @@ class MemoryManager(object):
     map = Graph()  # Documents relations between Table, Column & Datablock.
     process_pool = None
     tasks = None
-    cache_path = pathlib.Path(os.getcwd()) / 'tablite_cache.h5'
-    
-    # cache_file = h5py.File(cache_path, mode='a') # 'a': Read/write if exists, create otherwise
-        
+    cache_path = pathlib.Path(MEMORY_MANAGER_CACHE_DIR) / MEMORY_MANAGER_CACHE_FILE
+            
     @classmethod
     def reset(cls):
         """
@@ -215,8 +250,10 @@ class MemoryManager(object):
     @classmethod
     def get(cls, mem_id):
         """
-        maintains lru_tracker
-        returns DataBlock
+        fetches datablock & maintains lru_tracker
+
+        mem_id: DataBlocks mem_id
+        returns: DataBlock
         """
         cls.lru_tracker[mem_id] = time.process_time()  # keep the lru tracker up to date.
         return cls.map.node(mem_id)
@@ -266,8 +303,8 @@ class MemoryManagedObject(ABC):
 
 
 class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
-    hdf5 = 'hdf5'
-    shm = 'shm'
+    HDF5 = 'hdf5'
+    SHM = 'shm'
 
     def __init__(self, mem_id, data=None, address=None):
         """
@@ -287,7 +324,7 @@ class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
         super().__init__(mem_id=mem_id)
 
         if (data is not None and address is None):
-            self._type = self.shm
+            self._type = self.SHM
                         
             if not isinstance(data, np.ndarray):
                 raise TypeError("Expected a numpy array.")       
@@ -301,7 +338,7 @@ class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
             self._dtype = data.dtype.name
 
         elif (address is not None and data is None):
-            self._type = self.hdf5
+            self._type = self.HDF5
             if not isinstance(address, tuple) or len(address)!=2:
                 raise TypeError("Expected pathlib.Path and h5 dataset address")
             path, address = address
@@ -329,11 +366,11 @@ class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
 
     @property
     def use_disk(self):
-        return self._type == self.hdf5
+        return self._type == self.HDF5
     
     def use_disk(self, value):
         if value is False:
-            if self._type == self.shm:  
+            if self._type == self.SHM:
                 return  # nothing to do. Already in shm mode.
             else:  # load from hdf5 to shm
                 data = self._data[:]
@@ -341,10 +378,10 @@ class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
                 self._address = self._handle.name
                 self._data = np.ndarray(data.shape, dtype=data.dtype, buffer=self._handle.buf)
                 self._data = data[:] # copy the source data into the shm
-                self._type = self.shm
+                self._type = self.SHM
                 return
         else:  # if value is True:
-            if self._type == self.hdf5:
+            if self._type == self.HDF5:
                 return  # nothing to do. Already in HDF5 mode.
             # hdf5_name = f"{column_name}/{self.mem_id}"
             self._handle = h5py.File(MemoryManager.cache_path, 'a')
@@ -371,19 +408,23 @@ class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
     def __iter__(self):
         raise AttributeError("Use vectorised functions on DataBlock.data instead of __iter__")
     def __del__(self):
-        if self._type == self.shm:
+        if self._type == self.SHM:
             self._handle.close()
             self._handle.unlink()
-        elif self._type == self.hdf5:
+        elif self._type == self.HDF5:
             self._handle.close()
         super().__del__()
 
 
 def intercept(A,B):
     """
+    enables calculation of the intercept of two range objects.
+    Used to determine if a datablock contains a slice.
+    
     A: range
     B: range
-    returns range as intercept of ranges A and B.
+    
+    returns: range as intercept of ranges A and B.
     """
     assert isinstance(A, range)
     if A.step < 0: # turn the range around
@@ -508,7 +549,7 @@ class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
         else:
             raise KeyError(f"{item}")
 
-    def blocks(self):  # NOT USED ANYWHERE.
+    def blocks(self):  # USEFULL FOR TASK MANAGER SO THAT TASKS ONLY ARE PERFORMED ON UNIQUE DATABLOCKs.
         """ returns the address of all blocks. """
         return [MemoryManager.get(block_id).address for block_id in self.order]           
 
@@ -861,10 +902,6 @@ class Table(MemoryManagedObject):
         import_as, newline='\n', text_qualifier=None,
         delimiter=b',', first_row_has_headers=True, columns=None, sheet=None):
         """
-        TABLES FROM IMPORTED FILES ARE IMMUTABLE.
-        TABLES CREATED FROM OTHER TABLES EXIST IN 
-        MEMORY MANAGERs CACHE IF USE DISK == True
-
         reads path and imports 1 or more tables as hdf5
 
         path: pathlib.Path or str
@@ -873,15 +910,18 @@ class Table(MemoryManagedObject):
         text_qualifier: character: " or '                           +13
         delimiter: character: typically ",", ";" or "|"             *1+3
         first_row_has_headers: boolean                              *123
-        columns: dict with column names and datatypes               *123
+        columns: dict with column names or indices and datatypes    *123
             {'A': int, 'B': str, 'C': float, D: datetime}
-            columns not found excess column names are ignored. 
+            Excess column names are ignored.
+
         sheet: sheet name to import (e.g. 'sheet_1')                 *2
             sheets not found excess names are ignored.
             filenames will be {path}+{sheet}.h5
         
         (*) required, (+) optional, (1) csv, (2) xlsx, (3) txt, (4) h5
 
+        TABLES FROM IMPORTED FILES ARE IMMUTABLE.
+        OTHER TABLES EXIST IN MEMORY MANAGERs CACHE IF USE DISK == True
         """
         if isinstance(path, str):
             path = pathlib.Path(path)
@@ -946,26 +986,27 @@ class Table(MemoryManagedObject):
                     f.attrs['config'] = json.dumps(config)
 
             with TaskManager() as tm:
-                working_overhead = 3.1415  # random guess. TODO: Calibrate.
-                file_length = path.stat().st_size  #9,998,765,432 = 10Gb
+                working_overhead = 3.14159  # random guess. TODO: Calibrate.
+                file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
                 chunk_size = tm.chunk_size_per_cpu(file_length*working_overhead)
                 task_size = int(chunk_size / working_overhead)
                 
-                tasks = []
                 for i in range(int(math.ceil(file_length/task_size))):
                     # add task for each chunk for working
-                    script = f"""text_reader({str(path)}, delimiter={delimiter}, columns={str(columns)}, newline={newline}, first_row_has_headers={first_row_has_headers}, start={i}, limit={task_size})"""
-                    task = {'id': 1, "script": script} 
-                    tm.add(task)
-                # add task for merging chunks in hdf5 into single columns
+                    task = TextReaderTask(path,delimiter,columns,newline,first_row_has_headers,start=i,limit=task_size)
+                    tm.add(task.json())
+                
                 tm.execute()
+            # finally: Add task for merging chunks in hdf5 into single columns
+            consolidate(path)
+            print(f"Import done: {path}")
 
     @classmethod
     def inspect_h5_file(cls, path, group='/'):
         """
         enables inspection of contents of HDF5 file 
         path: str or pathlib.Path
-        group: you can give a specific group, defaults to the root group
+        group: you can give a specific group, defaults to the root: '/'
         """
         def descend_obj(obj,sep='  ', offset=''):
             """
@@ -985,40 +1026,48 @@ class Table(MemoryManagedObject):
         with h5py.File(path,'r') as f:
             print(f"{path} contents")
             descend_obj(f[group])
+
     @classmethod
     def load_file(cls, path):
+        """
+        enables loading of imported HDF5 file. 
+        Import assumes that columns are in the HDF5 root as "/{column name}"
+
+        :path: pathlib.Path
+        """
         if isinstance(path, str):
             path = pathlib.Path(path)
         if not isinstance(path, pathlib.Path):
             raise TypeError(f"expected pathlib.Path, got {type(path)}")
         if not path.exists():
             raise FileNotFoundError(f"file not found: {path}")
-        if not path.name.endswith(".h5"):
-            raise TypeError(f"expected .h5 file, not {path.name}")
+        if not path.name.endswith(".hdf5"):
+            raise TypeError(f"expected .hdf5 file, not {path.name}")
         
         # read the file and create managed columns
         # no need for task manager as the job will be IO bound.
         t = Table()
         with h5py.File(path,'r+') as f:  # 'r+' in case the sha256sum is missing.
-            root = f['/']
-            for name in root.keys():
-                h5_name = f"{root}{name}"
-                sha256sum = f[h5_name].attrs.get('sha256sum',None)
+            for name in f.keys():
+                if name == HDF5_IMPORT_ROOT:
+                    continue
+                # h5_name = f"/{name}"
+                sha256sum = f[f"/{name}"].attrs.get('sha256sum',None)
                 if sha256sum is None:
                     m = hashlib.sha256()  # let's check if it really is new data...
-                    dset = f[h5_name]
-                    step = 100_000
-                    desc = f"Calculating missing sha256sum for {h5_name}: "
+                    dset = f[f"/{name}"]
+                    step = 1_000_000
+                    desc = f"Calculating missing sha256sum for {name}: "
                     for i in trange(0,len(dset), step, desc=desc):
                         chunk = dset[i:i+step]
                         m.update(chunk.tobytes())
                     sha256sum = m.hexdigest()
-                    f[h5_name].attrs['sha256sum'] = sha256sum
+                    f[f"/{name}"].attrs['sha256sum'] = sha256sum
                 
                 mc = ManagedColumn()
                 t.columns[name] = mc
                 MemoryManager.link(t, mc)
-                db = DataBlock(mem_id=sha256sum, address=(path, h5_name))
+                db = DataBlock(mem_id=sha256sum, address=(path, f"/{name}"))
                 mc.order.append(db)
                 MemoryManager.link(mc, db)
         return t
@@ -1041,7 +1090,7 @@ class Table(MemoryManagedObject):
                     f.create_dataset(name, data=mc[:])  # stored in hdf5 as '/name'
                     n += 1
                     pbar.update(n)
-
+        print(f"writing {path} to HDF5 done")
 
 # FILE READER UTILS 2.0 ----------------------------
 
@@ -1155,7 +1204,6 @@ def find_first(fh, start, chars):
             fh.seek(0)
             return start + c + ix
         
-
 
 def text_reader(source, destination, columns, 
                 newline, delimiter=',', first_row_has_headers=True, qoute='"',
@@ -1496,6 +1544,13 @@ def test_h5_inspection():
     pathlib.Path(filename).unlink()  # cleanup.
 
 
+def test_task():
+    trt = TextReaderTask(1,2,3,4,5,6,7)
+    msg = trt.json()
+    print(msg)
+    assert msg == {'id': 1, 'script': 'text_reader(1, delimiter=2, columns=3, newline=4, first_row_has_headers=5, start=6, limit=7)'}
+    
+
 def test_file_importer():
     p = r"d:\remove_duplicates.csv"
     assert pathlib.Path(p).exists(), "?"
@@ -1580,8 +1635,9 @@ def test_file_importer():
 # update LRU cache based on access.
 
 if __name__ == "__main__":
-    test_text_escape()
-    test_file_importer()
+    test_task()
+    # test_text_escape()
+    # test_file_importer()
 
 
     # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
