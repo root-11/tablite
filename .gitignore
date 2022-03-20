@@ -5,6 +5,7 @@
 
 # Compiled files
 *.pyc
+tablite_cache.h5
 
 # Notebook checkpoints
 .ipynb_checkpoints/
