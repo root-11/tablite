@@ -1235,7 +1235,7 @@ def detect_seperator(text):
         frq.sort(reverse=True)  # most frequent first.
         return {k:v for k,v in frq}
 
-def find_first(fh, start, chars):
+def find_first(fh, start, chars,chunk_size=10_000):
     """
     fh: filehandle (e.g. fh = pathlib.Path.open() )
     start: fh.seek(start) integer
@@ -1248,20 +1248,23 @@ def find_first(fh, start, chars):
     |    y->+  if the 2nd start index is y, then I seek the 
     |       |  next newline character and start after that.
     """
-    c, snippet_size = 0, 1000
+    fh.seek(0, 2)
+    file_size = fh.tell()
     fh.seek(start)
-    for _ in range(1000):
+    
+    offset = 0
+    steps = math.ceil((file_size - start) / chunk_size)
+
+    for _ in range(steps):
+        snippet = fh.read(chunk_size)  # automatically seeks to next chunk.
         try:
-            snippet = fh.read(snippet_size)  # EOFerror?
             ix = snippet.index(chars)
-        except ValueError:
-            c += snippet_size
-            continue
-        else:
             fh.seek(0)
-            return start + c + ix
-    raise Exception("!")
-        
+            return start + offset + ix
+        except ValueError:
+            offset += chunk_size
+            continue
+    return -1
 
 def text_reader(source, destination, columns, 
                 newline, delimiter=',', first_row_has_headers=True, qoute='"',
@@ -1307,6 +1310,7 @@ def text_reader(source, destination, columns,
     
     text_escape = TextEscape(text_escape_openings, text_escape_closures, qoute=qoute, delimiter=delimiter)
 
+    # with fileinput.input(source, encoding=encoding) as fi:
     with source.open('r', newline='', encoding=encoding) as fi:
         
         if first_row_has_headers:
@@ -1444,6 +1448,26 @@ def test_range_intercept():
     B = range(10, 10_000_000, 1)
 
     assert set(intercept(A,B)) == set(A).intersection(set(B))
+
+def test_find_first():
+    file = pathlib.Path(r"D:\this.x")
+
+    text = "text1\ntext2\ntext3\ntext4"
+
+    with open(file, 'w', encoding='ascii') as fo:
+        fo.write(text)
+    with open(file, 'r', encoding='ascii') as fh:
+        L, start = [], 0
+        while 1:
+            ix = find_first(fh, start, '\n', chunk_size=7)
+            if ix == -1:
+                break   
+            else:
+                L += [ix]
+            start = ix + len('\n')
+    assert L == [5,11,17]
+
+    file.unlink()
 
 
 def test_text_escape():
@@ -1694,7 +1718,8 @@ def test_file_importer():
 
 if __name__ == "__main__":
     # test_multiprocessing()
-    test_file_importer()
+    test_find_first()
+    # test_file_importer()
 
     # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
     #     print(20 * "-" + k + "-" * 20)
