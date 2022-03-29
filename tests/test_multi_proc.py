@@ -1698,9 +1698,9 @@ def test_file_importer_multiproc():
 GLOBAL_CLEANUP = False
 
 if __name__ == "__main__":
-    test_file_importer_multiproc()
+    # test_file_importer_multiproc()
 
-    # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
-    #     print(20 * "-" + k + "-" * 20)
-    #     v()
+    for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
+        print(20 * "-" + k + "-" * 20)
+        v()
 
