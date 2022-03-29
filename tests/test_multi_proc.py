@@ -1,7 +1,9 @@
 import hashlib
+import csv
 import math
 import pathlib
 import time
+from typing import Type
 import weakref
 import numpy as np
 import h5py
@@ -1235,36 +1237,7 @@ def detect_seperator(text):
         frq.sort(reverse=True)  # most frequent first.
         return {k:v for k,v in frq}
 
-def find_first(fh, start, chars,chunk_size=10_000):
-    """
-    fh: filehandle (e.g. fh = pathlib.Path.open() )
-    start: fh.seek(start) integer
-    c: character to search for.
 
-    as start + chunk_size may not equal the next newline index,
-    start is read as a "soft start":
-    +-------+
-    x       |  
-    |    y->+  if the 2nd start index is y, then I seek the 
-    |       |  next newline character and start after that.
-    """
-    fh.seek(0, 2)
-    file_size = fh.tell()
-    fh.seek(start)
-    
-    offset = 0
-    steps = math.ceil((file_size - start) / chunk_size)
-
-    for _ in range(steps):
-        snippet = fh.read(chunk_size)  # automatically seeks to next chunk.
-        try:
-            ix = snippet.index(chars)
-            fh.seek(0)
-            return start + offset + ix
-        except ValueError:
-            offset += chunk_size
-            continue
-    return -1
 
 def text_reader(source, destination, columns, 
                 newline, delimiter=',', first_row_has_headers=True, qoute='"',
@@ -1304,74 +1277,77 @@ def text_reader(source, destination, columns,
     if not isinstance(destination, pathlib.Path):
         raise TypeError
 
-    assert isinstance(columns, dict)
+    if not isinstance(columns, dict):
+        raise TypeError
+    if not all(isinstance(name,str) for name in columns):
+        raise ValueError
 
     root=HDF5_IMPORT_ROOT
     
+    # declare CSV dialect.
     text_escape = TextEscape(text_escape_openings, text_escape_closures, qoute=qoute, delimiter=delimiter)
 
-    # with fileinput.input(source, encoding=encoding) as fi:
-    with source.open('r', newline='', encoding=encoding) as fi:
-        
-        if first_row_has_headers:
-            end = find_first(fi, 0, newline)
-            headers = fi.read(end)
-            start = len(headers) + len(newline) if start == 0 else start   # revise start for 1st slice.
-            headers = text_escape(headers)
-            
-            indices = {name: headers.index(name) for name in columns}
-        else:        
-            indices = {name: int(name) for name in columns}
+    if first_row_has_headers:
+        with source.open('r', encoding=encoding) as fi:
+            for line in fi:
+                line = line.rstrip('\n')
+                break  # break on first
+        headers = text_escape(line)  
+        indices = {name: headers.index(name) for name in columns}
+    else:
+        indices = {name: int(name) for name in columns}
 
-        if start != 0:  # find the true beginning.
-            start = find_first(fi, start, newline) + len(newline)  # + newline!
-        end = find_first(fi, start + limit, newline)  # find the true end ex newline.
+    # find chunk:
+    # Here is the problem in a nutshell:
+    # --------------------------------------------------------
+    # bs = "this is my \n text".encode('utf-16')
+    # >>> bs
+    # b'\xff\xfet\x00h\x00i\x00s\x00 \x00i\x00s\x00 \x00m\x00y\x00 \x00\n\x00 \x00t\x00e\x00x\x00t\x00'
+    # >>> nl = "\n".encode('utf-16')
+    # >>> nl in bs
+    # False
+    # >>> nl.decode('utf-16') in bs.decode('utf-16')
+    # True
+    # --------------------------------------------------------
+    # This means we can't read the encoded stream.
+
+    # Fetch the decoded text:
+    with source.open('r', encoding=encoding) as fi:
+        fi.seek(0, 2)
+        filesize = fi.tell()
         fi.seek(start)
-        blob = fi.read(end-start)  # 1 hard iOps. Done.
-        line_count = blob.count(newline) +1  # +1 because the last line will not have it's newline.
+        text = fi.read(limit)
+        begin = text.index(newline)
+        text = text[begin+len(newline):]
 
-        data = {}
-        for name, dtype in columns.items():
-            if dtype == 'S': # np requires string lengths to be known.
-                # so the data needs to be extracted before this is possible.
-                # The solution is therefore to store data as python objects, using 
-                # a numpy array only fore references.
-                # Once all data is collected, the reference array can be converted into
-                # a fixed size array of dtype 'S', so that np.str-methods can be used.
-                data[name] = np.empty((line_count, ), dtype='O') 
-            else:
-                data[name] = np.empty((line_count, ), dtype=dtype)  # in the first attempt
-                # the user declared datatype is used. Should this however fail at any time,
-                # the array will be turned into 'O' type.
+        snipsize = min(1000,limit)
+        while fi.tell() <= filesize:
+            remainder = fi.read(snipsize)  # read with decoding
+            
+            if newline not in remainder:  # decoded newline is in remainder
+                text += remainder
+                continue
+            ix = remainder.index(newline)
+            text += remainder[:ix]
+            break
 
-        for line_no, line in enumerate(blob.split(newline)):
-            fields = text_escape(line)
-            for name, ix in indices.items():
-                try:
-                    data[name][line_no] = fields[ix]
-                except TypeError: # if the line above blows up, the dataset is converted
-                    default_data = np.empty((line_count, ), dtype='O')   # ... to bytes
-                    default_data[:] = data[name][:]                      # ... and replaced.
-                    data[name] = default_data                            # this switch should only happen once per column.
-                    # ^-- all the data has been copied, so finish the operation below --v
-                    data[name][line_no] = fields[ix]
-                except IndexError as e:
-                    print(f"Found {len(fields)}, but index is {ix}")
-                    fields = text_escape(line)
-                    raise e
-                
-                except Exception as e:
-                    print(f"error in {name} ({ix}) {line_no} for line\n\t{line}\nerror:")
-                    raise e
+    # read rows with CSV reader.
+    data = {h: [] for h in indices}
+    for row in text.split(newline):
+        fields = text_escape(row)
+        for header,index in indices.items():
+            data[header].append(fields[index])
 
+    # turn rows into columns.    
+    for name, dtype in columns.items():
+        arr = np.array(data[name], dtype=dtype)
+        if arr.dtype == 'O':  # hdf5 doesn't like 'O' type
+            data[name] = np.array(arr[:], dtype='S')  
+        else:
+            data[name] = arr
 
-        for name, dtype in columns.items():
-            arr = data[name]
-            if arr.dtype == 'O':
-                data[name] = np.array(arr[:], dtype='S')
-            arr = None
-
-    for _ in range(100):
+    # store as HDF5
+    for _ in range(100):  # overcome any IO blockings.
         try:
             with h5py.File(destination, 'a') as f:
                 for name, arr in data.items():
@@ -1448,26 +1424,6 @@ def test_range_intercept():
     B = range(10, 10_000_000, 1)
 
     assert set(intercept(A,B)) == set(A).intersection(set(B))
-
-def test_find_first():
-    file = pathlib.Path(r"D:\this.x")
-
-    text = "text1\ntext2\ntext3\ntext4"
-
-    with open(file, 'w', encoding='ascii') as fo:
-        fo.write(text)
-    with open(file, 'r', encoding='ascii') as fh:
-        L, start = [], 0
-        while 1:
-            ix = find_first(fh, start, '\n', chunk_size=7)
-            if ix == -1:
-                break   
-            else:
-                L += [ix]
-            start = ix + len('\n')
-    assert L == [5,11,17]
-
-    file.unlink()
 
 
 def test_text_escape():
@@ -1659,6 +1615,7 @@ def test_file_importer():
     
     Table.inspect_h5_file(p2)
     p2.unlink()  # cleanup!
+    return
     
     # now use multiprocessing
     start = time.time()
@@ -1717,9 +1674,7 @@ def test_file_importer():
 # update LRU cache based on access.
 
 if __name__ == "__main__":
-    # test_multiprocessing()
-    test_find_first()
-    # test_file_importer()
+    test_file_importer()
 
     # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
     #     print(20 * "-" + k + "-" * 20)
