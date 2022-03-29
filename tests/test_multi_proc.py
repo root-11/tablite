@@ -73,6 +73,7 @@ class TaskManager(object):
             self.tq.put(t)
             self.tasks += 1
         self._tasks = []
+        results = []
         with tqdm(total=self.tasks, unit='task') as pbar:
             while self.tasks != 0:
                 try:
@@ -81,10 +82,12 @@ class TaskManager(object):
                         print(task)
                         raise Exception(task.exception)
                     self.tasks -= 1
+                    results.append(task)
                     pbar.update(1)
                 except queue.Empty:
                     time.sleep(0.01)
-        
+        return results 
+
     def stop(self):
         self.tq.put("stop")
         while all(p.is_alive() for p in self.pool):
@@ -942,15 +945,42 @@ class Table(MemoryManagedObject):
             # 1. create a task for each the sheet.
 
         if import_as in {'csv', 'txt'}:
-            # TODO: Check if file already has been imported.
-            # TODO: Check if reimport is necessary.
+            h5 = pathlib.Path(str(path) + '.hdf5')
+            if h5.exists():
+                with h5py.File(h5,'r') as f:  # Create file, truncate if exists
+                    stored_config = json.loads(f.attrs['config'])
+            else:
+                stored_config = {}
+
+            file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
+            config = {
+                'import_as': import_as,
+                'path': str(path),
+                'filesize': file_length,  # if this changes - re-import.
+                'delimiter': delimiter,
+                'columns': columns, 
+                'newline': newline,
+                'first_row_has_headers': first_row_has_headers,
+                'text_qualifier': text_qualifier
+            }
+
+            skip = False
+            for k,v in config.items():
+                if stored_config.get(k,None) != v:
+                    skip = False
+                    break  # set skip to false and exit for loop.
+                else:
+                    skip = True
+            if skip:
+                print(f"file already imported as {h5}")  # <---- EXIT 1.
+                return Table.load_file(h5)
 
             # Ok. File doesn't exist, has been changed or it's a new import config.
             with path.open('rb') as fi:
                 rawdata = fi.read(10000)
                 encoding = chardet.detect(rawdata)['encoding']
             
-            text_escape = TextEscape(delimiter=delimiter)  # configure t.e.
+            text_escape = TextEscape(delimiter=delimiter, qoute=text_qualifier)  # configure t.e.
 
             with path.open('r', encoding=encoding) as fi:
                 for line in fi:
@@ -966,81 +996,57 @@ class Table(MemoryManagedObject):
                     for index in columns:
                         if index not in range(len(headers)):
                             raise IndexError(f"{index} out of range({len(headers)})")
-            
-            file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
-            config = {
-                'import_as': import_as,
-                'path': str(path),
-                'filesize': file_length,  # if this changes - re-import.
-                'delimiter': delimiter,
-                'columns': columns, 
-                'newline': newline,
-                'first_row_has_headers': first_row_has_headers,
-                'text_qualifier': text_qualifier
-            }
 
-            h5 = pathlib.Path(str(path) + '.hdf5')
-            skip = False
-            if h5.exists():
-                with h5py.File(h5,'r') as f:  # Create file, truncate if exists
-                    stored_config = json.loads(f.attrs['config'])
-                    for k,v in config.items():
-                        if stored_config[k] != v:
-                            skip = False
-                            break  # set skip to false and exit for loop.
-                        else:
-                            skip = True
-            if not skip:
-                with h5py.File(h5,'w') as f:  # Create file, truncate if exists
-                    f.attrs['config'] = json.dumps(config)
+            with h5py.File(h5,'w') as f:  # Create file, truncate if exists
+                f.attrs['config'] = json.dumps(config)
 
-                with TaskManager() as tm:
-                    working_overhead = 10  # random guess. TODO: Calibrate.
-                    mem_per_cpu = tm.chunk_size_per_cpu(file_length * working_overhead)
-                    mem_per_task = mem_per_cpu // working_overhead  # 1 Gb / 10x = 100Mb
-                    tasks = math.ceil(file_length / mem_per_task)
-                    
-                    tr_cfg = {
-                        "source":path, 
-                        "destination":h5, 
-                        "columns":columns, 
-                        "newline":newline, 
-                        "delimiter":delimiter, 
-                        "first_row_has_headers":first_row_has_headers,
-                        "qoute":text_qualifier,
-                        "text_escape_openings":'', "text_escape_closures":'',
-                        "start":None, "limit":mem_per_task,
-                        "encoding":encoding
-                    }
-
-                    for i in range(tasks):
-                        # add task for each chunk for working
-                        tr_cfg['start'] = i * mem_per_task
-                        task = Task(f=text_reader, **tr_cfg)
-                        tm.add(task)
-                    
-                    tm.execute()
-                # Merging chunks in hdf5 into single columns
-                consolidate(h5)  # no need to task manager as this is done using
-                # virtual layouts and virtual datasets.
+            with TaskManager() as tm:
+                working_overhead = 5  # random guess. Calibrate as required.
+                mem_per_cpu = tm.chunk_size_per_cpu(file_length * working_overhead)
+                mem_per_task = mem_per_cpu // working_overhead  # 1 Gb / 10x = 100Mb
+                tasks = math.ceil(file_length / mem_per_task)
                 
-                # Finally: Calculate sha256sum.
-                with h5py.File(h5,'r+') as f:  # 'r+' in case the sha256sum is missing.
-                    for name in f.keys():
-                        if name == HDF5_IMPORT_ROOT:
-                            continue
-                        
-                        m = hashlib.sha256()  # let's check if it really is new data...
-                        dset = f[f"/{name}"]
-                        step = 100_000
-                        desc = f"Calculating missing sha256sum for {name}: "
-                        for i in trange(0,len(dset), step, desc=desc):
-                            chunk = dset[i:i+step]
-                            m.update(chunk.tobytes())
-                        sha256sum = m.hexdigest()
-                        f[f"/{name}"].attrs['sha256sum'] = sha256sum
-                print(f"Import of {path} done as {h5}")
-            return Table.load_file(h5)
+                tr_cfg = {
+                    "source":path, 
+                    "destination":h5, 
+                    "columns":columns, 
+                    "newline":newline, 
+                    "delimiter":delimiter, 
+                    "first_row_has_headers":first_row_has_headers,
+                    "qoute":text_qualifier,
+                    "text_escape_openings":'', "text_escape_closures":'',
+                    "start":None, "limit":mem_per_task,
+                    "encoding":encoding
+                }
+
+                for i in range(tasks):
+                    # add task for each chunk for working
+                    tr_cfg['start'] = i * mem_per_task
+                    task = Task(f=text_reader, **tr_cfg)
+                    tm.add(task)
+                
+                tm.execute()
+            # Merging chunks in hdf5 into single columns
+            consolidate(h5)  # no need to task manager as this is done using
+            # virtual layouts and virtual datasets.
+            
+            # Finally: Calculate sha256sum.
+            with h5py.File(h5,'r+') as f:  # 'r+' in case the sha256sum is missing.
+                for name in f.keys():
+                    if name == HDF5_IMPORT_ROOT:
+                        continue
+                    
+                    m = hashlib.sha256()  # let's check if it really is new data...
+                    dset = f[f"/{name}"]
+                    step = 100_000
+                    desc = f"Calculating missing sha256sum for {name}: "
+                    for i in trange(0,len(dset), step, desc=desc):
+                        chunk = dset[i:i+step]
+                        m.update(chunk.tobytes())
+                    sha256sum = m.hexdigest()
+                    f[f"/{name}"].attrs['sha256sum'] = sha256sum
+            print(f"Import of {path} done as {h5}")
+            return Table.load_file(h5)  # <---- EXIT 2.
 
     @classmethod
     def inspect_h5_file(cls, path, group='/'):
@@ -1138,24 +1144,35 @@ class TextEscape(object):
         for this case ( and ) are valid escapes, but " and ' aren't.
 
         """
-        if not isinstance(openings, str):
-            raise TypeError(f"expected str, got {type(openings)}")
-        if not isinstance(closures, str):
+        if openings is None:
+            pass
+        elif isinstance(openings, str):
+            self.openings = {c for c in openings}
+        else:
+            raise TypeError(f"expected str, got {type(openings)}")           
+
+        if closures is None:
+            pass
+        elif isinstance(closures, str):
+            self.closures = {c for c in closures}
+        else:
             raise TypeError(f"expected str, got {type(closures)}")
+    
         if not isinstance(delimiter, str):
             raise TypeError(f"expected str, got {type(delimiter)}")
-        if qoute in openings or qoute in closures:
-            raise ValueError("It's a bad idea to have qoute character appears in openings or closures.")
-        
         self.delimiter = delimiter
         self._delimiter_length = len(delimiter)
-        self.openings = {c for c in openings}
-        self.closures = {c for c in closures}
-        self.qoute = qoute
         
-        if not self.qoute:
+        if qoute is None:
+            pass
+        elif qoute in openings or qoute in closures:
+            raise ValueError("It's a bad idea to have qoute character appears in openings or closures.")
+        else:
+            self.qoute = qoute
+        
+        if not qoute:
             self.c = self._call1
-        elif openings + closures == "":
+        elif not openings + closures:
             self.c = self._call2
         else:
             self.c = self._call3
@@ -1336,7 +1353,7 @@ def text_reader(source, destination, columns,
     data = {h: [] for h in indices}
     for row in text.split(newline):
         fields = text_escape(row)
-        if fields == []:
+        if fields == [""] or fields == []:
             break
         for header,index in indices.items():
             data[header].append(fields[index])
@@ -1529,15 +1546,15 @@ def test_multiprocessing():
         # tm = TaskManager()
         # tm.add(task)
         # tm.start()
-        # tm.execute()
+        # results = tm.execute()  # returns Tasks with attribute T.result populated.
         # tm.stop()
 
         for task in tasks:
             tm.add(task)
-        tm.execute()
+        results = tm.execute()
 
-        for k,v in tm.results.items():
-            print(k, str(v))
+        for v in results:
+            print(str(v))
 
     print(b, f"assertion that b[-1] == 888 is {b[-1] == 888}")  
     print(b, f"assertion that b[0] == 111 is {b[0] == 111}")  
@@ -1621,7 +1638,7 @@ def test_file_importer():
 
 
 def test_file_importer_multiproc():
-    p = r"d:\remove_duplicates.csv"
+    p = r"d:\remove_duplicates2.csv"
     assert pathlib.Path(p).exists(), "?"
     p2 = pathlib.Path(p + '.hdf5')
     if p2.exists():
@@ -1634,20 +1651,13 @@ def test_file_importer_multiproc():
         'Shipped time' : 'S', # integer to become time
         'vendor case weight' : 'f'  # float
     }  
-    config = {
-        'delimiter': ',', 
-        "qoute": '"',
-        "newline": "\n",
-        "columns": columns, 
-        "first_row_has_headers": True,
-        "encoding": "ascii"
-    }  
 
     # now use multiprocessing
     start = time.time()
-    t1 = Table.import_file(p, import_as='csv', columns=columns, delimiter=',', text_qualifier='"', newline='\n', first_row_has_headers=True)
+    t1 = Table.import_file(p, import_as='csv', columns=columns, delimiter=',', text_qualifier=None, newline='\n', first_row_has_headers=True)
     end = time.time()
     print(f"import took {round(end-start, 4)} secs.")
+
     start = time.time()
     t2 = Table.load_file(p2)
     end = time.time()
@@ -1656,16 +1666,17 @@ def test_file_importer_multiproc():
     print("-"*120)
     t2.show()
 
-    # reimport bypass check
+    # re-import bypass check
     start = time.time()
-    t3 = Table.import_file(p, import_as='csv', columns=columns, delimiter=',', text_qualifier='"', newline='\n', first_row_has_headers=True)
+    t3 = Table.import_file(p, import_as='csv', columns=columns, delimiter=',', text_qualifier=None, newline='\n', first_row_has_headers=True)
     end = time.time()
     print(f"reloading an already imported table took {round(end-start, 4)} secs.")
 
-    try:
-        p2.unlink()  # cleanup!
-    except PermissionError:
-        pass
+    if GLOBAL_CLEANUP:
+        try:
+            p2.unlink()  # cleanup!
+        except PermissionError:
+            pass
     
 
 # drop datablock to hdf5
@@ -1684,10 +1695,12 @@ def test_file_importer_multiproc():
 # set task manager memory limit relative to using psutil
 # update LRU cache based on access.
 
-if __name__ == "__main__":
-    # test_file_importer_multiproc()
+GLOBAL_CLEANUP = False
 
-    for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
-        print(20 * "-" + k + "-" * 20)
-        v()
+if __name__ == "__main__":
+    test_file_importer_multiproc()
+
+    # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
+    #     print(20 * "-" + k + "-" * 20)
+    #     v()
 
