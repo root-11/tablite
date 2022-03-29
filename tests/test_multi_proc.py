@@ -1019,7 +1019,6 @@ class Table(MemoryManagedObject):
                         task = Task(f=text_reader, **tr_cfg)
                         tm.add(task)
                     
-                    tm._tasks = tm._tasks[:4] + tm._tasks[-4:]
                     tm.execute()
                 # Merging chunks in hdf5 into single columns
                 consolidate(h5)  # no need to task manager as this is done using
@@ -1686,9 +1685,9 @@ def test_file_importer_multiproc():
 # update LRU cache based on access.
 
 if __name__ == "__main__":
-    test_file_importer_multiproc()
+    # test_file_importer_multiproc()
 
-    # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
-    #     print(20 * "-" + k + "-" * 20)
-    #     v()
+    for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
+        print(20 * "-" + k + "-" * 20)
+        v()
 
