@@ -43,15 +43,16 @@ class TaskManager(object):
         self.tq = multiprocessing.Queue()  # task queue for workers.
         self.rq = multiprocessing.Queue()  # result queue for workers.
         self.pool = []
-        self.tasks = {}  # task register for progress tracking
-        self.results = {}  # result register for progress tracking
-        self._tempq = []
+        self.tasks = 0  # task register for progress tracking
+        self._tasks = []
     
-    def add(self, task):
-        if not isinstance(task, Task):
+    def add(self, tasks):
+        if isinstance(tasks, Task):
+            self._tasks.append(tasks)
+        elif isinstance(tasks, (list,tuple)):
+            self._tasks.extend([i for i in tasks])
+        else:
             raise TypeError(f"expected instance of Task, got {type(task)}")
-        self.tasks[task.tid] = task
-        self._tempq.append(task)
     
     def __enter__(self):
         self.start()
@@ -59,8 +60,6 @@ class TaskManager(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb): # signature requires these, though I don't use them.
         self.stop()
-        self.tasks.clear()
-        self.results.clear()
 
     def start(self):
         self.pool = [Worker(name=str(i), tq=self.tq, rq=self.rq) for i in range(self._cpus)]
@@ -70,21 +69,22 @@ class TaskManager(object):
             time.sleep(0.01)
 
     def execute(self):
-        for t in self._tempq:
+        for t in self._tasks:
             self.tq.put(t)
-        self._tempq = []
-        with tqdm(total=len(self.tasks), unit='task') as pbar:
-            while len(self.tasks) != len(self.results):
+            self.tasks += 1
+        self._tasks = []
+        with tqdm(total=self.tasks, unit='task') as pbar:
+            while self.tasks != 0:
                 try:
                     task = self.rq.get_nowait()
                     if task.exception: 
                         print(task)
                         raise Exception(task.exception)
-                    self.results[task.tid] = task
+                    self.tasks -= 1
                     pbar.update(1)
                 except queue.Empty:
                     time.sleep(0.01)
-                        
+        
     def stop(self):
         self.tq.put("stop")
         while all(p.is_alive() for p in self.pool):
@@ -572,7 +572,11 @@ class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
             for block_id in data.order:
                 block = MemoryManager.get(block_id)
                 MemoryManager.link(self, block)
-            
+        
+        elif isinstance(data, DataBlock):  # It's from Table.load_file(...)
+            self.order.append(data.mem_id)
+            MemoryManager.link(self, data)  
+
         else:  # It's supposedly new data.
             if not isinstance(data, np.ndarray):
                 data = np.array(data)
@@ -949,9 +953,10 @@ class Table(MemoryManagedObject):
             text_escape = TextEscape(delimiter=delimiter)  # configure t.e.
 
             with path.open('r', encoding=encoding) as fi:
-                end = find_first(fi, 0, newline)
-                headers = fi.read(end)
-                headers = text_escape(headers) # use t.e.
+                for line in fi:
+                    line = line.rstrip('\n')
+                    break  # break on first
+                headers = text_escape(line) # use t.e.
                 
                 if first_row_has_headers:    
                     for name in columns:
@@ -1014,13 +1019,14 @@ class Table(MemoryManagedObject):
                         task = Task(f=text_reader, **tr_cfg)
                         tm.add(task)
                     
+                    tm._tasks = tm._tasks[:4] + tm._tasks[-4:]
                     tm.execute()
                 # Merging chunks in hdf5 into single columns
-                consolidate(path)  # no need to task manager as this is done using
+                consolidate(h5)  # no need to task manager as this is done using
                 # virtual layouts and virtual datasets.
                 
                 # Finally: Calculate sha256sum.
-                with h5py.File(path,'r+') as f:  # 'r+' in case the sha256sum is missing.
+                with h5py.File(h5,'r+') as f:  # 'r+' in case the sha256sum is missing.
                     for name in f.keys():
                         if name == HDF5_IMPORT_ROOT:
                             continue
@@ -1034,8 +1040,8 @@ class Table(MemoryManagedObject):
                             m.update(chunk.tobytes())
                         sha256sum = m.hexdigest()
                         f[f"/{name}"].attrs['sha256sum'] = sha256sum
-                print(f"Import done: {path}")
-            return Table.load_file(path)
+                print(f"Import of {path} done as {h5}")
+            return Table.load_file(h5)
 
     @classmethod
     def inspect_h5_file(cls, path, group='/'):
@@ -1090,12 +1096,8 @@ class Table(MemoryManagedObject):
                 sha256sum = f[f"/{name}"].attrs.get('sha256sum',None)
                 if sha256sum is None:
                     raise ValueError("no sha256sum?")
-                mc = ManagedColumn()
-                t.columns[name] = mc
-                MemoryManager.link(t, mc)
                 db = DataBlock(mem_id=sha256sum, address=(path, f"/{name}"))
-                mc.order.append(db)
-                MemoryManager.link(mc, db)
+                t.add_column(name=name, data=db)
         return t
 
     def to_hdf5(self, path):
@@ -1321,7 +1323,7 @@ def text_reader(source, destination, columns,
         text = text[begin+len(newline):]
 
         snipsize = min(1000,limit)
-        while fi.tell() <= filesize:
+        while fi.tell() < filesize:
             remainder = fi.read(snipsize)  # read with decoding
             
             if newline not in remainder:  # decoded newline is in remainder
@@ -1335,6 +1337,8 @@ def text_reader(source, destination, columns,
     data = {h: [] for h in indices}
     for row in text.split(newline):
         fields = text_escape(row)
+        if fields == []:
+            break
         for header,index in indices.items():
             data[header].append(fields[index])
 
@@ -1615,47 +1619,55 @@ def test_file_importer():
     
     Table.inspect_h5_file(p2)
     p2.unlink()  # cleanup!
-    return
-    
+
+
+def test_file_importer_multiproc():
+    p = r"d:\remove_duplicates.csv"
+    assert pathlib.Path(p).exists(), "?"
+    p2 = pathlib.Path(p + '.hdf5')
+    if p2.exists():
+        p2.unlink()
+
+    columns = {  # numpy type codes: https://numpy.org/doc/stable/reference/generated/numpy.dtype.kind.html
+        'SKU ID': 'i', # integer
+        'SKU description':'S', # np variable length str
+        'Shipped date' : 'S', #datetime
+        'Shipped time' : 'S', # integer to become time
+        'vendor case weight' : 'f'  # float
+    }  
+    config = {
+        'delimiter': ',', 
+        "qoute": '"',
+        "newline": "\n",
+        "columns": columns, 
+        "first_row_has_headers": True,
+        "encoding": "ascii"
+    }  
+
     # now use multiprocessing
     start = time.time()
-    t1 = Table.import_file(p, import_as='csv', columns=columns, delimiter=',', text_qualifier='"', newline='\n')
+    t1 = Table.import_file(p, import_as='csv', columns=columns, delimiter=',', text_qualifier='"', newline='\n', first_row_has_headers=True)
     end = time.time()
-    print(f"import took {round(end-start)} secs.")
+    print(f"import took {round(end-start, 4)} secs.")
     start = time.time()
-    t2 = Table.load(p2)
+    t2 = Table.load_file(p2)
     end = time.time()
-    print(f"reloading an imported table took {round(end-start),4} secs.")
+    print(f"reloading an imported table took {round(end-start, 4)} secs.")
     t1.show()
+    print("-"*120)
+    t2.show()
 
-    p2.unlink()  # cleanup!
+    # reimport bypass check
+    start = time.time()
+    t3 = Table.import_file(p, import_as='csv', columns=columns, delimiter=',', text_qualifier='"', newline='\n', first_row_has_headers=True)
+    end = time.time()
+    print(f"reloading an already imported table took {round(end-start, 4)} secs.")
+
+    try:
+        p2.unlink()  # cleanup!
+    except PermissionError:
+        pass
     
-
-
-
-
-# def fx2(address):
-#     shape, dtype, name = address
-#     existing_shm = shared_memory.SharedMemory(name=name)
-#     c = np.ndarray(shape, dtype=dtype, buffer=existing_shm.buf)
-#     result = 2*c
-#     existing_shm.close()  # emphasising that shm is no longer used.
-#     return result
-
-# def test_shm():   # <---- This test was failing, because pool couldn't connect to shm.
-#     table1 = Table()
-#     assert len(table1) == 0
-#     table1.add_column('A', data=[1,2,3])  # block1
-#     table1['A'].extend(data=[4,4,8])  # block2
-#     table1['A'].extend(data=[8,9,10])  # block3
-#     assert [v for v in table1['A']] == [1,2,3,4,4,8,8,9,10]
-#     blocks = table1['A'].blocks()
-
-#     print(blocks)
-#     result = MemoryManager.process_pool.map(fx2, blocks)
-#     print(result)
-    
-
 
 # drop datablock to hdf5
 # load datablack from hdf5
@@ -1674,7 +1686,7 @@ def test_file_importer():
 # update LRU cache based on access.
 
 if __name__ == "__main__":
-    test_file_importer()
+    test_file_importer_multiproc()
 
     # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
     #     print(20 * "-" + k + "-" * 20)
