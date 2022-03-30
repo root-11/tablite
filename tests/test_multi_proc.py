@@ -16,7 +16,6 @@ import queue
 import multiprocessing
 import copy
 from multiprocessing import shared_memory
-from tablite.core import GroupBy
 from itertools import count, chain
 from abc import ABC
 from collections import defaultdict, deque
@@ -284,6 +283,18 @@ class MemoryManager(object):
                         L.append(f"{next(c)}|".zfill(n) + f"   └── {block.__class__.__name__}-{i}, length = {len(block)}, registry id: {block_id}")
         return "\n".join(L)
 
+def isiterable(item):
+    """
+    Determines if an item is iterable.
+    """
+    # only valid way to check that a variable is iterable.
+    # https://stackoverflow.com/questions/1952464/in-python-how-do-i-determine-if-an-object-is-iterable
+    try:   
+        iter(item)
+        return True
+    except TypeError:
+        return False
+
 
 class MemoryManagedObject(ABC):
     """
@@ -469,9 +480,24 @@ class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
 
         self.order = []  # strict order of datablocks.
         self.dtype = None
-       
+    
+    def __str__(self) -> str:
+        n = self.__class__.__name__
+        return f"<{n} ({self._ids})> {len(self)} values ({self.dtype})"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
     def __len__(self):
         return sum(len(MemoryManager.get(block_id)) for block_id in self.order)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, ManagedColumn):
+            return self.order == other.order
+        elif isiterable(other):
+            return not any(a!=b for a,b in zip(self,other))
+        else:
+            raise TypeError(f"can't compare {type(self)} with {type(other)}")
 
     def __del__(self):
         MemoryManager.unlink_tree(self)
@@ -499,7 +525,60 @@ class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
         step = 1 if item.step is None else item.step
 
         return start, stop, step
+    
+    def __setitem__(self, key, value):
+        """
+        Enables update of values.
+
+        New User: __setitem__ is slow.
+        Old User: Don't use it then.
+        New User: But How am I supposed to update hundreds of values?
+        Old User: Don't update. Create a np.array and update that. Then replace the columns.
+        """
+        if isinstance(key,int):  # It's a single value update.
+            if key > len(self):
+                raise IndexError(f"{key} > len")
+            if key < 0:
+                key = len(self) + key
             
+            page_start = 0
+            for ix, block_id in enumerate(self.order):
+                block = MemoryManager.get(block_id)
+                page_end = page_start + len(block)
+                if not page_start <= key < page_end:  
+                    page_start = page_end
+                else:  # block found.
+                    data = np.array(block.data)
+                    offset_into_block = key - page_start
+                    data[offset_into_block] = value
+                    self._update_block(data,index=ix)
+                    break
+                    
+        elif isinstance(key, slice) and isiterable(value):  # it's a slice update
+            r = range(*self._normalize_slice(key))
+            page_start = 0
+            for ix, block_id in enumerate(self.order):
+                if page_start > r.stop:  # passed the last update.
+                    break
+
+                block = MemoryManager.get(block_id)
+                page_end = page_start + len(block)
+                
+                if page_end < r.start:  # way before the update starts.
+                    page_start = page_end
+                    continue
+
+                itcpt = intercept(r, range(page_start, page_end, 1))
+                if len(itcpt) == 0:
+                    continue
+                
+                new_values = np.array(block)
+                for step_no, step in enumerate(itcpt, start=[page_start]):
+                    new_values[step] = value[step_no]
+                self._update_block(new_values, index=ix)
+        else:
+            raise KeyError(f"can't update {key} with {value}")
+
     def __getitem__(self, item):
         """
         returns a value or a ManagedColumn (slice).
@@ -543,10 +622,12 @@ class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
             page_start = 0
             for block_id in self.order:
                 block = MemoryManager.get(block_id)
-                page_end = len(block)
+                page_end = page_start + len(block)
                 if page_start <= item < page_end:
                     ix = item-page_start
                     return block.data[ix]
+                else:
+                    page_start = page_end
         else:
             raise KeyError(f"{item}")
 
@@ -584,21 +665,34 @@ class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
         else:  # It's supposedly new data.
             if not isinstance(data, np.ndarray):
                 data = np.array(data)
-
-            self._dtype_check(data)
-
-            m = hashlib.sha256()  # let's check if it really is new data...
-            m.update(data.data.tobytes())
-            sha256sum = m.hexdigest()
-            if sha256sum in MemoryManager.registry:  # ... not new!
-                block = MemoryManager.registry.get(sha256sum)
-            else:  # ... it's new!
-                block = DataBlock(mem_id=sha256sum, data=data)
-                MemoryManager.registry[sha256sum] = block
-            # ok. solved. Now create links.
-            self.order.append(block.mem_id)
-            MemoryManager.link(self, block)  # Add link from Column to DataBlock
+            self._update_block(data)
     
+    def _update_block(self, data, index=None):
+        """
+        Helper that enables update of managed blocks.
+        """
+        if not isinstance(data, np.ndarray):
+            raise TypeError
+        self._dtype_check(data)
+
+        m = hashlib.sha256()  # let's check if it really is new data...
+        m.update(data.data.tobytes())
+        sha256sum = m.hexdigest()
+        if sha256sum in MemoryManager.registry:  # ... not new!
+            block = MemoryManager.registry.get(sha256sum)
+        else:  # ... it's new!
+            block = DataBlock(mem_id=sha256sum, data=data)
+            MemoryManager.registry[sha256sum] = block
+        # ok. solved. Now create links.
+        if index is None:
+            self.order.append(block.mem_id)
+        else:
+            old_block_id = self.order[index]
+            if self.order.count(old_block_id) == 1:  # check for unlinking.
+                MemoryManager.unlink(self,old_block_id)
+            self.order[index] = block.mem_id
+        MemoryManager.link(self, block)  # Add link from Column to DataBlock
+
     def append(self, value):
         """
         Disabled. Append items is slow. Use extend on a batch instead
@@ -648,11 +742,14 @@ class Table(MemoryManagedObject):
         if not names:
             raise ValueError("No columns?")
         
-        t = Table()
-        for name in names:
-            mc = self.columns[name]
-            t.add_column(name, data=mc[slc])
-        return t       
+        if len(names)==1 and names[0] in self.columns:
+            return self.columns[names[0]]  # it's a single value
+        else:  # it's a table query
+            t = Table()
+            for name in names:
+                mc = self.columns[name]
+                t.add_column(name, data=mc[slc])
+            return t       
 
     def __delitem__(self, item):
         if isinstance(item, str):
@@ -662,13 +759,18 @@ class Table(MemoryManagedObject):
             MemoryManager.unlink_tree(mc)
         elif isinstance(item, slice):
             raise AttributeError("Tables are immutable. Create a new table using filter or using an index")
+        else:
+            raise TypeError(f"del using {type(item)}?")
 
-    def del_column(self, name):  # alias for summetry to add_column
+    def del_column(self, name):  # alias for symmetry to add_column
         self.__delitem__(name)
  
     def add_column(self, name, data):
-        if name in self.columns:
-            raise ValueError(f"name {name} already used")
+        if not isinstance(name, str):
+            raise TypeError(f"expects column names to be str, not {type(name)}")
+        if not isiterable(data):
+            raise TypeError(f"data is plural of datum and means 'records'.\nExpected an iterable but got {type(data)}")
+
         mc = ManagedColumn()
         mc.extend(data)
         self.columns[name] = mc
@@ -775,8 +877,8 @@ class Table(MemoryManagedObject):
         returns a copy of the table
         """
         t = Table()
-        for name,mc in self.columns.items():
-            t.add_column(name,mc)
+        for name, mc in self.columns.items():
+            t.add_column(name, mc)
         return t
 
     def rename_column(self, old, new):
@@ -797,7 +899,27 @@ class Table(MemoryManagedObject):
         raise AttributeError("use Table.rows or Table.columns")
 
     def __setitem__(self, key, value):
-        raise TypeError(f"Use Table.add_column")
+        if isinstance(key, str):  # it's a column name.
+            pass
+        elif isinstance(key, tuple) and all(isinstance(i,str) for i in key):
+            pass  # it's a tuple of column names.
+        else:
+            raise TypeError(f"Bad key type: {key}, expected str or tuple of strings")
+
+        if isinstance(key, str) and isiterable(value) and not isiterable(value[0]):
+            pass  # it's a single assignment, like this:
+            # table1['A'] = [1,2,3]
+            # --> key = 'A', value = [1,2,3]
+            self.add_column(key,value)
+
+        elif isinstance(key, tuple) and isiterable(value) and all(isiterable(i) for i in value) and len(key)==len(value):
+            pass  # it's a parallel assignment like this:
+            # table1['A', 'B'] = [ [4, 5, 6], [1.1, 2.2, 3.3] ]
+            # --> key = ('A', 'B'), value = [ [4, 5, 6], [1.1, 2.2, 3.3] ]
+            for k,v in zip(key,value):
+                self.add_column(k,v)
+        else:
+            raise ValueError(f"{value}")
 
     @property
     def rows(self):
@@ -810,10 +932,17 @@ class Table(MemoryManagedObject):
         generators = [iter(mc) for mc in self.columns.values()]
         for _ in range(len(self)):
             yield [next(i) for i in generators]
-
-    def index(self, **keys):
-        raise NotImplementedError
     
+    def index(self, *keys):
+        """ 
+        Returns index on *keys columns as d[(key tuple, )] = {index1, index2, ...} 
+        """
+        idx = defaultdict(set)
+        generator = self.__getitem__(*keys)
+        for ix, key in enumerate(generator.rows):
+            idx[key].add(ix)
+        return idx
+
     def filter(self, *criteria):
         raise NotImplementedError
     
@@ -1280,8 +1409,6 @@ class Table(MemoryManagedObject):
             t.add_column('#', data=[str(i) for i in range(len(self))])
             for n,mc in self.columns.items():
                 t.add_column(n,data=[str(i) for i in mc])
-            print(converter(t,blanks))
-
         else:
             t,mc,n = Table(), ManagedColumn(), len(self)
             data = [str(i) for i in range(7)] + ["..."] + [str(i) for i in range(n-7, n)]
@@ -2028,33 +2155,58 @@ def test_basics():
     assert len(MemoryManager.map.edges()) == 0
 
 def test_basics2():
-    return  # NEW TESTS>
+    """ testing immutability of dependencies """
     table1 = Table()
     table1.add_column('A', data=[1,2,3])
     table1.add_column('B', data=['a','b','c'])
+    table2 = table1.copy()
     
-    table1.use_disk(True)  
-    
-    table1['A'][0] = 44
-    table1['B'][0] = 'A'
+    # if a table is modified the old columns are deleted
+    # 
+    table1['A', 'B'] = [ [4,5,6], ['q','w','e'] ]
+    assert table1['A'] == [4,5,6]  # a has now been derefenced from table1 datablocks.   
+    assert table2['A'] == [1,2,3]
 
-    table1.use_disk(False)
-    table1['A'][0] = 1
-    table1['B'][0] = 'a'
+    col_a = table2['A']
+    assert isinstance(col_a, ManagedColumn)
+    assert col_a == [1,2,3]
     
+    table1 += table1
+    assert table1['A'] == [4, 5, 6, 4, 5, 6]
+    table1['A'][0] = 44
+    assert table1['A'] == [44, 5, 6, 4, 5, 6]
+
+    # try:
+    
+    #     raise AssertionError("columns are immutable!")
+    # except AttributeError:
+    #     pass
+    
+    # new_data = [v for v in table1['A']]
+    # new_data[0] = 44
+    # table1['A'] = new_data
+    
+    # assert table1['A'] == [44,2,3]
+    # assert table2['A'] == [1,2,3]
+        
+    # table1['A'][0] = 1
+    # table1['B'][0] = 'a'
+    
+    
+
 def test_datatypes():
-    from datetime import datetime,date,time
+    from datetime import datetime, date, time
     now = datetime.now().replace(microsecond=0)
     table4 = Table()
-    table4.add_column('A', int, allow_empty=False, data=[-1, 1])
-    table4.add_column('B', int, allow_empty=True, data=[None, 1])  # (1)
-    table4.add_column('C', float, False, data=[-1.1, 1.1])
-    table4.add_column('D', str, False, data=["", "1"])             # (2)
-    table4.add_column('E', str, True, data=[None, "1"])            # (1,2)
-    table4.add_column('F', bool, False, data=[False, True])
-    table4.add_column('G', datetime, False, data=[now, now])
-    table4.add_column('H', date, False, data=[now.date(), now.date()])
-    table4.add_column('I', time, False, data=[now.time(), now.time()])
+    table4.add_column('A', data=[-1, 1])
+    table4.add_column('B', data=[None, 1])     # (1)
+    table4.add_column('C', data=[-1.1, 1.1])
+    table4.add_column('D', data=["", "1"])     # (2)
+    table4.add_column('E', data=[None, "1"])   # (1,2)
+    table4.add_column('F', data=[False, True])
+    table4.add_column('G', data=[now, now])
+    table4.add_column('H', data=[now.date(), now.date()])
+    table4.add_column('I', data=[now.time(), now.time()])
     # (1) with `allow_empty=True` `None` is permitted.
     # (2) Empty string is not a None, when datatype is string.
     table4.show()
@@ -2291,9 +2443,10 @@ def test_file_importer_multiproc():
 GLOBAL_CLEANUP = False
 
 if __name__ == "__main__":
+    test_basics2()
     # test_file_importer_multiproc()
 
-    for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
-        print(20 * "-" + k + "-" * 20)
-        v()
+    # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
+    #     print(20 * "-" + k + "-" * 20)
+    #     v()
 
