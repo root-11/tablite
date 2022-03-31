@@ -417,8 +417,11 @@ class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
         raise AttributeError("DataBlock.data is immutable.")
     def __len__(self) -> int:
         return self._len
+    def __next__(self):
+        for value in self._data:
+            yield value
     def __iter__(self):
-        raise AttributeError("Use vectorised functions on DataBlock.data instead of __iter__")
+        return self
     def __del__(self):
         if self._type == self.SHM:
             self._handle.close()
@@ -2161,8 +2164,7 @@ def test_basics2():
     table1.add_column('B', data=['a','b','c'])
     table2 = table1.copy()
     
-    # if a table is modified the old columns are deleted
-    # 
+    # if a table is modified the old DataBlocks are replaced
     table1['A', 'B'] = [ [4,5,6], ['q','w','e'] ]
     assert table1['A'] == [4,5,6]  # a has now been derefenced from table1 datablocks.   
     assert table2['A'] == [1,2,3]
@@ -2175,23 +2177,6 @@ def test_basics2():
     assert table1['A'] == [4, 5, 6, 4, 5, 6]
     table1['A'][0] = 44
     assert table1['A'] == [44, 5, 6, 4, 5, 6]
-
-    # try:
-    
-    #     raise AssertionError("columns are immutable!")
-    # except AttributeError:
-    #     pass
-    
-    # new_data = [v for v in table1['A']]
-    # new_data[0] = 44
-    # table1['A'] = new_data
-    
-    # assert table1['A'] == [44,2,3]
-    # assert table2['A'] == [1,2,3]
-        
-    # table1['A'][0] = 1
-    # table1['B'][0] = 'a'
-    
     
 
 def test_datatypes():
@@ -2211,9 +2196,11 @@ def test_datatypes():
     # (2) Empty string is not a None, when datatype is string.
     table4.show()
 
+    # + test for use_disk=True
+
+
 def test_add_data():
     from tablite import Table
-    from itertools import count
 
     t = Table()
     t.add_column('row', int)
@@ -2443,8 +2430,8 @@ def test_file_importer_multiproc():
 GLOBAL_CLEANUP = False
 
 if __name__ == "__main__":
-    test_basics2()
-    # test_file_importer_multiproc()
+    # test_basics2()
+    test_file_importer_multiproc()
 
     # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
     #     print(20 * "-" + k + "-" * 20)
