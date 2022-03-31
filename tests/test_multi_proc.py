@@ -17,7 +17,7 @@ import queue
 import multiprocessing
 import copy
 from multiprocessing import shared_memory
-from itertools import count, chain
+from itertools import count, chain, repeat
 from abc import ABC
 from collections import defaultdict, deque
 
@@ -155,6 +155,9 @@ class Task(ABC):
             return f"Call to{self.f.__name__}(*{self.args}, **{self.kwargs}) --> Result: {self.result}"
 
     def execute(self,name):
+        """
+        The worker calls this function.
+        """
         self.name = name
         try:
             self.result = self.f(*self.args, **self.kwargs)
@@ -947,8 +950,70 @@ class Table(MemoryManagedObject):
             idx[key].add(ix)
         return idx
 
-    def filter(self, *criteria):
-        raise NotImplementedError
+    def filter(self, columns, filter_type='all'):
+        """
+        enables filtering across columns for multiple criteria.
+        
+        """
+        # 1. if dataset < 1_000_000 rows: do the job single proc.
+        # 2. 
+        oper = operator
+        ops = {
+            "gt": oper.gt,
+            "gteq": oper.ge,
+            "eq": oper.eq,
+            "lt": oper.lt,
+            "lteq": oper.le,
+            "neq": oper.ne,
+        }
+        
+        if len(columns)==1:
+            pass  # single proc.
+
+        # the results are to be gathered here:
+        arr = np.zeros(shape=(len(columns), len(self)), dtype='?')
+        result_array = shared_memory.SharedMemory(create=True, size=arr.nbytes)
+        
+        # the task manager enables evaluation of a column per core,
+        # which is assembled in the shared array.
+        with TaskManager() as tm:
+            for ix, column in enumerate(columns):
+                A, criteria, B = column["column"], column["criteria"], column["value"]
+                if A in self.columns:
+                    mc = self.columns[A]
+                    A = []
+                    for datablock_id in mc.order:
+                        datablock = MemoryManager.get(datablock_id)
+                        A.append( (datablock.mem_id, datablock.address) )
+                else:  # it's just a value.
+                    pass
+
+                if B in self.columns:
+                    mc = self.columns[B]
+                    B = []
+                    for datablock_id in mc.order:
+                        datablock = MemoryManager.get(datablock_id)
+                        B.append( (datablock.mem_id, datablock.address) )
+                else:  # it's just a value.
+                    pass 
+
+                task = Task(filter, A, ops.get(criteria), B, destination=result_array.name, destination_index=ix)
+                tm.add(task)
+            _ = tm.execute()
+
+            # new blocks:
+            blocksize = math.ceil(len(self) / tm._cpus)
+            for block in range(0, len(self), blocksize):
+                slc = slice(block, block+blocksize,1)
+                task = Task(f=merge, source=self.to_shm(), mask=result_array.name, type=filter_type, slice=slc)
+            results = tm.execute()
+
+            table_true,table_false = Table(),Table()
+            for result in sorted(results, key=lambda x: x.task_id):
+                table_true += Table.from_shm(result[0])
+                table_false += Table.from_shm(result[1])
+        return table_true, table_false
+
     
     def sort_index(self, **kwargs):
         """ Helper for methods `sort` and `is_sorted` """
@@ -1447,7 +1512,6 @@ class Table(MemoryManagedObject):
         s.append("+ " + "+".join(["=" * widths[n] for n in names]) + " +")
         s.append("| " + "|".join([n.center(widths[n], " ") for n in names]) + " |")
         s.append("| " + "|".join([str(table.columns[n].dtype).center(widths[n], " ") for n in names]) + " |")
-        # s.append("| " + "|".join([str(table.columns[n].allow_empty).center(widths[n], " ") for n in names]) + " |")
         s.append("+ " + "+".join(["-" * widths[n] for n in names]) + " +")
         for row in table.rows:
             s.append("| " + "|".join([adjust(v, widths[n]) for v, n in zip(row, names)]) + " |")
@@ -1708,6 +1772,22 @@ class Table(MemoryManagedObject):
                     pbar.update(n)
         print(f"writing {path} to HDF5 done")
 
+    def to_shm(self):
+        """
+        Enables the main process to package a table as shared memory instructions.
+        """
+        raise NotImplementedError("combing soon!")
+
+    @classmethod
+    def from_shm(cls, address_data):
+        """
+        Enables a worker to load the table from shared memory.
+        """
+        raise NotImplementedError("coming soon!")
+
+
+
+
 # FILE READER UTILS 2.0 ----------------------------
 
 class TextEscape(object):
@@ -1842,6 +1922,50 @@ def detect_seperator(text):
         return {k:v for k,v in frq}
 
 
+# PARALLEL TASK FUNCTION
+def filter(source1, criteria, source2, destination, destination_index):
+    """
+    criteria: logical operator
+    source1: value or list of shm / hdf5 addresses
+    source1: value or list of shm / hdf5 addresses
+    destination: shm address.
+    destination_index: integer.
+    """    
+    if isinstance(source1,list):
+        A = ManagedColumn()
+        for sha, address in source1:
+            datablock = DataBlock(mem_id=sha, address=address)
+            A.extend(datablock)
+    else:
+        A = repeat(A)
+    
+    if isinstance(source2,list):
+        B = ManagedColumn()
+        for sha, address in source1:
+            datablock = DataBlock(mem_id=sha, address=address)
+            B.extend(datablock)
+    else:
+        B = repeat(B)
+
+    destination = shared_memory.SharedMemory(name=destination)
+
+    i = range(len(A))
+    ri = destination_index
+    for i, a, b in zip(i,A,B):
+        destination[ri][i] = criteria(a,b)
+
+
+def merge(source, mask, type, slice):
+    pass
+    # 1. determine length of Falses and Trues
+    # 2. create new tables.
+    # 3. populate the tables (and be smart about datablocks that already exist)
+    # 4. return table.shm_view
+    raise NotImplementedError
+    
+
+
+# PARALLEL TASK FUNCTION
 def text_reader(source, destination, columns, 
                 newline, delimiter=',', first_row_has_headers=True, qoute='"',
                 text_escape_openings='', text_escape_closures='',
