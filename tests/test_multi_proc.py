@@ -8,6 +8,7 @@ import weakref
 import numpy as np
 import h5py
 import random
+import re
 import io
 import os
 import json
@@ -1757,6 +1758,8 @@ class TextEscape(object):
         elif not openings + closures:
             self.c = self._call2
         else:
+            self.re = re.compile("([\d\w\s\u4e00-\u9fff]+)(?=,|$)|((?<=\A)|(?<=,))(?=,|$)|(\(.+\)|\".+\")", "gmu")
+            # ^---- Audrius wrote this.
             self.c = self._call3
 
     def __call__(self,s):
@@ -1786,34 +1789,35 @@ class TextEscape(object):
         return words
 
     def _call3(self, s):  # looks for qoutes, openings and closures.
-        words = []
-        qoute = False
-        ix,depth = 0,0
-        while ix < len(s):  
-            c = s[ix]
+        return self.re.match(s)  # TODO - TEST!
+        # words = []
+        # qoute = False
+        # ix,depth = 0,0
+        # while ix < len(s):  
+        #     c = s[ix]
 
-            if c == self.qoute:
-                qoute = not qoute
+        #     if c == self.qoute:
+        #         qoute = not qoute
 
-            if qoute:
-                ix+=1
-                continue
+        #     if qoute:
+        #         ix+=1
+        #         continue
 
-            if depth == 0 and c == self.delimiter:
-                word, s = s[:ix], s[ix+self._delimiter_length:]
-                words.append(word)
-                ix = -1
-            elif c in self.openings:
-                depth += 1
-            elif c in self.closures:
-                depth -= 1
-            else:
-                pass
-            ix += 1
+        #     if depth == 0 and c == self.delimiter:
+        #         word, s = s[:ix], s[ix+self._delimiter_length:]
+        #         words.append(word)
+        #         ix = -1
+        #     elif c in self.openings:
+        #         depth += 1
+        #     elif c in self.closures:
+        #         depth -= 1
+        #     else:
+        #         pass
+        #     ix += 1
 
-        if s:
-            words.append(s)
-        return words
+        # if s:
+        #     words.append(s)
+        # return words
 
 
 def detect_seperator(text):
