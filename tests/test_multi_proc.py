@@ -1704,11 +1704,13 @@ class Table(MemoryManagedObject):
         if import_as in {'xlsx'}:
             raise NotImplementedError("coming soon!")
             # 1. create a task for each the sheet.
+            sheet
             excel_reader
 
         if import_as in {'ods'}:
             raise NotImplementedError("coming soon!")
             # 1. create a task for each the sheet.
+            sheet
             ods_reader
 
         if import_as in {'csv', 'txt'}:
@@ -1793,26 +1795,14 @@ class Table(MemoryManagedObject):
                     tm.add(task)
                 
                 tm.execute()
-            # Merging chunks in hdf5 into single columns
-            consolidate(h5)  # no need to task manager as this is done using
-            # virtual layouts and virtual datasets.
-            
-            # Finally: Calculate sha256sum.
-            with h5py.File(h5,'r+') as f:  # 'r+' in case the sha256sum is missing.
-                for name in f.keys():
-                    if name == HDF5_IMPORT_ROOT:
-                        continue
-                    
-                    m = hashlib.sha256()  # let's check if it really is new data...
-                    dset = f[f"/{name}"]
-                    step = 100_000
-                    desc = f"Calculating missing sha256sum for {name}: "
-                    for i in trange(0,len(dset), step, desc=desc):
-                        chunk = dset[i:i+step]
-                        m.update(chunk.tobytes())
-                    sha256sum = m.hexdigest()
-                    f[f"/{name}"].attrs['sha256sum'] = sha256sum
-            print(f"Import of {path} done as {h5}")
+                # Merging chunks in hdf5 into single columns
+                consolidate(h5)  # no need to task manager as this is done using
+                # virtual layouts and virtual datasets.
+
+                # Finally: Calculate sha256sum.
+                for column_name in columns:
+                    task = Task(f=sha256sum, path=h5, column_name=column_name)
+                tm.execute()
             return Table.load_file(h5)  # <---- EXIT 2.
 
     @classmethod
@@ -2265,6 +2255,19 @@ def consolidate(path):
                 layout[a:b] = vsource
                 a = b
             f.create_virtual_dataset(f'/{col_name}', layout=layout)   
+
+
+def sha256sum(path, column_name):
+    with h5py.File(path,'r+') as f:  # 'r+' in case the sha256sum is missing.
+        m = hashlib.sha256()  # let's check if it really is new data...
+        dset = f[f"/{column_name}"]
+        step = 100_000
+        desc = f"Calculating missing sha256sum for {column_name}: "
+        for i in trange(0,len(dset), step, desc=desc):
+            chunk = dset[i:i+step]
+            m.update(chunk.tobytes())
+        sha256sum = m.hexdigest()
+        f[f"/{column_name}"].attrs['sha256sum'] = sha256sum
 
 
 def excel_reader(path, has_headers=True, sheet_names=None, **kwargs):
