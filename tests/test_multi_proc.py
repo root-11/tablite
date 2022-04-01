@@ -300,6 +300,41 @@ def isiterable(item):
         return False
 
 
+class DataBlockAddress(object):
+    def __init__(self, mem_id, shape, dtype, address_type, path=None, hdf5_route=None, shm_name=None):
+        if not isinstance(shape, tuple) and all(isinstance(i, int) for i in shape):
+            raise TypeError
+
+        if not isinstance(dtype, str) and dtype != "":
+            raise TypeError
+
+        if not isinstance(address_type, str) and address_type != "":
+            raise TypeError
+
+        if path is not None:
+            if isinstance(path, pathlib.Path):
+                path = str(path)
+            if not isinstance(path, str):
+                raise TypeError
+
+        if hdf5_route is not None and not isinstance(hdf5_route, str):
+                raise TypeError
+
+        if shm_name is not None and not isinstance(shm_name, str):
+                raise TypeError
+
+        if not any(path, hdf5_route, shm_name):
+            raise ValueError("path and hdf5_route OR shm_name is required.")
+
+        self.mem_id = mem_id
+        self.shape = shape
+        self.dtype = dtype
+        self.address_type = address_type
+        self.path = path
+        self.hdf5_route = hdf5_route
+        self.shm_name = shm_name
+    
+
 class MemoryManagedObject(ABC):
     """
     Base Class for Memory Managed Objects
@@ -312,7 +347,7 @@ class MemoryManagedObject(ABC):
     def mem_id(self):
         return self._mem_id
     @mem_id.setter
-    def mem_id(self,value):
+    def mem_id(self, value):
         raise AttributeError("mem_id is immutable")
     def __del__(self):
         MemoryManager.deregister(self)
@@ -322,115 +357,180 @@ class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
     HDF5 = 'hdf5'
     SHM = 'shm'
 
-    def __init__(self, mem_id, data=None, address=None):
+    def __init__(self, mem_id, data=None, shm=None, shape=None, dtype=None, path=None, route=None):
         """
         mem_id: sha256sum of the datablock. Why? Because of storage.
 
-        All datablocks are either imported or created at runtime.
-        Imported datablocks reside in HDF and are immutable (otherwise you'd mess 
-        with the initial state). They are stored in the users filetree.
-        Datablocks created at runtime reside in the MemoryManager's 
+        init requires 1 of 3:
+        (1) data as np.array
+        (2) shm adress, np.shape, np.dtype
+        (3) path, hdf5 route
 
-        kwargs: (only one required)
-        data: np.array
-        address: tuple: 
-            shared memory address: str: "psm_21467_46075"
-            h5 address: tuple: ("path/to/hdf5.h5", "/table_name/column_name/sha256sum")
-        """
+        examples:
+
+        _1 = DataBlock(data=np.array([1,2,3,4]))
+        _2 = DataBlock(shm="psm_21467_46075", shape=(4,), dtype=np.int)
+        _3 = DataBlock(path="path/to/hdf5.h5", route="/table_name/column_name/sha256sum")
+                """
         super().__init__(mem_id=mem_id)
 
-        if (data is not None and address is None):
-            self._type = self.SHM
-                        
-            if not isinstance(data, np.ndarray):
-                raise TypeError("Expected a numpy array.")       
-
-            self._handle = shared_memory.SharedMemory(create=True, size=data.nbytes)
-            self._address = self._handle.name  # Example: "psm_21467_46075"
-
-            self._data = np.ndarray(data.shape, dtype=data.dtype, buffer=self._handle.buf)  
-            self._data = data[:]  # copy the source data into the shm (source may be a np.view)
-            self._len = len(data)
-            self._dtype = data.dtype.name
-
-        elif (address is not None and data is None):
-            self._type = self.HDF5
-            if not isinstance(address, tuple) or len(address)!=2:
-                raise TypeError("Expected pathlib.Path and h5 dataset address")
-            path, address = address
-            # Address is expected as:
-            # if import: ("path/to/hdf5.h5", "/table_name/column_name/sha256sum")
-            # if use_disk: ("path/to/MemoryManagers/tmp/dir", "/sha256sum")
-
-            if not isinstance(path, pathlib.Path):
-                raise TypeError(f"expected pathlib.Path, not {type(path)}")
-            if not path.exists():
-                raise FileNotFoundError(f"file not found: {path}")
-            if not isinstance(address,str):
-                raise TypeError(f"expected address as str, but got {type(address)}")
-            if not address.startswith('/'):
-                raise ValueError(f"address doesn't start at root.")
-            
-            self._handle = h5py.File(path,'r')  # imported data is immutable.
-            self._address = address
-
-            self._data = self._handle[address]            
-            self._len = len(self._data)
-            self._dtype = self.data.dtype.name
+        self._address_type = None
+        self._handle = None
+        self._data = None
+        self._len = None
+        self._dtype = None
+        self._path = None
+        self._hdf5_route = None
+        self._shm_name = None
+        
+        if data is not None: 
+            self._from_data(data)
+        elif all(i is not None for i in [shm,shape,dtype]):
+            self._from_shm(shm, shape, dtype)
+        elif all(i is not None for i in [path, route]):
+            self._from_hdf5(path,route)
         else:
-            raise ValueError("Either address or data must be None")
+            raise ValueError("Either {data}, {shm,shape,dtype} or {path,route} must be None")
+
+    def _from_data(self, data):
+        """
+        enables init from data.
+        """
+        if not isinstance(data, np.ndarray):
+            raise TypeError("Expected a numpy array.")       
+
+        self._address_type = self.SHM
+        self._handle = shared_memory.SharedMemory(create=True, size=data.nbytes)  
+        self._data = np.ndarray(data.shape, dtype=data.dtype, buffer=self._handle.buf)  
+        self._data = data[:]  # copy the source data into the shm (source may be a np.view)
+        self._len = len(data)
+        self._dtype = data.dtype.name
+        self._path = None
+        self._hdf5_route = None
+        self._shm_name = self._handle.name  # Example: "psm_21467_46075"
+
+    def _from_shm(self, shm, shape, dtype):
+        """
+        enables init from shm address
+        """
+        if not isinstance(shm, str):
+            raise TypeError
+        self._address_type = self.SHM
+        self._handle = shared_memory.SharedMemory(name=shm)
+        self._data = np.ndarray(shape, dtype=dtype, buffer=self._handle.buf)
+        self._len = shape[0]
+        self._dtype = self._data.dtype.name
+        self._path = None
+        self._hdf5_route = None
+        self._shm_name = self._handle.name
+
+    def _from_hdf5(self, path,route):
+        """
+        enables init from hdf5 path and route.
+        """
+        if not isinstance(path, pathlib.Path) and isinstance(path, str):
+            path = pathlib.Path(str)
+        if not isinstance(path, pathlib.Path):
+            raise TypeError(f"expected pathlib.Path, not {type(path)}")
+        if not path.exists():
+            raise FileNotFoundError(f"file not found: {path}")
+
+        if not isinstance(route,str):
+            raise TypeError(f"expected route as str, but got {type(route)}")
+        if not route.startswith('/'):
+            raise ValueError(f"route doesn't start at root.")
+
+        self._address_type = self.SHM
+        self._handle = h5py.File(path,'r')  # imported data is immutable.
+        self._data = self._handle[route] 
+        self._len = len(self._data)
+        self._dtype = self.data.dtype.name
+        self._path = path
+        self._hdf5_route = route
+        self._shm_name = None
+
+    def _shm_to_hdf5(self):
+        """ 
+        enables switch of existing data in shm to hdf5 in MemoryManager.cache_path
+        """
+        self._address_type = self.HDF5
+        self._handle = h5py.File(MemoryManager.cache_path, 'a')
+        self._hdf5_route = route = f"/{self.sha256sum}"
+
+        self._handle.create_dataset(route, data=self._data[:])
+        self._data = self._handle[route] 
+        self._len = len(self._data)
+        self._dtype = self.data.dtype.name
+        self._path = MemoryManager.cache_path
+        self._shm_name = None
 
     @property
     def use_disk(self):
-        return self._type == self.HDF5
+        return self._address_type == self.HDF5
     
     def use_disk(self, value):
         if value is False:
-            if self._type == self.SHM:
+            if self._address_type == self.SHM:
                 return  # nothing to do. Already in shm mode.
             else:  # load from hdf5 to shm
-                data = self._data[:]
-                self._handle = shared_memory.SharedMemory(create=True, size=data.nbytes)
-                self._address = self._handle.name
-                self._data = np.ndarray(data.shape, dtype=data.dtype, buffer=self._handle.buf)
-                self._data = data[:] # copy the source data into the shm
-                self._type = self.SHM
-                return
+                self._from_data(data=self._data[:])
         else:  # if value is True:
-            if self._type == self.HDF5:
+            if self._address_type == self.HDF5:
                 return  # nothing to do. Already in HDF5 mode.
             # hdf5_name = f"{column_name}/{self.mem_id}"
-            self._handle = h5py.File(MemoryManager.cache_path, 'a')
-            self._address = f"/{self.sha256sum}"
-            self._data = self._handle.create_dataset(self._address, data=self._data)
+            self._shm_to_hdf5()
             
     @property
     def sha256sum(self):
         return self._mem_id
+
     @sha256sum.setter
     def sha256sum(self,value):
         raise AttributeError("sha256sum is immutable.")
+
     @property
     def address(self):
-        return (self._data.shape, self._dtype, self._address)
+        """
+        enables the sending of information about the DataBlock to other processes.
+        """
+        return DataBlockAddress(self.mem_id, self._data.shape, self._dtype, self._address_type, self._path, self._hdf5_route, self._shm_name)
+
+    @classmethod
+    def from_address(cls, datablockaddress):
+        """
+        enables loading of the datablocks from a data block address
+
+        datablockaddress: class DataBlockAddress
+        """
+        if not isinstance(datablockaddress, DataBlockAddress):
+            raise TypeError(f"expected DataBlockAddress, got {type(datablockaddress)}")
+        dba = datablockaddress
+        db = DataBlock(dba.mem_id, data=None, shm=dba.shm_name, shape=dba.shape, dtype=dba.dtype, path=dba.path,route=dba.hdf5_route)
+        return db
+
     @property
     def data(self):
         return self._data[:]
+    
     @data.setter
     def data(self, value):
-        raise AttributeError("DataBlock.data is immutable.")
+        raise AttributeError("DataBlock.data is immutable after init.")
+    
     def __len__(self) -> int:
         return self._len
+    
     def __next__(self):
         for value in self._data:
             yield value
+
     def __iter__(self):
         return self
+
     def __del__(self):
-        if self._type == self.SHM:
+        if self._address_type == self.SHM:
             self._handle.close()
             self._handle.unlink()
-        elif self._type == self.HDF5:
+        elif self._address_type == self.HDF5:
             self._handle.close()
         super().__del__()
 
@@ -638,11 +738,27 @@ class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
         else:
             raise KeyError(f"{item}")
 
-    def blocks(self):  # USEFULL FOR TASK MANAGER SO THAT TASKS ONLY ARE PERFORMED ON UNIQUE DATABLOCKs.
-        """
-        returns the address of all blocks. 
-        """
-        return [MemoryManager.get(block_id).address for block_id in self.order]           
+    @property
+    def address(self):
+        L = []
+        for block_id in self.order:
+            datablock = MemoryManager.get(block_id)
+            assert isinstance(datablock, DataBlock)
+            L.append(datablock.address)
+        assert all(isinstance(i, DataBlockAddress) for i in L)
+        return L
+
+    @classmethod
+    def from_address_data(cls, address_data):
+        if not isinstance(address_data, list):
+            raise TypeError
+        if not all(isinstance(i, DataBlockAddress) for i in address_data):
+            raise TypeError
+
+        mc = ManagedColumn()
+        for data_block_address in address_data:
+            mc.extend(data_block_address)
+        return mc
 
     def _dtype_check(self, other):
         assert isinstance(other, (np.ndarray, ManagedColumn))
@@ -669,6 +785,11 @@ class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
             self.order.append(data.mem_id)
             MemoryManager.link(self, data)  
 
+        elif isinstance(data, DataBlockAddress):
+            block = MemoryManager.get(mem_id=data.mem_id, default=DataBlock.from_address(data))  # get or create!
+            self.order.append(data.mem_id)
+            MemoryManager.link(self, block)  # Add link from Column to DataBlock
+            
         else:  # It's supposedly new data.
             if not isinstance(data, np.ndarray):
                 data = np.array(data)
@@ -689,7 +810,6 @@ class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
             block = MemoryManager.registry.get(sha256sum)
         else:  # ... it's new!
             block = DataBlock(mem_id=sha256sum, data=data)
-            MemoryManager.registry[sha256sum] = block
         # ok. solved. Now create links.
         if index is None:
             self.order.append(block.mem_id)
@@ -705,7 +825,7 @@ class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
         Disabled. Append items is slow. Use extend on a batch instead
         """
         raise AttributeError("Append items is slow. Use extend on a batch instead")
-    
+        
 
 class Table(MemoryManagedObject):
     _ids = count()
@@ -1772,20 +1892,32 @@ class Table(MemoryManagedObject):
                     pbar.update(n)
         print(f"writing {path} to HDF5 done")
 
-    def to_shm(self):
+    def to_address(self):
         """
         Enables the main process to package a table as shared memory instructions.
+
+        The data layout is:
+        table = {
+            column_name: [ addresses ],  where each address is digestible by ManagedColumn.
+        }
+
         """
-        raise NotImplementedError("combing soon!")
+        return {name: mc.address for name, mc in self.columns.items()}
 
     @classmethod
-    def from_shm(cls, address_data):
+    def from_address(cls, address_data):
         """
         Enables a worker to load the table from shared memory.
         """
-        raise NotImplementedError("coming soon!")
+        if not isinstance(address_data, dict):
+            raise TypeError
 
-
+        t = Table()
+        for name, address_list in address_data.items():
+            mc = ManagedColumn.from_address_data(address_list)
+            t[name] = mc
+        return t
+        
 
 
 # FILE READER UTILS 2.0 ----------------------------
@@ -1958,9 +2090,9 @@ def filter(source1, criteria, source2, destination, destination_index):
 def merge(source, mask, type, slice):
     pass
     # 1. determine length of Falses and Trues
-    # 2. create new tables.
+    # 2. create new tables using Table.from_shm(source)
     # 3. populate the tables (and be smart about datablocks that already exist)
-    # 4. return table.shm_view
+    # 4. return table.to_shm()
     raise NotImplementedError
     
 
@@ -2384,7 +2516,7 @@ def test_slicing():
     a_preview.show(format='ascii')
     
 
-def mem_test_job(shm_name, dtype, shape,index,value):
+def mem_test_job(shm_name, dtype, shape, index, value):
     existing_shm = shared_memory.SharedMemory(name=shm_name)
     c = np.ndarray((6,), dtype=dtype, buffer=existing_shm.buf)
     c[index] = value
