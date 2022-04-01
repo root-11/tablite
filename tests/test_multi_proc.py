@@ -135,8 +135,16 @@ class Worker(multiprocessing.Process):
 
 
 class Task(ABC):
+    """
+    Generic Task class for tasks.
+    """
     ids = count(start=1)
     def __init__(self, f, *args, **kwargs) -> None:
+        """
+        f: callable 
+        *args: arguments for f
+        **kwargs: keyword arguments for f.
+        """
         assert callable(f)
         self._id = next(self.ids)
         self.f = f
@@ -144,8 +152,12 @@ class Task(ABC):
         self.kwargs = copy.deepcopy(kwargs)
         self.result = None
         self.exception = None
+
     @property
     def tid(self):
+        """
+        Enables sortation of tasks, so that task order can be preserved.
+        """
         return self._id
 
     def __str__(self) -> str:
@@ -224,7 +236,7 @@ class MemoryManager(object):
         
         cls.map.add_edge(a.mem_id, b.mem_id)
         if isinstance(b, DataBlock):
-            # as the registry is a weakref, I need a hard ref to the datablocks!
+            # as the registry is a weakref, a hard ref to the datablocks is needed!
             cls.map.add_node(b.mem_id, b)  # <-- Hard ref.
 
     @classmethod
@@ -301,6 +313,9 @@ def isiterable(item):
 
 
 class DataBlockAddress(object):
+    """
+    Generic envelope for exchanging information about shared data between main and worker processes.
+    """
     def __init__(self, mem_id, shape, dtype, address_type, path=None, hdf5_route=None, shm_name=None):
         if not isinstance(shape, tuple) and all(isinstance(i, int) for i in shape):
             raise TypeError
@@ -353,7 +368,10 @@ class MemoryManagedObject(ABC):
         MemoryManager.deregister(self)
 
 
-class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
+class DataBlock(MemoryManagedObject):
+    """
+    Generic immutable class for holding data.
+    """
     HDF5 = 'hdf5'
     SHM = 'shm'
 
@@ -469,6 +487,11 @@ class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
         return self._address_type == self.HDF5
     
     def use_disk(self, value):
+        """
+        Enables the DataBlock to drop memory to disk (and reversely to memory)
+
+        value: boolean
+        """
         if value is False:
             if self._address_type == self.SHM:
                 return  # nothing to do. Already in shm mode.
@@ -477,11 +500,13 @@ class DataBlock(MemoryManagedObject):  # DataBlocks are IMMUTABLE!
         else:  # if value is True:
             if self._address_type == self.HDF5:
                 return  # nothing to do. Already in HDF5 mode.
-            # hdf5_name = f"{column_name}/{self.mem_id}"
             self._shm_to_hdf5()
             
     @property
     def sha256sum(self):
+        """
+        returns sha256sum (also the same as mem_id)
+        """
         return self._mem_id
 
     @sha256sum.setter
@@ -545,10 +570,13 @@ def intercept(A,B):
     
     returns: range as intercept of ranges A and B.
     """
-    assert isinstance(A, range)
+    if not isinstance(A, range):
+        raise TypeError
     if A.step < 0: # turn the range around
         A = range(A.stop, A.start, abs(A.step))
-    assert isinstance(B, range)
+
+    if not isinstance(B, range):
+        raise TypeError
     if B.step < 0:  # turn the range around
         B = range(B.stop, B.start, abs(B.step))
     
@@ -580,7 +608,7 @@ def intercept(A,B):
     return range(start, end, step)
 
 
-class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
+class ManagedColumn(MemoryManagedObject):  # Almost behaves like a list.
     _ids = count()
     def __init__(self) -> None:
         super().__init__(mem_id=f"MC-{next(self._ids)}")
@@ -740,6 +768,9 @@ class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
 
     @property
     def address(self):
+        """
+        Returns list of data block addresses. See DataBlockAddress
+        """
         L = []
         for block_id in self.order:
             datablock = MemoryManager.get(block_id)
@@ -750,6 +781,9 @@ class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
 
     @classmethod
     def from_address_data(cls, address_data):
+        """
+        Creates ManagedColumn from list of data block addresses. 
+        """
         if not isinstance(address_data, list):
             raise TypeError
         if not all(isinstance(i, DataBlockAddress) for i in address_data):
@@ -771,7 +805,7 @@ class ManagedColumn(MemoryManagedObject):  # Behaves like an immutable list.
 
     def extend(self, data):
         """
-        extends ManagedColumn with data
+        Extends ManagedColumn with data
         """
         if isinstance(data, ManagedColumn):  # It's data we've seen before.
             self._dtype_check(data)
@@ -885,7 +919,7 @@ class Table(MemoryManagedObject):
             MemoryManager.unlink(self, mc)
             MemoryManager.unlink_tree(mc)
         elif isinstance(item, slice):
-            raise AttributeError("Tables are immutable. Create a new table using filter or using an index")
+            raise NotImplementedError("It might be smarter to create a new table using filter or using an index")  # TODO.
         else:
             raise TypeError(f"del using {type(item)}?")
 
@@ -945,9 +979,7 @@ class Table(MemoryManagedObject):
         """
         self.compare(other)
         t = self.copy()
-        for name,mc in other.columns.items():
-            mc2 = t.columns[name]
-            mc2.extend(mc)
+        t += other
         return t
 
     def stack(self,other):  # TODO: Add tests.
@@ -962,7 +994,7 @@ class Table(MemoryManagedObject):
         t = self.copy()
         for name,mc2 in other.columns.items():
             if name not in t.columns:
-                t.add_column(name, data=[None] * len(mc2))
+                t.add_column(name, data=[None] * len(self))
             mc = t.columns[name]
             mc.extend(mc2)
         for name, mc in t.columns.items():
@@ -975,8 +1007,8 @@ class Table(MemoryManagedObject):
         enables repetition of a table
         Example: Table_x_10 = table * 10
         """
-        if not isinstance(other, int):
-            raise TypeError(f"repetition of a table is only supported with integers, not {type(other)}")
+        if not isinstance(other, int) and other > 0:
+            raise TypeError(f"repetition of a table is only supported with positive integers")
         t = self.copy()
         for _ in range(other-1):  # minus, because the copy is the first.
             t += self
@@ -1085,10 +1117,24 @@ class Table(MemoryManagedObject):
             "lt": oper.lt,
             "lteq": oper.le,
             "neq": oper.ne,
+            "in": _in
         }
         
-        if len(columns)==1:
-            pass  # single proc.
+        if len(columns)==1 and len(self) < 1_000_000:
+            # The logic here is that filtering requires:
+            # 1. the overhead to start a sub process.
+            # 2. the time to filter.
+            # Too few processes and the time increases.
+            # Too many processes and the time increases.
+            # The optimal result is based on the "ideal work block size"
+            # of appx. 1M field evaluations.
+            # If there are 3 columns and 6M rows, then 18M evaluations are
+            # required. This leads to 18M/1M = 18 processes. If I have 64 cores
+            # the optimal assignment is 18 cores.
+            #
+            # If, in contrast, there are 5 columns and 40,000 rows, then 200k 
+            # only requires 1 core. Hereby start sub processes is pointless.
+            pass  # TODO
 
         # the results are to be gathered here:
         arr = np.zeros(shape=(len(columns), len(self)), dtype='?')
@@ -1101,37 +1147,32 @@ class Table(MemoryManagedObject):
                 A, criteria, B = column["column"], column["criteria"], column["value"]
                 if A in self.columns:
                     mc = self.columns[A]
-                    A = []
-                    for datablock_id in mc.order:
-                        datablock = MemoryManager.get(datablock_id)
-                        A.append( (datablock.mem_id, datablock.address) )
+                    A = mc.address
                 else:  # it's just a value.
                     pass
 
                 if B in self.columns:
                     mc = self.columns[B]
-                    B = []
-                    for datablock_id in mc.order:
-                        datablock = MemoryManager.get(datablock_id)
-                        B.append( (datablock.mem_id, datablock.address) )
+                    B = mc.address
                 else:  # it's just a value.
                     pass 
 
                 task = Task(filter, A, ops.get(criteria), B, destination=result_array.name, destination_index=ix)
                 tm.add(task)
-            _ = tm.execute()
+            _ = tm.execute()  # tm.execute returns the tasks with results, but we don't really care.
 
             # new blocks:
             blocksize = math.ceil(len(self) / tm._cpus)
             for block in range(0, len(self), blocksize):
                 slc = slice(block, block+blocksize,1)
-                task = Task(f=merge, source=self.to_shm(), mask=result_array.name, type=filter_type, slice=slc)
+                task = Task(f=merge, source=self.to_address(), mask=result_array.name, type=filter_type, slice=slc)
             results = tm.execute()
+            results.sort(key=lambda x: x.tid)
 
             table_true,table_false = Table(),Table()
-            for result in sorted(results, key=lambda x: x.task_id):
-                table_true += Table.from_shm(result[0])
-                table_false += Table.from_shm(result[1])
+            for result in results:
+                table_true += Table.from_address(result[0])
+                table_false += Table.from_address(result[1])
         return table_true, table_false
 
     
@@ -2047,28 +2088,30 @@ def detect_seperator(text):
 # PARALLEL TASK FUNCTION
 def filter(source1, criteria, source2, destination, destination_index):
     """
+    source1: list of addresses
     criteria: logical operator
-    source1: value or list of shm / hdf5 addresses
-    source1: value or list of shm / hdf5 addresses
-    destination: shm address.
+    source1: list of addresses
+    destination: shm address name.
     destination_index: integer.
     """    
+    # 1. access the data sources.
     if isinstance(source1,list):
         A = ManagedColumn()
-        for sha, address in source1:
-            datablock = DataBlock(mem_id=sha, address=address)
+        for address in source1:
+            datablock = DataBlock.from_address(address)
             A.extend(datablock)
     else:
         A = repeat(A)
     
     if isinstance(source2,list):
         B = ManagedColumn()
-        for sha, address in source1:
-            datablock = DataBlock(mem_id=sha, address=address)
+        for address in source2:
+            datablock = DataBlock.from_address(address)
             B.extend(datablock)
     else:
         B = repeat(B)
 
+    # 2. access the result array.
     destination = shared_memory.SharedMemory(name=destination)
 
     i = range(len(A))
@@ -2076,15 +2119,20 @@ def filter(source1, criteria, source2, destination, destination_index):
     for i, a, b in zip(i,A,B):
         destination[ri][i] = criteria(a,b)
 
+# PARALLEL TASK FUNCTION
+def _in(a,b):
+    return a in b
 
-def merge(source, mask, type, slice):
+
+# PARALLEL TASK FUNCTION
+def merge(source, mask, type, slice):  # TODO
     pass
     # 1. determine length of Falses and Trues
     # 2. create new tables using Table.from_shm(source)
+    t = Table.from_address(source)
     # 3. populate the tables (and be smart about datablocks that already exist)
     # 4. return table.to_shm()
-    raise NotImplementedError
-    
+    return trues.address, falses.address   
 
 
 # PARALLEL TASK FUNCTION
@@ -2257,6 +2305,7 @@ def consolidate(path):
             f.create_virtual_dataset(f'/{col_name}', layout=layout)   
 
 
+# PARALLEL TASK FUNCTION
 def sha256sum(path, column_name):
     with h5py.File(path,'r+') as f:  # 'r+' in case the sha256sum is missing.
         m = hashlib.sha256()  # let's check if it really is new data...
@@ -2443,7 +2492,7 @@ def test_basics2():
     
 
 def test_datatypes():
-    from datetime import datetime, date, time
+    from datetime import datetime
     now = datetime.now().replace(microsecond=0)
     table4 = Table()
     table4.add_column('A', data=[-1, 1])
@@ -2499,7 +2548,6 @@ def test_plotly():
     fig.show()
 
 
-
 def test_slicing():
     table1 = Table()
     base_data = list(range(10_000))
@@ -2520,6 +2568,9 @@ def test_slicing():
     
 
 def mem_test_job(shm_name, dtype, shape, index, value):
+    """
+    function for TaskManager for test_multiprocessing
+    """
     existing_shm = shared_memory.SharedMemory(name=shm_name)
     c = np.ndarray((6,), dtype=dtype, buffer=existing_shm.buf)
     c[index] = value
