@@ -1644,7 +1644,7 @@ class Table(MemoryManagedObject):
         slc = slice(0,20,1) if len(self) < 20 else None  # default slice 
         for arg in args:  # override by user defined slice (if provided)
             if isinstance(arg, slice):
-                slc = normalize_slice(len(self), arg)
+                slc = slice(*normalize_slice(len(self), arg))
             break
         
         if slc:
@@ -2742,6 +2742,8 @@ def test_file_importer_multiproc():
     t3 = Table.import_file(p, import_as='csv', columns=columns, delimiter=',', text_qualifier=None, newline='\n', first_row_has_headers=True)
     end = time.time()
     print(f"reloading an already imported table took {round(end-start, 4)} secs.")
+
+    t3.show(slice(3,100,17))
 
     if GLOBAL_CLEANUP:
         try:
