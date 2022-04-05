@@ -72,7 +72,7 @@ class TaskManager(object):
             self.tq.put(t)
             self.tasks += 1
         self._tasks = []
-        results = []
+        results = []  
         with tqdm(total=self.tasks, unit='task') as pbar:
             while self.tasks != 0:
                 try:
@@ -406,7 +406,7 @@ class DataBlock(MemoryManagedObject):
         elif all(i is not None for i in [shm,shape,dtype]):
             self._from_shm(shm, shape, dtype)
         elif all(i is not None for i in [path, route]):
-            self._from_hdf5(path,route)
+            self._from_hdf5(path, route)
         else:
             raise ValueError("Either {data}, {shm,shape,dtype} or {path,route} must be None")
 
@@ -554,7 +554,6 @@ class DataBlock(MemoryManagedObject):
     def __del__(self):
         if self._address_type == self.SHM:
             self._handle.close()
-            self._handle.unlink()
         elif self._address_type == self.HDF5:
             self._handle.close()
         super().__del__()
@@ -745,9 +744,11 @@ class ManagedColumn(MemoryManagedObject):  # Almost behaves like a list.
                     page_start += len(block)
                     continue
 
-                x = {i for i in intercept_range}  # TODO: Candidate for TaskManager.
-                mask = np.array([i in x for i in block_range])
-                new_block = block.data[np.where(mask)]
+                # x = {i for i in intercept_range}  # TODO: Candidate for TaskManager.
+                # mask = np.array([i in x for i in block_range])
+                # new_block = block.data[np.where(mask)]
+                sr = slice(intercept_range.start, intercept_range.stop, intercept_range.step)
+                new_block = block.data[sr]
                 mc.extend(new_block)
                 page_start += len(block)
 
@@ -1134,6 +1135,9 @@ class Table(MemoryManagedObject):
             #
             # If, in contrast, there are 5 columns and 40,000 rows, then 200k 
             # only requires 1 core. Hereby start sub processes is pointless.
+            #
+            # This assumption is rendered somewhat void if (!) the subprocesses 
+            # can be idle in sleep mode and not require the startup overhead.
             pass  # TODO
 
         # the results are to be gathered here:
@@ -1166,6 +1170,7 @@ class Table(MemoryManagedObject):
             for block in range(0, len(self), blocksize):
                 slc = slice(block, block+blocksize,1)
                 task = Task(f=merge, source=self.to_address(), mask=result_array.name, type=filter_type, slice=slc)
+                # tasks.result contain return the shm address
             results = tm.execute()
             results.sort(key=lambda x: x.tid)
 
@@ -1782,8 +1787,8 @@ class Table(MemoryManagedObject):
                 else:
                     skip = True
             if skip:
-                print(f"file already imported as {h5}")  # <---- EXIT 1.
-                return Table.load_file(h5)
+                print(f"file already imported as {h5}")  
+                return Table.load_file(h5)  # <---- EXIT 1.
 
             # Ok. File doesn't exist, has been changed or it's a new import config.
             with path.open('rb') as fi:
@@ -1842,7 +1847,8 @@ class Table(MemoryManagedObject):
 
                 # Finally: Calculate sha256sum.
                 for column_name in columns:
-                    task = Task(f=sha256sum, path=h5, column_name=column_name)
+                    task = Task(f=sha256sum, **{"path":h5, "column_name":column_name})
+                    tm.add(task)
                 tm.execute()
             return Table.load_file(h5)  # <---- EXIT 2.
 
@@ -1899,7 +1905,7 @@ class Table(MemoryManagedObject):
                 sha256sum = f[f"/{name}"].attrs.get('sha256sum',None)
                 if sha256sum is None:
                     raise ValueError("no sha256sum?")
-                db = DataBlock(mem_id=sha256sum, address=(path, f"/{name}"))
+                db = DataBlock(mem_id=sha256sum, path=path, route=f"/{name}")
                 t.add_column(name=name, data=db)
         return t
 
@@ -2108,7 +2114,7 @@ def filter(source1, criteria, source2, destination, destination_index):
         for address in source2:
             datablock = DataBlock.from_address(address)
             B.extend(datablock)
-    else:
+    else:   
         B = repeat(B)
 
     # 2. access the result array.
@@ -2307,16 +2313,25 @@ def consolidate(path):
 
 # PARALLEL TASK FUNCTION
 def sha256sum(path, column_name):
-    with h5py.File(path,'r+') as f:  # 'r+' in case the sha256sum is missing.
+    with h5py.File(path,'r') as f:  # 'r+' in case the sha256sum is missing.
         m = hashlib.sha256()  # let's check if it really is new data...
         dset = f[f"/{column_name}"]
         step = 100_000
         desc = f"Calculating missing sha256sum for {column_name}: "
-        for i in trange(0,len(dset), step, desc=desc):
+        for i in trange(0, len(dset), step, desc=desc):
             chunk = dset[i:i+step]
             m.update(chunk.tobytes())
         sha256sum = m.hexdigest()
-        f[f"/{column_name}"].attrs['sha256sum'] = sha256sum
+        # f[f"/{column_name}"].attrs['sha256sum'] = sha256sum
+
+    for _ in range(100):  # overcome any IO blockings.
+        try:
+            with h5py.File(path, 'a') as f:
+                f[f"/{column_name}"].attrs['sha256sum'] = sha256sum
+            return
+        except OSError as e:
+            time.sleep(random.randint(2,100)/1000)
+    raise TimeoutError("Couldn't connect to OS.")
 
 
 def excel_reader(path, has_headers=True, sheet_names=None, **kwargs):
