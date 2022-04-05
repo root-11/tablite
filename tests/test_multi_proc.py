@@ -607,6 +607,24 @@ def intercept(A,B):
     return range(start, end, step)
 
 
+def normalize_slice(length, item=None):  # There's an outdated version sitting in utils.py
+    """
+    helper: transforms slice into range inputs
+    returns start,stop,step
+    """
+    if item is None:
+        item = slice(0, length, 1)
+    assert isinstance(item, slice)
+    
+    stop = length if item.stop is None else item.stop
+    start = 0 if item.start is None else length + item.start if item.start < 0 else item.start
+    start, stop = min(start,stop), max(start,stop)
+    step = 1 if item.step is None else item.step
+
+    return start, stop, step
+
+
+
 class ManagedColumn(MemoryManagedObject):  # Almost behaves like a list.
     _ids = count()
     def __init__(self) -> None:
@@ -643,22 +661,6 @@ class ManagedColumn(MemoryManagedObject):  # Almost behaves like a list.
             assert isinstance(datablock, DataBlock)
             for value in datablock.data:
                 yield value
-
-    def _normalize_slice(self, item=None):  # There's an outdated version sitting in utils.py
-        """
-        helper: transforms slice into range inputs
-        returns start,stop,step
-        """
-        if item is None:
-            item = slice(0, len(self), 1)
-        assert isinstance(item, slice)
-        
-        stop = len(self) if item.stop is None else item.stop
-        start = 0 if item.start is None else len(self) + item.start if item.start < 0 else item.start
-        start, stop = min(start,stop), max(start,stop)
-        step = 1 if item.step is None else item.step
-
-        return start, stop, step
     
     def __setitem__(self, key, value):
         """
@@ -689,7 +691,7 @@ class ManagedColumn(MemoryManagedObject):  # Almost behaves like a list.
                     break
                     
         elif isinstance(key, slice) and isiterable(value):  # it's a slice update
-            r = range(*self._normalize_slice(key))
+            r = range(*normalize_slice(length=len(self), item=key))
             page_start = 0
             for ix, block_id in enumerate(self.order):
                 if page_start > r.stop:  # passed the last update.
@@ -720,7 +722,7 @@ class ManagedColumn(MemoryManagedObject):  # Almost behaves like a list.
         if isinstance(item, slice):
             mc = ManagedColumn()  # to be returned.
 
-            r = range(*self._normalize_slice(item))
+            r = range(*normalize_slice(len(self), item))
             page_start = 0
             for block_id in self.order:
                 if page_start > r.stop:
@@ -1618,7 +1620,7 @@ class Table(MemoryManagedObject):
     def pivot_table(self, *args):
         raise NotImplementedError
 
-    def show(self, blanks=None, format='ascii'):
+    def show(self, *args, blanks=None, format='ascii'):
         """
         prints a _preview_ of the table.
         
@@ -1638,17 +1640,21 @@ class Table(MemoryManagedObject):
         
         if converter is None:
             raise ValueError(f"format={format} not in known formats: {list(converters)}")
-
-        if len(self) < 20:
+   
+        slc = slice(0,20,1) if len(self) < 20 else None  # default slice 
+        for arg in args:  # override by user defined slice (if provided)
+            if isinstance(arg, slice):
+                slc = normalize_slice(len(self), arg)
+            break
+        
+        if slc:
             t = Table()
-            t.add_column('#', data=[str(i) for i in range(len(self))])
-            for n,mc in self.columns.items():
-                t.add_column(n,data=[str(i) for i in mc])
+            t.add_column('#', data=[str(i) for i in range(slc.start, slc.stop, slc.step)])
+            for n, mc in self.columns.items():
+                t.add_column(n,data=[str(i) for i in mc[slc] ])
         else:
-            t,mc,n = Table(), ManagedColumn(), len(self)
-            data = [str(i) for i in range(7)] + ["..."] + [str(i) for i in range(n-7, n)]
-            mc.extend(data)
-            t.add_column('#', data=mc)
+            t,n = Table(), len(self)
+            t.add_column('#', data=[str(i) for i in range(7)] + ["..."] + [str(i) for i in range(n-7, n)])
             for name, mc in self.columns.items():
                 data = [str(i) for i in mc[:7]] + ["..."] + [str(i) for i in mc[-7:]]
                 t.add_column(name, data)
