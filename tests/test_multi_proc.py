@@ -1754,16 +1754,12 @@ class Table(MemoryManagedObject):
         
         # check the inputs.
         if import_as in {'xlsx'}:
-            raise NotImplementedError("coming soon!")
             # 1. create a task for each the sheet.
-            sheet
-            excel_reader
-
+            return excel_reader(path, sheet_name=sheet)
+            
         if import_as in {'ods'}:
-            raise NotImplementedError("coming soon!")
             # 1. create a task for each the sheet.
-            sheet
-            ods_reader
+            return ods_reader(path, sheet_name=sheet)
 
         if import_as in {'csv', 'txt'}:
             h5 = pathlib.Path(str(path) + '.hdf5')
@@ -2768,10 +2764,12 @@ def test_file_importer_multiproc():
 GLOBAL_CLEANUP = False
 
 if __name__ == "__main__":
-    test_basics2()
-    # test_file_importer_multiproc()
+    # test_basics2()
+    test_file_importer_multiproc()
 
     # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
+    #     if k == "test_file_importer_multiproc":
+    #         continue
     #     print(20 * "-" + k + "-" * 20)
     #     v()
 
