@@ -1641,7 +1641,7 @@ class Table(MemoryManagedObject):
         if converter is None:
             raise ValueError(f"format={format} not in known formats: {list(converters)}")
    
-        slc = slice(0,20,1) if len(self) < 20 else None  # default slice 
+        slc = slice(0,min(len(self),20),1) if len(self) < 20 else None  # default slice 
         for arg in args:  # override by user defined slice (if provided)
             if isinstance(arg, slice):
                 slc = slice(*normalize_slice(len(self), arg))
@@ -2296,7 +2296,9 @@ def consolidate(path):
             raise ValueError(f"assymmetric dataset: {d}")
         for k,v in dtypes.items():
             if len(v) != 1:
-                dtypes[k] = 'S'  # np.bytes
+                L = list(dtypes[k])
+                L.sort(key=lambda x: x.itemsize, reverse=True)
+                dtypes[k] = L[0]  # np.bytes
             else:
                 dtypes[k] = v.pop()
         
@@ -2525,6 +2527,11 @@ def test_datatypes():
     # (2) Empty string is not a None, when datatype is string.
     table4.show()
 
+    for name in 'ABCDEFGHI':
+        dt = []
+        for v in table4[name]:
+            dt.append(type(v))
+        print(name, dt)
     # + test for use_disk=True
 
 
@@ -2553,11 +2560,14 @@ def test_plotly():
     from tablite import Table
 
     t = Table()
-    t.add_column('a', int, data=[1, 2, 8, 3, 4, 6, 5, 7, 9], allow_empty=True)
-    t.add_column('b', int, data=[10, 100, 3, 4, 16, -1, 10, 10, 10])
+    t.add_column('a', data=[1, 2, 8, 3, 4, 6, 5, 7, 9])
+    t.add_column('b', data=[10, 100, 3, 4, 16, -1, 10, 10, 10])
 
     t.show(slice(5))  # first 5 rows only.
-    import plotly.graph_objects as go
+    try:
+        import plotly.graph_objects as go
+    except ImportError:
+        return
     fig = go.Figure()
     fig.add_trace(go.Scatter(y=t['a']))  # <-- get column 'a' from Table t
     fig.add_trace(go.Bar(y=t['b']))  #     <-- get column 'b' from Table t
@@ -2764,8 +2774,9 @@ def test_file_importer_multiproc():
 GLOBAL_CLEANUP = False
 
 if __name__ == "__main__":
-    # test_basics2()
-    test_file_importer_multiproc()
+    test_datatypes()
+    
+    # test_file_importer_multiproc()  # now the imported file is available for other tests.
 
     # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
     #     if k == "test_file_importer_multiproc":
