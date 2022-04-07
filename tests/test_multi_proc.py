@@ -312,7 +312,7 @@ def isiterable(item):
         return False
 
 
-class DataBlockAddress(object):
+class SharedMemoryAddress(object):
     """
     Generic envelope for exchanging information about shared data between main and worker processes.
     """
@@ -349,6 +349,14 @@ class DataBlockAddress(object):
         self.hdf5_route = hdf5_route
         self.shm_name = shm_name
     
+    def to_shm(self):
+        """
+        returns shm based numpy array from address.
+        """
+        handle = shared_memory.SharedMemory(name=self.shm_name)
+        data = np.ndarray(shape=self.shape, dtype=self.dtype, buffer=handle.buf)
+        return data
+
 
 class MemoryManagedObject(ABC):
     """
@@ -517,19 +525,21 @@ class DataBlock(MemoryManagedObject):
     def address(self):
         """
         enables the sending of information about the DataBlock to other processes.
+
+        returns SharedMemoryAddress
         """
-        return DataBlockAddress(self.mem_id, self._data.shape, self._dtype, self._address_type, self._path, self._hdf5_route, self._shm_name)
+        return SharedMemoryAddress(self.mem_id, self._data.shape, self._dtype, self._address_type, self._path, self._hdf5_route, self._shm_name)
 
     @classmethod
-    def from_address(cls, datablockaddress):
+    def from_address(cls, shared_memory_address):
         """
-        enables loading of the datablocks from a data block address
+        enables loading of the datablocks from a SharedMemoryAddress
 
-        datablockaddress: class DataBlockAddress
+        shared_memory_address: class SharedMemoryAddress
         """
-        if not isinstance(datablockaddress, DataBlockAddress):
-            raise TypeError(f"expected DataBlockAddress, got {type(datablockaddress)}")
-        dba = datablockaddress
+        if not isinstance(shared_memory_address, SharedMemoryAddress):
+            raise TypeError(f"expected SharedMemoryAddress, got {type(shared_memory_address)}")
+        dba = shared_memory_address
         db = DataBlock(dba.mem_id, data=None, shm=dba.shm_name, shape=dba.shape, dtype=dba.dtype, path=dba.path,route=dba.hdf5_route)
         return db
 
@@ -779,7 +789,7 @@ class ManagedColumn(MemoryManagedObject):  # Almost behaves like a list.
             datablock = MemoryManager.get(block_id)
             assert isinstance(datablock, DataBlock)
             L.append(datablock.address)
-        assert all(isinstance(i, DataBlockAddress) for i in L)
+        assert all(isinstance(i, SharedMemoryAddress) for i in L)
         return L
 
     @classmethod
@@ -789,7 +799,7 @@ class ManagedColumn(MemoryManagedObject):  # Almost behaves like a list.
         """
         if not isinstance(address_data, list):
             raise TypeError
-        if not all(isinstance(i, DataBlockAddress) for i in address_data):
+        if not all(isinstance(i, SharedMemoryAddress) for i in address_data):
             raise TypeError
 
         mc = ManagedColumn()
@@ -822,7 +832,7 @@ class ManagedColumn(MemoryManagedObject):  # Almost behaves like a list.
             self.order.append(data.mem_id)
             MemoryManager.link(self, data)  
 
-        elif isinstance(data, DataBlockAddress):
+        elif isinstance(data, SharedMemoryAddress):
             block = MemoryManager.get(mem_id=data.mem_id, default=DataBlock.from_address(data))  # get or create!
             self.order.append(data.mem_id)
             MemoryManager.link(self, block)  # Add link from Column to DataBlock
@@ -1145,6 +1155,7 @@ class Table(MemoryManagedObject):
         # the results are to be gathered here:
         arr = np.zeros(shape=(len(columns), len(self)), dtype='?')
         result_array = shared_memory.SharedMemory(create=True, size=arr.nbytes)
+        result_address = SharedMemoryAddress(mem_id=1, shape=arr.shape, dtype=arr.dtype, shm_name=result_array.name)
         
         # the task manager enables evaluation of a column per core,
         # which is assembled in the shared array.
@@ -1163,15 +1174,15 @@ class Table(MemoryManagedObject):
                 else:  # it's just a value.
                     pass 
 
-                task = Task(filter, A, ops.get(criteria), B, destination=result_array.name, destination_index=ix)
+                task = Task(filter, A, ops.get(criteria), B, destination=result_address, destination_index=ix)
                 tm.add(task)
-            _ = tm.execute()  # tm.execute returns the tasks with results, but we don't really care.
+            _ = tm.execute()  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
 
             # new blocks:
             blocksize = math.ceil(len(self) / tm._cpus)
             for block in range(0, len(self), blocksize):
                 slc = slice(block, block+blocksize,1)
-                task = Task(f=merge, source=self.to_address(), mask=result_array.name, type=filter_type, slice=slc)
+                task = Task(f=merge, source=self.to_address(), mask_shm_name=result_array.name, type=filter_type, slice=slc)
                 # tasks.result contain return the shm address
             results = tm.execute()
             results.sort(key=lambda x: x.tid)
@@ -1181,9 +1192,8 @@ class Table(MemoryManagedObject):
                 table_true += Table.from_address(result[0])
                 table_false += Table.from_address(result[1])
         return table_true, table_false
-
     
-    def sort_index(self, **kwargs):
+    def sort_index(self, **kwargs):  # TODO: This is slow single core code.
         """ Helper for methods `sort` and `is_sorted` """
         if not isinstance(kwargs, dict):
             raise ValueError("Expected keyword arguments")
@@ -1213,7 +1223,7 @@ class Table(MemoryManagedObject):
         new_order.clear()
         return sorted_index
 
-    def sort(self, **kwargs):
+    def sort(self, **kwargs):  # TODO: This is slow single core code.
         """ Perform multi-pass sorting with precedence given order of column names.
         :param kwargs: keys: columns, values: 'reverse' as boolean.
         """
@@ -1223,7 +1233,7 @@ class Table(MemoryManagedObject):
             t.add_column(col_name, data=[col[ix] for ix in sorted_index])
         return t
 
-    def is_sorted(self, **kwargs):
+    def is_sorted(self, **kwargs):  # TODO: This is slow single core code.
         """ Performs multi-pass sorting check with precedence given order of column names.
         :return bool
         """
@@ -1232,7 +1242,7 @@ class Table(MemoryManagedObject):
             return False
         return True
 
-    def all(self, **kwargs):
+    def all(self, **kwargs):  # TODO: This is slow single core code.
         """
         returns Table for rows where ALL kwargs match
         :param kwargs: dictionary with headers and values / boolean callable
@@ -1270,7 +1280,7 @@ class Table(MemoryManagedObject):
             t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
         return t
 
-    def any(self, **kwargs):
+    def any(self, **kwargs):  # TODO: This is slow single core code.
         """
         returns Table for rows where ANY kwargs match
         :param kwargs: dictionary with headers and values / boolean callable
@@ -1292,7 +1302,7 @@ class Table(MemoryManagedObject):
             t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
         return t
 
-    def groupby(self, keys, functions, pivot_on=None):
+    def groupby(self, keys, functions, pivot_on=None):  # TODO: This is slow single core code.
         """
         :param keys: headers for grouping
         :param functions: list of headers and functions.
@@ -1348,7 +1358,7 @@ class Table(MemoryManagedObject):
 
     def join(self, other, left_keys, right_keys, left_columns, right_columns, kind='inner'):
         """
-        short cut for all join functions.
+        short-cut for all join functions.
         """
         kinds = {
             'inner':self.inner_join,
@@ -1360,7 +1370,7 @@ class Table(MemoryManagedObject):
         f = kinds.get(kind,None)
         return f(self,other,left_keys,right_keys,left_columns,right_columns)
     
-    def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
+    def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -1411,7 +1421,7 @@ class Table(MemoryManagedObject):
                         raise Exception('bad logic')
         return left_join
 
-    def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
+    def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -1459,7 +1469,7 @@ class Table(MemoryManagedObject):
 
         return inner_join
 
-    def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
+    def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -1523,7 +1533,7 @@ class Table(MemoryManagedObject):
                         raise Exception('bad logic')
         return outer_join
 
-    def lookup(self, other, *criteria, all=True):
+    def lookup(self, other, *criteria, all=True):  # TODO: This is slow single core code.
         """ function for looking up values in other according to criteria
         :param: other: Table
         :param: criteria: Each criteria must be a tuple with value comparisons in the form:
@@ -1754,11 +1764,9 @@ class Table(MemoryManagedObject):
         
         # check the inputs.
         if import_as in {'xlsx'}:
-            # 1. create a task for each the sheet.
             return excel_reader(path, sheet_name=sheet)
             
         if import_as in {'ods'}:
-            # 1. create a task for each the sheet.
             return ods_reader(path, sheet_name=sheet)
 
         if import_as in {'csv', 'txt'}:
@@ -2009,8 +2017,7 @@ class TextEscape(object):
         elif not openings + closures:
             self.c = self._call2
         else:
-            self.re = re.compile("([\d\w\s\u4e00-\u9fff]+)(?=,|$)|((?<=\A)|(?<=,))(?=,|$)|(\(.+\)|\".+\")", "gmu")
-            # ^---- Audrius wrote this.
+            self.re = re.compile("([\d\w\s\u4e00-\u9fff]+)(?=,|$)|((?<=\A)|(?<=,))(?=,|$)|(\(.+\)|\".+\")", "gmu") # <-- Disclaimer: Audrius wrote this.
             self.c = self._call3
 
     def __call__(self,s):
@@ -2103,7 +2110,7 @@ def filter(source1, criteria, source2, destination, destination_index):
     destination_index: integer.
     """    
     # 1. access the data sources.
-    if isinstance(source1,list):
+    if isinstance(source1, list):
         A = ManagedColumn()
         for address in source1:
             datablock = DataBlock.from_address(address)
@@ -2111,7 +2118,7 @@ def filter(source1, criteria, source2, destination, destination_index):
     else:
         A = repeat(A)
     
-    if isinstance(source2,list):
+    if isinstance(source2, list):
         B = ManagedColumn()
         for address in source2:
             datablock = DataBlock.from_address(address)
@@ -2120,8 +2127,9 @@ def filter(source1, criteria, source2, destination, destination_index):
         B = repeat(B)
 
     # 2. access the result array.
-    destination = shared_memory.SharedMemory(name=destination)
-
+    assert isinstance(destination, SharedMemoryAddress)
+    destination = destination.to_shm()
+    
     i = range(len(A))
     ri = destination_index
     for i, a, b in zip(i,A,B):
@@ -2133,9 +2141,11 @@ def _in(a,b):
 
 
 # PARALLEL TASK FUNCTION
-def merge(source, mask, type, slice):  # TODO
-    pass
+def merge(source, mask_shm_name, type, slice):  # TODO
+    
+    
     # 1. determine length of Falses and Trues
+    mask = shared_memory.SharedMemory(name=mask_shm_name)
     # 2. create new tables using Table.from_shm(source)
     t = Table.from_address(source)
     # 3. populate the tables (and be smart about datablocks that already exist)
@@ -2533,7 +2543,7 @@ def test_datatypes():
             dt.append(type(v))
         print(name, dt)
     # + test for use_disk=True
-
+    table4
 
 def test_add_data():
     from tablite import Table
