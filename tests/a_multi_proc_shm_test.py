@@ -17,7 +17,7 @@ class TaskManager(object):
     shared_memory_reference_counter = defaultdict(int)  # tracker for the NAT protocol.
 
     def __init__(self) -> None:    
-        self._cpus = 2
+        self._cpus = cpu_count()
         self.tq = multiprocessing.Queue()  # task queue for workers.
         self.rq = multiprocessing.Queue()  # result queue for workers.
         self.pool = []                     # list of sub processes
@@ -240,7 +240,7 @@ def cpu_intense_task_with_shared_memory(n):
 
 if __name__ == "__main__":
     """ test... """
-    n = 6
+    n = 9
 
     tasks =[ Task(f=cpu_intense_task_with_shared_memory, n=10**i) for i in range(n) ]
     
@@ -264,7 +264,7 @@ if __name__ == "__main__":
 
         tm_names = set(tm.shared_memory_references.keys())
         assert result_names == tm_names, (result_names, tm_names)
-        assert total == sum(10**i for i in range(6)), total
+        assert total == sum(10**i for i in range(n)), total
     # stop all subprocs by exiting the context mgr.
 
     # check the data is still around.
