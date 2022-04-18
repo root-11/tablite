@@ -1,4 +1,5 @@
 import math
+import h5py
 
 
 def isiterable(item):
@@ -78,3 +79,28 @@ def normalize_slice(length, item=None):  # There's an outdated version sitting i
 
     return start, stop, step
 
+
+def h5py_inspect(path, group='/'):
+    """
+    enables inspection of contents of HDF5 file 
+    path: str or pathlib.Path
+    group: you can give a specific group, defaults to the root: '/'
+    """
+    def descend_obj(obj,sep='  ', offset=''):
+        """
+        Iterate through groups in a HDF5 file and prints the groups and datasets names and datasets attributes
+        """
+        if type(obj) in [h5py._hl.group.Group,h5py._hl.files.File]:
+            if obj.attrs.keys():  
+                for k,v in obj.attrs.items():
+                    print(offset, k,":",v)  # prints config
+            for key in obj.keys():
+                print(offset, key,':',obj[key])  # prints groups
+                descend_obj(obj[key],sep=sep, offset=offset+sep)
+        elif type(obj)==h5py._hl.dataset.Dataset:
+            for key in obj.attrs.keys():
+                print(offset, key,':',obj.attrs[key])  # prints datasets.
+
+    with h5py.File(path,'r') as f:
+        print(f"{path} contents")
+        descend_obj(f[group])

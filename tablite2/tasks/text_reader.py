@@ -3,6 +3,7 @@ import random
 import re
 import hashlib
 import pathlib
+from collections import defaultdict
 
 import h5py  # required packages
 from tqdm import trange
@@ -263,6 +264,55 @@ def text_reader(source, destination, columns,
         except OSError as e:
             time.sleep(random.randint(10,200)/1000)
     raise TimeoutError("Couldn't connect to OS.")
+
+
+def consolidate(path):
+    """ PARALLEL TASK FUNCTION
+    enables consolidation of hdf5 imports from root into column named folders.
+    
+    path: pathlib.Path
+    """
+    if not isinstance(path, pathlib.Path):
+        raise TypeError
+    if not path.exists():
+        raise FileNotFoundError(path)
+    
+    root=HDF5_IMPORT_ROOT
+
+    with h5py.File(path, 'a') as f:
+        if root not in f.keys():
+            raise ValueError(f"hdf5 root={root} not in {f.keys()}")
+
+        lengths = defaultdict(int)
+        dtypes = defaultdict(set)  # necessary to track as data is dirty.
+        for col_name in f[f"/{root}"].keys():
+            for start in sorted(f[f"/{root}/{col_name}"].keys()):
+                dset = f[f"/{root}/{col_name}/{start}"]
+                lengths[col_name] += len(dset)
+                dtypes[col_name].add(dset.dtype)
+        
+        if len(set(lengths.values())) != 1:
+            d = {k:v for k,v in lengths.items()}
+            raise ValueError(f"assymmetric dataset: {d}")
+        for k,v in dtypes.items():
+            if len(v) != 1:
+                L = list(dtypes[k])
+                L.sort(key=lambda x: x.itemsize, reverse=True)
+                dtypes[k] = L[0]  # np.bytes
+            else:
+                dtypes[k] = v.pop()
+        
+        for col_name in f[root].keys():
+            shape = (lengths[col_name], )
+            layout = h5py.VirtualLayout(shape=shape, dtype=dtypes[col_name])
+            a, b = 0, 0
+            for start in sorted(f[f"{root}/{col_name}"].keys()):
+                dset = f[f"{root}/{col_name}/{start}"]
+                b += len(dset)
+                vsource = h5py.VirtualSource(dset)
+                layout[a:b] = vsource
+                a = b
+            f.create_virtual_dataset(f'/{col_name}', layout=layout)   
 
 
 
