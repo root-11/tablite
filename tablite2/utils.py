@@ -77,3 +77,4 @@ def normalize_slice(length, item=None):  # There's an outdated version sitting i
     step = 1 if item.step is None else item.step
 
     return start, stop, step
+
