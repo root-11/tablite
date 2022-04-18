@@ -16,7 +16,7 @@ import traceback
 import queue
 import multiprocessing
 import copy
-from multiprocessing import shared_memory
+from multiprocessing import shared_memory  # do not import SharedMemory as it is overwritten below.
 from itertools import count, chain
 from abc import ABC
 from collections import defaultdict, deque
@@ -33,13 +33,16 @@ MEMORY_MANAGER_CACHE_FILE = "tablite_cache.hdf5"
 
 
 class TaskManager(object):
-    shared_memory_references = {}
+    shared_memory_references = {}  # names: shm pointers.
     shared_memory_reference_counter = defaultdict(int)  # tracker for the NAT protocol.
 
     memory_usage_ceiling = 0.9  # 90%
 
-    def __init__(self) -> None:    
-        self._cpus = psutil.cpu_count()
+    def __init__(self,cores=None) -> None:    
+        """
+        cores: 0 < integer <= cpu count
+        """
+        self._cpus = min(psutil.cpu_count(), cores) if (isinstance(cores,int) and cores > 0) else psutil.cpu_count()
         self._disk_space = psutil.disk_usage('/').free
         self._memory = psutil.virtual_memory().available
 
@@ -85,7 +88,7 @@ class TaskManager(object):
 
     def execute(self, tasks):
         if isinstance(tasks, Task):
-            task = (tasks,)
+            response = (tasks,)
         if not isinstance(tasks, (list,tuple)) or not all([isinstance(i, Task) for i in tasks]):
             raise TypeError
 
@@ -97,27 +100,27 @@ class TaskManager(object):
         with tqdm(total=self.tasks, unit='task') as pbar:
             while self.tasks != 0:
                 try:
-                    task = self.rq.get_nowait()
+                    response = self.rq.get_nowait()
                 
-                    if isinstance(task, NATsignal): 
-                        if task.shm_name not in self.shared_memory_references:  # its a NOTIFY from a WORKER.
+                    if isinstance(response, NATsignal): 
+                        if response.shm_name not in self.shared_memory_references:  # its a NOTIFY from a WORKER.
                             # first create a hard ref to the memory object.
-                            self.shared_memory_references[task.shm_name] = TrackedSharedMemory(name=task.shm_name, create=False)
-                            self.shared_memory_reference_counter[task.shm_name] += 1
+                            self.shared_memory_references[response.shm_name] = SharedMemory(name=response.shm_name, create=False)
+                            self.shared_memory_reference_counter[response.shm_name] += 1
                             # then send the ACKNOWLEDGEMENT directly to the WORKER.
-                            self.pool_sigq[task.worker_name].put(task)
+                            self.pool_sigq[response.worker_name].put(response)
                         else:  # It's the second time we see the name so it's a TRANSFER COMPLETE
-                            self.shared_memory_reference_counter[task.shm_name] -= 1 
+                            self.shared_memory_reference_counter[response.shm_name] -= 1 
                         # at this point we can be certain that the SHMs are in the main process.
                         continue  # keep looping as there may be more.
 
-                    elif isinstance(task, Task):
-                        if task.exception:
-                            raise Exception(task.exception)
+                    elif isinstance(response, Task):
+                        if response.exception:
+                            raise Exception(response.exception)
 
                         self.tasks -= 1  # decrement task counter.
-                        pbar.set_description(task.f.__name__)
-                        results.append(task)
+                        pbar.set_description(response.f.__name__)
+                        results.append(response)
                         pbar.update(1)
                     
                 except queue.Empty:
@@ -167,7 +170,7 @@ class Worker(multiprocessing.Process):
                
     def update(self):
         # this is global for the sub process only.
-        TaskManager.shared_memory_references  
+        TaskManager.shared_memory_references
 
         while True:
             # first process any/all direct signals first.
@@ -215,13 +218,23 @@ class NATsignal(object):
         self.worker_name = worker_name
 
 
-class TrackedSharedMemory(shared_memory.SharedMemory):
+class SharedMemory(shared_memory.SharedMemory):
     def __init__(self, name=None, create=False, size=0) -> None:
+        
         if name in TaskManager.shared_memory_references:
-            return TaskManager.shared_memory_references[name]  # return from registry.
+            print(f'found SharedMemory({name}) in {__file__} in registry')
+            self = TaskManager.shared_memory_references[name]  # return from registry.
         else:
-            super().__init__(name, create, size)
-            TaskManager.shared_memory_references[self.name] = self  # add to registry. This blocks __del__ !  
+            try:
+                super().__init__(name, create, size)
+                TaskManager.shared_memory_references[self.name] = self  # add to registry. This blocks __del__ !  
+                print(f"SharedMemory({self.name}) created.")
+            except FileNotFoundError:
+                print(f"{name}!")
+    
+    def __del__(self):
+        print(f"SharedMemory deleted... in {__name__}")
+        super().__del__()
 
 
 class Task(ABC):
@@ -296,7 +309,7 @@ class MemoryManager(object):
         # Use `import gc; del MemoryManager; gc.collect()` to delete the MemoryManager class.
         # shm.close()
         # shm.unlink()
-        cls.cache_file.unlink()  # no loss of data.
+        cls.cache_file.unlink()  # HDF5.
 
     @classmethod
     def register(cls, obj):  # used at __init__
@@ -436,7 +449,7 @@ class SharedMemoryAddress(object):
         """
         returns shm based numpy array from address.
         """
-        handle = shared_memory.SharedMemory(name=self.shm_name)
+        handle = SharedMemory(name=self.shm_name)
         data = np.ndarray(shape=self.shape, dtype=self.dtype, buffer=handle.buf)
         return handle, data
 
@@ -509,7 +522,7 @@ class DataBlock(MemoryManagedObject):
             raise TypeError("Expected a numpy array.")       
 
         self._address_type = self.SHM
-        self._handle = shared_memory.SharedMemory(create=True, size=data.nbytes)  
+        self._handle = SharedMemory(create=True, size=data.nbytes)  
         self._data = np.ndarray(data.shape, dtype=data.dtype, buffer=self._handle.buf)  
         self._data = data[:]  # copy the source data into the shm (source may be a np.view)
         self._len = len(data)
@@ -525,7 +538,7 @@ class DataBlock(MemoryManagedObject):
         if not isinstance(shm, str):
             raise TypeError
         self._address_type = self.SHM
-        self._handle = shared_memory.SharedMemory(name=shm)
+        self._handle = SharedMemory(name=shm)
         self._data = np.ndarray(shape, dtype=dtype, buffer=self._handle.buf)
         self._len = shape[0]
         self._dtype = self._data.dtype.name
@@ -1265,12 +1278,13 @@ class Table(MemoryManagedObject):
 
         # the results are to be gathered here:
         arr = np.zeros(shape=(len(columns), len(self)), dtype='?')
-        result_array = shared_memory.SharedMemory(create=True, size=arr.nbytes)
+        result_array = SharedMemory(create=True, size=arr.nbytes)
         result_address = SharedMemoryAddress(mem_id=1, shape=arr.shape, dtype=arr.dtype, shm_name=result_array.name)
         
         # the task manager enables evaluation of a column per core,
         # which is assembled in the shared array.
-        with TaskManager() as tm:
+        with TaskManager(cores=1) as tm: 
+            tasks = []
             for ix, column in enumerate(columns):
                 if isinstance(column, dict):
                     A, criteria, B = column["column"], column["criteria"], column["value"]
@@ -1296,9 +1310,9 @@ class Table(MemoryManagedObject):
                 for block in range(0, len(self), blocksize):
                     slc = slice(block, block+blocksize,1)
                     task = Task(filter, A, criteria, B, destination=result_address, destination_index=ix, slice_=slc)
-                    tm.add(task)
-            
-            _ = tm.execute()  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
+                    tasks.append(task)
+
+            _ = tm.execute(tasks)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
 
             # new blocks:
             blocksize = math.ceil(len(self) / (4*tm._cpus))
@@ -1310,19 +1324,18 @@ class Table(MemoryManagedObject):
                 tasks.append(task)
                 
             results = tm.execute(tasks)  # tasks.result contain return the shm address
-            results.sort(key=lambda x: x.tid)
+            results.sort(key=lambda x: x.task_id)
 
-            table_true, table_false = None, None
-            for task in results:
-                true, false = task.result
-                if table_true is None:
-                    table_true = Table.from_address(true)
-                    table_false = Table.from_address(false)
-                else:
-                    table_true += Table.from_address(true)
-                    table_false += Table.from_address(false)
-            print("!")
-
+        table_true, table_false = None, None
+        for task in results:
+            true_address, false_address = task.result
+            if table_true is None:
+                table_true = Table.from_address(true_address)
+                table_false = Table.from_address(false_address)
+            else:
+                table_true += Table.from_address(true_address)
+                table_false += Table.from_address(false_address)
+            
         return table_true, table_false
     
     def sort_index(self, **kwargs):  # TODO: This is slow single core code.
@@ -2357,22 +2370,21 @@ def merge(source, mask, filter_type, slice_):
     if len(mask) == 1:
         true_mask = mask[0][slice_]
     else:
-        # new_mask = [False for _ in range(slice_.start, slice_.stop)]
-        # for ix, i in enumerate(range(slice_.start, slice_.stop)):
-        #     if f(c[i] for c in mask):
-        #         # mask[c] is the c'th mask column
-        #         # mask[c][i] is the index i of column c
-        #         new_mask[ix] = True
         true_mask = [f(c[i] for c in mask) for i in range(slice_.start, slice_.stop)]
     false_mask = np.invert(true_mask)
 
     t1 = Table.from_address(source)  # 2. load Table.from_shm(source)
     # 3. populate the tables
+    
     true, false = Table(), Table()
-    for name,mc in t1.columns.items():
+    for name, mc in t1.columns.items():
         mc_unfiltered = np.array(mc[slice_])
-        true.add_column(name, data=mc_unfiltered[true_mask])  # data = mc_unfiltered[new_mask]
-        false.add_column(name, data=mc_unfiltered[false_mask])
+        if any(true_mask):
+            data = mc_unfiltered[true_mask]
+            true.add_column(name, data)  # data = mc_unfiltered[new_mask]
+        if any(false_mask):
+            data = mc_unfiltered[false_mask]
+            false.add_column(name, data)
 
     # 4. return table.to_shm()
     return true.address, false.address   
@@ -2448,7 +2460,7 @@ def text_reader(source, destination, columns,
     # >>> nl.decode('utf-16') in bs.decode('utf-16')
     # True
     # --------------------------------------------------------
-    # This means we can't read the encoded stream.
+    # This means we can't read the encoded stream to check if in contains a particular character.
 
     # Fetch the decoded text:
     with source.open('r', encoding=encoding) as fi:
@@ -2991,7 +3003,7 @@ def cpu_intense_task_with_shared_memory(n):
     """ Task for multiprocess bug 82300 """
     # create shared memory object
     arr = np.array(list(range(n)))
-    shm = TrackedSharedMemory(create=True, size=arr.nbytes)
+    shm = SharedMemory(create=True, size=arr.nbytes)
     datablock = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
     datablock[:] = arr[:]  # copy the data.
     # disconnect from the task.
@@ -2999,11 +3011,11 @@ def cpu_intense_task_with_shared_memory(n):
 
 
 def test_multiprocess_bug_82300():
-    n = 9
+    n = 7
 
     tasks =[ Task(f=cpu_intense_task_with_shared_memory, n=10**i) for i in range(n) ]
     
-    with TaskManager() as tm:  # start sub procs by using the context manager.
+    with TaskManager(cores=2) as tm:  # start sub procs by using the context manager.
         results = tm.execute(tasks)
         results.sort(key=lambda x: x.task_id)
 
@@ -3028,7 +3040,6 @@ def test_multiprocess_bug_82300():
 
     # check the data is still around.
     assert sum(len(arr) for arr in arrays) == total
-
 
 
 def test_filter():
@@ -3062,9 +3073,10 @@ BIG_HDF5 = pathlib.Path(str(BIG_FILE) + '.hdf5')
 
 if __name__ == "__main__":
     # test_datatypes()
-    # test_filter()
+    test_filter()
+    # test_multiprocess_bug_82300()
     
-    test_file_importer_multiproc()  # now the imported file is available for other tests.
+    # test_file_importer_multiproc()  # now the imported file is available for other tests.
 
     # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
     #     if k == "test_file_importer_multiproc":
