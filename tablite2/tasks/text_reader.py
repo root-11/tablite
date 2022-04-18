@@ -8,8 +8,7 @@ import h5py  # required packages
 from tqdm import trange
 from numpy import np
 
-from tablite2.table import Table  # local modules.
-from tablite2.settings import HDF5_IMPORT_ROOT
+from tablite2.settings import HDF5_IMPORT_ROOT  # local modules.
 
 
 class TextEscape(object):
