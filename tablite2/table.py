@@ -4,10 +4,10 @@ from itertools import count
 from collections import defaultdict
 import json
 
-import h5py
+import h5py  #https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr?rq=1  
 import chardet
 
-from tablite2.settings import HDF5_IMPORT_ROOT
+from tablite2.settings import HDF5_IMPORT_ROOT, HDF5_CACHE_DIR, HDF5_CACHE_FILE, HDF5_TABLE_ROOT
 from tablite2.column import Column, Page
 from tablite2.task_manager import TaskManager, Task
 from tablite2.utils import isiterable, normalize_slice, sha256sum
@@ -15,19 +15,29 @@ from tablite2.tasks.excel_reader import excel_reader,ods_reader
 from tablite2.tasks.text_reader import text_reader, TextEscape, consolidate
 
 
-
 class Table(object):
     tid = count(1)
-    def __init__(self,address=None) -> None:
-        if address is None: address = next(Table.tid)
-        self._address = address
+    def __init__(self,key=None) -> None:
         self._columns = {}
-    @property
-    def address(self):
-        return self._address
+        self.path = pathlib.Path(HDF5_CACHE_DIR) / HDF5_CACHE_FILE
+        
+        self.key = next(Table.tid) if key is None else key
+        self.group = f"{HDF5_TABLE_ROOT}/Table-{self.key}"
+        if key is not None:
+            with h5py.File(self.path, mode='r') as h5:
+                if key in h5[HDF5_TABLE_ROOT]:
+                    dset = h5[self.group]
+                    columns = json.loads(dset['columns'])
+                    for name, column_id in columns.items():
+                        self._columns[name] = Column(key=column_id)
+        
     @property
     def columns(self):
-        return self._columns
+        """
+        returns the column names
+        """
+        return list(self._columns.keys())
+
     @property
     def rows(self):
         """
@@ -55,9 +65,9 @@ class Table(object):
         table['b', 'a', 'a', 'c', 2:20:3]  selects column 'b' and 'c' and 'a' twice for a slice.
         """
         if isinstance(keys,str):  # it's a column
-            return self._columns[keys]
+            return self._columns[keys]  # --> Column --> h5 virtual dataset
         elif isinstance(keys, slice):  # it's a slice of all columns.
-            return {name:col[slice] for name, col in self._columns.items()}
+            return {name:col[slice] for name, col in self._columns.items()}  
         elif isinstance(keys, int):  # it's a single row.
             return {name:col[keys] for name,col in self._columns.items()}
         elif isinstance(keys, tuple):  # it's a combination of columns (and slice)
@@ -91,46 +101,76 @@ class Table(object):
         table['a','b', 2:4] = [ [3, 2], [4.4, 5.5] ]
         """
         if isinstance(key, str):  
-            self._columns[key] = value
-        elif isinstance(key,(int,slice)) and len(value) == len(self._columns):
+            self._columns[key] = Column(value)
+        elif isinstance(key, (int, slice)) and len(value) == len(self._columns):
             if isinstance(value, dict):
-                for name,col in self._columns.items():
-                    col[key] = value[name]
+                for name, col in self._columns.items():
+                    col[key] = Column(value[name])
             elif isinstance(value, (list,tuple)):
                 for ix, (name, col) in enumerate(self._columns.items()):
-                    col[key] = value[ix]
+                    col[key] = Column(value[ix])
             else:
                 raise NotImplementedError(f"{key}:{value}")            
         elif isinstance(key,tuple):  # it's a combination of columns (and slice)
-            cols = [k for k in key if k in self._columns]
+            cols = [k for k in key if isinstance(k,str)]
             rows = [i for i in key if isinstance(i,(slice,int))] 
-            rows = slice(0,None,1) if not rows else rows[0]
-            if isinstance(value,dict):
-                for name in cols:
-                    self._columns[name][rows] = value[name]
-            elif isinstance(value, (list,tuple)):
-                for ix,(name) in enumerate(cols):
-                    self._columns[name][rows] = value[name]
+            
+            rows = None if not rows else rows[0]  # rows = slice(0,None,1) if not rows else rows[0]
+            if rows is None:  # it's an assignment.
+                for ix, name in enumerate(cols):
+                    if name in self._columns:
+                        del self._columns[name]
+                    if isinstance(value, dict):
+                        data=value[name]
+                    elif isinstance(value, (list,tuple)):
+                        data=value[ix]
+                    else:
+                        raise TypeError(type(value))
+                    self._columns[name] = Column(data)
+            else:  # it's an update.
+                for ix, name in enumerate(cols):
+                    if name not in self._columns:
+                        raise KeyError
+                    c = self._columns[name]
+                    if isinstance(value, dict):
+                        data=value[name]
+                    elif isinstance(value, (list,tuple)):
+                        data=value[ix]
+                    else:
+                        raise TypeError(type(value))
+                    c[rows] = data
         else:
             raise TypeError(f"Bad key type: {key}, expected str or tuple of strings")
-    
+
+    def add_row(*args,**kwargs):  
+        pass
+        # https://stackoverflow.com/questions/25655588/incremental-writes-to-hdf5-with-h5py?noredirect=1&lq=1
+        # https://stackoverflow.com/questions/47072859/how-to-append-data-to-one-specific-dataset-in-a-hdf5-file-with-h5py
+
     def copy(self):
         """
         returns a copy of the table
         """
         t = Table()
         for name, c in self.columns.items():
-            t.add_column(name, c)
+            t[name] =  c.copy()
         return t
+
     def index(self, *keys):
         """ 
         Returns index on *keys columns as d[(key tuple, )] = {index1, index2, ...} 
         """
-        idx = defaultdict(set)
-        generator = self.__getitem__(*keys)
-        for ix, key in enumerate(generator.rows):
-            idx[key].add(ix)
-        return idx
+        if isinstance(keys, str) and keys in self._columns:
+            col = self._columns[keys]
+            assert isinstance(col, Column)
+            return col.index()
+        else:
+            idx = defaultdict(set)
+            generator = self.__getitem__(*keys)
+            for ix, key in enumerate(generator.rows):
+                idx[key].add(ix)
+            return idx
+
     def __eq__(self,other):
         """
         enables comparison of self with other
@@ -153,6 +193,7 @@ class Table(object):
             if c!=c2:  # exit at the earliest possible option.
                 return False
         return True
+
     def compare(self,other):
         """
         compares the metadata of the two tables and raises on the first difference.
@@ -166,6 +207,7 @@ class Table(object):
                 col2 = b.columns[name]
                 if col.dtype != col2.dtype:
                     raise ValueError(f"Column {name}.datatype different: {col.dtype}, {col2.dtype}")
+
     def __iadd__(self,other):
         """ 
         enables extension of self with data from other.
@@ -175,6 +217,7 @@ class Table(object):
         for name,mc in self.columns.items():
             mc.extend(other.columns[name])
         return self
+
     def __add__(self,other):
         """
         returns the joint extension of self and other
@@ -184,6 +227,7 @@ class Table(object):
         t = self.copy()
         t += other
         return t
+
     def stack(self,other):  # TODO: Add tests.
         """
         returns the joint stack of tables
@@ -203,6 +247,7 @@ class Table(object):
             if name not in other.columns:
                 mc.extend(data=[None]*len(other))
         return t
+
     def __mul__(self,other):
         """
         enables repetition of a table
@@ -214,6 +259,7 @@ class Table(object):
         for _ in range(1,other):  # from 1, because the copy is the first.
             t += self
         return t
+
     def sort(self, **kwargs):
         pass
     def join(self, other, left_keys, right_keys, left_columns, right_columns, join_type):
@@ -461,10 +507,17 @@ class Table(object):
         return t
     @classmethod
     def from_json(path):
-        pass
+        pass            
     @classmethod
     def from_tablite_cache(cls, path=None):
         pass  # reconstructs tables from tablite cache: returns dict with {table keys: Table(), .... }
-
-
+        if path is None:
+            path = pathlib.Path(HDF5_CACHE_DIR) / HDF5_CACHE_FILE
+        
+        with h5py.File(path,mode='r') as h5:
+            tables = []
+            for table_key in h5[HDF5_TABLE_ROOT]:
+                table = Table(key=table_key)
+                tables.append(table)
+        return tables
 

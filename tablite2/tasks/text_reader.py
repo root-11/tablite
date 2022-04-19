@@ -312,8 +312,7 @@ def consolidate(path):
                 vsource = h5py.VirtualSource(dset)
                 layout[a:b] = vsource
                 a = b
-            f.create_virtual_dataset(f'/{col_name}', layout=layout)   
-
+            f.create_virtual_dataset(f'/{col_name}', layout=layout)
 
 
 def sha256sum(path, column_name):

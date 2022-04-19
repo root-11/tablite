@@ -23,15 +23,15 @@ def test_000_datatypes():
     from datetime import datetime
     now = datetime.now().replace(microsecond=0)
     table4 = Table()
-    table4.add_column('A', data=[-1, 1])
-    table4.add_column('B', data=[None, 1])     # (1)
-    table4.add_column('C', data=[-1.1, 1.1])
-    table4.add_column('D', data=["", "1"])     # (2)
-    table4.add_column('E', data=[None, "1"])   # (1,2)
-    table4.add_column('F', data=[False, True])
-    table4.add_column('G', data=[now, now])
-    table4.add_column('H', data=[now.date(), now.date()])
-    table4.add_column('I', data=[now.time(), now.time()])
+    table4['A'] = [-1, 1]
+    table4['B'] = [None, 1]     # (1)
+    table4['C'] = [-1.1, 1.1]
+    table4['D'] = ["", "1"]     # (2)
+    table4['E'] = [None, "1"]   # (1,2)
+    table4['F'] = [False, True]
+    table4['G'] = [now, now]
+    table4['H'] = [now.date(), now.date()]
+    table4['I'] = [now.time(), now.time()]
     # (1) with `allow_empty=True` `None` is permitted.
     # (2) Empty string is not a None, when datatype is string.
     table4.show()
@@ -46,10 +46,10 @@ def test_000_datatypes():
 
 def test_000_add_data():
     t = Table()
-    t.add_column('row', int)
-    t.add_column('A', int)
-    t.add_column('B', int)
-    t.add_column('C', int)
+    t['row'] = []
+    t['A'] = []
+    t['B', 'C'] = [ [], [] ]
+
     t.add_row(1, 1, 2, 3)  # individual values
     t.add_row([2, 1, 2, 3])  # list of values
     t.add_row((3, 1, 2, 3))  # tuple of values
