@@ -151,6 +151,6 @@ def merge(source, mask, filter_type, slice_):
             false.add_column(name, data)
 
     # 4. return table.to_shm()
-    return true.address, false.address   
+    return true.key, false.key   
 
 
