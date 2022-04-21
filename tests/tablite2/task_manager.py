@@ -14,23 +14,27 @@ from tqdm import tqdm
 
 
 POOL = []  # Global pool of workers.
-
+TASK_QUEUE = multiprocessing.Queue()
 
 def stop_remaining_workers():
     global POOL
-    for worker in POOL:  # put enough stop messages for all workers.
-        worker.tq.put("stop")
+    if not POOL:
+        return
+    print("Calling shutdown.")
 
-    with tqdm(total=len(POOL), unit="n", desc="workers stopping") as pbar:
-        while True:
-            not_alive = sum(1 if not p.is_alive() else 0 for p in POOL)
-            pbar.n = not_alive
-            pbar.refresh()
-            if not_alive < len(POOL):
-                time.sleep(0.01)
-            else:
-                break
+    for _ in POOL:  # put enough stop messages for all workers.
+        global TASK_QUEUE
+        TASK_QUEUE.put("stop")
+
+    while True:
+        after_count = sum(1 if not p.is_alive() else 0 for p in POOL)
+        if after_count == len(POOL):
+            break
+    print(" All workers halted.", flush=True)
     POOL.clear()
+    while not TASK_QUEUE.empty:
+        _ = TASK_QUEUE.get_nowait()
+
 
 atexit.register(stop_remaining_workers)
 
@@ -40,8 +44,8 @@ class TaskManager(object):
         self._cpus = min(psutil.cpu_count(), cores) if (isinstance(cores,int) and cores > 0) else psutil.cpu_count()
         self._disk_space = psutil.disk_usage('/').free
         self._memory = psutil.virtual_memory().available
-
-        self.tq = multiprocessing.Queue()  # task queue for workers.
+        global TASK_QUEUE
+        self.tq = TASK_QUEUE               # task queue for workers.
         self.rq = multiprocessing.Queue()  # result queue for workers.
         self.pool_sigq = {}                # signal queue for each worker.
         self.tasks = 0                     # counter for task tracking
@@ -53,7 +57,7 @@ class TaskManager(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb): # signature requires these, though I don't use them.
-        self.stop()  # stop the workers.
+        pass  
     
     def start(self):
         if len(self.pool) == self._cpus and all(p.is_alive() for p in self.pool):
@@ -84,6 +88,8 @@ class TaskManager(object):
         if not isinstance(tasks, (list,tuple)) or not all([isinstance(i, Task) for i in tasks]):
             raise TypeError
 
+        assert self.tq is TASK_QUEUE
+
         for t in tasks:
             self.tq.put(t)
             self.tasks += 1  # increment task counter.
@@ -105,7 +111,11 @@ class TaskManager(object):
                     time.sleep(0.01)
         return results
 
+    @classmethod
     def halt(self):
+        """
+        low level control API to stop the workers.
+        """
         stop_remaining_workers()
             
     def chunk_size_per_cpu(self, working_memory_required):  # 39,683,483,123 = 39 Gb.
