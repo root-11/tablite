@@ -1,5 +1,3 @@
-from tablite2.table import Table
-
 import pathlib
 import pyexcel 
 
@@ -24,6 +22,7 @@ def excel_reader(path, has_headers=True, sheet_name=None, **kwargs):
         else:
             break
     
+    raise NotImplementedError("GO STRAIGHT TO HDF5 instead.")
     t = Table()
     for idx, column in enumerate(sheet.columns(), 1):
         if has_headers:
@@ -64,6 +63,7 @@ def ods_reader(path, has_headers=True, sheet_name=None, **kwargs):
         else:
             break
 
+    raise NotImplementedError("GO STRAIGHT TO HDF5 instead.")
     t = Table()
     for ix, value in enumerate(data[0]):
         if has_headers:

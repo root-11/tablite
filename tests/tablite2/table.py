@@ -6,13 +6,268 @@ import json
 
 import h5py  #https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr?rq=1  
 import chardet
+import numpy as np
 
+from tablite2.settings import HDF5_COLUMN_ROOT, HDF5_PAGE_ROOT, HDF5_PAGE_SIZE
 from tablite2.settings import HDF5_IMPORT_ROOT, HDF5_CACHE_DIR, HDF5_CACHE_FILE, HDF5_TABLE_ROOT
-from tablite2.column import Column, Page
+
 from tablite2.task_manager import TaskManager, Task
-from tablite2.utils import isiterable, normalize_slice, sha256sum
-from tablite2.tasks.excel_reader import excel_reader,ods_reader
+from tablite2.utils import normalize_slice
 from tablite2.tasks.text_reader import text_reader, TextEscape, consolidate
+from tablite2.tasks.excel_reader import excel_reader, ods_reader
+
+# As Table use Columns (virtual H5 datasets) which use Pages (h5 dsets),  there is a need 
+# to track the number of references for each dset.
+# To assure integraty the only process that can delete data is the process that created it.
+#
+# And __main__ owns all Tables.
+#
+# A virt-dset may refer to an imported file, the page is identifiable as (Path,H5Group)
+# In H5 tables are in the group /table
+#  -"- columns are in the group /column
+#  -"-   pages are in the group /page
+#
+# If a user types `del table6`, the del can only happen in __main__.
+#
+# The only thing that works is if the Worker:
+# - returns the name of path & h5group it creates.
+# - maintains files itself (create/delete)
+# <-- It must be on the task.
+# 
+
+# ---------------------------------------------------
+
+# h5py modes:
+# r	 Readonly, file must exist (default)
+# r+ Read/write, file must exist
+# w	 Create file, truncate if exists
+# w- or x	Create file, fail if exists
+# a	 Read/write if exists, create otherwise
+
+
+class Column(object):   # HDF5 virtual dataset.  I need columns to make table copy & inheritance work effectively.
+    def __init__(self, key, data=None) -> None:
+        if not isinstance(key, str) or key == "":
+            raise TypeError(f"non-empty str str is required for key. Got {key}")
+        
+        self.path = pathlib.Path(HDF5_CACHE_DIR) / HDF5_CACHE_FILE
+        self.group = f"{HDF5_COLUMN_ROOT}/{self.key}"
+        self._len = None
+        self.datatypes = {}
+        self.encoding = None
+
+        with h5py.File(self.path, mode='r') as h5:
+            if key in h5[HDF5_COLUMN_ROOT]:
+                dset = h5[self.group]
+                self._len = dset.len
+                self.datatypes = json.loads(dset.attrs['datatype'])
+                self.encoding = dset.attrs.get('encoding', 'utf-8')
+            elif data is None:
+                self._len = 0
+            else:
+                self.extend(data)            
+
+    @property
+    def pages(self):
+        """
+        returns the sources of the virtual dataset.
+        """
+        with h5py.File(name=self.path,mode='r') as h5:
+            dset = h5[self.group]
+            pages = [(fname,grp) for _,fname,grp,_ in dset.virtual_sources()]  # https://docs.h5py.org/en/stable/high/dataset.html#h5py.Dataset.virtual_sources
+            return pages   
+
+    def __str__(self) -> str:
+        return f"<{self.__class__.__name__}>({self.datatypes} | {self._len} | {self.path} | {self.group})"
+
+    def __len__(self):
+        if self._len is None:
+
+            with h5py.File(name=self.path,mode='r') as h5:
+                dset = h5[self.group]
+                self._len = dset.size
+
+        return self._len
+
+    def __eq__(self, other) -> bool:
+        if self.pages == other.pages:  # fast check.
+            return True
+        return not any(a!=b for a,b in zip(self,other))  # slow check.
+
+    def __setitem__(self, key, value):
+        """
+        col[ix] == value
+        col[slice] == ndarray
+        """
+        pass  # https://docs.h5py.org/en/stable/high/dataset.html#h5py.Dataset.resize IFF ref count == 1
+    def __getitem__(self, key):
+        """
+        col[int] --> value
+        col[slice] --> ndarray
+        """
+        with h5py.File(name=self.path, mode='r') as h5:
+            raise Exception
+            dset.attrs['datatype'] = json.dumps(dtypes)
+            dset.attrs['encoding'] = encoding
+            return h5[self.group][key]  # TODO check for datatype.
+            # https://docs.h5py.org/en/stable/high/dataset.html#h5py.Dataset.astype
+
+    def __del__(self):
+        if __name__ == "__main__":  # only main can delete tables.
+            with h5py.File(name=self.path, mode='r') as h5:
+                del h5[self.group]
+
+
+    def __delitem__(self, key):
+        # if 
+        #   ref count == 0, delete the dataset.
+        # elif ref count == 1:
+        #   https://docs.h5py.org/en/stable/high/dataset.html#h5py.Dataset.resize 
+        # else:
+        #   raise KeyError.
+        raise NotImplementedError
+    
+    def clear(self):
+        with h5py.File(self.path, 'a') as h5:
+            dset = h5[self.group]
+            old_pages = [(path,group) for _,path,group,_ in dset.virtual_sources()]
+
+        for page in old_pages:
+            path, group = page   # not sure this will work with imports...?
+            with h5py.File(path,'r+') as h5:
+                dset = h5[group]
+                dset.attrs['ref count'] -= 1
+
+
+            if self.ref_count[page] == 0:
+                del h5[group]
+        self._len = 0
+
+    def append(self, value):
+        if Column.ref_count[ last_page ] > 1:
+            err = """
+            Columns are made for batch operations. 
+            It is more efficient to create the data 
+            as a list and then use Column.extend(...)
+            """
+            raise AttributeError(err)  
+        else:
+            raise NotImplementedError
+
+    @classmethod
+    def _add_data_to_hdf5(cls, path, data, encoding='utf-8'):
+        """
+        Adds new data. type checks the data.
+        """
+        if not isinstance(data,np.ndarray):
+            data = np.array(data)
+        # type check
+        if data.dtype.char == 'O':  # datatype was non-native to HDF5, so utf-8 encoded bytes must used
+            dtypes = defaultdict(int)
+            for v in data:
+                if v is not None:
+                    dtypes[type(v).__name__] += 1
+            nones = sum(1 for v in data if v == None)
+            if nones:
+                dtypes['None'] = nones
+            data = data.astype(bytes)
+            # data = [str(v).encode(encoding) for v in data]  # data.astype(bytes)
+            new_dtype = h5py.string_dtype(encoding='utf-8')
+        elif data.dtype.char == 'U':
+            data = data.astype(bytes)
+            dtypes = {type(str).__name__: len(data)}
+            new_dtype = h5py.string_dtype(encoding='utf-8')
+        else:
+            dtypes = {data.dtype.name: len(data)}
+            new_dtype = data.dtype
+        # store using page id.
+        page_id = next(cls.page_ids)
+        group = f"{HDF5_PAGE_ROOT}/page-{page_id}"
+        with h5py.File(path, 'a') as h5:
+            dset = h5.create_dataset(name=group, data=data, # data is now HDF5 compatible.
+                                     dtype=new_dtype, # the HDF5 stored dtype may require unpacking using dtypes if they are different.
+                                     maxshape=(None,), chunks=HDF5_PAGE_SIZE)
+            dset.attrs['datatype'] = json.dumps(dtypes)
+            dset.attrs['encoding'] = encoding
+        return path, group
+
+    def extend(self, values):  # recreate virtual dataset
+        if isinstance(values, (tuple, list, np.ndarray)):
+            # all original data is stored as an individual dataset.
+            path, group = self._add_data_to_hdf5(self.path, values)
+            new_pages = [ (path, group) ]
+        elif isinstance(values, Column):
+            new_pages = values.pages  # list
+        else:
+            raise TypeError(values)
+
+        with h5py.File(self.path, 'a') as h5:
+            # 1. check for existing data & adjust ref count
+            if self.group in h5:  
+                dset = h5[self.group]
+                old_pages = [ (path,group) for _,path,group,_ in dset.virtual_sources() ]
+            else:
+                old_pages = []
+            
+            # 2. adjust ref count by adding first, then remove, as this prevents ref count < 1.
+            pages = old_pages + new_pages
+            for name in pages:  # add ref count for new connection.
+                self.ref_count[name]+=1
+            for name in old_pages:  # remove duplicate ref count.
+                self.ref_count[name]-=1
+            
+            # 3. determine new layout.
+            dtypes = defaultdict(int)
+            for path, dset_name in pages:
+                dset = h5[dset_name]
+                dtypes[dset.dtype] += dset.len()
+            shape = sum(dtypes.values())
+            L = [x for x in dtypes]
+            L.sort(key=lambda x: x.itemsize, reverse=True)
+            dtype = L[0]  # np.bytes
+
+            # 4. create the layout.
+            layout = h5py.VirtualLayout(shape=(shape,), dtype=dtype, maxshape=(None,), filename=self.path)
+            a, b = 0, 0
+            for path, group in pages:
+                dset = h5[group]
+                b += dset.len()
+                vsource = h5py.VirtualSource(dset)
+                layout[a:b] = vsource
+                a = b
+
+            # 5. final write to disk.
+            if self.group in h5:
+                del h5[self.group]
+            h5.create_virtual_dataset(self.group, layout=layout)
+            self._len = shape
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        with h5py.File(name=self.path, mode='r') as h5:
+            for v in h5[self.group]:
+                yield v  # TODO check for datatype.
+    
+    def copy(self):
+        return Column(data=self)
+
+    def index(self):
+        with h5py.File(name=self.path, mode='r') as h5:
+            d = {k:[] for k in np.unique(h5[self.group])}  
+            for ix,k in enumerate(h5[self.group]):
+                d[k].append(ix)
+        return d
+
+    def unique(self):  # as self is a virtual dataset, this is easy
+        with h5py.File(name=self.path, mode='r') as h5:
+            return np.unique(h5[self.group])
+
+    def histogram(self):  # it may be faster to do this in parallel, but for now the brute-force approach below works.
+        with h5py.File(name=self.path, mode='r') as h5:
+            uarray, carray = np.unique(h5[self.group], return_counts=True)
+        return uarray, carray
 
 
 class Table(object):
@@ -49,7 +304,11 @@ class Table(object):
         generators = [iter(mc) for mc in self.columns.values()]
         for _ in range(len(self)):
             yield [next(i) for i in generators]
-        
+    
+    def __len__(self):
+        for k,v in self._columns.items():
+            return len(v)
+
     def __getitem__(self, *keys):
         """
         table[text]  --> column   
@@ -142,7 +401,7 @@ class Table(object):
         else:
             raise TypeError(f"Bad key type: {key}, expected str or tuple of strings")
 
-    def add_row(*args,**kwargs):  
+    def add_row(*args, **kwargs):  
         pass
         # https://stackoverflow.com/questions/25655588/incremental-writes-to-hdf5-with-h5py?noredirect=1&lq=1
         # https://stackoverflow.com/questions/47072859/how-to-append-data-to-one-specific-dataset-in-a-hdf5-file-with-h5py
@@ -501,7 +760,7 @@ class Table(object):
             for name in f.keys():
                 if name == HDF5_IMPORT_ROOT:
                     continue
-                page = Page(path=path, route=f"/{name}")
+                page = Column(path=path, route=f"/{name}")
                 t[name] = Column(page)
 
         return t
@@ -520,4 +779,6 @@ class Table(object):
                 table = Table(key=table_key)
                 tables.append(table)
         return tables
+
+
 

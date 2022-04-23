@@ -3,6 +3,7 @@ import pathlib
 import numpy as np
 from collections import defaultdict
 from tablite2 import Table, Column
+from tablite2.settings import HDF5_CACHE_DIR, HDF5_CACHE_FILE
 
 
 
@@ -13,20 +14,24 @@ BIG_HDF5 = pathlib.Path(str(BIG_FILE) + '.hdf5')
 
 
 def setup():
-    pass
+    cache_file = pathlib.Path(HDF5_CACHE_DIR) / HDF5_CACHE_FILE
+    if cache_file.exists():
+        cache_file.unlink()
 
 def teardown():
-    pass
+    cache_file = pathlib.Path(HDF5_CACHE_DIR) / HDF5_CACHE_FILE
+    if cache_file.exists():
+        cache_file.unlink()
 
 
-def test_000_datatypes():
+def test_000_add_all_datatypes():
     from datetime import datetime
     now = datetime.now().replace(microsecond=0)
     table4 = Table()
     table4['A'] = [-1, 1]
     table4['B'] = [None, 1]     # (1)
     table4['C'] = [-1.1, 1.1]
-    table4['D'] = ["", "1"]     # (2)
+    table4['D'] = ["", "1000"]     # (2)
     table4['E'] = [None, "1"]   # (1,2)
     table4['F'] = [False, True]
     table4['G'] = [now, now]

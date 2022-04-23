@@ -7,9 +7,7 @@ from collections import defaultdict
 
 import h5py  # required packages
 from tqdm import trange
-from numpy import np
-
-from tablite2.settings import HDF5_IMPORT_ROOT  # local modules.
+import numpy as np
 
 
 class TextEscape(object):
@@ -145,7 +143,7 @@ def detect_seperator(text):
         return {k:v for k,v in frq}
 
 
-def text_reader(source, destination, columns, 
+def text_reader(source, destination, destination_root, columns, 
                 newline, delimiter=',', first_row_has_headers=True, qoute='"',
                 text_escape_openings='', text_escape_closures='',
                 start=None, limit=None,
@@ -187,8 +185,6 @@ def text_reader(source, destination, columns,
         raise TypeError
     if not all(isinstance(name,str) for name in columns):
         raise ValueError
-
-    root=HDF5_IMPORT_ROOT
     
     # declare CSV dialect.
     text_escape = TextEscape(text_escape_openings, text_escape_closures, qoute=qoute, delimiter=delimiter)
@@ -255,6 +251,7 @@ def text_reader(source, destination, columns,
             data[name] = arr
 
     # store as HDF5
+    root = destination_root
     for _ in range(100):  # overcome any IO blockings.
         try:
             with h5py.File(destination, 'a') as f:
@@ -266,7 +263,7 @@ def text_reader(source, destination, columns,
     raise TimeoutError("Couldn't connect to OS.")
 
 
-def consolidate(path):
+def consolidate(path, destination_root):
     """ PARALLEL TASK FUNCTION
     enables consolidation of hdf5 imports from root into column named folders.
     
@@ -277,7 +274,7 @@ def consolidate(path):
     if not path.exists():
         raise FileNotFoundError(path)
     
-    root=HDF5_IMPORT_ROOT
+    root = destination_root
 
     with h5py.File(path, 'a') as f:
         if root not in f.keys():

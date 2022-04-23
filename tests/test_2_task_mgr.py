@@ -1,18 +1,32 @@
 from multiprocessing import shared_memory
 import numpy as np
 import time
-from tablite2.task_manager import Task, TaskManager
+from tablite2.task_manager import Task, TaskManager, REF_COUNT
 
+
+# PARALLEL TASK FUNCTION
+def syncman_job(i, ref_count):
+    print(i)
+    try:
+        ref_count[i] = __name__
+        time.sleep(0.1)
+        print("worked!")
+    except Exception:
+        print("can't get global")
+        return
+
+    
 # PARALLEL TASK FUNCTION
 def mem_test_job(shm_name, dtype, shape, index, value):
     """
     function for TaskManager for test_multiprocessing
     """
     existing_shm = shared_memory.SharedMemory(name=shm_name)
-    c = np.ndarray((6,), dtype=dtype, buffer=existing_shm.buf)
+    c = np.ndarray(shape, dtype=dtype, buffer=existing_shm.buf)
     c[index] = value
     existing_shm.close()
     time.sleep(0.1)
+
 
 def test_multiprocessing():
     # Create shared_memory array for workers to access.
@@ -44,10 +58,15 @@ def test_multiprocessing():
     
     shm.close()
     shm.unlink()
-    # TaskManager.halt()
-
+    
+    with TaskManager() as tm:
+        tasks = [Task(f=syncman_job, i=i, ref_count=REF_COUNT) for i in range(20)]
+        results = tm.execute(tasks)
+    
+    
 
 if __name__ == "__main__":
     for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
         print(20 * "-" + k + "-" * 20)
         v()
+
