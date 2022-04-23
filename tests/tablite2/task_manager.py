@@ -15,6 +15,7 @@ from tqdm import tqdm
 
 POOL = []  # Global pool of workers.
 TASK_QUEUE = multiprocessing.Queue()
+REF_COUNT = {} # dict
 
 def stop_remaining_workers():
     global POOL
@@ -44,51 +45,55 @@ class TaskManager(object):
         self._cpus = min(psutil.cpu_count(), cores) if (isinstance(cores,int) and cores > 0) else psutil.cpu_count()
         self._disk_space = psutil.disk_usage('/').free
         self._memory = psutil.virtual_memory().available
+        
         global TASK_QUEUE
         self.tq = TASK_QUEUE               # task queue for workers.
         self.rq = multiprocessing.Queue()  # result queue for workers.
         self.pool_sigq = {}                # signal queue for each worker.
         self.tasks = 0                     # counter for task tracking
+        
         global POOL
         self.pool = POOL                     # list of sub processes
-        
+                
     def __enter__(self):
         self.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb): # signature requires these, though I don't use them.
-        pass  
-    
+        pass
+
     def start(self):
+        """
+        low level control API to start the workers. 
+        Better to use `with TaskManager() as tm: ....`
+        """
         if len(self.pool) == self._cpus and all(p.is_alive() for p in self.pool):
             return
-        else:
-            self.pool.clear()
-            for i in range(self._cpus):  # create workers
-                name = str(i)
-                worker = Worker(name=name, tq=self.tq, rq=self.rq)
-                self.pool.append(worker)
+        
+        self.pool.clear()
+        for i in range(self._cpus):  # create workers
+            name = str(i)
+            worker = Worker(name=name, tq=self.tq, rq=self.rq, ref_count=REF_COUNT)
+            self.pool.append(worker)
 
-            with tqdm(total=self._cpus, unit="n", desc="workers ready") as pbar:
-                for p in self.pool:
-                    p.start()
+        with tqdm(total=self._cpus, unit="n", desc="workers ready") as pbar:
+            for p in self.pool:
+                p.start()
 
-                while True:
-                    alive = sum(1 if p.is_alive() else 0 for p in self.pool)
-                    pbar.n = alive
-                    pbar.refresh()
-                    if alive < self._cpus:
-                        time.sleep(0.01)
-                    else:
-                        break  # all sub processes are alive. exit the setup loop.
+            while True:
+                alive = sum(1 if p.is_alive() else 0 for p in self.pool)
+                pbar.n = alive
+                pbar.refresh()
+                if alive < self._cpus:
+                    time.sleep(0.01)
+                else:
+                    break  # all sub processes are alive. exit the setup loop.
     
     def execute(self, tasks):
         if isinstance(tasks, Task):
             response = (tasks,)
         if not isinstance(tasks, (list,tuple)) or not all([isinstance(i, Task) for i in tasks]):
             raise TypeError
-
-        assert self.tq is TASK_QUEUE
 
         for t in tasks:
             self.tq.put(t)
@@ -115,6 +120,7 @@ class TaskManager(object):
     def halt(self):
         """
         low level control API to stop the workers.
+        Better to use `with TaskManager() as tm: ....`
         """
         stop_remaining_workers()
             
@@ -130,12 +136,14 @@ class TaskManager(object):
 
 
 class Worker(multiprocessing.Process):
-    def __init__(self, name, tq, rq):
+    def __init__(self, name, tq, rq, ref_count):
         super().__init__(group=None, target=self.update, name=name, daemon=False)
         self.exit = multiprocessing.Event()
         self.tq = tq  # workers task queue
-        self.rq = rq  # workers result queue       
-               
+        self.rq = rq  # workers result queue    
+        global REF_COUNT
+        REF_COUNT = ref_count
+        
     def update(self):
         while True:
             # then deal with any tasks...
@@ -149,7 +157,7 @@ class Worker(multiprocessing.Process):
                     task.execute()
                     self.rq.put(task)
                 else:
-                    raise Exception(f"What is {task}?")
+                    raise Exception(f"Expected an instance of Task, but got {task}")
             except queue.Empty:
                 time.sleep(0.01)
                 continue
