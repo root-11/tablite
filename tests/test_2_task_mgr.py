@@ -3,18 +3,6 @@ import numpy as np
 import time
 from tablite2.task_manager import Task, TaskManager, REF_COUNT
 
-
-# PARALLEL TASK FUNCTION
-def syncman_job(i, ref_count):
-    print(i)
-    try:
-        ref_count[i] = __name__
-        time.sleep(0.1)
-        print("worked!")
-    except Exception:
-        print("can't get global")
-        return
-
     
 # PARALLEL TASK FUNCTION
 def mem_test_job(shm_name, dtype, shape, index, value):
@@ -58,11 +46,7 @@ def test_multiprocessing():
     
     shm.close()
     shm.unlink()
-    
-    with TaskManager() as tm:
-        tasks = [Task(f=syncman_job, i=i, ref_count=REF_COUNT) for i in range(20)]
-        results = tm.execute(tasks)
-    
+        
     
 
 if __name__ == "__main__":
