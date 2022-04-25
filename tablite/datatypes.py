@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from collections import defaultdict
 
 
@@ -18,6 +18,103 @@ class DataTypes(object):
     integers = set('1234567890-+')
     nones = {'null', 'Null', 'NULL', '#N/A', '#n/a', "", 'None', None}
     none_type = type(None)
+
+    _type_codes ={
+        type(None): 1,
+        bool: 2,
+        int: 3,
+        float: 4,
+        str: 5,
+        bytes: 6,
+        datetime: 7,
+        date: 8,
+        time: 9,
+        timedelta: 10
+    }
+
+    @classmethod
+    def type_code(cls, value): 
+        return cls._type_codes[type(value)]
+    
+    def b_none(v):
+        return b"None"
+    def b_bool(v):
+        return bytes(str(v), encoding='utf-8')
+    def b_int(v):
+        return bytes(str(v), encoding='utf-8')
+    def b_float(v):
+        return bytes(str(v), encoding='utf-8')
+    def b_str(v):
+        return v.encode('utf-8')
+    def b_bytes(v):
+        return v
+    def b_datetime(v):
+        return bytes(v.isoformat(), encoding='utf-8')
+    def b_date(v):
+        return bytes(v.isoformat(), encoding='utf-8')
+    def b_time(v):
+        return bytes(v.isoformat(), encoding='utf-8')
+    def b_timedelta(v):
+        return bytes(float(v.days + (v.seconds / (24*60*60))))
+        
+    bytes_functions = {
+        type(None): b_none,
+        bool: b_bool,
+        int: b_int,
+        float: b_float,
+        str: b_str,
+        bytes: b_bytes,
+        datetime: b_datetime,
+        date: b_date,
+        time: b_time,
+        timedelta: b_timedelta
+    }
+
+    @classmethod
+    def to_bytes(cls, v):
+        f = cls.bytes_functions[type(v)]
+        return f(v)
+
+    def _none(v):
+        return None
+    def _bool(v):
+        return bool(v.decode('utf-8'))
+    def _int(v):
+        return int(v.decode('utf-8'))
+    def _float(v):
+        return float(v.decode('utf-8'))
+    def _str(v):
+        return v.decode('utf-8')
+    def _bytes(v):
+        return v
+    def _datetime(v):
+        return datetime.fromisoformat(v.decode('utf-8'))
+    def _date(v):
+        return date.fromisoformat(v.decode('utf-8'))
+    def _time(v):
+        return time.fromisoformat(v.decode('utf-8'))
+    def _timedelta(v):
+        days = float(v)
+        seconds = 24 * 60 * 60 * ( float(v) - int(v) )
+        return timedelta(int(days), seconds)
+    
+    _type_code_functions = {
+        1: _none,
+        2: _bool,
+        3: _int,
+        4: _float,
+        5: _str,
+        6: _bytes,
+        7: _datetime,
+        8: _date,
+        9: _time,
+        10: _timedelta
+    }
+
+    @classmethod
+    def from_type_code(cls, value, code):
+        f = cls._type_code_functions[code]
+        return f(value)
 
     date_formats = {  # Note: Only recognised ISO8601 formats are accepted.
         "NNNN-NN-NN": lambda x: date(*(int(i) for i in x.split("-"))),
@@ -463,3 +560,4 @@ class DataTypes(object):
 
         return start, stop, step
 
+    
