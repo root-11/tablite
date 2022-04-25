@@ -1086,7 +1086,6 @@ class Table(MemoryManagedObject):
         for name,mc in self.columns.items():
             mc.extend(other.columns[name])
         return self
-
     def __add__(self, other):
         """
         returns the joint extension of self and other
@@ -1143,8 +1142,6 @@ class Table(MemoryManagedObject):
                 col2 = b.columns[name]
                 if col.dtype != col2.dtype:
                     raise ValueError(f"Column {name}.datatype different: {col.dtype}, {col2.dtype}")
-                # if col.allow_empty != col2.allow_empty:  // TODO!
-                #     raise ValueError(f"Column {name}.allow_empty is different")
 
     def copy(self):
         """
@@ -3076,7 +3073,7 @@ if __name__ == "__main__":
     test_filter()
     # test_multiprocess_bug_82300()
     
-    # test_file_importer_multiproc()  # now the imported file is available for other tests.
+    test_file_importer_multiproc()  # now the imported file is available for other tests.
 
     # for k,v in {k:v for k,v in sorted(globals().items()) if k.startswith('test') and callable(v)}.items():
     #     if k == "test_file_importer_multiproc":
