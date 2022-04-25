@@ -13,10 +13,6 @@ import psutil
 from tqdm import tqdm
 
 
-POOL = []  # Global pool of workers.
-TASK_QUEUE = multiprocessing.Queue()
-REF_COUNT = {} # dict
-
 def stop_remaining_workers():
     global POOL
     if not POOL:

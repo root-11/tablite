@@ -1,5 +1,6 @@
 import time
-from multiprocessing import Process, Manager
+from multiprocessing import Process, Manager, Pool
+
 
 def f(pid, d, l):    
     nap = d['sleep']
@@ -10,7 +11,7 @@ def f(pid, d, l):
     l.reverse()
 
 
-if __name__ == '__main__':
+def test1():
     manager = Manager()
     manager.__enter__()
     d = manager.dict()
@@ -29,3 +30,19 @@ if __name__ == '__main__':
     print(d)
     print(l)
     manager.__exit__(None,None,None)
+
+def f2(d,x):
+    d[x] = x*x
+
+def test2():  # <--- The better way to solve pooled tasks.
+    with Pool(8) as pool:
+        with Manager() as mgr:
+            d = mgr.dict()
+            tasks = [(d,x) for x in range(4000)]
+            pool.starmap(f2, tasks)
+            print(d)
+
+
+if __name__ == '__main__':
+    test1()
+    test2()
