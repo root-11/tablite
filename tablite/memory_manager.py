@@ -104,7 +104,7 @@ class MemoryManager(object):
                 self.ref_counts[page.group] -= 1
             
             # 3. determine new layout.
-            shape, dtype = Page.layout(all_pages)
+            dtype, shape = Page.layout(all_pages)
             # 4. create the layout.
             layout = h5py.VirtualLayout(shape=(shape,), dtype=dtype, maxshape=(None,), filename=self.path)
             a, b = 0, 0
@@ -194,36 +194,73 @@ class MemoryManager(object):
             data = np.array(data)
         page = Page.create(data)
         self.ref_counts[page.group] += 1       
-        return page.group
+        return page
 
     def get_data(self, group, item):
         if not group.startswith('/column'):
             raise ValueError("get data should be called by columns only.")
         with h5py.File(self.path, READONLY) as h5:
             dset = h5[group]
-            return dset[item]
+            if dset.dtype.char != 'O':  # it's a single type dataset.
+                return dset[item]
+
+            arrays = []
+            target_range = range(*normalize_slice(length=dset.len(), item=item))
+            # check if the slice is worth converting.
+            start,end,zero_range = 0,0, range(0)
+            pages = self.get_pages(group)
+            for page in pages:  # loaded Pages
+                end = len(page)
+                search_range = range(start,end,1)
+                intercept_range = intercept(target_range, search_range)
+                if intercept_range == zero_range:
+                    pass
+                else:
+                    # fetch the slice and filter it.
+                    search_slice = slice(intercept_range.start - start, intercept_range.stop - start, intercept_range.step)
+                    match = page[search_slice]
+                    arrays.append(match)
+
+                start = end
+                    
+            dtype, _ = Page.layout(pages)
+            return np.concatenate(arrays, dtype=dtype)
 
 
 class Page(object):
     _page_ids = 0  # when loading from disk increment this to max id.
+    _type_array = 'typearray'
+    _type_array_postfix = "_types"
+    _str = str.__name__
+    _datatype = 'datatype'
+    _encoding = 'encoding'
 
+   
     @classmethod
     def new_id(cls):
         cls._page_ids += 1
         return cls._page_ids
 
-    def __init__(self, group=None):        
+    def __init__(self, group):        
         if not group.startswith('/page'):
             raise ValueError
         
+        self.encoding = HDF5_Config.H5_ENCODING
         self.path = HDF5_Config.H5_STORAGE
         self.group = group
-        self.dtype = None
-        self.source_type = None
-        self.encoding = HDF5_Config.H5_ENCODING
-            
+
+        self.stored_datatype = None  # stored type
+        self.original_datatype = None  # original type
+        self._len = 0
+    
+    def __str__(self) -> str:
+        return f"Page({self.group} | {self.original_datatype} | {self.stored_datatype} | {self._len})"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
     @classmethod
-    def layout(pages):
+    def layout(cls, pages):
         """ 
         finds the common datatype 
 
@@ -239,14 +276,17 @@ class Page(object):
         return dtype, shape
         """
         assert all(isinstance(p, Page) for p in pages)
-        dtypes = {page.dtype.char for page in pages}
+        dtypes = {page.original_datatype for page in pages}
         shape = sum(len(page) for page in pages)
-        if 'O' in dtypes:
-            dtype = 'O'
-        elif len(dtypes) == 1:
+
+        if len(dtypes) == 1:
             dtype = dtypes.pop()
+            if dtype in {cls._type_array, cls._str}:
+                dtype = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)
+            else:
+                dtype = np.dtype(dtype)
         else:  # there are multiple datatypes.
-            dtype = 'O'
+            dtype = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)
         
         return dtype, shape
     
@@ -257,17 +297,19 @@ class Page(object):
         """
         with h5py.File(HDF5_Config.H5_STORAGE, READONLY) as h5:
             dset = h5[group]
+            datatype = dset.attrs[cls._datatype]
             
-            if dset.dtype.char == 'O':
-                page =  MixedType(group)
-            elif dset.dtype.char == 'U':
-                page = StringType(group)
-            else:
-                page = SimpleType(group)
+            class_types = {
+                cls._type_array: MixedType,
+                cls._str: StringType
+            }
+            class_type = class_types.get(datatype, SimpleType)
 
-            page.dtype = dset.dtype
-            page.source_type = dset.attrs['datatype']
+            page = class_type(group)
+            page.stored_datatype = dset.dtype
+            page.original_datatype = datatype
             page._len = dset.len()
+
             return page
 
     @classmethod
@@ -278,17 +320,30 @@ class Page(object):
         if not isinstance(data, np.ndarray):
             raise TypeError
         
-        if group is None:
-            group = f"/page/{Page.new_id()}"
+        group = f"/page/{Page.new_id()}"
 
         if data.dtype.char == 'O':
-            return MixedType(group, data)
+            pg = MixedType(group)
         elif data.dtype.char == 'U':
-            return StringType(group, data)
-        elif data.dtype.char in {'ld'}:
-            return SimpleType(group, data)
+            pg = StringType(group)
+        elif data.dtype.char in 'ld?':
+            pg = SimpleType(group)
         else:
             raise NotImplementedError(f"method missing for {data.dtype.char}")
+        pg.create(data)
+        return pg
+
+    @classmethod
+    def write(self, data, dtype ):
+        with h5py.File(READWRITE) as h5:
+            if self.group in h5:
+                raise ValueError("page already exists")
+            dset = h5.create_dataset(name=self.group, 
+                                    data=data,  # data is now HDF5 compatible.
+                                    dtype=dtype,  # the HDF5 stored dtype may require unpacking using dtypes if they are different.
+                                    maxshape=(None,),  # the stored data is now extendible / resizeable.
+                                    chunks=HDF5_Config.H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
+            dset.attrs['datatype'] = self.original_datatype
 
     def __len__(self):
         return self._len
@@ -296,8 +351,8 @@ class Page(object):
     def read(self):
         with h5py.File(self.path, READONLY) as h5:
             dset = h5[self.group]
-            self.dtype = dset.dtype
-            self.source_type = dset.attrs['datatype']
+            self.stored_datatype = dset.dtype
+            self.original_datatype = dset.attrs['datatype']
             self._len = dset.len()
 
     def update(self):
@@ -321,24 +376,29 @@ class Page(object):
 
 class SimpleType(Page):
     def __init__(self, group, data=None):
-        super().__init__(group, data)
+        super().__init__(group)
         if data:
             self.create(data)
     
     def create(self, data):
         if not isinstance(data, np.ndarray):
             raise TypeError
-
+        assert data.dtype.char not in 'OU'
+     
+        self._len = len(data)
+        self.stored_datatype = data.dtype
+        self.original_datatype = data.dtype.name
+             
         with h5py.File(self.path, READWRITE) as h5:
             if self.group in h5:
                 raise ValueError("page already exists")
             dset = h5.create_dataset(name=self.group, 
-                                     data=self.data,  # data is now HDF5 compatible.
-                                     dtype=self.stored_type,  # the HDF5 stored dtype may require unpacking using dtypes if they are different.
+                                     data=data,  
+                                     dtype=data.dtype,  
                                      maxshape=(None,),  # the stored data is now extendible / resizeable.
                                      chunks=HDF5_Config.H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
-            dset.attrs['datatype'] = self.source_type
-            dset.attrs['encoding'] = self.encoding
+            dset.attrs[self._datatype] = self.original_datatype
+            dset.attrs[self._encoding] = self.encoding
 
     def __getitem__(self, item):
         if item is None:
@@ -361,26 +421,28 @@ class SimpleType(Page):
 
 
 class StringType(Page):
-    def __init__(self, group, data=None, encoding=HDF5_Config.H5_ENCODING):
-        super().__init__(group, data, encoding)
+    def __init__(self, group, data=None):
+        super().__init__(group)
         if data:
             self.create(data)
 
     def create(self, data):
-        source_type = str.__name__
+        self.original_datatype = self._str
+        self.stored_datatype = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)  # 'U'
         data = data.astype(bytes)
-        stored_type = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)
+        self._len = len(data)
 
         with h5py.File(self.path, READWRITE) as h5:
             if self.group in h5:
                 raise ValueError("page already exists")
+                
             dset = h5.create_dataset(name=self.group, 
                                      data=data,  # data is now HDF5 compatible.
-                                     dtype=stored_type,  # the HDF5 stored dtype may require unpacking using dtypes if they are different.
+                                     dtype=self.stored_datatype,  # the HDF5 stored dtype may require unpacking using dtypes if they are different.
                                      maxshape=(None,),  # the stored data is now extendible / resizeable.
                                      chunks=HDF5_Config.H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
-            dset.attrs['datatype'] = source_type
-            dset.attrs['encoding'] = HDF5_Config.H5_ENCODING
+            dset.attrs[self._datatype] = self.original_datatype
+            dset.attrs[self._encoding] = self.encoding
 
     def __getitem__(self, item):
         if item is None:
@@ -406,35 +468,38 @@ class StringType(Page):
 
 class MixedType(Page):
     def __init__(self, group, data=None):
-        super().__init__(group, data)
+        super().__init__(group)
         self.type_group = None
         self.type_array = None
         if data:
             self.create(data)
     
     def create(self, data):
+        self._len = len(data)
+
         with h5py.File(self.path, READWRITE) as h5:
             if self.group in h5:
                 raise ValueError("page already exists")
-            if not isinstance(data, np.ndarray):
-                raise TypeError
-
-            type_code = DataTypes.type_code
-            self.type_group = f"{self.group}_types"
-            self.type_array = np.array( [ type_code(v) for v in data.tolist() ] )
             
-            self.source_type = 'typearray'
+            # get typecode for encoding.
+            type_code = DataTypes.type_code
+            self.type_group = f"{self.group}{self._type_array_postfix}"
+            self.type_array = np.array( [ type_code(v) for v in data.tolist() ] )
+            self.original_datatype = self._type_array
+            
             byte_function = DataTypes.to_bytes
             data = np.array( [byte_function(v) for v in data.tolist()] )
-            self.stored_type = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)
+            
+            self.stored_datatype = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)  # type 'O'
 
+            # dataset
             dset = h5.create_dataset(name=self.group, 
                                      data=data,  # data is now HDF5 compatible.
-                                     dtype=self.stored_type,  # the HDF5 stored dtype may require unpacking using dtypes if they are different.
+                                     dtype=self.stored_datatype,  # the HDF5 stored dtype may require unpacking using dtypes if they are different.
                                      maxshape=(None,),  # the stored data is now extendible / resizeable.
                                      chunks=HDF5_Config.H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
-            dset.attrs['datatype'] = self.source_type
-            dset.attrs['encoding'] = self.encoding
+            dset.attrs[self._datatype] = self.original_datatype
+            dset.attrs[self._encoding] = self.encoding
             
             # typearray 
             h5.create_dataset(name=self.type_group, 
@@ -454,7 +519,7 @@ class MixedType(Page):
             dset = h5[self.group]
             match = dset[item]            
             
-            type_group = f"{self.group}_types"
+            type_group = f"{self.group}{self._type_array_postfix}"
             type_array = h5[type_group][item]  # includes the page id
             type_functions = DataTypes.from_type_code
 
