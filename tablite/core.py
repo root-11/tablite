@@ -182,6 +182,8 @@ class Column(object):
         c = Column()
         c.extend(self)
         return c
+    def __copy__(self):
+        return self.copy()
     
     def index(self):
         data = self.__getitem__()
@@ -196,3 +198,52 @@ class Column(object):
     def histogram(self):  
         uarray, carray = np.unique(self.__getitem__(), return_counts=True)
         return uarray, carray
+
+    def index(self,item):
+        raise NotImplemented
+    
+    def insert(self,item):
+        raise NotImplemented
+    
+    def append(self,item):
+        raise NotImplemented
+    
+    def remove(self,item):
+        raise NotImplemented
+    
+    def pop(self,index=None):
+        raise NotImplemented
+    
+    def __add__(self,other):
+        raise NotImplemented
+    
+    def __contains__(self, item):
+        raise NotImplemented
+    
+    def __iadd__(self, other):
+        raise NotImplemented
+    
+    def __imul__(self, other):
+        raise NotImplemented
+    
+    def __mul__(self, other):
+        raise NotImplemented
+    
+    def __ne__(self, other):
+        if len(self) != len(other):
+            return False
+        if not isinstance(other, np.ndarray):
+            other = np.array(other)
+        return (self.__getitem__()!=other).any()
+    
+    def __le__(self,other):
+        raise NotImplemented
+    
+    def __lt__(self,other):
+        raise NotImplemented
+    
+    def __ge__(self,other):
+        raise NotImplemented
+
+    def __gt__(self,other):
+        raise NotImplemented
