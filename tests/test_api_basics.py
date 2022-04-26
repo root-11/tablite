@@ -4,10 +4,10 @@ import numpy as np
 from datetime import datetime
 
 
-def setup():
+def setup():  # pytest does this with every test.
     Table.reset_storage()
 
-def teardown():
+def teardown():  # pytest does this with every test.
     Table.reset_storage()
 
 
@@ -71,6 +71,7 @@ def test03():
     table4['A'][0] = [7]  # update as ref count == 1
 
     table4['A'] += table4['A']  # duplication of pages.
+    table4['A'] += [8,9,10]  # append where ref count > 1 creates a new page.
     table4['A'][0] == 10  # unlink page 0, create new page and update record [0] with 10
 
     table5 = table4.copy()
