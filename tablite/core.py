@@ -82,10 +82,10 @@ class Table(object):
             elif isinstance(values, Column):
                 self._columns[keys] = column = values.copy()
             else:
-                raise NotImplemented
+                raise NotImplemented()
             mem.create_column_reference(self.key, column_name=keys, column_key=column.key)
         else:
-            raise NotImplemented
+            raise NotImplemented()
     
     def __getitem__(self,keys):
         if isinstance(keys,str) and keys in self.columns:
@@ -97,7 +97,13 @@ class Table(object):
             mem.delete_column_reference(self.group, key, col.key)
             del self._columns[key]  # dereference the Column
         else:
-            raise NotImplemented
+            raise NotImplemented()()
+
+    def __add__(self,other):
+        raise NotImplemented()
+
+    def __iadd__(self,other):
+        raise NotImplemented()
 
     @classmethod
     def reload_saved_tables(cls,path=None):
@@ -200,34 +206,50 @@ class Column(object):
         return uarray, carray
 
     def index(self,item):
-        raise NotImplemented
+        raise NotImplemented()
     
     def insert(self,item):
-        raise NotImplemented
+        raise NotImplemented()
     
     def append(self,item):
-        raise NotImplemented
+        raise NotImplemented()
     
     def remove(self,item):
-        raise NotImplemented
+        raise NotImplemented()
     
     def pop(self,index=None):
-        raise NotImplemented
+        raise NotImplemented()
     
     def __add__(self,other):
-        raise NotImplemented
+        raise NotImplemented()
     
     def __contains__(self, item):
-        raise NotImplemented
+        raise NotImplemented()
     
     def __iadd__(self, other):
-        raise NotImplemented
+        if isinstance(other, (list,tuple)):
+            data = np.array(other)
+            shape = mem.append_to_virtual_dataset(self.group, data)
+            self._len = shape
+        elif isinstance(other, Column):
+            raise NotImplemented()
+        else:
+            raise TypeError(f"Can't += {type(other)}")
+        
+        
+        # mem get pages
+        # mem check for reference count:
+        #   if <= 1: append
+        #   else: new page.
+        # update virtual dset for column
+        
+        raise NotImplemented()
     
     def __imul__(self, other):
-        raise NotImplemented
+        raise NotImplemented()
     
     def __mul__(self, other):
-        raise NotImplemented
+        raise NotImplemented()
     
     def __ne__(self, other):
         if len(self) != len(other):
@@ -237,13 +259,13 @@ class Column(object):
         return (self.__getitem__()!=other).any()
     
     def __le__(self,other):
-        raise NotImplemented
+        raise NotImplemented()
     
     def __lt__(self,other):
-        raise NotImplemented
+        raise NotImplemented()
     
     def __ge__(self,other):
-        raise NotImplemented
+        raise NotImplemented()
 
     def __gt__(self,other):
-        raise NotImplemented
+        raise NotImplemented()
