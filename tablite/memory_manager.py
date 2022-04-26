@@ -88,13 +88,13 @@ class MemoryManager(object):
                     del self.ref_counts[page]
 
     def create_column(self, key):
-        print("create column does nothing. Column creation is handled by the table. See create_column_reference")
-        pass  # nothing to do.            
+        pass  # nothing to do.
+        raise AttributeError("create column does nothing. Column creation is handled by the table. See create_column_reference")
+        
 
     def delete_column(self, key):
-        print("delete column does nothing. Column delete is handled by the table. See delete_column_reference")
         pass  # nothing to do.
-    
+        raise AttributeError("delete column does nothing. Column delete is handled by the table. See delete_column_reference")   
 
     def create_virtual_dataset(self, group, new_pages):
         old_pages = self.get_pages(group)
