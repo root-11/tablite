@@ -24,6 +24,7 @@ def test01():
     table4['G'] = [now, now]
     table4['H'] = [now.date(), now.date()]
     table4['I'] = [now.time(), now.time()]
+    # TODO: add timedelta
     assert table4.columns == ['A','B','C','D','E','F','G','H','I']  # testing .columns property.
 
     table4.save = True  # testing that save keeps the data in HDF5.
@@ -178,7 +179,7 @@ def test08():
     pass  # filter
 
 def test09():
-    pass  # sort
+    pass  # sort  - sort as it appears as string
 
 def test10():
     pass  # join 

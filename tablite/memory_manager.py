@@ -90,7 +90,9 @@ class MemoryManager(object):
         pass  # nothing to do.
         raise AttributeError("delete column does nothing. Column delete is handled by the table. See delete_column_reference")   
 
-    def create_virtual_dataset(self, group, new_pages):
+    def create_virtual_dataset(self, group, new_pages=None):
+        if new_pages is None:
+            new_pages = []
         old_pages = self.get_pages(group)
         
         with h5py.File(self.path, READWRITE) as h5:
@@ -98,10 +100,11 @@ class MemoryManager(object):
             all_pages = old_pages + new_pages
             assert all(isinstance(i, Page) for i in all_pages)
            
-            for page in all_pages:  # add ref count for new connection.
-                self.ref_counts[page.group] += 1
-            for page in old_pages:  # remove duplicate ref count.
-                self.ref_counts[page.group] -= 1
+            if new_pages:
+                for page in all_pages:  # add ref count for new connection.
+                    self.ref_counts[page.group] += 1
+                for page in old_pages:  # remove duplicate ref count.
+                    self.ref_counts[page.group] -= 1
             
             # 3. determine new layout.
             dtype, shape = Page.layout(all_pages)
@@ -136,59 +139,29 @@ class MemoryManager(object):
         with h5py.File(self.path, TRUNCATE) as h5:
             assert list(h5.keys()) == []
 
-    def append_to_virtual_dataset(self, group, new_data):  # REWORK.
+    def append_to_virtual_dataset(self, group, new_data):  
         if not group.startswith("/column"):
             raise ValueError("only columns have virtual datasets.")
-
-        with h5py.File(self.path, READWRITE) as h5:
-            pages = self.get_pages(group)
-            last_page = pages[-1]
-            if self.ref_counts[last_page] > 1:  # make new page.
-                page = self.create_page(new_data)
-                shape = self.create_virtual_dataset(group, page)
+        
+        pages = self.get_pages(group)
+        last_page = pages[-1]
+        if self.ref_counts[last_page] == 1:  # resize page
+            target_cls = last_page.page_class_type_from_np(new_data)
+            if isinstance(last_page, target_cls):
+                last_page.append(new_data)
+                shape = self.create_virtual_dataset(group, page=None)
+                # Note above: check if it's better to resize the virtual layout using
+                #             info from: https://github.com/h5py/h5py/issues/1202
                 return shape
-            else:  # resize page
-                dset = h5[last_page]
-
-    # def append_to_page(self, page, new_data):  # REWORK.
-    #     if not page.startswith("/page"):
-    #         raise ValueError
-    #     if self.ref_counts[page] > 1: 
-    #         raise AttributeError("ref count > 1. Bad logic?")
-
-    #     if not isinstance(new_data,np.array):
-    #         new_data = np.array(new_data)
-
-    #     with h5py.File(self.path, READWRITE) as h5:
-    #         dset = h5[page]
-    #         source_type = dset.attrs['datatype']
+            else:  # make new page.
+                pass 
+        else:  # make new page.
+            pass
+        # make new page:
+        page = self.create_page(new_data)
+        shape = self.create_virtual_dataset(group, [page])
+        return shape
             
-    #         if new_data.dtype.name == source_type:
-    #             pass # they're the same. Resize page
-
-    #         elif source_type == 'typearray':
-    #             pass  # convert input to match mixed types.
-
-    #         elif source_type == 'str':  # make new data strings.
-    #             if new_data.dtype.char == 'U':
-    #                 new_data = new_data.astype(bytes)
-    #                 data = np.concatenate((dset,new_data))
-                    
-    #                 pass  # create new page.
-    #             else:
-    #                 pass  # resize page
-    #         # ... else:  # source is a native numpy type and they're different.
-    #         elif new_data.dtype.char == 'O':
-    #             pass  # make everything 'typearray'
-    #         elif new_data.dtype.char == 'U':
-    #             pass  # create new page where everything is 'str'
-    #         else:  # uniform HDF5 & numpy compatible datatype.
-    #             pass # both float? int? You will never know. create new page.
-    #             data = np.array( list(dset) + list(new_data) )
-                
-    #         dset.resize( dset.shape[0] + len(new_data ), axis=0)
-    #         dset[-len(new_data):] = new_data  # this will not work for composite data.
-
     def create_page(self, data):
         if not isinstance(data, np.ndarray):
             data = np.array(data)
@@ -199,11 +172,12 @@ class MemoryManager(object):
     def get_data(self, group, item):
         if not group.startswith('/column'):
             raise ValueError("get data should be called by columns only.")
+        
         with h5py.File(self.path, READONLY) as h5:
             dset = h5[group]
             if dset.dtype.char != 'O':  # it's a single type dataset.
                 return dset[item]
-
+                
             arrays = []
             target_range = range(*normalize_slice(length=dset.len(), item=item))
             # check if the slice is worth converting.
@@ -213,12 +187,13 @@ class MemoryManager(object):
                 end = len(page)
                 search_range = range(start,end,1)
                 intercept_range = intercept(target_range, search_range)
+
                 if intercept_range == zero_range:
                     pass
                 else:
                     # fetch the slice and filter it.
                     search_slice = slice(intercept_range.start - start, intercept_range.stop - start, intercept_range.step)
-                    match = page[search_slice]
+                    match = page[search_slice]  # page.__getitem__ handles type conversion for Mixed and Str types.
                     arrays.append(match)
 
                 start = end
@@ -234,7 +209,37 @@ class Page(object):
     _str = str.__name__
     _datatype = 'datatype'
     _encoding = 'encoding'
+    _MixedTypes = "O" # + _type_array
+    _StringTypes = "U" # + _str
+    _SimpleTypes = "ld?"
 
+    @classmethod
+    def page_class_type_from_np(cls, np_arr):
+        """ returns Page class from np.ndarray """
+        if not isinstance(np_arr, np.ndarray):
+            raise TypeError
+
+        if np_arr.dtype.char in cls._MixedTypes:
+            clss = MixedType
+        elif np_arr.dtype.char in cls._StringTypes:
+            clss = StringType
+        elif np_arr.dtype.char in cls._SimpleTypes:
+            clss = SimpleType
+        else:
+            raise NotImplementedError(f"method missing for {np_arr.dtype.char}")
+        return clss
+
+    @classmethod
+    def page_class_type(cls, h5attr_dtype):
+        if not isinstance(h5attr_dtype,str):
+            raise TypeError
+        
+        class_types = {
+            cls._type_array: MixedType,
+            cls._str: StringType
+        }
+        class_type = class_types.get(h5attr_dtype, SimpleType)
+        return class_type
    
     @classmethod
     def new_id(cls):
@@ -289,7 +294,7 @@ class Page(object):
             dtype = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)
         
         return dtype, shape
-    
+
     @classmethod
     def load(cls, group):
         """
@@ -299,13 +304,8 @@ class Page(object):
             dset = h5[group]
             datatype = dset.attrs[cls._datatype]
             
-            class_types = {
-                cls._type_array: MixedType,
-                cls._str: StringType
-            }
-            class_type = class_types.get(datatype, SimpleType)
-
-            page = class_type(group)
+            pg_class = cls.page_class_type(h5attr_dtype=datatype)
+            page = pg_class(group)
             page.stored_datatype = dset.dtype
             page.original_datatype = datatype
             page._len = dset.len()
@@ -320,16 +320,9 @@ class Page(object):
         if not isinstance(data, np.ndarray):
             raise TypeError
         
+        pg_cls = self.page_class_type_from_np(data)
         group = f"/page/{Page.new_id()}"
-
-        if data.dtype.char == 'O':
-            pg = MixedType(group)
-        elif data.dtype.char == 'U':
-            pg = StringType(group)
-        elif data.dtype.char in 'ld?':
-            pg = SimpleType(group)
-        else:
-            raise NotImplementedError(f"method missing for {data.dtype.char}")
+        pg = pg_cls(group)
         pg.create(data)
         return pg
 
@@ -339,10 +332,10 @@ class Page(object):
             if self.group in h5:
                 raise ValueError("page already exists")
             dset = h5.create_dataset(name=self.group, 
-                                    data=data,  # data is now HDF5 compatible.
-                                    dtype=dtype,  # the HDF5 stored dtype may require unpacking using dtypes if they are different.
-                                    maxshape=(None,),  # the stored data is now extendible / resizeable.
-                                    chunks=HDF5_Config.H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
+                                     data=data,  # data is now HDF5 compatible.
+                                     dtype=dtype,  # the HDF5 stored dtype may require unpacking using dtypes if they are different.
+                                     maxshape=(None,),  # the stored data is now extendible / resizeable.
+                                     chunks=HDF5_Config.H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
             dset.attrs['datatype'] = self.original_datatype
 
     def __len__(self):
@@ -414,7 +407,13 @@ class SimpleType(Page):
         raise NotImplementedError("subclasses must implement this method.")
 
     def append(self, value):
-        raise NotImplementedError("subclasses must implement this method.")
+        # value must be np.ndarray and of same type as self.
+        # this has been checked before this point, so I let h5py complain if there is something wrong.
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            dset.resize(dset.len() + len(value),axis=0)
+            dset[-len(value):] = value
+            self._len += len(value)
 
     def extend(self, values):
         raise NotImplementedError("subclasses must implement this method.")
@@ -460,7 +459,13 @@ class StringType(Page):
         raise NotImplementedError("subclasses must implement this method.")
 
     def append(self, value):
-        raise NotImplementedError("subclasses must implement this method.")
+        # value must be np.ndarray and of same type as self.
+        # this has been checked before this point, so I let h5py complain if there is something wrong.
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            dset.resize(dset.len() + len(value),axis=0)
+            dset[-len(value):] = value.astype(bytes) # encoding to bytes is required.
+            self._len += len(value)
 
     def extend(self, values):
         raise NotImplementedError("subclasses must implement this method.")
@@ -530,7 +535,27 @@ class MixedType(Page):
         raise NotImplementedError("subclasses must implement this method.")
 
     def append(self, value):
-        raise NotImplementedError("subclasses must implement this method.")
+        # value must be np.ndarray and of same type as self.
+        # this has been checked before this point, so I let h5py complain if there is something wrong.
+        type_code = DataTypes.type_code
+        type_array = np.array( [ type_code(v) for v in value.tolist() ] )
+
+        byte_function = DataTypes.to_bytes
+        data = np.array( [byte_function(v) for v in data.tolist()] )
+        
+        with h5py.File(self.path, READWRITE) as h5:
+            # update dataset
+            dset = h5[self.group]
+            dset.resize(dset.len() + len(value),axis=0)
+            dset[-len(value):] = data
+            
+            # update type array
+            dset = h5[self.type_group]
+            dset.resize(dset.len() + len(value),axis=0)
+            dset[-len(value):] = type_array
+
+            # update self
+            self._len += len(value)
 
     def extend(self, values):
         raise NotImplementedError("subclasses must implement this method.")
