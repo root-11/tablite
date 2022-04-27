@@ -79,16 +79,24 @@ class Table(object):
         if isinstance(keys, str): 
             if isinstance(values, (tuple,list)):
                 self._columns[keys] = column = Column(values)  # overwrite if exists.
+                mem.create_column_reference(self.key, column_name=keys, column_key=column.key)
             elif isinstance(values, Column):
-                self._columns[keys] = column = values.copy()
+                col = self._columns.get(keys,None)
+                if col is None:  # it's a column from another table.
+                    self._columns[keys] = column = values.copy()
+                    mem.create_column_reference(self.key, column_name=keys, column_key=column.key)
+                elif values.key == col.key:  # it's update from += or similar
+                    self._columns[keys] = values
+                else:                    
+                    raise NotImplemented()
             else:
                 raise NotImplemented()
-            mem.create_column_reference(self.key, column_name=keys, column_key=column.key)
+            
         else:
             raise NotImplemented()
     
     def __getitem__(self,keys):
-        if isinstance(keys,str) and keys in self.columns:
+        if isinstance(keys,str) and keys in self._columns:
             return self._columns[keys]
 
     def __delitem__(self, key):
@@ -235,15 +243,7 @@ class Column(object):
             raise NotImplemented()
         else:
             raise TypeError(f"Can't += {type(other)}")
-        
-        
-        # mem get pages
-        # mem check for reference count:
-        #   if <= 1: append
-        #   else: new page.
-        # update virtual dset for column
-        
-        raise NotImplemented()
+        return self
     
     def __imul__(self, other):
         raise NotImplemented()
