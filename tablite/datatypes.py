@@ -55,7 +55,7 @@ class DataTypes(object):
     def b_time(v):
         return bytes(v.isoformat(), encoding='utf-8')
     def b_timedelta(v):
-        return bytes(float(v.days + (v.seconds / (24*60*60))))
+        return bytes(str(float(v.days + (v.seconds / (24*60*60)))), 'utf-8')
         
     bytes_functions = {
         type(None): b_none,
@@ -95,7 +95,7 @@ class DataTypes(object):
         return time.fromisoformat(v.decode('utf-8'))
     def _timedelta(v):
         days = float(v)
-        seconds = 24 * 60 * 60 * ( float(v) - int(v) )
+        seconds = 24 * 60 * 60 * ( float(v) - int( float(v) ) )
         return timedelta(int(days), seconds)
     
     _type_code_functions = {
