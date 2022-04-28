@@ -86,28 +86,35 @@ def test03a():
     
     table4 = Table()
     table4['A'] = L = [0, 10, 20, 3, 4, 5, 100]  # create
-    assert table4['A'] == L == [0, 10, 20, 3, 4, 5, 100]
+    assert L == [0, 10, 20, 3, 4, 5, 100]
+    assert table4['A'] == L
 
     table4['A'][3], L[3] = 30, 30  # update
-    assert table4['A'] == L == [0, 10, 20, 30, 4, 5, 100]
+    assert L == [0, 10, 20, 30, 4, 5, 100]
+    assert table4['A'] == L
     
     # operations below are handled by __getitem__ with a slice as a key.
     table4['A'][4:5], L[4:5] = [40,50], [40,50]  # update many as len(4:5)==len(B)
-    assert table4['A'] == L == [0, 10, 20, 30, 40, 50, 100]
+    assert L == [0, 10, 20, 30, 40, 50, 5, 100]
+    assert table4['A'] == L
     
-    table4['A'][-2:-1], L[-2:-1] = [60,70,80,90],[60,70,80,90]  # insert
-    assert table4['A'] == L == [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+    table4['A'][-2:-1], L[-2:-1] = [60,70,80,90],[60,70,80,90]  # update 1, insert 3
+    assert L == [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+    assert table4['A'] == L
     
     table4['A'][2:4], L[2:4] = [2], [2]  # update + delete 1
-    assert table4['A'] == L == [0, 10, 2, 40, 50, 60, 70, 80, 90, 100]
+    assert L == [0, 10, 2, 40, 50, 60, 70, 80, 90, 100]
+    assert table4['A'] == L
 
     x = len(table4['A'])
     table4['A'][x:], L[len(L):] = [110], [110]  # append
-    assert table4['A'] == L == [0, 10, 2, 40, 50, 60, 70, 80, 90, 100, 110]
+    assert L == [0, 10, 2, 40, 50, 60, 70, 80, 90, 100, 110]
+    assert table4['A'] == L
     
     del L[:3]
     del table4['A'][:3]
-    assert table4['A'] == L == [0, 10, 2, 50, 60, 70, 80, 90, 100, 110]
+    assert L == [40, 50, 60, 70, 80, 90, 100, 110]
+    assert table4['A'] == L
 
 
 
