@@ -52,6 +52,8 @@ class Table(object):
             mem.set_saved_flag(self.group, value)
 
     def __del__(self):
+        for key in self.columns:
+            del self[key]
         mem.delete_table(self.group)
 
     @property
@@ -156,23 +158,44 @@ class Column(object):
     def load(cls, key):
         return Column(key=key)
     
-    def extend(self, data):
-        if isinstance(data, (tuple, list, np.ndarray)):  # all original data is stored as an individual dataset.
-            group = mem.create_page(data=data)
-            new_pages = [ group ]
-        elif isinstance(data, Column):
-            new_pages = mem.get_pages(group=data.group)  # list of pages in hdf5.
-        else:
-            raise TypeError(data)
-
-        shape = mem.create_virtual_dataset(self.group, new_pages)
-        assert isinstance(shape,int) 
-        self._len = shape
-
     def __getitem__(self, item=None):
         if item is None:
             item = slice(0,None,1)
+        if isinstance(item, int):
+            item = slice(item,item+1,1)
+        if not isinstance(item, slice):
+            raise TypeError(f"expected slice or int, got {type(item)}")
         return mem.get_data(self.group, item)
+
+    def __setitem__(self, key, value):
+        """
+        Column.__setitem__(key,value) delegates the operations to ---> :
+        >>> L = [0, 10, 20, 3, 4, 5, 100]  # ---> create (__init__)
+        >>> L[3] = 30                      # ---> update 
+        [0, 10, 20, 30, 4, 5, 100]
+        >>> L[4:5] = [40,50]               # ---> update many as slice has same length as values
+        [0, 10, 20, 30, 40, 50, 5, 100]
+        >>> L[-2:-1] = [60,70,80,90]                      # ---> 1 x update + insert
+        [0, 10, 20, 30, 40, 50, 60, 70, 80, 90,100]
+        >>> L[len(L):] = [110]                            # ---> append
+        [0, 10, 20, 30, 40, 50, 60, 70, 80, 90,100,110]
+        >>> del L[:3]                                     # ---> delete
+        [30, 40, 50, 60, 70, 80, 90,100,110]
+        """
+        if isinstance(key, int):
+            if abs(key) > self._len:
+                raise IndexError("IndexError: list index out of range")
+            if isinstance(value, (list,tuple)):
+                raise TypeError(f"did you mean to insert? F.x. [{key}:{key+1}] = {value} ?")
+            mem.update_data(self.group, key, value)
+
+        elif isinstance(key, slice):
+            if isinstance(value, (list,tuple,np.ndarray)):
+                self._len = mem.update_data(self.group, key, value)
+            else:
+                raise TypeError("TypeError: can only assign an iterable")
+        else:
+            raise TypeError(f"no method for key of type: {type(key)}")
 
     def __len__(self):
         return self._len
@@ -216,13 +239,24 @@ class Column(object):
     def index(self,item):
         raise NotImplemented()
     
-    def insert(self,item):
+    def insert(self,index, item):
         raise NotImplemented()
     
     def append(self,item):
-        raise NotImplemented()
+        self[self._len:] = item
     
-    def remove(self,item):
+    def extend(self, data):
+        if isinstance(data, (tuple, list, np.ndarray)):  # all original data is stored as an individual dataset.
+            self._len = self.__setitem__(slice(0,None,1), data)
+        elif isinstance(data, Column):
+            new_pages = mem.get_pages(group=data.group)  # list of pages in hdf5.
+            shape = mem.create_virtual_dataset(self.group, new_pages)
+            assert isinstance(shape,int) 
+            self._len = shape
+        else:
+            raise TypeError(data)
+        
+    def remove(self, item):
         raise NotImplemented()
     
     def pop(self,index=None):
