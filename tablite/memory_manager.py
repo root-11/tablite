@@ -1,5 +1,4 @@
 from collections import defaultdict
-import atexit
 
 import h5py
 import numpy as np
@@ -7,7 +6,7 @@ import json
 
 
 from tablite.config import HDF5_Config
-from tablite.utils import normalize_slice, intercept
+from tablite.utils import intercept
 from tablite.datatypes import DataTypes
 
 READONLY = 'r'   # r  Readonly, file must exist (default)
@@ -72,15 +71,19 @@ class MemoryManager(object):
             del h5[f"/column/{column_key}"]  # deletes the virtual dataset.
             
             for page in pages:
-                self.ref_counts[page] -= 1
+                self.ref_counts[page.group] -= 1
 
+            self.del_pages_if_required(pages)
+
+    def del_pages_if_required(self, pages):
+        with h5py.File(self.path, READWRITE) as h5:
             for page in set(pages):
-                if self.ref_counts[page]==0:
-                    dset = h5[page]
+                if self.ref_counts[page.group]==0:
+                    dset = h5[page.group]
                     if dset.attrs['datatype'] == 'typearray':
                         del h5[f"{page}_types"]
-                    del h5[page]        
-                    del self.ref_counts[page]
+                    del h5[page.group]        
+                    del self.ref_counts[page.group]
 
     def create_column(self, key):
         pass  # nothing to do.
@@ -91,6 +94,7 @@ class MemoryManager(object):
         raise AttributeError("delete column does nothing. Column delete is handled by the table. See delete_column_reference")   
 
     def create_virtual_dataset(self, group, new_pages=None):
+        """ The consumer API for Columns to create, update and delete datasets."""
         if new_pages is None:
             new_pages = []
         old_pages = self.get_pages(group)
@@ -105,6 +109,8 @@ class MemoryManager(object):
                     self.ref_counts[page.group] += 1
                 for page in old_pages:  # remove duplicate ref count.
                     self.ref_counts[page.group] -= 1
+                
+                self.del_pages_if_required(old_pages)
             
             # 3. determine new layout.
             dtype, shape = Page.layout(all_pages)
@@ -142,33 +148,28 @@ class MemoryManager(object):
     def append_to_virtual_dataset(self, group, new_data):  
         if not group.startswith("/column"):
             raise ValueError("only columns have virtual datasets.")
+        if not isinstance(new_data, np.ndarray):
+            raise TypeError
         
         pages = self.get_pages(group)
         last_page = pages[-1]
-        if self.ref_counts[last_page] == 1:  # resize page
+        if self.ref_counts[last_page.group] == 1:  # resize page
             target_cls = last_page.page_class_type_from_np(new_data)
             if isinstance(last_page, target_cls):
                 last_page.append(new_data)
                 shape = self.create_virtual_dataset(group, page=None)
                 # Note above: check if it's better to resize the virtual layout using
                 #             info from: https://github.com/h5py/h5py/issues/1202
-                return shape
+                return shape  # EXIT 1 ---
             else:  # make new page.
                 pass 
         else:  # make new page.
             pass
         # make new page:
-        page = self.create_page(new_data)
+        page = Page.create(new_data)
         shape = self.create_virtual_dataset(group, [page])
-        return shape
+        return shape  # EXIT 2 ---
             
-    def create_page(self, data):
-        if not isinstance(data, np.ndarray):
-            data = np.array(data)
-        page = Page.create(data)
-        self.ref_counts[page.group] += 1       
-        return page
-
     def get_data(self, group, item):
         if not group.startswith('/column'):
             raise ValueError("get data should be called by columns only.")
@@ -177,30 +178,105 @@ class MemoryManager(object):
             dset = h5[group]
             if dset.dtype.char != 'O':  # it's a single type dataset.
                 return dset[item]
-                
+            
             arrays = []
-            target_range = range(*normalize_slice(length=dset.len(), item=item))
-            # check if the slice is worth converting.
-            start,end,zero_range = 0,0, range(0)
+            assert isinstance(item, slice)
+            item_range = range(*item.indices(dset.len()))
+            
+            start,end = 0,0
             pages = self.get_pages(group)
             for page in pages:  # loaded Pages
                 end = len(page)
-                search_range = range(start,end,1)
-                intercept_range = intercept(target_range, search_range)
-
-                if intercept_range == zero_range:
-                    pass
-                else:
-                    # fetch the slice and filter it.
-                    search_slice = slice(intercept_range.start - start, intercept_range.stop - start, intercept_range.step)
+                ro = intercept(range(start,end,1), item_range)  # check if the slice is worth converting.
+                if len(ro)!=0:  # fetch the slice and filter it.
+                    search_slice = slice(ro.start - start, ro.stop - start, ro.step)
                     match = page[search_slice]  # page.__getitem__ handles type conversion for Mixed and Str types.
                     arrays.append(match)
-
                 start = end
-                    
+            
             dtype, _ = Page.layout(pages)
             return np.concatenate(arrays, dtype=dtype)
 
+    def update_data(self, group, keys, values):
+        """ consumer API for core.column - mainly delegates to Pages. """
+        if not group.startswith('/column'):
+            raise ValueError("get data should be called by columns only.")
+
+        if not isinstance(values, np.ndarray):
+            values = np.array(values)
+                    
+        pages = self.get_pages(group)
+
+        if not pages:
+            new_page = Page.create(values)
+            new_pages = [new_page]
+            shape = self.create_virtual_dataset(group, new_pages=new_pages)
+            return shape  # EXIT 1
+
+        new_pages = pages[:]  # we keep a copy for the virtual dataset.
+        shape = sum(len(p) for p in pages)
+
+        if isinstance(keys, int):
+            a,b = 0,0
+            for ix, page in enumerate(pages):
+                b += len(page)
+                if a <= keys < b:
+                    vclass = Page.page_class_type_from_np(values) 
+                    if self.ref_counts[page.group] == 1 and isinstance(page,vclass):  # update.
+                        page[keys-a] = values  
+                    else:
+                        data = page[:]
+                        data[keys-a] = values
+                        new_page = Page.create(data)
+                        new_pages = pages[:]
+                        new_pages[ix] = new_page
+                    break  # and return ...
+                a = b
+
+        elif isinstance(keys, slice):
+            max_length = shape + len(values)
+            start,stop,_ = slice.indices(max_length)  # slice as forward loop.
+
+            keys_range = range(*keys.indices(max_length))
+            
+            a,b = 0,0
+            for ix, page in enumerate(pages):
+                b += len(page)
+                if start > b:  # we're before the start of the key.
+                    a = b
+                    continue
+                if stop < a:  # we've passed the end of the key
+                    break
+                             
+                ro = intercept(range(a,b,1), keys_range)  # ro = range object sliced according to the keys
+                size = len(ro)
+                if size != 0:
+                    slc = slice(ro.start-a, ro.stop-a, ro.step)
+                    data = page[:].tolist()
+                    data[slc], values = values[:size], values[size:]  # perform the replacement and reduce the value list
+                
+                    if (stop < b or b == shape) and values:  # insert as we've reached 
+                        # the end of the key slice or the end of the pages.
+                        data += values
+                        values = []
+
+                    arr = np.array(data)
+                    vclass = Page.page_class_type_from_np(arr)
+                    if self.ref_counts[page.group] == 1 and isinstance(page, arr):  # update.
+                        page[:] = data
+                    else:  # create new page
+                        new_page = Page.create(data)
+                        new_pages[ix] = new_page
+                a = b 
+                if not values:
+                    break
+        else:
+            raise NotImplementedError()
+
+        if new_pages != pages:
+            shape = self.create_virtual_dataset(group, new_pages=new_pages)
+        return shape  # EXIT 2
+        
 
 class Page(object):
     _page_ids = 0  # when loading from disk increment this to max id.
@@ -261,8 +337,14 @@ class Page(object):
     def __str__(self) -> str:
         return f"Page({self.group} | {self.original_datatype} | {self.stored_datatype} | {self._len})"
 
+    def __hash__(self) -> int:
+        return hash(self.group)
+
     def __repr__(self) -> str:
         return self.__str__()
+
+    def __eq__(self, __o: object) -> bool:
+        return self.group == __o.group
 
     @classmethod
     def layout(cls, pages):
@@ -313,21 +395,20 @@ class Page(object):
             return page
 
     @classmethod
-    def create(self, data):
+    def create(cls, data):
         """
         creates a new group.
         """
         if not isinstance(data, np.ndarray):
             raise TypeError
         
-        pg_cls = self.page_class_type_from_np(data)
+        pg_cls = cls.page_class_type_from_np(data)
         group = f"/page/{Page.new_id()}"
         pg = pg_cls(group)
         pg.create(data)
         return pg
 
-    @classmethod
-    def write(self, data, dtype ):
+    def write(self, data, dtype):
         with h5py.File(READWRITE) as h5:
             if self.group in h5:
                 raise ValueError("page already exists")
@@ -361,6 +442,9 @@ class Page(object):
         raise NotImplementedError("subclasses must implement this method.")
 
     def append(self, value):
+        raise NotImplementedError("subclasses must implement this method.")
+
+    def insert(self, value):
         raise NotImplementedError("subclasses must implement this method.")
 
     def extend(self, values):
@@ -403,8 +487,25 @@ class SimpleType(Page):
             dset = h5[self.group]
             return dset[item]
 
-    def __setitem__(self, index, value):
-        raise NotImplementedError("subclasses must implement this method.")
+    def __setitem__(self, keys, values):
+        if not isinstance(keys, (slice,int)) or not isinstance(values, np.ndarray):
+            raise TypeError("pages should only see numpy arrays.")
+        if not isinstance(self, self.page_class_type_from_np(values)):
+            raise TypeError()
+
+        with h5py.File(self.path, READWRITE) as h5:
+            if isinstance(keys, int):
+                dset = h5[self.group]
+                dset[keys] = values[0]
+
+            elif isinstance(keys, slice):
+                if len(values) != self._len:
+                    self._len = len(values)
+                    dset = h5[self.group]
+                    dset.resize((len(values)), axis=0)
+                dset[slice] = values
+            else:
+                raise TypeError()
 
     def append(self, value):
         # value must be np.ndarray and of same type as self.
