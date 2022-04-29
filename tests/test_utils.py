@@ -1,4 +1,4 @@
-from tablite.utils import intercept, normalize_slice
+from tablite.utils import intercept
 
 
 def test_range_intercept():
@@ -24,5 +24,5 @@ def test_range_intercept():
     assert set(intercept(A,B)) == set(A).intersection(set(B))
 
 def test_normalize_slice():
-    assert (0,10,1) == normalize_slice(10, slice(0,None,1))
+    assert (0,10,1) == slice(0,None,1).indices(10)
     
