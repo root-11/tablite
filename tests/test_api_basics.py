@@ -1,7 +1,7 @@
 from tablite import Table
 
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 def setup():  # pytest does this with every test.
@@ -24,11 +24,11 @@ def test01():
     table4['G'] = [now, now]
     table4['H'] = [now.date(), now.date()]
     table4['I'] = [now.time(), now.time()]
-    # TODO: add timedelta
-    assert table4.columns == ['A','B','C','D','E','F','G','H','I']  # testing .columns property.
+    table4['J'] = [timedelta(1), timedelta(2, 400)]
+    assert table4.columns == ['A','B','C','D','E','F','G','H','I','J']  # testing .columns property.
 
     table4.save = True  # testing that save keeps the data in HDF5.
-    del table4
+    del table4  
     
     # recover all active tables from HDF5.
     tables = Table.reload_saved_tables()
@@ -45,6 +45,7 @@ def test01():
     assert table5['G'] == [now, now]
     assert table5['H'] == [now.date(), now.date()]
     assert table5['I'] == [now.time(), now.time()]
+    assert table5['J'] == [timedelta(1), timedelta(2, 400)]
 
 
 def test02():
@@ -57,9 +58,9 @@ def test02():
     del table4['A']
     assert table4.columns == []
 
-    assert table5['A'] == [-1, 1]  
-    del table4
-    del table5
+    assert table5['A'] == [-1, 1]
+    table4.__del__()
+    table5.__del__()
 
     tables = Table.reload_saved_tables()
     assert tables == []
@@ -114,6 +115,10 @@ def test03a():
     del L[:3]
     del table4['A'][:3]
     assert L == [40, 50, 60, 70, 80, 90, 100, 110]
+    assert table4['A'] == L
+
+    L[::3] = [0,0,0]
+    assert L == [0, 50, 60, 0, 80, 90, 0, 110]
     assert table4['A'] == L
 
 
