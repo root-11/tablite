@@ -48,19 +48,3 @@ def intercept(A,B):
     
     return range(start, end, step)
 
-
-def normalize_slice(length, item=None):  # There's an outdated version sitting in utils.py
-    """
-    helper: transforms slice into range inputs
-    returns start,stop,step
-    """
-    if item is None:
-        item = slice(0, length, 1)
-    assert isinstance(item, slice)
-    
-    stop = length if item.stop is None else item.stop
-    start = 0 if item.start is None else length + item.start if item.start < 0 else item.start
-    start, stop = min(start,stop), max(start,stop)
-    step = 1 if item.step is None else item.step
-
-    return start, stop, step
