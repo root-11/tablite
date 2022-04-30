@@ -48,6 +48,7 @@ def test01():
     assert table5['J'] == [timedelta(1), timedelta(2, 400)]
 
 
+
 def test02():
     # check that the pages are not deleted prematurely.
     table4 = Table()
@@ -59,8 +60,14 @@ def test02():
     assert table4.columns == []
 
     assert table5['A'] == [-1, 1]
-    table4.__del__()
-    table5.__del__()
+
+    import gc
+    del table4
+    del table5
+    gc.collect()  # pytest keeps reference to table4 & 5, so gc must be invoked.
+    # alternatively the explicit call to .__del__ could be made.
+    # table4.__del__()  
+    # table5.__del__()
 
     tables = Table.reload_saved_tables()
     assert tables == []
@@ -233,4 +240,5 @@ def test12():
 
 def test13():
     pass  # pivot table.
+
 

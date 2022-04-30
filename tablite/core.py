@@ -3,7 +3,7 @@ import pathlib
 import json
 import zipfile
 import operator
-
+import warnings
 import logging
 logging.getLogger('lml').propagate = False
 logging.getLogger('pyexcel_io').propagate = False
@@ -120,11 +120,16 @@ class Table(object):
         tables = []
         if path is None:
             path = mem.path
+        unsaved = 0
         with h5py.File(path, 'r') as h5:
             for table_key in h5["/table"].keys():
-                t = Table.load(path, key=table_key)
-                
-                tables.append(t)
+                dset = h5[f"/table/{table_key}"]
+                if dset.attrs['saved'] is False:
+                    unsaved += 1
+                else:
+                    t = Table.load(path, key=table_key)
+                    tables.append(t)
+        warnings.warn(f"Dropping {unsaved} tables from cache where save==False.")
         return tables
 
     @classmethod
