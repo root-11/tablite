@@ -122,6 +122,9 @@ class Table(object):
             path = mem.path
         unsaved = 0
         with h5py.File(path, 'r') as h5:
+            if "/table" not in h5.keys():
+                return []
+
             for table_key in h5["/table"].keys():
                 dset = h5[f"/table/{table_key}"]
                 if dset.attrs['saved'] is False:
@@ -276,10 +279,10 @@ class Column(object):
     def __iadd__(self, other):
         if isinstance(other, (list,tuple)):
             data = np.array(other)
-            shape = mem.append_to_virtual_dataset(self.group, data)
-            self._len = shape
+            self._len = mem.append_to_virtual_dataset(self.group, data)
         elif isinstance(other, Column):
-            raise NotImplemented()
+            new_pages = mem.get_pages(other.group)
+            self._len = mem.create_virtual_dataset(self.group, new_pages)
         else:
             raise TypeError(f"Can't += {type(other)}")
         return self
