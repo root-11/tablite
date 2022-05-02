@@ -1,13 +1,12 @@
 from tablite import Table
-
 import numpy as np
 from datetime import datetime, timedelta
 
 
-def setup():  # pytest does this with every test.
+def setup_function():  # pytest does this with every test.
     Table.reset_storage()
 
-def teardown():  # pytest does this with every test.
+def teardown_function():  # pytest does this with every test.
     Table.reset_storage()
 
 
@@ -48,6 +47,10 @@ def test01():
     assert table5['J'] == [timedelta(1), timedelta(2, 400)]
 
 
+def test01a():
+    tables = Table.reload_saved_tables()
+    assert tables == []
+
 
 def test02():
     # check that the pages are not deleted prematurely.
@@ -64,7 +67,7 @@ def test02():
     import gc
     del table4
     del table5
-    gc.collect()  # pytest keeps reference to table4 & 5, so gc must be invoked.
+    gc.collect()  # pytest keeps reference to table4 & 5, so gc must be invoked explicitly.
     # alternatively the explicit call to .__del__ could be made.
     # table4.__del__()  
     # table5.__del__()
@@ -76,8 +79,10 @@ def test02():
 def test03():
     table4 = Table()
     table4['A'] = [0,1,2,3]  # create page1
+    assert list(table4['A'][:]) == [0,1,2,3]
     table4['A'] += [4,5,6]   # append to page1 as ref count == 1.
-    table4['A'][0] = [7]  # update as ref count == 1
+    assert list(table4['A'][:]) == [0,1,2,3,4,5,6]
+    table4['A'][0] = 7  # update as ref count == 1
 
     table4['A'] += table4['A']  # duplication of pages.
     table4['A'] += [8,9,10]  # append where ref count > 1 creates a new page.
