@@ -246,7 +246,7 @@ class Column(object):
             raise TypeError
         pages = mem.get_pages(self.group)
         other = mem.get_pages(column.group)
-        all_pages = pages.extend(other)
+        all_pages = pages + other
         shape = mem.create_virtual_dataset(self.group, old_pages=pages, new_pages=all_pages)
         self._len = shape
 
@@ -263,7 +263,7 @@ class Column(object):
         all_pages = pages[:]
         if pages:
             last_page = pages[-1]
-            if mem.get_ref_counts(last_page) == 1: 
+            if mem.get_ref_count(last_page) == 1: 
                 
                 target_cls = last_page.page_class_type_from_np(data)
                 if isinstance(last_page, target_cls):
