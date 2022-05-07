@@ -1,6 +1,6 @@
 from tablite import Table
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, date, time, timedelta
 import pytest
 
 # DESCRIPTION
@@ -61,6 +61,12 @@ def test01():
     assert table5['H'] == [now.date(), now.date()]
     assert table5['I'] == [now.time(), now.time()]
     assert table5['J'] == [timedelta(1), timedelta(2, 400)]
+    rows = [row for row in table5.rows]
+    assert len(rows) == 2
+    assert rows == [
+        [-1, None, -1.1,     '', None, False, now, now.date(), now.time(), timedelta(days=1)],
+        [ 1,    1,  1.1, '1000',  '1',  True, now, now.date(), now.time(), timedelta(days=2, seconds=400)]
+    ]
 
 
 def test01a():
