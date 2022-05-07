@@ -25,7 +25,7 @@ from itertools import count, chain
 # from tablite.columns import StoredColumn, InMemoryColumn
 # from tablite.stored_list import tempfile
 
-from tablite.memory_manager import MemoryManager
+from tablite.memory_manager import MemoryManager, Page
 
 mem = MemoryManager()
 
@@ -149,6 +149,9 @@ class Table(object):
     def reset_storage(cls):
         mem.reset_storage()
 
+    def add_rows(self, *args, **kwargs):
+        """ its more efficient to add many rows at once. """
+        raise NotImplementedError
 
 class Column(object):
     ids = count(1)
@@ -167,13 +170,209 @@ class Column(object):
         return Column(key=key)
     
     def __getitem__(self, item=None):
-        if item is None:
-            item = slice(0,None,1)
         if isinstance(item, int):
-            item = slice(item,item+1,1)
-        if not isinstance(item, slice):
+            slc = slice(item,item+1,1)
+        if item is None:
+            slc = slice(0,None,1)
+        if isinstance(item, slice):
+            slc = item
+        if not isinstance(slc, slice):
             raise TypeError(f"expected slice or int, got {type(item)}")
-        return mem.get_data(self.group, item)
+        
+        result = mem.get_data(self.group, slc)
+
+        if isinstance(item, int) and len(result)==1:
+            return result[0]
+        else:
+            return result
+
+    def append(self, value):
+        pages = mem.get_pages(self.group)
+        all_pages = pages[:]
+        if pages:
+            last_page = pages[-1]
+            if mem.get_ref_counts(last_page) == 1: 
+                data = np.array([value])
+                target_cls = last_page.page_class_type_from_np(data)
+                if isinstance(last_page, target_cls):
+                    last_page.append(data)
+                else:  # new datatype for ref_count == 1, so we create a mixed type page.
+                    data = np.array(last_page[:] + [value])
+                    new_page = last_page.create(data)
+                    all_pages[-1] = new_page
+            else:
+                new_page = last_page.create(data)
+                all_pages.append(new_page)
+        else:
+            new_page = last_page.create(data)
+            all_pages.append(new_page)
+        
+        shape = mem.create_virtual_dataset(self.group, old_pages=pages, new_pages=all_pages)
+        self._len = shape
+        
+    def insert(self, index, value):
+        old_pages = mem.get_pages(self.group)
+        page = old_pages.get_page_by_index(index)
+        if mem.get_ref_counts(page) == 1:
+            data = np.array([value])
+            target_cls = page.page_class_type_from_np(data)
+            if isinstance(page, target_cls):
+                page.insert(index, value)
+                new_page = page
+            else:
+                data = np.array(page[:] + [value])
+                new_page = page.create(data)
+        else:
+            data = np.array(page[:] + [value])
+            new_page = page.create(data)
+
+        # old_pages = mem.get_pages(self.group)
+        ix = old_pages.index(page)
+        new_pages = old_pages[:]
+        new_pages[ix] = new_page
+        
+        shape = mem.create_virtual_dataset(self.group, old_pages=old_pages, new_pages=new_pages)
+        self._len = shape
+    
+    def _extend_from_column(self, column):
+        """ internal API for Column.extend(values) where values is of type Column """
+        if not isinstance(column, Column):
+            raise TypeError
+        pages = mem.get_pages(self.group)
+        other = mem.get_pages(column.group)
+        all_pages = pages.extend(other)
+        shape = mem.create_virtual_dataset(self.group, old_pages=pages, new_pages=all_pages)
+        self._len = shape
+
+    def _extend_from_values(self, values):
+        """ internal API for Column.extend(values) where values is of type list, tuple or np.ndarray """
+        if not isinstance(values, (list,tuple, np.ndarray)):
+            raise TypeError
+        if isinstance(values, np.ndarray):
+            data = values
+        else:
+            data = np.array(values)
+
+        pages = mem.get_pages(self.group)
+        all_pages = pages[:]
+        if pages:
+            last_page = pages[-1]
+            if mem.get_ref_counts(last_page) == 1: 
+                
+                target_cls = last_page.page_class_type_from_np(data)
+                if isinstance(last_page, target_cls):
+                    last_page.extend(data)
+                else:  # new datatype for ref_count == 1, so we create a mixed type page.
+                    data = np.array(last_page[:] + data)
+                    new_page = last_page.create(data)
+                    all_pages[-1] = new_page
+            else:
+                new_page = last_page.create(data)
+                all_pages.append(new_page)
+        else:
+            new_page = Page.create(data)
+            all_pages.append(new_page)
+        
+        shape = mem.create_virtual_dataset(self.group, old_pages=pages, new_pages=all_pages)
+        self._len = shape
+
+    def extend(self, values):
+        if isinstance(values, Column):
+            self._extend_from_column(values)
+        elif isinstance(values, (list,tuple, np.ndarray)):
+            self._extend_from_values(values)
+        else:
+            raise TypeError(f'Column cannot extend using {type(values)}')
+        
+    def remove(self, value):
+        pages = mem.get_pages(self.group)
+        for ix, page in enumerate(pages):
+            if value not in page[:]:
+                continue
+            if mem.get_ref_count(page) == 1:
+                page.remove(value)
+                new_pages = pages[:]
+            else:
+                data = page[:]
+                data = data.aslist()
+                data.remove(value)
+                new_page = page.create(data)
+                new_pages = pages[:]
+                new_pages[ix] = new_page
+            shape = mem.create_virtual_dataset(self.group, old_pages=pages, new_pages=new_pages)
+            self._len = shape
+            break
+
+    def remove_all(self, value):
+        pages = mem.get_pages(self.group)
+        new_pages = pages[:]
+        for ix, page in enumerate(pages):
+            if value not in page[:]:
+                continue
+            new_data = [v for v in page[:] if v != value]
+            new_page = page.create(new_data)
+            new_pages[ix] = new_page
+        shape = mem.create_virtual_dataset(self.group, old_pages=pages, new_pages=new_pages)
+        self._len = shape
+        
+    def pop(self, index):
+        index = self._len + index if index < 0 else index
+
+        pages = mem.get_pages(self.group)
+        a,b = 0,0
+        for ix, page in enumerate(pages):
+            a = b
+            b += len(page)
+            if a <= index < b:
+                if mem.get_ref_count(page) == 1:
+                    value = page.pop(index-a)
+                else:
+                    data = page[:]
+                    value = data.pop(index-a)
+                    new_page = page.create(data)
+                    new_pages = pages[:]
+                    new_pages[ix] = new_page
+                shape = mem.create_virtual_dataset(self.group, old_pages=pages, new_pages=new_pages)
+                self._len = shape
+                return value
+        raise IndexError(f"index {index} out of bound")
+
+    def _update_by_index(self, key, value):
+        assert isinstance(key, int)
+        
+
+    def _update_by_slice(self, key, value):
+        key_len = len(range(*key.indices(self._len)))
+        value_len = len(value)
+        if key.start == self._len and key.stop is None:
+            pass  # just extend.
+        elif key.start is None and key.stop == 0:
+            pass  # insert a page up front.
+        elif key_len == value_len: 
+            pass  # its a 1-2-1 value replacement.
+        elif key_len > value_len:
+            pass  # it's a reduction
+        elif key_len < value_len:
+            pass  # it's an extension.
+        else:
+            raise NotImplementedError(f"{key}, {value} on {self._len}")
+
+    def _update_by_column(self, key, value):
+        key_len = len(range(*key.indices(self._len)))
+        value_len = len(value)
+        if key.start == self._len and key.stop is None:
+            pass  # just extend.
+        elif key.start is None and key.stop == 0:
+            pass  # insert a page up front.
+        elif key_len == value_len: 
+            pass  # its a 1-2-1 value replacement.
+        elif key_len > value_len:
+            pass  # it's a reduction
+        elif key_len < value_len:
+            pass  # it's an extension.
+        else:
+            raise NotImplementedError(f"{key}, {value} on {self._len}")
+        
 
     def __setitem__(self, key, value):
         """
@@ -184,24 +383,26 @@ class Column(object):
         >>> L[4:5] = [40,50]               # ---> update many as slice has same length as values
         [0, 10, 20, 30, 40, 50, 5, 100]
         >>> L[-2:-1] = [60,70,80,90]                      # ---> 1 x update + insert
-        [0, 10, 20, 30, 40, 50, 60, 70, 80, 90,100]
+        [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
         >>> L[len(L):] = [110]                            # ---> append
-        [0, 10, 20, 30, 40, 50, 60, 70, 80, 90,100,110]
+        [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110]
         >>> del L[:3]                                     # ---> delete
-        [30, 40, 50, 60, 70, 80, 90,100,110]
+        [30, 40, 50, 60, 70, 80, 90, 100, 110]
         """
         if isinstance(key, int):
             if abs(key) > self._len:
                 raise IndexError("IndexError: list index out of range")
             if isinstance(value, (list,tuple)):
                 raise TypeError(f"did you mean to insert? F.x. [{key}:{key+1}] = {value} ?")
-            mem.update_data(self.group, key, value)
+            self._update_by_index(key,value)
 
         elif isinstance(key, slice):
             if isinstance(value, (list,tuple,np.ndarray)):
-                self._len = mem.update_data(self.group, key, value)
+                self._update_by_slice(key,value)
+            elif isinstance(value, Column):
+                self._update_by_column(key,value)
             else:
-                raise TypeError("TypeError: can only assign an iterable")
+                raise TypeError(f"No method for {type(value)}")
         else:
             raise TypeError(f"no method for key of type: {type(key)}")
 
@@ -227,6 +428,7 @@ class Column(object):
         c = Column()
         c.extend(self)
         return c
+
     def __copy__(self):
         return self.copy()
     
@@ -240,65 +442,50 @@ class Column(object):
     def unique(self):  
         return np.unique(self.__getitem__())
 
-    def histogram(self):  
+    def histogram(self):
+        """ 
+        returns 2 arrays: unique elements and count of each element 
+        
+        example:
+        >>> for item, counts in zip(self.histogram()):
+        >>>     print(item,counts)
+        """
         uarray, carray = np.unique(self.__getitem__(), return_counts=True)
         return uarray, carray
 
-    def index(self,item):
-        raise NotImplemented()
-    
-    def insert(self,index, item):
-        raise NotImplemented()
-    
-    def append(self,item):
-        self[self._len:] = item
-    
-    def extend(self, data):
-        if isinstance(data, (tuple, list, np.ndarray)):  # all original data is stored as an individual dataset.
-            self._len = self.__setitem__(slice(0,None,1), data)
-        elif isinstance(data, Column):
-            new_pages = mem.get_pages(group=data.group)  # list of pages in hdf5.
-            shape = mem.create_virtual_dataset(self.group, new_pages)
-            assert isinstance(shape,int) 
-            self._len = shape
-        else:
-            raise TypeError(data)
-        
-    def remove(self, item):
-        raise NotImplemented()
-    
-    def pop(self,index=None):
-        raise NotImplemented()
-    
-    def __add__(self,other):
-        raise NotImplemented()
+    def __add__(self, other):
+        c = self.copy()
+        c.extend(other)
+        return c
     
     def __contains__(self, item):
-        raise NotImplemented()
+        return item in self.__getitem__()
     
     def __iadd__(self, other):
-        if isinstance(other, (list,tuple)):
-            data = np.array(other)
-            self._len = mem.append_to_virtual_dataset(self.group, data)
-        elif isinstance(other, Column):
-            new_pages = mem.get_pages(other.group)
-            self._len = mem.create_virtual_dataset(self.group, new_pages)
-        else:
-            raise TypeError(f"Can't += {type(other)}")
+        self.extend(other)
         return self
     
     def __imul__(self, other):
-        raise NotImplemented()
+        if not isinstance(other, int):
+            raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
+        for _ in range(other):
+            self.extend(self)
+        return self
     
     def __mul__(self, other):
-        raise NotImplemented()
+        if not isinstance(other, int):
+            raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
+        c = self.copy()
+        for _ in range(1, other):
+            c.extend(self)
+        return c
     
     def __ne__(self, other):
-        if len(self) != len(other):
+        if len(self) != len(other):  # quick cheap check.
             return False
         if not isinstance(other, np.ndarray):
             other = np.array(other)
-        return (self.__getitem__()!=other).any()
+        return (self.__getitem__()!=other).any()  # speedy np c level comparison.
     
     def __le__(self,other):
         raise NotImplemented()
@@ -311,3 +498,4 @@ class Column(object):
 
     def __gt__(self,other):
         raise NotImplemented()
+

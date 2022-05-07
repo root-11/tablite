@@ -16,7 +16,7 @@ TRUNCATE = 'w'   # w  Create file, truncate if exists
 #                a    Read/write if exists, create otherwise
 
 
-class MemoryManager(object):    
+class MemoryManager(object):
     def __init__(self) -> None:
         self.ref_counts = defaultdict(int)
         
@@ -76,6 +76,8 @@ class MemoryManager(object):
             self.del_pages_if_required(pages)
 
     def del_pages_if_required(self, pages):
+        if not pages:
+            return
         with h5py.File(self.path, READWRITE) as h5:
             for page in set(pages):
                 if self.ref_counts[page.group]==0:
@@ -85,19 +87,25 @@ class MemoryManager(object):
                     del h5[page.group]        
                     del self.ref_counts[page.group]
 
-    def create_column(self, key):
-        pass  # nothing to do.
-        raise AttributeError("create column does nothing. Column creation is handled by the table. See create_column_reference")
+    # def create_column(self, key):
+    #     pass  # nothing to do.
+    #     raise AttributeError("create column does nothing. Column creation is handled by the table. See create_column_reference")
         
-    def delete_column(self, key):
-        pass  # nothing to do.
-        raise AttributeError("delete column does nothing. Column delete is handled by the table. See delete_column_reference")   
+    # def delete_column(self, key):
+    #     pass  # nothing to do.
+    #     raise AttributeError("delete column does nothing. Column delete is handled by the table. See delete_column_reference")   
 
-    def create_virtual_dataset(self, group, new_pages=None):
+    # def create_virtual_dataset_from_groups(self, *groups):
+    #     new_pages = []
+    #     for group in groups:
+    #         new_pages.extend(self.get_pages(group))
+
+    def create_virtual_dataset(self, group, old_pages, new_pages):
         """ The consumer API for Columns to create, update and delete datasets."""
-        if new_pages is None:
-            new_pages = []
-        old_pages = self.get_pages(group)
+        if not isinstance(old_pages,list):
+            raise TypeError
+        if not isinstance(new_pages, list):
+            raise TypeError
         
         with h5py.File(self.path, READWRITE) as h5:
             # 2. adjust ref count by adding first, then remove, as this prevents ref count < 1.
@@ -136,39 +144,102 @@ class MemoryManager(object):
             raise ValueError
 
         with h5py.File(self.path, READONLY) as h5:
-            if group in h5:
+            if group not in h5:
+                return Pages()
+            else:
                 dset = h5[group]
-                return [ Page.load(pg_grp) for _,_,pg_grp,_ in dset.virtual_sources() ]
-        return []
+                return Pages([ Page.load(pg_grp) for _,_,pg_grp,_ in dset.virtual_sources() ])
+
+    # def get_page_by_index(self, group, index):
+    #     """ consumer API for column index """
+    #     if not group.startswith('/column'):
+    #         raise ValueError
+
+    #     with h5py.File(self.path, READONLY) as h5:
+    #         if group not in h5:
+    #             raise KeyError(group)
+    #         a,b = 0,0
+    #         for page in self.get_pages(group):
+    #             a = b
+    #             b += len(page)
+    #             if a <= index < b:
+    #                 return page
+    #         raise IndexError(f"index {index} not found (lenght {b})")
+
+    def get_ref_count(self, page):
+        assert isinstance(page, Page)
+        return self.ref_counts[page.group]
+
+    # def setitem(self, group, key, value):
+    #     if not group.startswith('/column'):
+    #         raise ValueError
+
+    #     if isinstance(key, int):
+    #         key = slice(key,key+1)
+        
+        
+    #     with h5py.File(self.path, READONLY) as h5:
+    #         if group not in h5:
+    #             raise KeyError(group)
+
+    #         dset = h5[group]
+    #         pages = [ Page.load(pg_grp) for _,_,pg_grp,_ in dset.virtual_sources() ]
+            
+    #         ros, last_page = [], None
+    #         a,b = 0,0
+    #         for ix, page in enumerate(pages):
+    #             a, b = b, len(page)
+    #             ro = intercept( range(a,b), range(*key.indices(b)) )
+    #             if len(ro)!=0:
+    #                 ros.append((ix, a, b, page, ro))
+    #                 last_page = page
+                
+    #         # check for special cases:
+    #         if len(range(*key.indices(b))) == 0:
+    #             if key.start == b:  # it's an append/extend: L[10:] = [values]
+    #                 pass
+    #             elif key.stop == 0:  # it's an upfront insert  L[:0] = [values]
+    #                 pass
+    #             else:  # it's a regular insert L[3:3] = [values]
+    #                 pass
+    #         for ix,a,b,page,ro in ros:
+    #             if page == last_page:
+    #                 pass
+    #             if self.ref_counts[page.group] == 1:
+    #                 new_key = slice(ro.start-a, ro.stop-a, ro.step)
+    #                 page[new_key] = value[:len(ro)]
+    #             else:
+    #                 data = page[:]
+    #                 new_page = pass
 
     def reset_storage(self):
         with h5py.File(self.path, TRUNCATE) as h5:
             assert list(h5.keys()) == []
 
-    def append_to_virtual_dataset(self, group, new_data):  
-        if not group.startswith("/column"):
-            raise ValueError("only columns have virtual datasets.")
-        if not isinstance(new_data, np.ndarray):
-            raise TypeError
+    # def append_to_virtual_dataset(self, group, new_data):  
+    #     if not group.startswith("/column"):
+    #         raise ValueError("only columns have virtual datasets.")
+    #     if not isinstance(new_data, np.ndarray):
+    #         raise TypeError
         
-        pages = self.get_pages(group)
-        last_page = pages[-1]
-        if self.ref_counts[last_page.group] == 1:  # resize page
-            target_cls = last_page.page_class_type_from_np(new_data)
-            if isinstance(last_page, target_cls):
-                last_page.append(new_data)
-                shape = self.create_virtual_dataset(group, page=None)
-                # Note above: check if it's better to resize the virtual layout using
-                #             info from: https://github.com/h5py/h5py/issues/1202
-                return shape  # EXIT 1 ---
-            else:  # make new page.
-                pass 
-        else:  # make new page.
-            pass
-        # make new page:
-        page = Page.create(new_data)
-        shape = self.create_virtual_dataset(group, [page])
-        return shape  # EXIT 2 ---
+    #     pages = self.get_pages(group)
+    #     last_page = pages[-1]
+    #     if self.ref_counts[last_page.group] == 1:  # resize page
+    #         target_cls = last_page.page_class_type_from_np(new_data)
+    #         if isinstance(last_page, target_cls):
+    #             last_page.append(new_data)
+    #             shape = self.create_virtual_dataset(group, new_pages=None)
+    #             # Note above: check if it's better to resize the virtual layout using
+    #             #             info from: https://github.com/h5py/h5py/issues/1202
+    #             return shape  # EXIT 1 ---
+    #         else:  # make new page.
+    #             pass 
+    #     else:  # make new page.
+    #         pass
+    #     # make new page:
+    #     page = Page.create(new_data)
+    #     shape = self.create_virtual_dataset(group, [page])
+    #     return shape  # EXIT 2 ---
             
     def get_data(self, group, item):
         if not group.startswith('/column'):
@@ -197,14 +268,42 @@ class MemoryManager(object):
             dtype, _ = Page.layout(pages)
             return np.concatenate(arrays, dtype=dtype)
 
+    # def update_data(self, group, keys, other_group):
+    #     if not group.startswith('/column'):
+    #         raise ValueError("get data should be called by columns only.")
+    #     if not other_group.startswith('/column'):
+    #         raise ValueError("get data should be called by columns only.")
+        
+        
+    #     if keys == slice(0,None,None):  # then it's simple extension
+    #         new_pages = self.get_pages(other_group)
+    #         shape = self.create_virtual_dataset(group, new_pages=new_pages)
+    #         return shape
+        
+    #     if keys == slice(None,0,None):  # then it's an up front insert
+    #         new_pages = self.get_pages(other_group)
+    #         shape = 
+
+    #     old_pages = self.get_pages(group)
+    #     old_length = sum(len(p) for p in old_pages)
+
+    #     ri = intercept(range(0,old_length), range(*keys.indices()))
+    #     if len(ri)==0:
+    #         pass
+
+    #     if 0 <= keys.start <= keys.stop <= old_length:  # it's probably an insert      
+
     def update_data(self, group, keys, values):
         """ consumer API for core.column - mainly delegates to Pages. """
         if not group.startswith('/column'):
             raise ValueError("get data should be called by columns only.")
 
         if not isinstance(values, np.ndarray):
-            values = np.array(values)
-                    
+            if isinstance(values, (list,tuple)):
+                values = np.array(values)
+            else:
+                values = np.array([values])
+        
         pages = self.get_pages(group)
 
         if not pages:
@@ -223,14 +322,14 @@ class MemoryManager(object):
                 if a <= keys < b:
                     vclass = Page.page_class_type_from_np(values) 
                     if self.ref_counts[page.group] == 1 and isinstance(page,vclass):  # update.
-                        page[keys-a] = values  
+                        page[keys-a] = values
                     else:
                         data = page[:]
                         data[keys-a] = values
                         new_page = Page.create(data)
                         new_pages = pages[:]
                         new_pages[ix] = new_page
-                    break  # and return ...
+                    break  #  ...
                 a = b
 
         elif isinstance(keys, slice):
@@ -276,7 +375,31 @@ class MemoryManager(object):
         if new_pages != pages:
             shape = self.create_virtual_dataset(group, new_pages=new_pages)
         return shape  # EXIT 2
-        
+
+
+class Pages(list):
+    def __init__(self,values=None):
+        if values:
+            super().__init__(values)
+        else:
+            super().__init__()
+
+    def get_page_by_index(self, index):
+        a,b = 0,0
+        for page in self:
+            a = b
+            b += len(page)
+            if a <= index < b:
+                return page
+        raise IndexError(f"index {index} not found (lenght {b})")
+
+    # def start(self, page):
+    #     a,b = 0,0
+    #     for p in self:
+    #         a = b 
+    #         b += len(p)
+    #         if p == page:
+    #             return a
 
 class Page(object):
     _page_ids = 0  # when loading from disk increment this to max id.
@@ -432,9 +555,6 @@ class Page(object):
     def update(self):
         raise NotImplementedError("subclasses must implement this method.")
     
-    def delete(self):
-        raise NotImplementedError("subclasses must implement this method.")
-
     def __getitem__(self, item):
         raise NotImplementedError("subclasses must implement this method.")
 
@@ -444,7 +564,7 @@ class Page(object):
     def append(self, value):
         raise NotImplementedError("subclasses must implement this method.")
 
-    def insert(self, value):
+    def insert(self, index, value):
         raise NotImplementedError("subclasses must implement this method.")
 
     def extend(self, values):
@@ -516,7 +636,16 @@ class SimpleType(Page):
             dset[-len(value):] = value
             self._len += len(value)
 
+    def insert(self, index, value):
+        raise NotImplementedError("subclasses must implement this method.")
+
     def extend(self, values):
+        raise NotImplementedError("subclasses must implement this method.")
+
+    def remove(self, value):
+        raise NotImplementedError("subclasses must implement this method.")
+    
+    def pop(self, index):
         raise NotImplementedError("subclasses must implement this method.")
 
 
@@ -567,8 +696,17 @@ class StringType(Page):
             dset.resize(dset.len() + len(value),axis=0)
             dset[-len(value):] = value.astype(bytes) # encoding to bytes is required.
             self._len += len(value)
+    
+    def insert(self, index, value):
+        raise NotImplementedError("subclasses must implement this method.")
 
     def extend(self, values):
+        raise NotImplementedError("subclasses must implement this method.")
+
+    def remove(self, value):
+        raise NotImplementedError("subclasses must implement this method.")
+    
+    def pop(self, index):
         raise NotImplementedError("subclasses must implement this method.")
 
 
@@ -658,6 +796,15 @@ class MixedType(Page):
             # update self
             self._len += len(value)
 
+    def insert(self, index, value):
+        raise NotImplementedError("subclasses must implement this method.")
+
     def extend(self, values):
+        raise NotImplementedError("subclasses must implement this method.")
+
+    def remove(self, value):
+        raise NotImplementedError("subclasses must implement this method.")
+    
+    def pop(self, index):
         raise NotImplementedError("subclasses must implement this method.")
    
