@@ -1,13 +1,29 @@
 from tablite import Table
 import numpy as np
 from datetime import datetime, timedelta
+import pytest
+
+# DESCRIPTION
+# The basic tests seeks to cover list like functionality:
+# If a table is created, saved, copied, updated or deleted.
+# If a column is created, copied, updated or deleted.
+
+# The tests must assure that all common pytypes can be handled.
+# This means converting to and from HDF5-bytes format, when HDF5 
+# can't handle the datatype natively.
 
 
-def setup_function():  # pytest does this with every test.
+@pytest.fixture(autouse=True) # this resets the HDF5 file for every test.
+def refresh():
     Table.reset_storage()
+    yield
 
-def teardown_function():  # pytest does this with every test.
-    Table.reset_storage()
+
+# def setup_function():  # pytest does this with every test.
+#     Table.reset_storage()
+
+# def teardown_function():  # pytest does this with every test.
+#     Table.reset_storage()
 
 
 def test01():
@@ -64,10 +80,9 @@ def test02():
 
     assert table5['A'] == [-1, 1]
 
-    import gc
     del table4
     del table5
-    gc.collect()  # pytest keeps reference to table4 & 5, so gc must be invoked explicitly.
+    import gc; gc.collect()  # pytest keeps reference to table4 & 5, so gc must be invoked explicitly.
     # alternatively the explicit call to .__del__ could be made.
     # table4.__del__()  
     # table5.__del__()
@@ -86,7 +101,10 @@ def test03():
 
     table4['A'] += table4['A']  # duplication of pages.
     table4['A'] += [8,9,10]  # append where ref count > 1 creates a new page.
-    table4['A'][0] == 10  # unlink page 0, create new page and update record [0] with 10
+    L = table4['A'][:]
+    assert L == [7,1,2,3,4,5,6, 7,1,2,3,4,5,6, 8,9,10]
+    table4['A'][0] = 10  # unlink page 0, create new page and update record [0] with 10
+    assert table4['A'][0] == 10
 
     table5 = table4.copy()
     table5 += table4
@@ -95,8 +113,7 @@ def test03():
     table5.clear()
     assert table5['A'] == []
 
-def test03a():
-    
+def test03a():    
     table4 = Table()
     table4['A'] = L = [0, 10, 20, 3, 4, 5, 100]  # create
     assert L == [0, 10, 20, 3, 4, 5, 100]
@@ -133,6 +150,29 @@ def test03a():
     assert L == [0, 50, 60, 0, 80, 90, 0, 110]
     assert table4['A'] == L
 
+    L[4:6] = []
+    assert L == [0, 50, 80, 90, 0, 110]
+    assert table4['A'] == L
+
+    L[None:0] = [20,30]
+    assert L == [20,30,0, 50, 80, 90, 0, 110]
+    assert table4['A'] == L
+
+    L[:0] = [10]
+    assert L == [10,20,30,0, 50, 80, 90, 0, 110]
+    assert table4['A'] == L
+
+    col = table4['A']
+    try:
+        col[3::3] = [5] * 9
+        assert False, f"attempt to assign sequence of size 9 to extended slice of size 3"
+    except ValueError:
+        assert True
+
+    col.insert(0, -10)
+    col.append(120)
+    col.extend([130,140])
+    col.extend(col)    
 
 
 def test03b():  # test special column functions.
