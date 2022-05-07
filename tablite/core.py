@@ -68,7 +68,7 @@ class Table(object):
         for row in Table.rows:
             print(row)
         """
-        generators = [iter(mc) for mc in self.columns.values()]
+        generators = [iter(mc) for mc in self._columns.values()]
         for _ in range(len(self)):
             yield [next(i) for i in generators]
 
@@ -142,7 +142,10 @@ class Table(object):
             dset = h5[f"/table/{key}"]
             columns = json.loads(dset.attrs['columns'])
             for col_name, column_key in columns.items():
-                t._columns[col_name] = Column.load(key=column_key)
+                c = Column.load(key=column_key)
+                ds2 = h5[f"/column/{column_key}"]
+                c._len = ds2.len()
+                t._columns[col_name] = c
             return t
 
     @classmethod
@@ -169,6 +172,9 @@ class Column(object):
     def load(cls, key):
         return Column(key=key)
     
+    def __iter__(self):
+        return (v for v in self.__getitem__())
+
     def __getitem__(self, item=None):
         if isinstance(item, int):
             slc = slice(item,item+1,1)
@@ -372,7 +378,6 @@ class Column(object):
             pass  # it's an extension.
         else:
             raise NotImplementedError(f"{key}, {value} on {self._len}")
-        
 
     def __setitem__(self, key, value):
         """
