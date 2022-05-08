@@ -100,6 +100,8 @@ class Table(object):
     def __getitem__(self,keys):
         if isinstance(keys,str) and keys in self._columns:
             return self._columns[keys]
+        else:
+            raise KeyError(f"no such column: {keys}")
 
     def __delitem__(self, key):
         if isinstance(key, str) and key in self._columns:
@@ -109,11 +111,28 @@ class Table(object):
         else:
             raise NotImplemented()()
 
+    def copy(self):
+        t = Table()
+        for name, col in self._columns.items():
+            t[name] = col
+        return t
+
+    def clear(self):
+        for name in self.columns:
+            self.__delitem__(name)
+
     def __add__(self,other):
         raise NotImplemented()
 
     def __iadd__(self,other):
-        raise NotImplemented()
+        if not isinstance(other, Table):
+            raise TypeError(f"no method for {type(other)}")
+        if set(self.columns) != set(other.columns) or len(self.columns) != len(other.columns):
+            raise ValueError("Columns names are not the same")
+        for name,col in self._columns.items():
+            other_col = other[name]
+            col += other_col
+        return self
 
     @classmethod
     def reload_saved_tables(cls,path=None):
@@ -154,7 +173,7 @@ class Table(object):
 
     def add_rows(self, *args, **kwargs):
         """ its more efficient to add many rows at once. """
-        raise NotImplementedError
+        raise NotImplementedError()
 
 class Column(object):
     ids = count(1)
@@ -213,7 +232,7 @@ class Column(object):
             new_page = last_page.create(data)
             all_pages.append(new_page)
         
-        shape = mem.create_virtual_dataset(self.group, old_pages=pages, new_pages=all_pages)
+        shape = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=all_pages)
         self._len = shape
         
     def insert(self, index, value):
@@ -232,12 +251,11 @@ class Column(object):
             data = np.array(page[:] + [value])
             new_page = page.create(data)
 
-        # old_pages = mem.get_pages(self.group)
         ix = old_pages.index(page)
         new_pages = old_pages[:]
         new_pages[ix] = new_page
         
-        shape = mem.create_virtual_dataset(self.group, old_pages=old_pages, new_pages=new_pages)
+        shape = mem.create_virtual_dataset(self.group, pages_before=old_pages, pages_after=new_pages)
         self._len = shape
     
     def _extend_from_column(self, column):
@@ -247,7 +265,7 @@ class Column(object):
         pages = mem.get_pages(self.group)
         other = mem.get_pages(column.group)
         all_pages = pages + other
-        shape = mem.create_virtual_dataset(self.group, old_pages=pages, new_pages=all_pages)
+        shape = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=all_pages)
         self._len = shape
 
     def _extend_from_values(self, values):
@@ -264,22 +282,22 @@ class Column(object):
         if pages:
             last_page = pages[-1]
             if mem.get_ref_count(last_page) == 1: 
-                
                 target_cls = last_page.page_class_type_from_np(data)
                 if isinstance(last_page, target_cls):
                     last_page.extend(data)
                 else:  # new datatype for ref_count == 1, so we create a mixed type page.
+                    # alternatively we may end up with thousands of tiny pages of different types.
                     data = np.array(last_page[:] + data)
                     new_page = last_page.create(data)
                     all_pages[-1] = new_page
             else:
-                new_page = last_page.create(data)
+                new_page = Page.create(data)
                 all_pages.append(new_page)
         else:
             new_page = Page.create(data)
             all_pages.append(new_page)
         
-        shape = mem.create_virtual_dataset(self.group, old_pages=pages, new_pages=all_pages)
+        shape = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=all_pages)
         self._len = shape
 
     def extend(self, values):
@@ -305,7 +323,7 @@ class Column(object):
                 new_page = page.create(data)
                 new_pages = pages[:]
                 new_pages[ix] = new_page
-            shape = mem.create_virtual_dataset(self.group, old_pages=pages, new_pages=new_pages)
+            shape = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=new_pages)
             self._len = shape
             break
 
@@ -318,7 +336,7 @@ class Column(object):
             new_data = [v for v in page[:] if v != value]
             new_page = page.create(new_data)
             new_pages[ix] = new_page
-        shape = mem.create_virtual_dataset(self.group, old_pages=pages, new_pages=new_pages)
+        shape = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=new_pages)
         self._len = shape
         
     def pop(self, index):
@@ -338,14 +356,38 @@ class Column(object):
                     new_page = page.create(data)
                     new_pages = pages[:]
                     new_pages[ix] = new_page
-                shape = mem.create_virtual_dataset(self.group, old_pages=pages, new_pages=new_pages)
+                shape = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=new_pages)
                 self._len = shape
                 return value
         raise IndexError(f"index {index} out of bound")
 
     def _update_by_index(self, key, value):
         assert isinstance(key, int)
-        
+        key = self._len + key if key < 0 else key
+
+        data = np.array([value])
+        target_cls = Page.page_class_type_from_np(data)
+
+        pages = mem.get_pages(self.group)
+
+        a, b = 0, 0
+        for ix,page in enumerate(pages):
+            a = b
+            b += len(pages)
+            if a <= key < b:
+                if mem.get_ref_count(page)==1 and isinstance(page, target_cls):
+                    page[key-a] = data                        
+                else:
+                    data = page[:].tolist() 
+                    data[key-a] = value
+                    data = np.array(data)
+                    new_page = Page.create(data)
+                    new_pages = pages[:]
+                    new_pages[ix] = new_page
+                    shape = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=new_pages)
+                    self._len = shape
+                return 
+        raise IndexError(f"index {index} out of bound")
 
     def _update_by_slice(self, key, value):
         key_len = len(range(*key.indices(self._len)))

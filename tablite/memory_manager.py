@@ -100,32 +100,31 @@ class MemoryManager(object):
     #     for group in groups:
     #         new_pages.extend(self.get_pages(group))
 
-    def create_virtual_dataset(self, group, old_pages, new_pages):
+    def create_virtual_dataset(self, group, pages_before, pages_after):
         """ The consumer API for Columns to create, update and delete datasets."""
-        if not isinstance(old_pages,list):
-            raise TypeError
-        if not isinstance(new_pages, list):
-            raise TypeError
-        
+        if not isinstance(pages_before,list):
+            raise TypeError("expected at least an empty list.")
+        if not isinstance(pages_after, list):
+            raise TypeError("expected at least an empty list.")
+                
         with h5py.File(self.path, READWRITE) as h5:
             # 2. adjust ref count by adding first, then remove, as this prevents ref count < 1.
-            all_pages = old_pages + new_pages
+            all_pages = pages_before + pages_after
             assert all(isinstance(i, Page) for i in all_pages)
-           
-            if new_pages:
-                for page in all_pages:  # add ref count for new connection.
-                    self.ref_counts[page.group] += 1
-                for page in old_pages:  # remove duplicate ref count.
-                    self.ref_counts[page.group] -= 1
+
+            for page in pages_after:
+                self.ref_counts[page.group] += 1
+            for page in pages_before:
+                self.ref_counts[page.group] -= 1
                 
-                self.del_pages_if_required(old_pages)
+            self.del_pages_if_required(pages_before)
             
             # 3. determine new layout.
-            dtype, shape = Page.layout(all_pages)
+            dtype, shape = Page.layout(pages_after)
             # 4. create the layout.
             layout = h5py.VirtualLayout(shape=(shape,), dtype=dtype, maxshape=(None,), filename=self.path)
             a, b = 0, 0
-            for page in all_pages:
+            for page in pages_after:
                 dset = h5[page.group]
                 b += dset.len()
                 vsource = h5py.VirtualSource(dset)
@@ -309,7 +308,7 @@ class MemoryManager(object):
         if not pages:
             new_page = Page.create(values)
             new_pages = [new_page]
-            shape = self.create_virtual_dataset(group, new_pages=new_pages)
+            shape = self.create_virtual_dataset(group, pages_after=new_pages)
             return shape  # EXIT 1
 
         new_pages = pages[:]  # we keep a copy for the virtual dataset.
@@ -373,11 +372,14 @@ class MemoryManager(object):
             raise NotImplementedError()
 
         if new_pages != pages:
-            shape = self.create_virtual_dataset(group, new_pages=new_pages)
+            shape = self.create_virtual_dataset(group, pages_after=new_pages)
         return shape  # EXIT 2
 
 
 class Pages(list):
+    """
+    behaves like a list.
+    """
     def __init__(self,values=None):
         if values:
             super().__init__(values)
@@ -640,7 +642,13 @@ class SimpleType(Page):
         raise NotImplementedError("subclasses must implement this method.")
 
     def extend(self, values):
-        raise NotImplementedError("subclasses must implement this method.")
+        assert isinstance(values, np.ndarray)
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            dset.resize(dset.len() + len(values), axis=0)
+            dset[-len(values):] = values
+            self._len += len(values)
+        # raise NotImplementedError("subclasses must implement this method.")
 
     def remove(self, value):
         raise NotImplementedError("subclasses must implement this method.")
