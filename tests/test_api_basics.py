@@ -107,17 +107,17 @@ def test03():
 
     table4['A'] += table4['A']  # duplication of pages.
     table4['A'] += [8,9,10]  # append where ref count > 1 creates a new page.
-    L = table4['A'][:]
+    L = list(table4['A'][:])
     assert L == [7,1,2,3,4,5,6, 7,1,2,3,4,5,6, 8,9,10]
-    table4['A'][0] = 10  # unlink page 0, create new page and update record [0] with 10
-    assert table4['A'][0] == 10
+    table4['A'][0] = 11  # unlink page 0, create new page and update record [0] with 10
+    assert table4['A'][0] == 11
 
     table5 = table4.copy()
     table5 += table4
     assert len(table5) == 2 * len(table4)
 
     table5.clear()
-    assert table5['A'] == []
+    assert table5.columns == []
 
 def test03a():    
     table4 = Table()
