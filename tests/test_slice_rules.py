@@ -1,41 +1,8 @@
-from tablite.utils import intercept
+import numpy as np
+import h5py
+from pathlib import Path
 
-def test001():
-    slc = slice(None,0,None)
-    rslc = range(*slc.indices(5))
-    rr = range(5)
-    itcp = intercept(rslc,rr)
-
-    # find page of slice.start.
-    # find index of slice.start
-    # overwrite first value
-    # find next index as slice.start + slice.step
-    # if index on page:
-    #     overwrite value
-    # else: find next page (+1 if slice.step > 0)
-    L = LL()
-    L.extend([1,2,3])
-    a = L[:0]
-    b = L[-1:]
-    L[:0] = [0]
-    L[len(L):] = [4]
-    print(L)
-
-
-class LL(list):
-    g = []
-    s = []
-    def __init__(self):
-        super().__init__()
-    def __getitem__(self,__o):
-        self.g.append(__o)
-        super().__getitem__(__o)
-    def __setitem__(self,__o,v):
-        self.s.append(__o)
-        super().__setitem__(__o,v)
-
-
-def test01_getitem():
+def test_getitem():
 
     L = [1,2,3,4]
     assert L[:] == [1,2,3,4]  # slice(None,None,None)
@@ -74,7 +41,7 @@ def test01_getitem():
     assert L[4:0:-1] == [4,3,2] # start included, stop excluded.
     assert L[3:2:-1] == [4]
     
-def test01_setitem():
+def test_setitem():
 
     # VALUES! NOT SLICES!
     # ---------------
@@ -201,3 +168,73 @@ def test01_setitem():
     L = [1,2,3]; L[None :   1  : None] = [4,5]  # --> L == [4,5,2,3] 
     L = [1,2,3]; L[None : None :  2  ] = [4,5]  # --> L == [4,2,5]
 
+def test_for_numpy():
+    L = [1,2,3]
+
+    L2 = np.array(L)
+    L2[:0] == []
+    L2[0:] == [1,2,3]
+    L2[0::2] == [1,3]
+
+    # Create h5py dataset.
+    p = Path('this.h5')
+    if p.exists():
+        p.unlink()
+    with h5py.File(p, 'a') as h5:
+        dset = h5.create_dataset(name='L', data=L)
+        L3 = dset[:]
+        assert (L2 == L3).all()  # numpy for list(L) == list(L2)
+
+    # ONE TO ONE REPLACEMENT.
+    L[:2] = [4,5]
+    L2[:2] = [4,5]  # numpy
+    assert L == L2.tolist()
+
+    with h5py.File(p, 'a') as h5:
+        dset = h5['/L']
+        L3 = dset[:]
+        L3[:2] = [4,5]  # h5py
+        assert (L2 == L3).all()  # numpy for list(L) == list(L2)
+
+    # ONE TO TWO REPLACMEENT
+    L[:2] = [6]  # --> L == [6,3]
+    L2[:2] = [6]  # --> numpy L2 == [6,6,3]
+    with h5py.File(p, 'a') as h5:
+        dset = h5['/L']
+        L3 = dset[:]
+
+        L3[:2] = [6]   # h5py L3 == [6,6,3]    
+        assert (L2 == L3).all()  # numpy for list(L) == list(L2)
+    assert L != L2.tolist()  # [6,3] != [6,6,3]
+
+    p.unlink()
+
+
+class Mock(object):
+    def __init__(self, *args) -> None:
+        self.items = args
+        self.last = None
+    def __getitem__(self, i):
+        self.last = i
+    def __setitem__(self, key,value):
+        self.last = (key,value)
+    def __getslice__(self,i,j):
+        self.last = i,j
+    # def __setslice(self,i,j,sequence):  # ONLY APPLY ON SUBCLASSES FOR CPYTHON OBJECTS.
+    #     self.last = i,j,sequence
+    # def __delslice(self,i,j):
+    #     self.last = i,j
+    def __delitem__(self, index):
+        self.last = index
+
+
+def test_subclass():
+    m = Mock()
+    m[:3] # __getitem__
+    assert m.last == slice(3)
+    m[2:3] 
+    assert m.last == slice(2,3)
+    m[2:5] = [1,2,3]
+    assert m.last == (slice(2, 5), [1,2,3])
+    del m[3:5]
+    assert m.last == slice(3,5)
