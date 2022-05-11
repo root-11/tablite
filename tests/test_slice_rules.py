@@ -267,22 +267,14 @@ class MyList(object):
             if key.start == key.stop == None and key.step in (None,1):   # L[:] = [1,2,3]
                 self.items = list(value)
             elif key.start != None and key.stop == key.step == None:   # L[0:] = [1,2,3]
-                # self.items = self.items[:key.start] + list(value)
-                self.items = self._getslice_(0,start) + list(value)
-                # self.items = [self.items[i] for i in range(key.start)] + list(value)
+                self.items = self._getslice_(0,start) + list(value)  # self.items = self.items[:key.start] + list(value)
             elif key.stop != None and key.start == key.step == None:  # L[:3] = [1,2,3]
-                # self.items = list(value) + self.items[key.stop:]
-                a,b,c = key.indices(len(self.items))
-                self.items = list(value) + self._getslice_(stop, len(self.items))
-                # self.items = list(value) + [self.items[i] for i in range(key.stop, len(self.items))]
+                self.items = list(value) + self._getslice_(stop, len(self.items))  # self.items = list(value) + self.items[key.stop:]
             elif key.step == None and key.start != None and key.stop != None:  # L[3:5] = [1,2,3]
                 stop = max(start,stop)
-
-                self.items = self._getslice_(0,start) + list(value) + self._getslice_(stop,len(self.items))
-                # self.items = self.items[:start] + list(value) + self.items[stop:]
-            
+                self.items = self._getslice_(0,start) + list(value) + self._getslice_(stop,len(self.items))   # self.items = self.items[:start] + list(value) + self.items[stop:]
             elif key.step != None:
-                seq = range(*key.indices(len(self.items)))
+                seq = range(start,stop,step)
                 seq_size = len(seq)
                 if len(value) > seq_size:
                     raise ValueError(f"attempt to assign sequence of size {len(value)} to extended slice of size {seq_size}")
