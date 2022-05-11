@@ -218,8 +218,8 @@ class Mock(object):
         self.last = i
     def __setitem__(self, key,value):
         self.last = (key,value)
-    def __getslice__(self,i,j):
-        self.last = i,j
+    # def __getslice__(self,i,j):  
+    #     self.last = i,j
     # def __setslice(self,i,j,sequence):  # ONLY APPLY ON SUBCLASSES FOR CPYTHON OBJECTS.
     #     self.last = i,j,sequence
     # def __delslice(self,i,j):
