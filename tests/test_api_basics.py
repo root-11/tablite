@@ -1,6 +1,6 @@
 from tablite import Table
 import numpy as np
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, timedelta
 import pytest
 
 # DESCRIPTION
@@ -119,7 +119,44 @@ def test03():
     table5.clear()
     assert table5.columns == []
 
-def test03a():    
+def test03a():  # single page updates.
+    table4 = Table()
+    table4['A'] = list(range(10))
+    L = list(range(10))
+    C = table4['A']
+    L[:0] = [-3,-2,-1]  # insert
+    C[:0] = [-3,-2,-1]  # insert
+    assert list(C[:]) == L
+    L[len(L):] = [10,11,12]  # extend
+    C[len(C):] = [10,11,12]  # extend
+    assert list(C[:]) == L
+    L[0:2] = [20]  # reduce
+    C[0:2] = [20]  # reduce
+    assert list(C[:]) == L
+    L[0:1] = [-3,-2]  # expand
+    C[0:1] = [-3,-2]  # expand
+    assert list(C[:]) == L
+    L[4:8] = [11,12,13,14]  # replace
+    C[4:8] = [11,12,13,14]  # replace
+    assert list(C[:]) == L
+    L[8:4:-1] = [21,22,23,24]  # replace reverse
+    C[8:4:-1] = [21,22,23,24]  # replace reverse
+    assert list(C[:]) == L
+
+
+def test03a2():  # multi page updates.
+    table4 = Table()
+    table4['A'] = list(range(5))
+    table4['A'] += table4['A']
+    L = list(range(10))
+    L[:0] = [-3,-2,-1]  # insert
+    L[len(L):] = [10,11,12]  # extend
+    L[0:2] = [20]  # reduce
+    L[0:1] = [-3,-2]  # expand
+    L[4:8] = [11,12,13,14]  # replace
+
+
+def test03b():    
     table4 = Table()
     table4['A'] = L = [0, 10, 20, 3, 4, 5, 100]  # create
     assert L == [0, 10, 20, 3, 4, 5, 100]
@@ -130,7 +167,7 @@ def test03a():
     assert table4['A'] == L
     
     # operations below are handled by __getitem__ with a slice as a key.
-    table4['A'][4:5], L[4:5] = [40,50], [40,50]  # update many as len(4:5)==len(B)
+    table4['A'][4:5], L[4:5] = [40,50], [40,50]  # update many as len(4:5)== 1 but len(values)==2
     assert L == [0, 10, 20, 30, 40, 50, 5, 100]
     assert table4['A'] == L
     
@@ -160,12 +197,12 @@ def test03a():
     assert L == [0, 50, 80, 90, 0, 110]
     assert table4['A'] == L
 
-    L[None:0] = [20,30]
-    assert L == [20,30,0, 50, 80, 90, 0, 110]
+    L[None:0] = [20, 30]
+    assert L == [20, 30, 0, 50, 80, 90, 0, 110]
     assert table4['A'] == L
 
     L[:0] = [10]
-    assert L == [10,20,30,0, 50, 80, 90, 0, 110]
+    assert L == [10, 20, 30, 0, 50, 80, 90, 0, 110]
     assert table4['A'] == L
 
     col = table4['A']
@@ -181,7 +218,11 @@ def test03a():
     col.extend(col)    
 
 
-def test03b():  # test special column functions.
+def test_multitype_datasets():
+    raise NotImplementedError()
+
+
+def test03c():  # test special column functions.
     t = Table()
     n,m = 5,3
     t['A'] = [list(range(n))] * m
@@ -223,9 +264,10 @@ def test04():
     t.add_row((7, 1, 2, 3), (8, 4, 5, 6))  # two (or more) tuples.
     t.add_row([9, 1, 2, 3], [10, 4, 5, 6])  # two or more lists
     t.add_row({'row': 11, 'A': 1, 'B': 2, 'C': 3},
-              {'row': 12, 'A': 4, 'B': 5, 'C': 6})  # two (or more) dicts as args.
+              {'row': 12, 'A': 4, 'B': 5, 'C': 6})  # two (or more) dicts as args - roughly comma sep'd json.
     t.add_row(*[{'row': 13, 'A': 1, 'B': 2, 'C': 3},
                 {'row': 14, 'A': 1, 'B': 2, 'C': 3}])  # list of dicts.
+    t.add_row(row=[15,16], A=[1,1], B=[2,2], C=[3,3])  # kwargs - lists
 
 def test04a():
     pass  # multi processing index. with shared memory.
