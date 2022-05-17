@@ -129,10 +129,10 @@ def test03a():  # single page updates.
     assert list(C[:]) == L
     L[len(L):] = [10,11,12]  # extend
     C[len(C):] = [10,11,12]  # extend
-    assert list(C[:]) == L
-    L[0:2] = [20]  # reduce
+    assert list(C[:]) == L  # array([-3, -2, -1,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12])
+    L[0:2] = [20]  # reduce  # array([20, -1,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12])
     C[0:2] = [20]  # reduce
-    assert list(C[:]) == L
+    assert list(C[:]) == L  
     L[0:1] = [-3,-2]  # expand
     C[0:1] = [-3,-2]  # expand
     assert list(C[:]) == L
@@ -225,11 +225,11 @@ def test_multitype_datasets():
 def test03c():  # test special column functions.
     t = Table()
     n,m = 5,3
-    t['A'] = [list(range(n))] * m
+    t['A'] = list(range(n)) * m
     col = t['A']
     k,v = col.histogram()
     assert len(k) == n
-    assert sum(v) == sum(col)
+    assert sum(k1*v1 for k1,v1 in zip(k,v)) == sum(col)
     uq = col.unique()
     assert len(uq) == n
     assert sum(uq) == sum(range(n))
