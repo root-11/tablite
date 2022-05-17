@@ -221,6 +221,8 @@ class Pages(list):
             a-+-------+-b      include page          (13)
         
         """
+        if start==stop:
+            return []
         L = []
         a, b = 0, 0
         for page in self:
@@ -234,10 +236,11 @@ class Pages(list):
                 L.append(page)
             else:  # cases (3,4,5,6,7)
                 p_start = a if start < a else start
-                p_stop = b if stop > b else b                    
-                data = page[p_start:p_stop]
-                new = Page.create(data)
-                L.append(new)
+                p_stop = b if stop > b else stop                   
+                data = page[p_start-a:p_stop-a]
+                if len(data):
+                    new = Page.create(data)
+                    L.append(new)
         return L
 
 

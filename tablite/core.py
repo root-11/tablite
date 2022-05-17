@@ -344,27 +344,29 @@ class Column(object):
                 # self.items = self.items[:key.start] + list(value)  -- kept as documentation reference for test_slice_rules.py | MyList
                 # self.items = self._getslice_(0,start) + list(value)  
                 before = mem.get_pages(self.group) 
-                before_slice = before.getslice(0,start)
-                if isinstance(value, Column):
-                    after = before_slice + mem.get_pages(value.group)
-                elif isinstance(value, (list,tuple,np.ndarray)):
-                    data = np.array(value)
-                    
-                    last_page = before_slice[-1]
-                    target_cls = Page.page_class_type_from_np(data)  
-                    if mem.get_ref_count(last_page) == 1:
-                        if isinstance(last_page, target_cls):
-                            last_page.extend(data)
-                            after = before_slice
-                        else:  # new datatype for ref_count == 1, so we create a mixed type page to avoid thousands of small pages.
-                            data = np.array(last_page[:] + data)
+                if before:
+                    before_slice = before.getslice(0,start)
+                    if isinstance(value, Column):
+                        after = before_slice + mem.get_pages(value.group)
+                    elif isinstance(value, (list,tuple,np.ndarray)):
+                        data = np.array(value)
+                        last_page = before_slice[-1] 
+                        target_cls = Page.page_class_type_from_np(data)  
+                        if mem.get_ref_count(last_page) == 1:
+                            if isinstance(last_page, target_cls):
+                                last_page.extend(data)
+                                after = before_slice
+                            else:  # new datatype for ref_count == 1, so we create a mixed type page to avoid thousands of small pages.
+                                data = np.array(last_page[:] + data)
+                                new_page = Page.create(data)
+                                after = before_slice[:-1] + [new_page]
+                        else:  # ref count > 1
                             new_page = Page.create(data)
-                            after = before_slice[:-1] + [new_page]
-                    else:  # ref count > 1
-                        new_page = Page.create(data)
-                        after = before_slice + [new_page]
-                else:
-                    raise TypeError
+                            after = before_slice + [new_page]
+                    else:
+                        raise TypeError
+                else:  # it's an empty column.
+                    after = [Page.create(np.array(value))]
                 self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
 
             elif key.stop != None and key.start == key.step == None:  # L[:3] = [1,2,3]
@@ -388,7 +390,7 @@ class Column(object):
                 # self.items = self.items[:start] + list(value) + self.items[stop:]
                 # self.items = self._getslice_(0,start) + list(value) + self._getslice_(stop,len(self.items))
                 before = mem.get_pages(self.group)
-                A,B = before.getslice(0,start), before.getslice(stop, self._len)
+                A, B = before.getslice(0,start), before.getslice(stop, self._len)
                 if isinstance(value, Column):
                     after = A + mem.get_pages(value.group) + B
                 elif isinstance(value, (list,tuple, np.ndarray)):
@@ -413,7 +415,7 @@ class Column(object):
                 # self.items = new
 
                 before = mem.get_pages(self.group)
-                new = mem.get_data(self.group)  
+                new = mem.get_data(self.group, slice(None))
                 for new_index, position in zip(range(len(value)), seq):
                     new[position] = value[new_index]
                 # all went well. No exceptions.

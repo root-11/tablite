@@ -354,6 +354,10 @@ def test_mylist():
     L[1:0] = [4,5]  # SLICE: DROP L between A,B (nothing). INSERT NEW starting on 1.
     assert L == [1,4,5,2,3]
 
+    L = MyList([1,2,3])
+    L[0:2] = [4,5,6]
+    assert L == [4,5,6,3]
+
     L = MyList([10,20,30])
     L[1:3] = [4]  # SLICE: DROP L bewteen A,B (L[1:3] = [20,30]). INSERT NEW starting on 1.
     assert L == [10,4]
