@@ -1,4 +1,5 @@
 import os
+import io
 import pathlib
 import json
 import zipfile
@@ -349,6 +350,44 @@ class Table(object):
             for name, col in self._columns.items():
                 t[name] = [str(i) for i in col[:7]] + ["..."] + [str(i) for i in col[-7:]] 
             print(t.to_ascii(blanks))
+
+    def index(self, *args):
+        cols = []
+        for arg in args:
+            col = self._columns.get(arg, None)
+            if col is not None:
+                cols.append(col)
+        if not cols:
+            raise ValueError("no columns?")
+
+        c = np.column_stack(cols)
+        idx = defaultdict(set)
+        for ix, key in enumerate(c):
+            idx[tuple(key)].add(ix)
+        return idx
+    
+    def copy_to_clipboard(self):
+        """ copy data from a Table into clipboard. """
+        try:
+            s = ["\t".join([f"{name}" for name in self.columns])]
+            for row in self.rows:
+                s.append("\t".join((str(i) for i in row)))
+            s = "\n".join(s)
+            pyperclip.copy(s)
+        except MemoryError:
+            raise MemoryError("Cannot copy to clipboard. Select slice instead.")
+
+    @staticmethod
+    def copy_from_clipboard():
+        """ copy data from clipboard into Table. """
+        t = Table()
+        txt = pyperclip.paste().split('\n')
+        t.add_columns(*txt[0].split('\t'))
+
+        for row in txt[1:]:
+            data = row.split('\t')
+            t.add_rows(data)    
+        return t
 
 
 class Column(object):
