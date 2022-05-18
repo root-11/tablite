@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-import h5py
+import h5py  #https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr?rq=1  
 import numpy as np
 import json
 
@@ -136,7 +136,7 @@ class MemoryManager(object):
                 return Pages()
             else:
                 dset = h5[group]
-                return Pages([ Page.load(pg_grp) for _,_,pg_grp,_ in dset.virtual_sources() ])
+                return Pages([ Page.load(pg_grp) for _,_,pg_grp,_ in dset.virtual_sources() ])  # https://docs.h5py.org/en/stable/high/dataset.html#h5py.Dataset.virtual_sources
 
     def get_ref_count(self, page):
         assert isinstance(page, Page)
@@ -153,6 +153,8 @@ class MemoryManager(object):
             raise TypeError(f'{type(item)} is not slice')
         
         with h5py.File(self.path, READONLY) as h5:
+            if group not in h5:
+                return np.array([])
             dset = h5[group]
             if dset.dtype.char != 'O':  # it's a single type dataset.
                 return dset[item]
@@ -165,13 +167,13 @@ class MemoryManager(object):
             start,end = 0,0
             pages = self.get_pages(group)
             for page in pages:  # loaded Pages
-                end = len(page)
+                start = end
+                end += len(page)
                 ro = intercept(range(start,end,1), item_range)  # check if the slice is worth converting.
                 if len(ro)!=0:  # fetch the slice and filter it.
                     search_slice = slice(ro.start - start, ro.stop - start, ro.step)
                     match = page[search_slice]  # page.__getitem__ handles type conversion for Mixed and Str types.
                     arrays.append(match)
-                start = end
             
             dtype, _ = Page.layout(pages)
             return np.concatenate(arrays, dtype=dtype)  
@@ -563,8 +565,12 @@ class StringType(Page):
         raise NotImplementedError("subclasses must implement this method.")
 
     def extend(self, values):
-        raise NotImplementedError("subclasses must implement this method.")
-
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            dset.resize(dset.len() + len(values),axis=0)
+            dset[-len(values):] = values.astype(bytes) # encoding to bytes is required.
+            self._len += len(values)
+    
     def remove(self, value):
         raise NotImplementedError("subclasses must implement this method.")
     

@@ -145,6 +145,10 @@ class Table(object):
         return self
 
     def __mul__(self,other):
+        """
+        enables repetition of a table
+        Example: Table_x_10 = table * 10
+        """
         if not isinstance(other, int):
             raise TypeError(f"can't multiply Table with {type(other)}")
         t = self.copy()
@@ -153,8 +157,14 @@ class Table(object):
         return t
 
     def __imul__(self,other):
+        """
+        extends a table N times onto using itself as source.
+        """
+        if not isinstance(other, int):
+            raise TypeError(f"can't multiply Table with {type(other)}")
+        c = self.copy()
         for _ in range(other):
-            self += self
+            self += c
         return self
 
     @classmethod
@@ -192,6 +202,7 @@ class Table(object):
 
     @classmethod
     def reset_storage(cls):
+        """ Resets all stored tables. """
         mem.reset_storage()
 
     def add_rows(self, *args, **kwargs):
@@ -256,6 +267,89 @@ class Table(object):
         for name in names:
             self.__setitem__(name,[])
 
+    def stack(self, other):
+        """
+        returns the joint stack of tables
+        Example:
+
+        | Table A|  +  | Table B| = |  Table AB |
+        | A| B| C|     | A| B| D|   | A| B| C| -|
+                                    | A| B| -| D|
+        """
+        if not isinstance(other, Table):
+            raise TypeError(f"stack only works for Table, not {type(other)}")
+
+        t = self.copy()
+        for name , col2 in other._columns.items():
+            if name not in t.columns:  # fill with blanks
+                t[name] = [None] * len(self)
+            col1 = t[name]
+            col1.extend(col2)
+
+        for name, col in t._columns.items():
+            if name not in other.columns:
+                col.extend([None]*len(other))
+        return t
+
+    def to_ascii(self, blanks=None):
+        """
+        enables viewing in terminals
+        returns the table as ascii string
+        """
+        widths = {}
+        names = list(self.columns)
+        if not names:
+            return "Empty table"
+        for name,col in self._columns.items():
+            widths[name] = max([len(name)] + [len(str(v)) for v in col])
+
+        def adjust(v, length):
+            if v is None:
+                return str(blanks).ljust(length)
+            elif isinstance(v, str):
+                return v.ljust(length)
+            else:
+                return str(v).rjust(length)
+
+        s = []
+        s.append("+" + "+".join(["=" * widths[n] for n in names]) + "+")
+        s.append("|" + "|".join([n.center(widths[n], " ") for n in names]) + "|")
+        # s.append("| " + "|".join([str(table.columns[n].dtype).center(widths[n], " ") for n in names]) + " |")
+        s.append("+" + "+".join(["-" * widths[n] for n in names]) + "+")
+        for row in self.rows:
+            s.append("|" + "|".join([adjust(v, widths[n]) for v, n in zip(row, names)]) + "|")
+        s.append("+" + "+".join(["=" * widths[h] for h in names]) + "+")
+        return "\n".join(s)
+
+    def show(self, *args, blanks=None):
+        """
+        args = {slice}
+        sort AZ, ZA  <--- show only! the source doesn't change.
+        unique values <--- applies on the column only.
+        filter by condition [
+            is empty, is not empty, 
+            text {contains, does not contain, starts with, ends with, is exactly},
+            date {is, is before, is after}
+            value is {> >= < <= == != between, not between}
+            formula (uses eval)
+        ]
+        filter by values [ unique values ]
+        """ 
+        if args:
+            for arg in args:
+                if isinstance(arg, slice):
+                    t = self[arg]
+                    print(t.to_ascii(blanks))
+                    
+        elif len(self) < 20:
+            print(self.to_ascii(blanks))
+        else:
+            t,n = Table(), len(self)
+            t['#'] = [str(i) for i in range(7)] + ["..."] + [str(i) for i in range(n-7, n)]
+            for name, col in self._columns.items():
+                t[name] = [str(i) for i in col[:7]] + ["..."] + [str(i) for i in col[-7:]] 
+            print(t.to_ascii(blanks))
+
 
 class Column(object):
     ids = count(1)
@@ -296,6 +390,10 @@ class Column(object):
         else:
             return result
 
+    def clear(self):
+        old_pages = mem.get_pages(self.group)
+        self._len = mem.create_virtual_dataset(self.group, pages_before=old_pages, pages_after=[])
+
     def append(self, value):
         data = np.array([value])
         self.__setitem__(key=slice(self._len,None,None), value=data)
@@ -323,8 +421,7 @@ class Column(object):
         new_page.insert(index - start, new_data)
         new_pages[ix] = new_page  # insert the changed page.
         
-        shape = mem.create_virtual_dataset(self.group, pages_before=old_pages, pages_after=new_pages)
-        self._len = shape
+        self._len = mem.create_virtual_dataset(self.group, pages_before=old_pages, pages_after=new_pages)
     
     def extend(self, values):
         self.__setitem__(slice(self._len,None,None), values)  #  self._extend_from_column(values)
