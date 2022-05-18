@@ -19,13 +19,6 @@ def refresh():
     yield
 
 
-# def setup_function():  # pytest does this with every test.
-#     Table.reset_storage()
-
-# def teardown_function():  # pytest does this with every test.
-#     Table.reset_storage()
-
-
 def test01():
     now = datetime.now().replace(microsecond=0)
 
@@ -286,22 +279,31 @@ def test04b():
 def test05():
     table4 = Table()
     txt = table4.to_ascii()
-    assert txt.count('\n') == 2  # header.
+    assert txt == "Empty table"  
 
-    for i in range(24):
+    table4.add_columns('A', 'B', 'C')
+    txt2 = table4.to_ascii()
+    assert txt2 == '+=+=+=+\n|A|B|C|\n+-+-+-+\n+=+=+=+'
+    for i in range(5):
         table4['A'] += [i]
         table4['B'] += [str(i)]
         table4['C'] += [1.1*i]
         txt = table4.to_ascii()
-        if i < 20:
-            assert txt.count('\n') == i+2
-        else:
-            assert txt.count('\n') == 2 + 7 + 1 + 7  # 2 headers, 7 records, 1 x ..., 7 records.
-
+        # +=+==+==================+
+        # |A|B |        C         |
+        # +-+--+------------------+
+        # |0|0 |               0.0|
+        # |1|1 |               1.1|
+        # |2|2 |               2.2|
+        # |3|3 |3.3000000000000003|
+        # |4|4 |               4.4|
+        # +=+==+==================+
+        assert txt.count('\n') == i+4
+        
     table4.show()  # launch the print function.
+    table4 *= 10
+    table4.show()
 
-    txt = table4.to_ascii(slice(0,None,1))
-    assert txt.count('\n') == 2 + 24
 
 def test06():
     # doing lookups is supported by indexing
