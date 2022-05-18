@@ -100,6 +100,8 @@ class MemoryManager(object):
             assert all(isinstance(i, Page) for i in all_pages)
 
             for page in pages_after:
+                if len(page)==0:
+                    raise ValueError("page length == 0")
                 self.ref_counts[page.group] += 1
             for page in pages_before:
                 self.ref_counts[page.group] -= 1

@@ -234,7 +234,7 @@ class Column(object):
         else:
             new_data = np.array([value])
 
-        target_cls = page.page_class_type_from_np(new_data)
+        target_cls = Page.page_class_type_from_np(new_data)
         
         old_pages = mem.get_pages(self.group)
         new_pages = old_pages[:]
@@ -401,9 +401,12 @@ class Column(object):
                 if isinstance(value, Column):
                     after = A + mem.get_pages(value.group) + B
                 elif isinstance(value, (list,tuple, np.ndarray)):
-                    data = np.array(value)
-                    new_page = Page.create(data)
-                    after = A + [new_page] + B
+                    if value:
+                        data = np.array(value)
+                        new_page = Page.create(data)
+                        after = A + [new_page] + B
+                    else:
+                        after = A + B
                 else:
                     raise TypeError
                 self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
