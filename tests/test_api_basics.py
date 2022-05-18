@@ -190,19 +190,23 @@ def test03b():
     assert table4['A'] == L
 
     L[::3] = [0,0,0]
+    table4['A'][::3] = [0,0,0]
     assert L == [0, 50, 60, 0, 80, 90, 0, 110]
     assert table4['A'] == L
 
     L[4:6] = []
-    assert L == [0, 50, 80, 90, 0, 110]
+    table4['A'][4:6] = []
+    assert L == [0, 50, 60, 0, 0, 110]
     assert table4['A'] == L
 
     L[None:0] = [20, 30]
-    assert L == [20, 30, 0, 50, 80, 90, 0, 110]
+    table4['A'][None:0] = [20, 30]
+    assert L == [20, 30, 0, 50, 60, 0, 0, 110]
     assert table4['A'] == L
 
     L[:0] = [10]
-    assert L == [10, 20, 30, 0, 50, 80, 90, 0, 110]
+    table4['A'][:0] = [10]
+    assert L == [10, 20, 30, 0, 50, 60, 0, 0, 110]
     assert table4['A'] == L
 
     col = table4['A']
@@ -214,8 +218,11 @@ def test03b():
 
     col.insert(0, -10)
     col.append(120)
+    assert list(col) == [-10, 10, 20, 30, 0, 50, 60, 0, 0, 110, 120]
     col.extend([130,140])
-    col.extend(col)    
+    assert list(col) == [-10, 10, 20, 30, 0, 50, 60, 0, 0, 110, 120, 130, 140]
+    col.extend(col)
+    assert list(col) == 2 * [-10, 10, 20, 30, 0, 50, 60, 0, 0, 110, 120, 130, 140]
 
 
 def test_multitype_datasets():
@@ -323,7 +330,7 @@ def test09():
     pass  # sort  - sort as it appears as string
 
 def test10():
-    pass  # join 
+    pass  # join + explain join matrix.
 
 def test11():
     pass  # lookup
@@ -335,3 +342,5 @@ def test13():
     pass  # pivot table.
 
 
+              #tabs
+              #spaces
