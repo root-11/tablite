@@ -105,12 +105,19 @@ class Table(object):
             raise KeyError(f"no such column: {keys}")
 
     def __delitem__(self, key):
+        """
+        del table['a']  removes column 'a'
+        del table[-3:] removes last 3 rows from all columns.
+        """
         if isinstance(key, str) and key in self._columns:
             col = self._columns[key]
             mem.delete_column_reference(self.group, key, col.key)
             del self._columns[key]  # dereference the Column
+        elif isinstance(key, slice):
+            for col in self._columns.values():
+                del col[key]
         else:
-            raise NotImplemented()()
+            raise NotImplemented()
 
     def copy(self):
         t = Table()
@@ -422,6 +429,56 @@ class Column(object):
                 after = [Page.create(new)]  # This may seem redundant, but is in fact is good as the user may 
                 # be cleaning up the dataset, so that we end up with a simple datatype instead of mixed.
                 self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
+            else:
+                raise KeyError(f"bad key: {key}")
+        else:
+            raise TypeError(f"bad key: {key}")
+
+    def __delitem__(self, key):
+        if isinstance(key, int):
+            if -self._len-1 < key < self._len:
+                before = mem.get_pages(self.group)
+                after = before[:]
+                ix,start,_,page = before.get_page_by_index(key)
+                if mem.get_ref_count(page) == 1:
+                    del page[key-start]
+                else:
+                    data = mem.get_data(page.group)
+                    mask = np.ones(shape=data.shape)
+                    new_data = np.compress(mask, data,axis=0)
+                    after[ix] = Page.create(new_data)
+            else:
+                raise IndexError("list assignment index out of range")
+
+            self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
+
+        elif isinstance(key, slice):
+            start,stop,step = key.indices(self._len)
+            before = mem.get_pages(self.group)
+            if key.start == key.stop == None and key.step in (None,1):   # del L[:] == L.clear()
+                self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=[])
+            elif key.start != None and key.stop == key.step == None:   # del L[0:] 
+                after = before.getslice(0, start)
+                self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
+            elif key.stop != None and key.start == key.step == None:  # del L[:3] 
+                after = before.getslice(stop, self._len)
+                self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
+            elif key.step == None and key.start != None and key.stop != None:  # del L[3:5]
+                after = before.getslice(0, start) + before.getslice(stop, self._len)
+                self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
+            elif key.step != None:
+                before = mem.get_pages(self.group)
+                data = mem.get_data(self.group, slice(None))
+                mask = np.ones(shape=data.shape)
+                for i in range(start,stop,step):
+                    filter[i] = 0
+                new = np.compress(mask, data, axis=0)
+                # all went well. No exceptions.
+                after = [Page.create(new)]  # This may seem redundant, but is in fact is good as the user may 
+                # be cleaning up the dataset, so that we end up with a simple datatype instead of mixed.
+                self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
+            else:
+                raise TypeError(f"bad key: {key}")
         else:
             raise TypeError(f"bad key: {key}")
 
