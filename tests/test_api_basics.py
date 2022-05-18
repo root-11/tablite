@@ -251,30 +251,29 @@ def test04():
     table5 = table4 * 10
     assert len(table5) == len(table4)*10  # test __mul__
 
-    assert table5['A'] == table5['A']  # test comparison of column.__eq__
+    assert table4['A'] != table5['A']  # test comparison of column.__eq__
+    assert table5['A'] == table5['A']
     assert table5 == table5  # test comparison of table.__eq__
 
     for row in table4.rows:  # test .rows
         print(row)
     
     t = Table()
-    t.add_column('row', int)
-    t.add_column('A', int)
-    t.add_column('B', int)
-    t.add_column('C', int)
-    t.add_row(1, 1, 2, 3)  # individual values
-    t.add_row([2, 1, 2, 3])  # list of values
-    t.add_row((3, 1, 2, 3))  # tuple of values
-    t.add_row(*(4, 1, 2, 3))  # unpacked tuple
-    t.add_row(row=5, A=1, B=2, C=3)   # keyword - args
-    t.add_row(**{'row': 6, 'A': 1, 'B': 2, 'C': 3})  # dict / json.
-    t.add_row((7, 1, 2, 3), (8, 4, 5, 6))  # two (or more) tuples.
-    t.add_row([9, 1, 2, 3], [10, 4, 5, 6])  # two or more lists
-    t.add_row({'row': 11, 'A': 1, 'B': 2, 'C': 3},
+    t.add_columns('row','A','B','C')
+    t.add_rows(1, 1, 2, 3)  # individual values
+    t.add_rows([2, 1, 2, 3])  # list of values
+    t.add_rows((3, 1, 2, 3))  # tuple of values
+    t.add_rows(*(4, 1, 2, 3))  # unpacked tuple
+    t.add_rows(row=5, A=1, B=2, C=3)   # keyword - args
+    t.add_rows(**{'row': 6, 'A': 1, 'B': 2, 'C': 3})  # dict / json.
+    t.add_rows((7, 1, 2, 3), (8, 4, 5, 6))  # two (or more) tuples.
+    t.add_rows([9, 1, 2, 3], [10, 4, 5, 6])  # two or more lists
+    t.add_rows({'row': 11, 'A': 1, 'B': 2, 'C': 3},
               {'row': 12, 'A': 4, 'B': 5, 'C': 6})  # two (or more) dicts as args - roughly comma sep'd json.
-    t.add_row(*[{'row': 13, 'A': 1, 'B': 2, 'C': 3},
+    t.add_rows(*[{'row': 13, 'A': 1, 'B': 2, 'C': 3},
                 {'row': 14, 'A': 1, 'B': 2, 'C': 3}])  # list of dicts.
-    t.add_row(row=[15,16], A=[1,1], B=[2,2], C=[3,3])  # kwargs - lists
+    t.add_rows(row=[15,16], A=[1,1], B=[2,2], C=[3,3])  # kwargs - lists
+    assert t['row'] == list(range(1,17))
 
 def test04a():
     pass  # multi processing index. with shared memory.

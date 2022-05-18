@@ -94,7 +94,9 @@ class Table(object):
                     raise NotImplemented()
             else:
                 raise NotImplemented()
-            
+        elif isinstance(keys, tuple) and len(keys) == len(values):
+            for key, value in zip(keys,values):
+                self.__setitem__(key,value)
         else:
             raise NotImplemented()
     
@@ -142,6 +144,19 @@ class Table(object):
             col += other_col
         return self
 
+    def __mul__(self,other):
+        if not isinstance(other, int):
+            raise TypeError(f"can't multiply Table with {type(other)}")
+        t = self.copy()
+        for _ in range(1,other):
+            t+=self
+        return t
+
+    def __imul__(self,other):
+        for _ in range(other):
+            self += self
+        return self
+
     @classmethod
     def reload_saved_tables(cls,path=None):
         tables = []
@@ -180,8 +195,67 @@ class Table(object):
         mem.reset_storage()
 
     def add_rows(self, *args, **kwargs):
-        """ its more efficient to add many rows at once. """
-        raise NotImplementedError()
+        """ its more efficient to add many rows at once. 
+        
+        supported cases:
+
+        t = Table()
+        t.add_columns('row','A','B','C')
+
+        (1) t.add_rows(1, 1, 2, 3)  # individual values as args
+        (2) t.add_rows([2, 1, 2, 3])  # list of values as args
+        (3) t.add_rows((3, 1, 2, 3))  # tuple of values as args
+        (4) t.add_rows(*(4, 1, 2, 3))  # unpacked tuple becomes arg like (1)
+        (5) t.add_rows(row=5, A=1, B=2, C=3)   # kwargs
+        (6) t.add_rows(**{'row': 6, 'A': 1, 'B': 2, 'C': 3})  # dict / json interpreted a kwargs
+        (7) t.add_rows((7, 1, 2, 3), (8, 4, 5, 6))  # two (or more) tuples as args
+        (8) t.add_rows([9, 1, 2, 3], [10, 4, 5, 6])  # two or more lists as rgs
+        (9) t.add_rows({'row': 11, 'A': 1, 'B': 2, 'C': 3},
+                       {'row': 12, 'A': 4, 'B': 5, 'C': 6})  # two (or more) dicts as args - roughly comma sep'd json.
+        (10) t.add_rows( *[ {'row': 13, 'A': 1, 'B': 2, 'C': 3},
+                            {'row': 14, 'A': 1, 'B': 2, 'C': 3} ])  # list of dicts as args
+        (11) t.add_rows(row=[15,16], A=[1,1], B=[2,2], C=[3,3])  # kwargs with lists as values
+        
+        if both args and kwargs, then args are added first, followed by kwargs.
+        """
+        if args:
+            if all(isinstance(i, (list, tuple, dict)) for i in args):
+                if all(len(i) == len(self._columns) for i in args):
+                    for arg in args:
+                        if isinstance(arg, (list,tuple)):  # 2,3,5,6
+                            for col,value in zip(self._columns.values(), arg):
+                                col.append(value)
+                        elif isinstance(arg, dict):  # 7,8
+                            for k,v in arg.items():
+                                col = self._columns[k]
+                                col.append(v)
+                        else:
+                            raise TypeError(f"{arg}?")
+            elif len(args) == len(self._columns):  # 1,4
+                for col, value in zip(self._columns.values(), args):
+                    col.append(value)
+            else:
+                raise ValueError(f"format not recognised: {args}")
+
+        if kwargs:
+            if isinstance(kwargs, dict):
+                if all(isinstance(v, (list, tuple)) for v in kwargs.values()):
+                    for k,v in kwargs.items():
+                        col = self._columns[k]
+                        col.extend(v)
+                else:
+                    for k,v in kwargs.items():
+                        col = self._columns[k]
+                        col.append(v)
+            else:
+                raise ValueError(f"format not recognised: {kwargs}")
+        
+        return
+
+    def add_columns(self, *names):
+        for name in names:
+            self.__setitem__(name,[])
+
 
 class Column(object):
     ids = count(1)
@@ -494,8 +568,8 @@ class Column(object):
         elif isinstance(other, np.ndarray): 
             B = other
         elif isinstance(other, Column):
-            B = mem.pages(other.group)
-            A = mem.pages(self.group)
+            B = mem.get_pages(other.group)
+            A = mem.get_pages(self.group)
             if A == B:
                 return True  # special case.
         else:
@@ -561,7 +635,7 @@ class Column(object):
     
     def __ne__(self, other):
         if len(self) != len(other):  # quick cheap check.
-            return False
+            return True
         if not isinstance(other, np.ndarray):
             other = np.array(other)
         return (self.__getitem__()!=other).any()  # speedy np c level comparison.
