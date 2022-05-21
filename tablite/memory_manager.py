@@ -156,10 +156,8 @@ class MemoryManager(object):
             if group not in h5:
                 return np.array([])
             dset = h5[group]
-            if dset.dtype.char != 'O':  # it's a single type dataset.
-                return dset[item]
-            
-            # else: it's a multi-type dataset
+
+            # As a Column can have multiple datatypes across the pages, traversal is required.
             arrays = []
             assert isinstance(item, slice)
             item_range = range(*item.indices(dset.len()))
@@ -721,7 +719,7 @@ class MixedType(GenericPage):
             # typearray 
             h5.create_dataset(name=self.type_group, 
                               data=type_array, 
-                              dtype=self.type_array.dtype, 
+                              dtype=int, 
                               maxshape=(None,), 
                               chunks=HDF5_Config.H5_PAGE_SIZE)
 
