@@ -490,11 +490,11 @@ class Column(object):
                 data = page[:]  # copy the data.
                 data = data.tolist()  
                 data.remove(value)  # remove from the copy.
-                new_page = page.create(data)  # create new page from copy
+                new_page = page(data)  # create new page from copy
                 new_pages = pages[:] 
                 new_pages[ix] = new_page  # register the newly copied page.
             self._len = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=new_pages)
-            return  
+            return
         raise ValueError(f"value not found: {value}")
 
     def remove_all(self, value):
@@ -505,7 +505,7 @@ class Column(object):
             if value not in page[:]:
                 continue
             new_data = [v for v in page[:] if v != value]
-            new_page = page.create(new_data)
+            new_page = Page(new_data)
             new_pages[ix] = new_page
         self._len = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=new_pages)
         
@@ -521,7 +521,7 @@ class Column(object):
         else:
             data = page[:]
             value = data.pop(index-start)
-            new_page = page.create(data)
+            new_page = Page(data)
             new_pages = pages[:]
             new_pages[ix] = new_page
         shape = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=new_pages)
