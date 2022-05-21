@@ -378,7 +378,7 @@ class GenericPage(object):
     def __setitem__(self, index, value):  # called by Column if ref count <=1 
         raise NotImplementedError("subclasses must implement this method.")
 
-    def __delitem__(self, key):  # Caled by Column if ref count <=1 and key is integer
+    def __delitem__(self, key):  # Called by Column if ref count <=1 and key is integer
         raise NotImplementedError("subclasses must implement this method.")
 
     def append(self, value):  # called by Column.append if ref count <=1 via __setitem__
@@ -944,21 +944,21 @@ class Page(object):
     def __repr__(self) -> str:
         return self.__str__()
 
-    def __eq__(self, __o: object) -> bool:
+    def __eq__(self, __o: object) -> bool:  # called by Column in __eq__
         if not isinstance(__o, Page):
             raise TypeError
         return self._page == __o._page
 
-    def __hash__(self):
+    def __hash__(self):  # called by Pages in __eq__
         return self._page.__hash__()
 
-    def __len__(self):
+    def __len__(self):  # called by Column
         return len(self._page)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key):  # called by Column
         return self._page[key]
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key, value):  # called by Column if ref count <=1 
         try:
             self._page[key] = value
         except (TypeError, ValueError):
@@ -966,10 +966,10 @@ class Page(object):
             data[key]=value
             self._page = GenericPage.create(self._page.group, data)
         
-    def __delitem__(self, key):
+    def __delitem__(self, key):  # Called by Column if ref count <=1 and key is integer
         del self._page[key]
 
-    def extend(self, values):
+    def extend(self, values):  # called by Column.extend if ref count <=1 via __setitem__
         try:
             self._page.extend(values)
         except (TypeError, ValueError):
@@ -977,7 +977,7 @@ class Page(object):
             data.extend(values)
             self._page = GenericPage.create(self._page.group, data)
 
-    def append(self, value):
+    def append(self, value):  # called by Column.append if ref count <=1 via __setitem__
         try:
             self._page.append(value)
         except (TypeError, ValueError):
@@ -985,7 +985,7 @@ class Page(object):
             data.append(value)
             self._page = GenericPage.create(self._page.group, data)
 
-    def insert(self, index, values):
+    def insert(self, index, values):  # called by Column.insert if ref count <=1 
         try:
             self._page.insert(index, values)
         except (TypeError, ValueError):
@@ -993,13 +993,13 @@ class Page(object):
             data.insert(index, values)
             self._page = GenericPage.create(self._page.group, data)
 
-    def remove(self, value):
+    def remove(self, value):  # called by Column.remove if ref count <=1 
         self._page.remove(value)
     
-    def remove_all(self, value):
+    def remove_all(self, value):  # Column will never call this.
         self._page.remove_all(value)
 
-    def pop(self, index):
+    def pop(self, index):   # called by Column.pop if ref count <=1 
         self._page.pop(index)
 
 
