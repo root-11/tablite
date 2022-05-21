@@ -380,6 +380,9 @@ class GenericPage(object):
     def __setitem__(self, index, value):
         raise NotImplementedError("subclasses must implement this method.")
 
+    def __delitem__(self, key):
+        raise NotImplementedError("subclasses must implement this method.")
+
     def append(self, value):
         raise NotImplementedError("subclasses must implement this method.")
 
@@ -387,6 +390,15 @@ class GenericPage(object):
         raise NotImplementedError("subclasses must implement this method.")
 
     def extend(self, values):
+        raise NotImplementedError("subclasses must implement this method.")
+
+    def remove(self, value):
+        raise NotImplementedError("subclasses must implement this method.")
+    
+    def remove_all(self, value):
+        raise NotImplementedError("subclasses must implement this method.")
+
+    def pop(self, index):
         raise NotImplementedError("subclasses must implement this method.")
 
 
@@ -435,7 +447,7 @@ class SimpleType(GenericPage):
                 else:    # it's a boolean, int or float or similar. just try and let the exception handler deal with it...
                     dset[keys] = values  
 
-            elif isinstance(keys, slice):
+            elif isinstance(keys, slice):  # TODO: ADD TESTS FOR THIS. REWORK!?
                 if len(values) != self._len:
                     self._len = len(values)
                     dset = h5[self.group]
@@ -443,6 +455,9 @@ class SimpleType(GenericPage):
                 dset[slice] = values
             else:
                 raise TypeError()
+        
+    def __delitem__(self, key):
+        raise NotImplementedError("subclasses must implement this method.")
 
     def append(self, value):
         # value must be np.ndarray and of same type as self.
@@ -526,6 +541,9 @@ class StringType(GenericPage):
             return match            
 
     def __setitem__(self, index, value):
+        raise NotImplementedError("subclasses must implement this method.")
+
+    def __delitem__(self, key):
         raise NotImplementedError("subclasses must implement this method.")
 
     def append(self, value):
@@ -633,6 +651,9 @@ class MixedType(GenericPage):
             else:
                 raise TypeError(f"bad key: {type(keys)}")
 
+    def __delitem__(self, key):
+        raise NotImplementedError("subclasses must implement this method.")
+
     def append(self, value):
         # value must be np.ndarray and of same type as self.
         # this has been checked before this point, so I let h5py complain if there is something wrong.
@@ -692,6 +713,13 @@ class Page(object):
                         V
                        Page   -- consumer api.
     """
+    @classmethod
+    def load(cls, group):
+        return Page(GenericPage.load(group))
+
+    @classmethod
+    def layout(cls, pages):
+        return GenericPage.layout(pages)
 
     def __init__(self, data=None):
         if isinstance(data, GenericPage):  # used only during cls.load
@@ -699,7 +727,14 @@ class Page(object):
         else:
             self._page = GenericPage.create(data) 
     
-    
+    @property
+    def group(self):
+        return self._page.group
+
+    @property
+    def original_datatype(self):
+        return self._page.original_datatype
+
     def __str__(self) -> str:
         return f"Page({self._page.__str__()})"
 
@@ -714,24 +749,22 @@ class Page(object):
     def __hash__(self):
         return self._page.__hash__()
 
-    @property
-    def group(self):
-        return self._page.group
-
-    @property
-    def original_datatype(self):
-        return self._page.original_datatype
-
-    @classmethod
-    def load(cls, group):
-        return Page(GenericPage.load(group))
-
-    @classmethod
-    def layout(cls, pages):
-        return GenericPage.layout(pages)
-
     def __len__(self):
         return len(self._page)
+
+    def __getitem__(self, key):
+        return self._page[key]
+
+    def __setitem__(self, key, value):
+        try:
+            self._page[key] = value
+        except (TypeError, ValueError):
+            data = self._page[:]
+            data[key]=value
+            self._page = GenericPage.create(self._page.group, data)
+        
+    def __delitem__(self, key):
+        del self._page[key]
 
     def extend(self, values):
         try:
@@ -766,18 +799,6 @@ class Page(object):
     def pop(self, index):
         self._page.pop(index)
 
-    def __getitem__(self, key):
-        return self._page[key]
 
-    def __setitem__(self, key, value):
-        try:
-            self._page[key] = value
-        except (TypeError, ValueError):
-            data = self._page[:]
-            data[key]=value
-            self._page = GenericPage.create(self._page.group, data)
-        
-    def __delitem__(self, key):
-        del self._page[key]
 
     
