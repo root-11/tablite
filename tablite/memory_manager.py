@@ -689,8 +689,7 @@ class StringType(GenericPage):
 class MixedType(GenericPage):
     def __init__(self, group, data=None):
         super().__init__(group)
-        self.type_group = None
-        self.type_array = None
+        self.type_group = f"{self.group}{self._type_array_postfix}"
         if data is not None:
             self.create(data)
     
@@ -703,10 +702,8 @@ class MixedType(GenericPage):
             
             # get typecode for encoding.
             type_code = DataTypes.type_code
-            self.type_group = f"{self.group}{self._type_array_postfix}"
-            self.type_array = np.array( [ type_code(v) for v in data.tolist() ] )
-            self.original_datatype = self._type_array
-            
+            type_array = np.array( [ type_code(v) for v in data.tolist() ] )
+                        
             byte_function = DataTypes.to_bytes
             data = np.array( [byte_function(v) for v in data.tolist()] )
             
@@ -718,12 +715,12 @@ class MixedType(GenericPage):
                                      dtype=self.stored_datatype,  # the HDF5 stored dtype may require unpacking using dtypes if they are different.
                                      maxshape=(None,),  # the stored data is now extendible / resizeable.
                                      chunks=HDF5_Config.H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
-            dset.attrs[self._datatype] = self.original_datatype
+            dset.attrs[self._datatype] = self._type_array
             dset.attrs[self._encoding] = self.encoding
             
             # typearray 
             h5.create_dataset(name=self.type_group, 
-                              data=self.type_array, 
+                              data=type_array, 
                               dtype=self.type_array.dtype, 
                               maxshape=(None,), 
                               chunks=HDF5_Config.H5_PAGE_SIZE)
@@ -750,17 +747,27 @@ class MixedType(GenericPage):
         dtypes = DataTypes
         with h5py.File(self.path, READWRITE) as h5:
             if isinstance(keys, int):
-                dset = h5[self.group]
-                dset[keys] = dtypes.to_bytes(values)
+                dset1 = h5[self.group]
+                dset1[keys] = dtypes.to_bytes(values)
 
-                type_group = f"{self.group}{self._type_array_postfix}"
-                dset = h5[type_group]
-                dset[keys] = dtypes.type_code(values)
-                self._len = len(dset)
+                dset2 = h5[self.type_group]
+                dset2[keys] = dtypes.type_code(values)
+                self._len = len(dset2)
 
             elif isinstance(keys, slice):
-                raise NotImplementedError("subclasses must implement this method.")
-                self._len = len(dset)
+                dt = DataTypes
+                g1 = [self.group, self.type_group]
+                g2 = [dt.bytes_functions, dt.type_code]
+
+                for grp,f in zip(g1,g2):
+                    dset = h5[grp]
+                    new_values = np.array( [ f(v) for v in values ] )
+                    data = dset[:]  # shallow copy
+                    data[keys] = new_values  # update copy
+                    if len(data) != len(dset):
+                        dset.resize(len(data), axis=0)  # resize
+                    dset[:] = data  # commit
+                    self._len = len(dset)
             else:
                 raise TypeError(f"bad key: {type(keys)}")
 
