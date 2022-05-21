@@ -380,26 +380,8 @@ class GenericPage(object):
         pg = pg_cls(group,data)
         return pg
 
-    def write(self, data, dtype):
-        with h5py.File(READWRITE) as h5:
-            if self.group in h5:
-                raise ValueError("page already exists")
-            dset = h5.create_dataset(name=self.group, 
-                                     data=data,  # data is now HDF5 compatible.
-                                     dtype=dtype,  # the HDF5 stored dtype may require unpacking using dtypes if they are different.
-                                     maxshape=(None,),  # the stored data is now extendible / resizeable.
-                                     chunks=HDF5_Config.H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
-            dset.attrs['datatype'] = self.original_datatype
-
     def __len__(self):
         return self._len
-
-    def read(self):
-        with h5py.File(self.path, READONLY) as h5:
-            dset = h5[self.group]
-            self.stored_datatype = dset.dtype
-            self.original_datatype = dset.attrs['datatype']
-            self._len = dset.len()
     
     def __getitem__(self, item):
         raise NotImplementedError("subclasses must implement this method.")
