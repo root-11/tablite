@@ -709,17 +709,19 @@ class Page(object):
 
                     GenericPage  -- common skeleton and helper methods for all 3 page types.
                         |
+                        V
         +---------------+-----------+
         |               |           |
     SimpleType     StringType    MixedType  -- type specific implementation.
         |               |           |
         +---------------+-----------+
                         |
+                        V
                        Page   -- consumer api.
     """
 
     def __init__(self, data=None):
-        if isinstance(data, GenericPage):  # used during cls.load
+        if isinstance(data, GenericPage):  # used only during cls.load
             self._page = data
         else:
             self._page = GenericPage.create(data) 
