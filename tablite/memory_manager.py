@@ -372,31 +372,31 @@ class GenericPage(object):
     def __len__(self):
         return self._len
     
-    def __getitem__(self, item):
+    def __getitem__(self, item):  # called by Column
         raise NotImplementedError("subclasses must implement this method.")
 
-    def __setitem__(self, index, value):
+    def __setitem__(self, index, value):  # called by Column if ref count <=1 
         raise NotImplementedError("subclasses must implement this method.")
 
-    def __delitem__(self, key):
+    def __delitem__(self, key):  # Caled by Column if ref count <=1 and key is integer
         raise NotImplementedError("subclasses must implement this method.")
 
-    def append(self, value):
+    def append(self, value):  # called by Column.append if ref count <=1 via __setitem__
         raise NotImplementedError("subclasses must implement this method.")
 
-    def insert(self, index, value):
+    def insert(self, index, value):  # # called by Column.insert if ref count <=1 
         raise NotImplementedError("subclasses must implement this method.")
 
-    def extend(self, values):
+    def extend(self, values):  # called by Column.extend if ref count <=1 via __setitem__
         raise NotImplementedError("subclasses must implement this method.")
 
-    def remove(self, value):
+    def remove(self, value):  # called by Column.remove if ref count <=1 
         raise NotImplementedError("subclasses must implement this method.")
     
-    def remove_all(self, value):
+    def remove_all(self, value):  # Column will never call this.
         raise NotImplementedError("subclasses must implement this method.")
 
-    def pop(self, index):
+    def pop(self, index):   # called by Column.pop if ref count <=1 
         raise NotImplementedError("subclasses must implement this method.")
 
 
@@ -477,7 +477,7 @@ class SimpleType(GenericPage):
             dset = h5[self.group]
             dset.resize(dset.len() + len(value),axis=0)
             dset[-len(value):] = value
-            self._len += len(value)
+            self._len = len(dset)
 
     def insert(self, index, value):
         with h5py.File(self.path, READWRITE) as h5:
@@ -490,7 +490,7 @@ class SimpleType(GenericPage):
             dset[:a] = data[:a]
             dset[a:b] = value
             dset[b:] = data[a:]
-            self._len += len(value)
+            self._len = len(dset)
 
     def extend(self, values):
         if not isinstance(values, (list, tuple, np.ndarray)):
@@ -518,7 +518,7 @@ class SimpleType(GenericPage):
             else:
                 raise IndexError(f"value not found: {value}")
     
-    def remove_all(self, value):
+    def remove_all(self, value):  # Column will never call this.
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[self.group]
             mask = (dset != value)
@@ -658,7 +658,7 @@ class StringType(GenericPage):
                 raise IndexError(f"value not found: {value}")
             self._len = len(dset)
     
-    def remove_all(self, value):
+    def remove_all(self, value):  # Column will never call this.
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[self.group]
             value = np.array(value, dtype=dset.dtype)[0]
@@ -866,7 +866,7 @@ class MixedType(GenericPage):
             else:
                 raise IndexError(f"value not found: {value}")
     
-    def remove_all(self, value):
+    def remove_all(self, value):  # Column will never call this.
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[self.group]
             value = np.array(value, dtype=dset.dtype)[0]
