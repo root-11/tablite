@@ -15,4 +15,5 @@ def test01():
     F = np.array( [ np.nan, None])
     G = np.concatenate((A,B,D,F))
     assert G.dtype.char == 'O'
-
+    
+    raise NotImplementedError("ALL DATATYPES NEED TO BE ASSERTED FOR. ")
