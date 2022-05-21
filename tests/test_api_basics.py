@@ -512,6 +512,13 @@ def test07_verify_import_into_table():
 def test08_verify_filter_table():
     pass  # filter
 
+    t3 = Table.load_file(BIG_HDF5)
+    t3_true, t3_false = t3.filter(columns=[('vendor case weight', ">", 2.0)])
+    assert t3.columns == t3_true.columns == t3_false.columns
+    assert len(t3_true) != 0
+    assert len(t3_false) != 0
+    assert len(t3_true) + len(t3_false) == len(t3)
+
 def test09_verify_sort():
     pass  # sort  - sort as it appears as string
 
