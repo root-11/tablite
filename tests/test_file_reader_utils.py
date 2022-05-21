@@ -1,4 +1,4 @@
-from tablite2.tasks.text_reader import TextEscape
+from tablite.utils import TextEscape
 
 
 def test_text_escape():
@@ -9,5 +9,9 @@ def test_text_escape():
     L = text_escape(s)
     assert L == ["this", "is", "a", "","嗨", "(comma,sep'd)", "\"text\""]
 
-if __name__ == "__main__":
-    test_text_escape()
+def test2():
+    text_escape = TextEscape(openings='"({[', closures=']})"', delimiter=',')
+
+    s = "this,is,a,,嗨,(comma,sep'd),text"
+    L = text_escape(s)
+    assert L == ["this", "is", "a", "","嗨", "(comma,sep'd)", "text"]
