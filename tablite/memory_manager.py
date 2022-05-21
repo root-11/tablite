@@ -258,6 +258,28 @@ class GenericPage(object):
     _MixedTypes = "O" # + _type_array
     _StringTypes = "U" # + _str
     _SimpleTypes = "ld?"
+
+    # all simple types are:
+    # ---------------------
+    # '?'  boolean
+    # 'b'  (signed) byte
+    # 'B'  unsigned byte
+    # 'i'  (signed) integer
+    # 'u'  unsigned integer
+    # 'f'  floating-point
+    # 'c'  complex-floating point
+    # 'm'  timedelta
+    # 'M'  datetime
+    # 'O'  (Python) objects
+    # 'S', 'a' zero-terminated bytes (not recommended)
+    # 'U' Unicode string
+    # 'V' raw data (void)
+    # More examples:
+    # dt = np.dtype('i4')   # 32-bit signed integer
+    # dt = np.dtype('f8')   # 64-bit floating-point number
+    # dt = np.dtype('c16')  # 128-bit complex floating-point number
+    # dt = np.dtype('a25')  # 25-length zero-terminated bytes
+    # dt = np.dtype('U25')  # 25-character string
    
     @classmethod
     def new_id(cls):
