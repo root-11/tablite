@@ -455,6 +455,7 @@ class SimpleType(GenericPage):
                 dset[:] = data  # commit
             else:
                 raise TypeError(f"bad key type: {type(keys)}")
+            self._len = len(dset)
         
     def __delitem__(self, key):
         with h5py.File(self.path, READWRITE) as h5:
@@ -469,6 +470,7 @@ class SimpleType(GenericPage):
                 dset[:] = data  # commit
             else:
                 raise TypeError(f"bad key type: {type(key)}")
+            self._len = len(dset)
 
     def append(self, value):
         # value must be np.ndarray and of same type as self.
@@ -502,18 +504,19 @@ class SimpleType(GenericPage):
                 values = np.array(values, dtype=dset.dtype)
             dset.resize(dset.len() + len(values), axis=0)
             dset[-len(values):] = values
-            self._len += len(values)
+            self._len = len(dset)
 
     def remove(self, value):
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[self.group]
             result = np.where(dset == value)
-            if result:
+            if result[0]:
                 ix = result[0][0]
                 data = dset[:]
                 dset.resize(len(dset)-1, axis=0)
                 dset[:ix] = data[:ix]
                 dset[ix:] = data[ix+1:]
+                self._len = len(dset)
             else:
                 raise IndexError(f"value not found: {value}")
     
@@ -525,6 +528,7 @@ class SimpleType(GenericPage):
                 new = np.compress(mask, dset[:], axis=0)
                 dset.resize(len(new), axis=0)
                 dset[:] = new
+                self._len = len(dset)
             else:
                 raise IndexError(f"value not found: {value}")
 
@@ -538,6 +542,7 @@ class SimpleType(GenericPage):
             dset.resize(len(dset)-1, axis=0)
             dset[:index] = data[:index]
             dset[index:] = data[index+1:]
+            self._len = len(dset)
 
 
 class StringType(GenericPage):
@@ -594,6 +599,7 @@ class StringType(GenericPage):
                 dset[:] = data  # commit
             else:
                 raise TypeError(f"bad key type: {type(keys)}")
+            self._len = len(dset)
 
     def __delitem__(self, key):
         with h5py.File(self.path, READWRITE) as h5:
@@ -608,6 +614,7 @@ class StringType(GenericPage):
                 dset[:] = data  # commit
             else:
                 raise TypeError(f"bad key type: {type(key)}")
+            self._len = len(dset)
 
     def append(self, value):
         # value must be np.ndarray and of same type as self.
@@ -616,7 +623,7 @@ class StringType(GenericPage):
             dset = h5[self.group]
             dset.resize(dset.len() + len(value),axis=0)
             dset[-len(value):] = value.astype(bytes) # encoding to bytes is required.
-            self._len += len(value)
+            self._len = len(dset)
     
     def insert(self, index, value):
         with h5py.File(self.path, READWRITE) as h5:
@@ -629,14 +636,14 @@ class StringType(GenericPage):
             dset[:a] = data[:a]
             dset[a:b] = value.astype(bytes) # encoding to bytes is required.
             dset[b:] = data[a:]
-            self._len += len(value)
+            self._len = len(dset)
 
     def extend(self, values):
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[self.group]
             dset.resize(dset.len() + len(values),axis=0)
             dset[-len(values):] = np.array(values, dtype=str).astype(bytes) # encoding to bytes is required.
-            self._len += len(values)
+            self._len = len(dset)
     
     def remove(self, value):        
         with h5py.File(self.path, READWRITE) as h5:
@@ -651,6 +658,7 @@ class StringType(GenericPage):
                 dset[ix:] = data[ix+1:]
             else:
                 raise IndexError(f"value not found: {value}")
+            self._len = len(dset)
     
     def remove_all(self, value):
         with h5py.File(self.path, READWRITE) as h5:
@@ -663,6 +671,7 @@ class StringType(GenericPage):
                 dset[:] = new
             else:
                 raise IndexError(f"value not found: {value}")
+            self._len = len(dset)
 
     def pop(self, index):
         with h5py.File(self.path, READWRITE) as h5:
@@ -674,6 +683,7 @@ class StringType(GenericPage):
             dset.resize(len(dset)-1, axis=0)
             dset[:index] = data[:index]
             dset[index:] = data[index+1:]
+            self._len = len(dset)
 
 
 class MixedType(GenericPage):
@@ -746,14 +756,34 @@ class MixedType(GenericPage):
                 type_group = f"{self.group}{self._type_array_postfix}"
                 dset = h5[type_group]
                 dset[keys] = dtypes.type_code(values)
+                self._len = len(dset)
 
             elif isinstance(keys, slice):
                 raise NotImplementedError("subclasses must implement this method.")
+                self._len = len(dset)
             else:
                 raise TypeError(f"bad key: {type(keys)}")
 
     def __delitem__(self, key):
-        raise NotImplementedError("subclasses must implement this method.")
+        with h5py.File(self.path, READWRITE) as h5:
+            
+            if isinstance(key,int):
+                for grp in [self.group, self.type_group]:
+                    dset = h5[grp]
+                    del dset[key]
+                    self._len -= 1
+                
+            elif isinstance(key, slice):
+                for grp in [self.group, self.type_group]:
+                    dset = h5[grp]
+                    data = dset[:]  # shallow copy
+                    del data[key]  # update copy
+                    if len(data) != len(dset):
+                        dset.resize(len(data))  # resize
+                    dset[:] = data  # commit
+                    self._len = len(dset)
+            else:
+                raise TypeError(f"bad key type: {type(key)}")
 
     def append(self, value):
         # value must be np.ndarray and of same type as self.
@@ -779,20 +809,87 @@ class MixedType(GenericPage):
             self._len += len(value)
 
     def insert(self, index, value):
-        raise NotImplementedError("subclasses must implement this method.")
+        dt = DataTypes
+        g1 = [self.group, self.type_group]
+        g2 = [dt.bytes_functions(value), dt.type_code(value) ]
+
+        with h5py.File(self.path, READWRITE) as h5:
+
+            for grp,v in zip(g1,g2):
+                dset = h5[grp]
+                data = dset[:]
+                dset.resize(dset.len() + len(value), axis=0)
+
+                a, b = index, index + len(value)
+                dset[:a] = data[:a]
+                dset[a:b] = v
+                dset[b:] = data[a:]
+                self._len += len(value)
 
     def extend(self, values):
-        raise NotImplementedError("subclasses must implement this method.")
+        if not isinstance(values, (list, tuple, np.ndarray)):
+            raise ValueError(f".extend requires an iterable")
+        if not isinstance(values, np.ndarray):
+            values = np.array(values, dtype='O')
+
+        dt = DataTypes
+        g1 = [self.group, self.type_group]
+        g2 = [dt.bytes_functions, dt.type_code]
+
+        with h5py.File(self.path, READWRITE) as h5:
+            for grp,f in zip(g1,g2):
+                dset = h5[grp]
+                data = np.array( [ f(v) for v in values ] )
+
+                dset.resize(dset.len() + len(values), axis=0)
+                dset[-len(values):] = data
+                self._len = len(dset)
 
     def remove(self, value):
-        raise NotImplementedError("subclasses must implement this method.")
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            result = np.where(dset == value)
+            if result[0]:
+                for grp in [self.group, self.type_group]:
+                    dset = h5[grp]
+                    ix = result[0][0]
+                    data = dset[:]
+                    dset.resize(len(dset)-1, axis=0)
+                    dset[:ix] = data[:ix]
+                    dset[ix:] = data[ix+1:]
+                self._len = len(dset)
+            else:
+                raise IndexError(f"value not found: {value}")
     
     def remove_all(self, value):
-        raise NotImplementedError("subclasses must implement this method.")
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            value = np.array(value, dtype=dset.dtype)[0]
+            mask = (dset != value)
+            if mask.any():
+                for grp in [self.group, self.type_group]:
+                    dset = h5[grp]
+                    new = np.compress(mask, dset[:], axis=0)
+                    dset.resize(len(new), axis=0)
+                    dset[:] = new
+                    self._len = len(dset)
+            else:
+                raise IndexError(f"value not found: {value}")        
 
     def pop(self, index):
-        raise NotImplementedError("subclasses must implement this method.")
-   
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            index = len(dset) + index if index < 0 else index
+            if index > len(dset):
+                raise IndexError(f"{index} > len(dset)")
+            for grp in [self.group, self.type_group]:
+                dset = h5[grp]
+                data = dset[:]
+                dset.resize(len(dset)-1, axis=0)
+                dset[:index] = data[:index]
+                dset[index:] = data[index+1:]
+                self._len = len(dset)
+
 
 class Page(object):
     """
