@@ -70,6 +70,18 @@ def test01_confirm_storage_reset():
     assert tables == []
 
 
+def test01_test_numpy_64datetime_and_timedelta():
+    raise NotImplementedError
+    a = np.datetime64(b'2014-12-12')   # Y-M-D
+    b = np.datetime64(b'2014-12-12T12:23:34')   # Y-M-DTh:m:s
+    c = np.datetime64(b'2014-12-12T12:23:34.123456')   # Y-M-DTh:m:s.u
+    d = np.datetime64('2014-12-12T12:23:34.123456')   # Y-M-DTh:m:s.u
+    e = np.timedelta64(dts, 'ms')  # h:m:s
+    
+    # https://stackoverflow.com/questions/52982056/how-to-convert-numpy-datetime64-ns-to-python-datetime
+
+
+
 def test02_verify_garbage_collection():
     # check that the pages are not deleted prematurely.
     table4 = Table()
