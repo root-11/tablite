@@ -294,30 +294,6 @@ class GenericPage(object):
         cls._page_ids += 1
         return cls._page_ids
 
-    def __init__(self, group):        
-        if not group.startswith('/page'):
-            raise ValueError
-        
-        self.encoding = HDF5_Config.H5_ENCODING
-        self.path = HDF5_Config.H5_STORAGE
-        self.group = group
-
-        self.stored_datatype = None  # stored type
-        self.original_datatype = None  # original type
-        self._len = 0
-    
-    def __str__(self) -> str:
-        return f"{self.__class__.__name__} | {self.group} | {self.original_datatype} | {self.stored_datatype} | {self._len}"
-
-    def __hash__(self) -> int:
-        return hash(self.group)
-
-    def __repr__(self) -> str:
-        return self.__str__()
-
-    def __eq__(self, __o: object) -> bool:
-        return self.group == __o.group
-
     @classmethod
     def layout(cls, pages):
         """ 
@@ -379,6 +355,30 @@ class GenericPage(object):
         group = f"/page/{cls.new_id()}"
         pg = pg_cls(group,data)
         return pg
+    
+    def __init__(self, group):        
+        if not group.startswith('/page'):
+            raise ValueError
+        
+        self.encoding = HDF5_Config.H5_ENCODING
+        self.path = HDF5_Config.H5_STORAGE
+        self.group = group
+
+        self.stored_datatype = None  # stored type
+        self.original_datatype = None  # original type
+        self._len = 0
+    
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__} | {self.group} | {self.original_datatype} | {self.stored_datatype} | {self._len}"
+
+    def __hash__(self) -> int:
+        return hash(self.group)
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    def __eq__(self, __o: object) -> bool:
+        return self.group == __o.group
 
     def __len__(self):
         return self._len
