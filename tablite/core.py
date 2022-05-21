@@ -147,14 +147,22 @@ class Table(object):
         return True
 
     def __add__(self,other):
-        raise NotImplemented()
-
+        """
+        enables concatenation for tables with the same column names.
+        """
+        c = self.copy()
+        c += other
+        return c
+ 
     def __iadd__(self,other):
+        """
+        enables extension with other tables with the same column names.
+        """
         if not isinstance(other, Table):
             raise TypeError(f"no method for {type(other)}")
         if set(self.columns) != set(other.columns) or len(self.columns) != len(other.columns):
             raise ValueError("Columns names are not the same")
-        for name,col in self._columns.items():
+        for name, col in self._columns.items():
             other_col = other[name]
             col += other_col
         return self
@@ -184,6 +192,13 @@ class Table(object):
 
     @classmethod
     def reload_saved_tables(cls,path=None):
+        """
+        Loads saved tables from disk.
+        
+        The default storage locations is:
+        >>> from tablite.config import HDF5_Config
+        >>> print(Config.H5_STORAGE)
+        """
         tables = []
         if path is None:
             path = mem.path
@@ -338,17 +353,9 @@ class Table(object):
 
     def show(self, *args, blanks=None):
         """
-        args = {slice}
-        sort AZ, ZA  <--- show only! the source doesn't change.
-        unique values <--- applies on the column only.
-        filter by condition [
-            is empty, is not empty, 
-            text {contains, does not contain, starts with, ends with, is exactly},
-            date {is, is before, is after}
-            value is {> >= < <= == != between, not between}
-            formula (uses eval)
-        ]
-        filter by values [ unique values ]
+        accepted args:
+          - slice
+
         """ 
         if args:
             for arg in args:
@@ -450,21 +457,11 @@ class Column(object):
     def append(self, value):
         self.__setitem__(key=slice(self._len,None,None), value=[value])
         
-    def insert(self, index, value):
-        # if isinstance(value, (list, tuple)):
-        #     new_data = np.array(value)
-        # elif isinstance(value, np.ndarray):
-        #     new_data = value
-        # else:
-        #     new_data = np.array([value])
-
-        # target_cls = Page.page_class_type_from_np(new_data)
-        
+    def insert(self, index, value):        
         old_pages = mem.get_pages(self.group)
         new_pages = old_pages[:]
 
         ix, start, _, page = old_pages.get_page_by_index(index)
-        # new_page = page if mem.get_ref_count(page)==1 else Page(page[:])
 
         if mem.get_ref_count(page) == 1:
             new_page = page  # ref count match. Now let the page class do the insert.
@@ -474,9 +471,7 @@ class Column(object):
             data.insert(index-start,value)
             new_page = Page(data)  # copy the existing page so insert can be done below
 
-        # new_page.insert(index - start, value)
         new_pages[ix] = new_page  # insert the changed page.
-        
         self._len = mem.create_virtual_dataset(self.group, pages_before=old_pages, pages_after=new_pages)
     
     def extend(self, values):
@@ -558,8 +553,9 @@ class Column(object):
 
         elif isinstance(key, slice):
             start,stop,step = key.indices(self._len)
-            if key.start == key.stop == None and key.step in (None,1):   # L[:] = [1,2,3]
-                # self.items = list(value) -- kept as documentation reference for test_slice_rules.py | MyList
+            if key.start == key.stop == None and key.step in (None,1): 
+                # documentation: new = list(value)
+                # example: L[:] = [1,2,3]
                 before = mem.get_pages(self.group)
                 if isinstance(value, Column):
                     after = mem.get_pages(value.group)
@@ -570,9 +566,9 @@ class Column(object):
                     raise TypeError
                 self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
 
-            elif key.start != None and key.stop == key.step == None:   # L[0:] = [1,2,3]
-                # self.items = self.items[:key.start] + list(value)  -- kept as documentation reference for test_slice_rules.py | MyList
-                # self.items = self._getslice_(0,start) + list(value)  
+            elif key.start != None and key.stop == key.step == None:   
+                # documentation: new = old[:key.start] + list(value)
+                # example: L[0:] = [1,2,3]
                 before = mem.get_pages(self.group) 
                 before_slice = before.getslice(0,start)
 
@@ -582,35 +578,25 @@ class Column(object):
                     if not before_slice:
                         after = [Page(value)]
                     else:
-                        # data = np.array(value)
                         last_page = before_slice[-1] 
-                        # target_cls = Page.page_class_type_from_np(data)  
                         if mem.get_ref_count(last_page) == 1:
-                            # if isinstance(last_page, target_cls):
                             last_page.extend(value)
                             after = before_slice
-                            # else:  # new datatype for ref_count == 1, so we create a mixed type page to avoid thousands of small pages.
-                            #     data = np.array(last_page[:] + data)
-                            #     new_page = Page.create(data)
-                            #     after = before_slice[:-1] + [new_page]
                         else:  # ref count > 1
                             new_page = Page(value)
                             after = before_slice + [new_page]
                 else:
                     raise TypeError
-                # else:  # it's an empty column.
-                # after = [Page(value)]
                 self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
 
-            elif key.stop != None and key.start == key.step == None:  # L[:3] = [1,2,3]
-                # self.items = list(value) + self.items[key.stop:]  -- kept as documentation reference for test_slice_rules.py | MyList
-                # self.items = list(value) + self._getslice_(stop, len(self.items))
+            elif key.stop != None and key.start == key.step == None:  
+                # documentation: new = list(value) + old[key.stop:] 
+                # example: L[:3] = [1,2,3]
                 before = mem.get_pages(self.group)
                 before_slice = before.getslice(stop, self._len)
                 if isinstance(value, Column):
                     after = mem.get_pages(value.group) + before_slice
                 elif isinstance(value, (list,tuple, np.ndarray)):
-                    # data = np.array(value)
                     new_page = Page(value)
                     after = [new_page] + before_slice
                 else:
@@ -618,19 +604,18 @@ class Column(object):
                 self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
                 
             elif key.step == None and key.start != None and key.stop != None:  # L[3:5] = [1,2,3]
-                stop = max(start,stop)
-                # -- kept as documentation reference for test_slice_rules.py | MyList
-                # self.items = self.items[:start] + list(value) + self.items[stop:]
-                # self.items = self._getslice_(0,start) + list(value) + self._getslice_(stop,len(self.items))
+                # documentation: new = old[:start] + list(values) + old[stop:] 
+                
+                stop = max(start,stop)  #  one of python's archaic rules.
+
                 before = mem.get_pages(self.group)
                 A, B = before.getslice(0,start), before.getslice(stop, self._len)
                 if isinstance(value, Column):
                     after = A + mem.get_pages(value.group) + B
                 elif isinstance(value, (list, tuple, np.ndarray)):
                     if value:
-                        # data = np.array(value)
                         new_page = Page(value)
-                        after = A + [new_page] + B
+                        after = A + [new_page] + B  # new = old._getslice_(0,start) + list(value) + old._getslice_(stop,len(self.items))
                     else:
                         after = A + B
                 else:
@@ -643,18 +628,12 @@ class Column(object):
                 if len(value) > seq_size:
                     raise ValueError(f"attempt to assign sequence of size {len(value)} to extended slice of size {seq_size}")
                 
-                # -- kept as documentation reference for test_slice_rules.py | MyList
-                # new = self.items[:]  # cheap shallow pointer copy in case anything goes wrong.
-                # for new_index, position in zip(range(len(value)),seq):
-                #     new[position] = value[new_index]
-                # # all went well. No exceptions.
-                # self.items = new
-
+                # documentation: See also test_slice_rules.py/MyList for details
                 before = mem.get_pages(self.group)
-                new = mem.get_data(self.group, slice(None)).tolist()
+                new = mem.get_data(self.group, slice(None)).tolist()  # new = old[:]  # cheap shallow pointer copy in case anything goes wrong.
                 for new_index, position in zip(range(len(value)), seq):
                     new[position] = value[new_index]
-                # all went well. No exceptions.
+                # all went well. No exceptions. Now update self.
                 after = [Page(new)]  # This may seem redundant, but is in fact is good as the user may 
                 # be cleaning up the dataset, so that we end up with a simple datatype instead of mixed.
                 self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
