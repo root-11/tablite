@@ -378,22 +378,7 @@ class GenericPage(object):
         pg_cls = cls.page_class_type_from_np(data)
         group = f"/page/{cls.new_id()}"
         pg = pg_cls(group,data)
-        # pg.create(data)
         return pg
-
-    # @classmethod
-    # def create(cls, data):
-    #     """
-    #     creates a new group.
-    #     """
-    #     if not isinstance(data, np.ndarray):
-    #         raise TypeError
-        
-    #     pg_cls = cls.page_class_type_from_np(data)
-    #     group = f"/page/{Page.new_id()}"
-    #     pg = pg_cls(group)
-    #     pg.create(data)
-    #     return pg
 
     def write(self, data, dtype):
         with h5py.File(READWRITE) as h5:
@@ -415,9 +400,6 @@ class GenericPage(object):
             self.stored_datatype = dset.dtype
             self.original_datatype = dset.attrs['datatype']
             self._len = dset.len()
-
-    # def update(self):
-    #     raise NotImplementedError("subclasses must implement this method.")
     
     def __getitem__(self, item):
         raise NotImplementedError("subclasses must implement this method.")
@@ -472,13 +454,6 @@ class SimpleType(GenericPage):
             return dset[item]
 
     def __setitem__(self, keys, values):
-
-        # if not isinstance(keys, (slice,int)) or not isinstance(values, np.ndarray):
-        #     raise TypeError("pages should only see keys as slices or ints and numpy arrays.")
-        
-        # if not isinstance(self, self.page_class_type_from_np(values)):
-        #     raise TypeError()
-
         with h5py.File(self.path, READWRITE) as h5:
             if isinstance(keys, int):
                 dset = h5[self.group]
@@ -506,8 +481,6 @@ class SimpleType(GenericPage):
             self._len += len(value)
 
     def insert(self, index, value):
-        # if not isinstance(value, np.ndarray):
-        #     raise TypeError
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[self.group]
             value = np.array([value], dtype=dset.dtype)
@@ -727,6 +700,24 @@ class MixedType(GenericPage):
    
 
 class Page(object):
+    """
+    The Page class is the consumer API for the Column. It hides the underlying type
+    handling of numpy and hdf5 so that the user can use the Column as a paginated
+    list.
+
+    The class inheritance uses a map-reduce type layout:
+
+                    GenericPage  -- common skeleton and helper methods for all 3 page types.
+                        |
+        +---------------+-----------+
+        |               |           |
+    SimpleType     StringType    MixedType  -- type specific implementation.
+        |               |           |
+        +---------------+-----------+
+                        |
+                       Page   -- consumer api.
+    """
+
     def __init__(self, data=None):
         if isinstance(data, GenericPage):  # used during cls.load
             self._page = data
