@@ -132,6 +132,20 @@ class Table(object):
         for name in self.columns:
             self.__delitem__(name)
 
+    def __eq__(self, __o: object) -> bool:
+        if not isinstance(__o, Table):
+            return False
+        if id(self) == id(__o):
+            return True
+        if len(self) != len(__o):
+            return False
+        if self.columns != __o.columns:
+            return False
+        for name, col in self._columns.items():
+            if col != __o._columns[name]:
+                return False
+        return True
+
     def __add__(self,other):
         raise NotImplemented()
 
@@ -434,30 +448,33 @@ class Column(object):
         self._len = mem.create_virtual_dataset(self.group, pages_before=old_pages, pages_after=[])
 
     def append(self, value):
-        data = np.array([value])
-        self.__setitem__(key=slice(self._len,None,None), value=data)
+        self.__setitem__(key=slice(self._len,None,None), value=[value])
         
     def insert(self, index, value):
-        if isinstance(value, (list, tuple)):
-            new_data = np.array(value)
-        elif isinstance(value, np.ndarray):
-            new_data = value
-        else:
-            new_data = np.array([value])
+        # if isinstance(value, (list, tuple)):
+        #     new_data = np.array(value)
+        # elif isinstance(value, np.ndarray):
+        #     new_data = value
+        # else:
+        #     new_data = np.array([value])
 
-        target_cls = Page.page_class_type_from_np(new_data)
+        # target_cls = Page.page_class_type_from_np(new_data)
         
         old_pages = mem.get_pages(self.group)
         new_pages = old_pages[:]
 
         ix, start, _, page = old_pages.get_page_by_index(index)
+        # new_page = page if mem.get_ref_count(page)==1 else Page(page[:])
 
-        if mem.get_ref_count(page) == 1 and isinstance(page, target_cls):
-            new_page = page  # ref count and target class match. Now let the page class do the insert.
+        if mem.get_ref_count(page) == 1:
+            new_page = page  # ref count match. Now let the page class do the insert.
+            new_page.insert(index - start, value)
         else:
-            new_page = Page.create(page[:])  # copy the existing page so insert can be done below
+            data = page[:].tolist()
+            data.insert(index-start,value)
+            new_page = Page(data)  # copy the existing page so insert can be done below
 
-        new_page.insert(index - start, new_data)
+        # new_page.insert(index - start, value)
         new_pages[ix] = new_page  # insert the changed page.
         
         self._len = mem.create_virtual_dataset(self.group, pages_before=old_pages, pages_after=new_pages)
@@ -476,7 +493,7 @@ class Column(object):
                 new_pages = pages[:]
             else:
                 data = page[:]  # copy the data.
-                data = data.aslist()  
+                data = data.tolist()  
                 data.remove(value)  # remove from the copy.
                 new_page = page.create(data)  # create new page from copy
                 new_pages = pages[:] 
@@ -524,18 +541,15 @@ class Column(object):
             if isinstance(value, (list,tuple)):
                 raise TypeError(f"your key is an integer, but your value is a {type(value)}. Did you mean to insert? F.x. [{key}:{key+1}] = {value} ?")
             if -self._len-1 < key < self._len:
-                # self._update_by_index(key,value)
-                data = np.array([value])
-                target_cls = Page.page_class_type_from_np(data)
+                key = self._len + key if key < 0 else key
                 pages = mem.get_pages(self.group)
                 ix,start,_,page = pages.get_page_by_index(key)
-                if mem.get_ref_count(page)==1 and isinstance(page, target_cls):
-                    page[key-start] = data
+                if mem.get_ref_count(page) == 1:
+                    page[key-start] = value
                 else:
-                    data = page[:].tolist() 
+                    data = page[:].tolist()
                     data[key-start] = value
-                    data = np.array(data)
-                    new_page = Page.create(data)
+                    new_page = Page(data)
                     new_pages = pages[:]
                     new_pages[ix] = new_page
                     self._len = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=new_pages)
@@ -546,12 +560,11 @@ class Column(object):
             start,stop,step = key.indices(self._len)
             if key.start == key.stop == None and key.step in (None,1):   # L[:] = [1,2,3]
                 # self.items = list(value) -- kept as documentation reference for test_slice_rules.py | MyList
+                before = mem.get_pages(self.group)
                 if isinstance(value, Column):
-                    before = mem.get_pages(self.group)
                     after = mem.get_pages(value.group)
                 elif isinstance(value, (list,tuple,np.ndarray)):
-                    data = np.array(value)
-                    new_page = Page.create(data)
+                    new_page = Page(value)
                     after = [new_page]
                 else:
                     raise TypeError
@@ -561,29 +574,32 @@ class Column(object):
                 # self.items = self.items[:key.start] + list(value)  -- kept as documentation reference for test_slice_rules.py | MyList
                 # self.items = self._getslice_(0,start) + list(value)  
                 before = mem.get_pages(self.group) 
-                if before:
-                    before_slice = before.getslice(0,start)
-                    if isinstance(value, Column):
-                        after = before_slice + mem.get_pages(value.group)
-                    elif isinstance(value, (list,tuple,np.ndarray)):
-                        data = np.array(value)
-                        last_page = before_slice[-1] 
-                        target_cls = Page.page_class_type_from_np(data)  
-                        if mem.get_ref_count(last_page) == 1:
-                            if isinstance(last_page, target_cls):
-                                last_page.extend(data)
-                                after = before_slice
-                            else:  # new datatype for ref_count == 1, so we create a mixed type page to avoid thousands of small pages.
-                                data = np.array(last_page[:] + data)
-                                new_page = Page.create(data)
-                                after = before_slice[:-1] + [new_page]
-                        else:  # ref count > 1
-                            new_page = Page.create(data)
-                            after = before_slice + [new_page]
+                before_slice = before.getslice(0,start)
+
+                if isinstance(value, Column):
+                    after = before_slice + mem.get_pages(value.group)
+                elif isinstance(value, (list, tuple, np.ndarray)):
+                    if not before_slice:
+                        after = [Page(value)]
                     else:
-                        raise TypeError
-                else:  # it's an empty column.
-                    after = [Page.create(np.array(value))]
+                        # data = np.array(value)
+                        last_page = before_slice[-1] 
+                        # target_cls = Page.page_class_type_from_np(data)  
+                        if mem.get_ref_count(last_page) == 1:
+                            # if isinstance(last_page, target_cls):
+                            last_page.extend(value)
+                            after = before_slice
+                            # else:  # new datatype for ref_count == 1, so we create a mixed type page to avoid thousands of small pages.
+                            #     data = np.array(last_page[:] + data)
+                            #     new_page = Page.create(data)
+                            #     after = before_slice[:-1] + [new_page]
+                        else:  # ref count > 1
+                            new_page = Page(value)
+                            after = before_slice + [new_page]
+                else:
+                    raise TypeError
+                # else:  # it's an empty column.
+                # after = [Page(value)]
                 self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
 
             elif key.stop != None and key.start == key.step == None:  # L[:3] = [1,2,3]
@@ -594,8 +610,8 @@ class Column(object):
                 if isinstance(value, Column):
                     after = mem.get_pages(value.group) + before_slice
                 elif isinstance(value, (list,tuple, np.ndarray)):
-                    data = np.array(value)
-                    new_page = Page.create(data)
+                    # data = np.array(value)
+                    new_page = Page(value)
                     after = [new_page] + before_slice
                 else:
                     raise TypeError
@@ -610,10 +626,10 @@ class Column(object):
                 A, B = before.getslice(0,start), before.getslice(stop, self._len)
                 if isinstance(value, Column):
                     after = A + mem.get_pages(value.group) + B
-                elif isinstance(value, (list,tuple, np.ndarray)):
+                elif isinstance(value, (list, tuple, np.ndarray)):
                     if value:
-                        data = np.array(value)
-                        new_page = Page.create(data)
+                        # data = np.array(value)
+                        new_page = Page(value)
                         after = A + [new_page] + B
                     else:
                         after = A + B
@@ -635,11 +651,11 @@ class Column(object):
                 # self.items = new
 
                 before = mem.get_pages(self.group)
-                new = mem.get_data(self.group, slice(None))
+                new = mem.get_data(self.group, slice(None)).tolist()
                 for new_index, position in zip(range(len(value)), seq):
                     new[position] = value[new_index]
                 # all went well. No exceptions.
-                after = [Page.create(new)]  # This may seem redundant, but is in fact is good as the user may 
+                after = [Page(new)]  # This may seem redundant, but is in fact is good as the user may 
                 # be cleaning up the dataset, so that we end up with a simple datatype instead of mixed.
                 self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
             else:
@@ -659,7 +675,7 @@ class Column(object):
                     data = mem.get_data(page.group)
                     mask = np.ones(shape=data.shape)
                     new_data = np.compress(mask, data,axis=0)
-                    after[ix] = Page.create(new_data)
+                    after[ix] = Page(new_data)
             else:
                 raise IndexError("list assignment index out of range")
 
@@ -684,10 +700,10 @@ class Column(object):
                 data = mem.get_data(self.group, slice(None))
                 mask = np.ones(shape=data.shape)
                 for i in range(start,stop,step):
-                    filter[i] = 0
+                    mask[i] = 0
                 new = np.compress(mask, data, axis=0)
                 # all went well. No exceptions.
-                after = [Page.create(new)]  # This may seem redundant, but is in fact is good as the user may 
+                after = [Page(new)]  # This may seem redundant, but is in fact is good as the user may 
                 # be cleaning up the dataset, so that we end up with a simple datatype instead of mixed.
                 self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
             else:
@@ -700,19 +716,20 @@ class Column(object):
 
     def __eq__(self, other):
         if isinstance(other, (list,tuple)):
-            B = np.array(other)
-        elif isinstance(other, np.ndarray): 
+            A = self.__getitem__()
+            return all(a==b for a,b in zip(A,other))
+        
+        if isinstance(other, Column):  # special case.
+            if mem.get_pages(self.group) == mem.get_pages(other.group):
+                return True  
+                
+        if isinstance(other, np.ndarray): 
             B = other
-        elif isinstance(other, Column):
-            B = mem.get_pages(other.group)
-            A = mem.get_pages(self.group)
-            if A == B:
-                return True  # special case.
+            A = self.__getitem__()
+            return (A==B).all()
         else:
             raise TypeError
-        A = self.__getitem__()
-        return (A==B).all()
-
+        
     def copy(self):
         c = Column()
         c.extend(self)

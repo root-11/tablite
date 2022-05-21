@@ -83,7 +83,7 @@ class MemoryManager(object):
                 if self.ref_counts[page.group]==0:
                     dset = h5[page.group]
                     if dset.attrs['datatype'] == 'typearray':
-                        del h5[f"{page}_types"]
+                        del h5[f"{page.group}_types"]
                     del h5[page.group]        
                     del self.ref_counts[page.group]
 
@@ -243,12 +243,14 @@ class Pages(list):
                 p_stop = b if stop > b else stop                   
                 data = page[p_start-a:p_stop-a]
                 if len(data):
-                    new = Page.create(data)
+                    new = Page(data)
                     L.append(new)
         return L
 
 
-class Page(object):
+
+
+class GenericPage(object):
     _page_ids = 0  # when loading from disk increment this to max id.
     _type_array = 'typearray'
     _type_array_postfix = "_types"
@@ -305,7 +307,7 @@ class Page(object):
         self._len = 0
     
     def __str__(self) -> str:
-        return f"Page({self.group} | {self.original_datatype} | {self.stored_datatype} | {self._len})"
+        return f"{self.__class__.__name__} | {self.group} | {self.original_datatype} | {self.stored_datatype} | {self._len}"
 
     def __hash__(self) -> int:
         return hash(self.group)
@@ -366,17 +368,32 @@ class Page(object):
 
     @classmethod
     def create(cls, data):
-        """
-        creates a new group.
-        """
         if not isinstance(data, np.ndarray):
-            raise TypeError
-        
+            types = {type(v) for v in data}
+            if len(types)>1:
+                data = np.array(data, dtype='O')
+            else:
+                data = np.array(data)  # str, int, float
+
         pg_cls = cls.page_class_type_from_np(data)
-        group = f"/page/{Page.new_id()}"
-        pg = pg_cls(group)
-        pg.create(data)
+        group = f"/page/{cls.new_id()}"
+        pg = pg_cls(group,data)
+        # pg.create(data)
         return pg
+
+    # @classmethod
+    # def create(cls, data):
+    #     """
+    #     creates a new group.
+    #     """
+    #     if not isinstance(data, np.ndarray):
+    #         raise TypeError
+        
+    #     pg_cls = cls.page_class_type_from_np(data)
+    #     group = f"/page/{Page.new_id()}"
+    #     pg = pg_cls(group)
+    #     pg.create(data)
+    #     return pg
 
     def write(self, data, dtype):
         with h5py.File(READWRITE) as h5:
@@ -399,8 +416,8 @@ class Page(object):
             self.original_datatype = dset.attrs['datatype']
             self._len = dset.len()
 
-    def update(self):
-        raise NotImplementedError("subclasses must implement this method.")
+    # def update(self):
+    #     raise NotImplementedError("subclasses must implement this method.")
     
     def __getitem__(self, item):
         raise NotImplementedError("subclasses must implement this method.")
@@ -418,10 +435,10 @@ class Page(object):
         raise NotImplementedError("subclasses must implement this method.")
 
 
-class SimpleType(Page):
+class SimpleType(GenericPage):
     def __init__(self, group, data=None):
         super().__init__(group)
-        if data:
+        if data is not None:
             self.create(data)
     
     def create(self, data):
@@ -454,16 +471,21 @@ class SimpleType(Page):
             dset = h5[self.group]
             return dset[item]
 
-    def __setitem__(self, keys, values):  # REWORK!
-        if not isinstance(keys, (slice,int)) or not isinstance(values, np.ndarray):
-            raise TypeError("pages should only see numpy arrays.")
-        if not isinstance(self, self.page_class_type_from_np(values)):
-            raise TypeError()
+    def __setitem__(self, keys, values):
+
+        # if not isinstance(keys, (slice,int)) or not isinstance(values, np.ndarray):
+        #     raise TypeError("pages should only see keys as slices or ints and numpy arrays.")
+        
+        # if not isinstance(self, self.page_class_type_from_np(values)):
+        #     raise TypeError()
 
         with h5py.File(self.path, READWRITE) as h5:
             if isinstance(keys, int):
                 dset = h5[self.group]
-                dset[keys] = values[0]
+                if isinstance(values, (list,tuple,np.ndarray)):
+                    dset[keys] = values[0]
+                else:    # it's a boolean, int or float or similar. just try and let the exception handler deal with it...
+                    dset[keys] = values  
 
             elif isinstance(keys, slice):
                 if len(values) != self._len:
@@ -484,10 +506,11 @@ class SimpleType(Page):
             self._len += len(value)
 
     def insert(self, index, value):
-        if not isinstance(value, np.ndarray):
-            raise TypeError
+        # if not isinstance(value, np.ndarray):
+        #     raise TypeError
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[self.group]
+            value = np.array([value], dtype=dset.dtype)
             data = dset[:]
             dset.resize(dset.len() + len(value), axis=0)
 
@@ -498,9 +521,13 @@ class SimpleType(Page):
             self._len += len(value)
 
     def extend(self, values):
-        assert isinstance(values, np.ndarray)
+        if not isinstance(values, (list, tuple, np.ndarray)):
+            raise ValueError(f".extend requires an iterable")
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[self.group]
+
+            if not isinstance(values, np.ndarray):
+                values = np.array(values, dtype=dset.dtype)
             dset.resize(dset.len() + len(values), axis=0)
             dset[-len(values):] = values
             self._len += len(values)
@@ -508,14 +535,17 @@ class SimpleType(Page):
     def remove(self, value):
         raise NotImplementedError("subclasses must implement this method.")
     
+    def remove_all(self, value):
+        raise NotImplementedError("subclasses must implement this method.")
+
     def pop(self, index):
         raise NotImplementedError("subclasses must implement this method.")
 
 
-class StringType(Page):
+class StringType(GenericPage):
     def __init__(self, group, data=None):
         super().__init__(group)
-        if data:
+        if data is not None:
             self.create(data)
 
     def create(self, data):
@@ -568,22 +598,25 @@ class StringType(Page):
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[self.group]
             dset.resize(dset.len() + len(values),axis=0)
-            dset[-len(values):] = values.astype(bytes) # encoding to bytes is required.
+            dset[-len(values):] = np.array(values, dtype=str).astype(bytes) # encoding to bytes is required.
             self._len += len(values)
     
     def remove(self, value):
         raise NotImplementedError("subclasses must implement this method.")
     
+    def remove_all(self, value):
+        raise NotImplementedError("subclasses must implement this method.")
+
     def pop(self, index):
         raise NotImplementedError("subclasses must implement this method.")
 
 
-class MixedType(Page):
+class MixedType(GenericPage):
     def __init__(self, group, data=None):
         super().__init__(group)
         self.type_group = None
         self.type_array = None
-        if data:
+        if data is not None:
             self.create(data)
     
     def create(self, data):
@@ -635,11 +668,24 @@ class MixedType(Page):
             type_array = h5[type_group][item]  # includes the page id
             type_functions = DataTypes.from_type_code
 
-            match = np.array( [type_functions(v,type_code) for v,type_code in zip(match, type_array)] )
+            match = np.array( [type_functions(v,type_code) for v,type_code in zip(match, type_array)], dtype='O' )
             return match
             
-    def __setitem__(self, index, value):
-        raise NotImplementedError("subclasses must implement this method.")
+    def __setitem__(self, keys, values):
+        dtypes = DataTypes
+        with h5py.File(self.path, READWRITE) as h5:
+            if isinstance(keys, int):
+                dset = h5[self.group]
+                dset[keys] = dtypes.to_bytes(values)
+
+                type_group = f"{self.group}{self._type_array_postfix}"
+                dset = h5[type_group]
+                dset[keys] = dtypes.type_code(values)
+
+            elif isinstance(keys, slice):
+                raise NotImplementedError("subclasses must implement this method.")
+            else:
+                raise TypeError(f"bad key: {type(keys)}")
 
     def append(self, value):
         # value must be np.ndarray and of same type as self.
@@ -673,6 +719,99 @@ class MixedType(Page):
     def remove(self, value):
         raise NotImplementedError("subclasses must implement this method.")
     
+    def remove_all(self, value):
+        raise NotImplementedError("subclasses must implement this method.")
+
     def pop(self, index):
         raise NotImplementedError("subclasses must implement this method.")
    
+
+class Page(object):
+    def __init__(self, data=None):
+        if isinstance(data, GenericPage):  # used during cls.load
+            self._page = data
+        else:
+            self._page = GenericPage.create(data) 
+    
+    
+    def __str__(self) -> str:
+        return f"Page({self._page.__str__()})"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    def __eq__(self, __o: object) -> bool:
+        if not isinstance(__o, Page):
+            raise TypeError
+        return self._page == __o._page
+
+    def __hash__(self):
+        return self._page.__hash__()
+
+    @property
+    def group(self):
+        return self._page.group
+
+    @property
+    def original_datatype(self):
+        return self._page.original_datatype
+
+    @classmethod
+    def load(cls, group):
+        return Page(GenericPage.load(group))
+
+    @classmethod
+    def layout(cls, pages):
+        return GenericPage.layout(pages)
+
+    def __len__(self):
+        return len(self._page)
+
+    def extend(self, values):
+        try:
+            self._page.extend(values)
+        except (TypeError, ValueError):
+            data = self._page[:].tolist()
+            data.extend(values)
+            self._page = GenericPage.create(self._page.group, data)
+
+    def append(self, value):
+        try:
+            self._page.append(value)
+        except (TypeError, ValueError):
+            data = self._page[:].tolist()
+            data.append(value)
+            self._page = GenericPage.create(self._page.group, data)
+
+    def insert(self, index, values):
+        try:
+            self._page.insert(index, values)
+        except (TypeError, ValueError):
+            data = self._page[:].tolist()
+            data.insert(index, values)
+            self._page = GenericPage.create(self._page.group, data)
+
+    def remove(self, value):
+        self._page.remove(value)
+    
+    def remove_all(self, value):
+        self._page.remove_all(value)
+
+    def pop(self, index):
+        self._page.pop(index)
+
+    def __getitem__(self, key):
+        return self._page[key]
+
+    def __setitem__(self, key, value):
+        try:
+            self._page[key] = value
+        except (TypeError, ValueError):
+            data = self._page[:]
+            data[key]=value
+            self._page = GenericPage.create(self._page.group, data)
+        
+    def __delitem__(self, key):
+        del self._page[key]
+
+    

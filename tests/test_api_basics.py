@@ -19,7 +19,7 @@ def refresh():
     yield
 
 
-def test01():
+def test01_compatible_datatypes():
     now = datetime.now().replace(microsecond=0)
 
     table4 = Table()
@@ -62,12 +62,12 @@ def test01():
     ]
 
 
-def test01a():
+def test01_confirm_storage_reset():
     tables = Table.reload_saved_tables()
     assert tables == []
 
 
-def test02():
+def test02_verify_garbage_collection():
     # check that the pages are not deleted prematurely.
     table4 = Table()
     table4['A'] = [-1, 1]
@@ -90,7 +90,7 @@ def test02():
     assert tables == []
 
 
-def test03():
+def test03_verify_list_like_operations():
     table4 = Table()
     table4['A'] = [0,1,2,3]  # create page1
     assert list(table4['A'][:]) == [0,1,2,3]
@@ -112,7 +112,7 @@ def test03():
     table5.clear()
     assert table5.columns == []
 
-def test03a():  # single page updates.
+def test03_verify_single_page_updates():  
     table4 = Table()
     table4['A'] = list(range(10))
     L = list(range(10))
@@ -137,7 +137,7 @@ def test03a():  # single page updates.
     assert list(C[:]) == L
 
 
-def test03a2():  # multi page updates.
+def test03_verify_multi_page_updates():  
     table4 = Table()
     table4['A'] = list(range(5))
     table4['A'] += table4['A']
@@ -149,7 +149,7 @@ def test03a2():  # multi page updates.
     L[4:8] = [11,12,13,14]  # replace
 
 
-def test03b():    
+def test03_verify_slice_operator_for_uniform_datatype():    
     table4 = Table()
     table4['A'] = L = [0, 10, 20, 3, 4, 5, 100]  # create
     assert L == [0, 10, 20, 3, 4, 5, 100]
@@ -218,11 +218,175 @@ def test03b():
     assert list(col) == 2 * [-10, 10, 20, 30, 0, 50, 60, 0, 0, 110, 120, 130, 140]
 
 
-def test_multitype_datasets():
-    raise NotImplementedError()
+def test03_verify_slice_operator_for_multitype_datasets():
+    t = Table()
+    t['A'] = ["1",2,3.0]
+    
+    # VALUES! NOT SLICES!
+    # ---------------
+    L = t['A'].copy()
+    assert L == ["1", 2, 3.0]
+    try:
+        L[0] = [4,5]   # VALUE: REPLACE position in L with NEW
+        assert False, "allowing this would insert [4,5] in L as [[4,5],2,3.0] which would break the column format."
+    except TypeError:
+        assert True
+ 
+    L = t['A'].copy()
+    L[-3] = 4
+    assert L ==[4,2,3.0]
+    
+    # SLICES - ONE VALUE!
+    # -------------------
+
+    L = t['A'].copy()
+    L[:0] = [4,"5"]  # SLICE: "REPLACE" L before 0 with NEW
+    assert L == [4,"5","1",2,3.0]
+
+    L = t['A'].copy()
+    L[0:] = [4,5]  # SLICE: REPLACE L after 0 with NEW
+    assert L == [4,5]  # <-- check that page type becomes simple!
+
+    L = t['A'].copy()
+    L[:1] = [4,5]  # SLICE: REPLACE L before 1 with NEW
+    assert L == [4,5,2,3.0]
+
+    L = t['A'].copy()
+    L[:2] = [4,5]   # SLICE: REPLACE L before 2 with NEW
+    assert L == [4,5,3.0]
+
+    L = t['A'].copy()
+    L[:3] = [4,5]  # SLICE: REPLACE L before 3 with NEW
+    assert L == [4,5] # <-- check that page type becomes simple!
+
+    # SLICES - TWO VALUES!
+    # --------------------
+    L = t['A'].copy()
+    L[0:1] = [4,5]  # SLICE: DROP L between A,B (L[0]=[1]). INSERT NEW starting on 0.
+    assert L == [4,5,2,3]
+
+    L = t['A'].copy()
+    L[1:0] = [4,"5"]  # SLICE: DROP L between A,B (nothing). INSERT NEW starting on 1.
+    assert L == ["1",4,"5",2,3.0]
+
+    L = t['A'].copy()
+    L[0:2] = [4,"5",6.0]
+    assert L == [4,"5",6.0,3.0]
+
+    L = t['A'].copy()
+    L[1:3] = ["4"]  # SLICE: DROP L bewteen A,B (L[1:3] = ["4"]). INSERT NEW starting on 1.
+    assert L == ["1","4"]
+
+    L = t['A'].copy()
+    L[0:3] = [4]
+    assert L == [4]  # SLICE: DROP L between A,B (L[0:3] = [1,2,3]). INSERT NEW starting on 0
+
+    # SLICES - THREE VALUES!
+    # ----------------------
+
+    L = t['A'].copy()
+    L[0::2] = [4,5]  # SLICE: for new_index,position in enumerate(range(0,end,step=2)): REPLACE L[position] WITH NEW[ew_index]
+    assert L == [4,2,5]
+
+    t = Table()
+    t['A'] = ["1", 1, 1.0, "1", 1, 1.0]
+
+    L = t['A'].copy()
+    L[0::2] = [2,3,4]  # SLICE: for new_index,position in enumerate(range(0,end,step=2)): REPLACE L[position] WITH NEW[ew_index]
+    assert L == [2, 1, 3, "1", 4, 1.0]
+
+    L = t['A'].copy()
+    L[1::2] = [2,3,4]  # SLICE: for new_index,position in enumerate(range(0,end,step=2)): REPLACE L[position] WITH NEW[ew_index]
+    assert L == ["1", 2, 1.0, 3, 1, 4]
+
+    L = t['A'].copy()
+    try:
+        L[2::2] = [2,3,4]  
+    except ValueError as e:
+        assert str(e) == "attempt to assign sequence of size 3 to extended slice of size 2"
+
+    L = t['A'].copy()
+    try:
+        L[1::-2] = [2,3,4] 
+    except ValueError as e:
+        assert str(e) == "attempt to assign sequence of size 3 to extended slice of size 1"
+
+    L = t['A'].copy()
+    try:
+        L[:1:-2] = [2,3,4]  
+    except ValueError as e:
+        assert str(e) == "attempt to assign sequence of size 3 to extended slice of size 2"
+
+    L = t['A'].copy()
+    L[None::-2] = [2,3,"4"]  # SLICE: for new_index, position in enumerate(reversed(range(start,end,-2)): REPLACE L[position] WITH NEW[new_index]
+    assert L == ["1", "4", 1.0, 3, 1, 2]  #                                                       ! ----^
+
+    # Note that L[None::-2] becomes range(*slice(None,None,-2).indices(len(L))) == range(5,-1,-2)  !!!!
+    L = t['A'].copy()
+    new = [2,3,"4"]
+    for new_ix,pos in enumerate(range(*slice(None,None,-2).indices(len(L)))):
+        L[pos] = new[new_ix] 
+    assert L == ["1", "4", 1.0, 3, 1, 2]
+
+    # What happens if we leave out the first : ?
+    L = t['A'].copy()
+    L[:-2] = [2,"3",4]  # SLICE: REPLACE L before -2 with NEW
+    assert L == [2,"3",4,1,1.0] 
+
+    # THIS MEANS THAT None is an active OPERATOR that has different meaning depending on the args position.
+    L = t['A'].copy()
+    L[None:None:-2] = [2,"3",4.0]
+    assert L == ["1", 4, 1.0, "3", 1, 2]
+
+    # THAT SETITEM AND GETITEM BEHAVE DIFFERENT DEPENDING ON THE NUMBER OF ARGUMENTS CAN SEEM VERY ARCHAIC !
+
+    t = Table()
+    t['A'] = ["1",2,3.0]
+    
+    L = t['A'].copy()
+    # L[None] = []  # TypeError: list indices must be integers or slices, not NoneType
+    assert list(L[None : None]) == ["1",2,3.0]
+    assert list(L[None : None:   1  ]) == ["1",2,3.0]
+    assert list(L[None : None : None]) == ["1",2,3.0]
+    assert list(L[  1  : None : None]) == [2,3.0]
+    assert list(L[None :   1  : None]) == ["1"]
+    assert list(L[None : None :  2  ]) == ["1",3]
+
+    L = t['A'].copy()
+    L[None : None] = [4,5]  
+    assert L == [4,5]
+
+    L = t['A'].copy()
+    L[None : None:   1  ] = [4,5]  
+    assert L==[4,5]
+
+    L = t['A'].copy()
+    L[None : None : None] = [4,5]  
+    assert L == [4,5]
+
+    L = t['A'].copy()
+    L[  1  : None : None] = [4,5]  
+    assert L == ["1",4,5]
+
+    L = t['A'].copy()
+    L[None :   1  : None] = [4,5]  
+    assert L == [4,5,2,3.0]
+
+    L = t['A'].copy()
+    L[None : None :  2  ] = [4,5]  
+    assert L==[4,2,5]
+
+    L = t['A'].copy()
+    L.append(4)
+    del L[1:3]
+    assert L == ["1",4]
+
+    L[:] = [1,2,3.0,4,"5",6,7,8,9]
+    del L[::3]
+    assert L == [2,3.0,"5",6,8,9]
 
 
-def test03c():  # test special column functions.
+def test03_verify_column_summaries():  # test special column functions.
     t = Table()
     n,m = 5,3
     t['A'] = list(range(n)) * m
@@ -237,7 +401,7 @@ def test03c():  # test special column functions.
     assert len(ix) == n
 
 
-def test04():
+def test04_verify_add_rows_for_table():
     table4 = Table()
     table4['A', 'B', 'C'] = [ list(range(20)), [str(i) for i in range(20)], [1.1*i for i in range(20)]]  # test multiple assignment.
     
@@ -247,10 +411,16 @@ def test04():
     assert table4['A'] != table5['A']  # test comparison of column.__eq__
     assert table5['A'] == table5['A']
     assert table5 == table5  # test comparison of table.__eq__
+    assert table5 != table4
 
-    for row in table4.rows:  # test .rows
-        print(row)
-    
+    for ix, row in enumerate(table4.rows,start=1):  # test .rows
+        assert len(row) ==3
+        a,b,c = row
+        assert a.dtype == int
+        assert type(b) == str
+        assert c.dtype == float
+    assert ix == 20, "there are supposed to be 20 rows."
+
     t = Table()
     t.add_columns('row','A','B','C')
     t.add_rows(1, 1, 2, 3)  # individual values
@@ -268,15 +438,15 @@ def test04():
     t.add_rows(row=[15,16], A=[1,1], B=[2,2], C=[3,3])  # kwargs - lists
     assert t['row'] == list(range(1,17))
 
-def test04a():
-    pass  # multi processing index. with shared memory.
+def test04_verify_multiprocessing_index_in_shared_memory():
+    pass  # multi processing index. with shared memory. :Pool.starmap
 
 
-def test04b():
+def test04_verify_table_stacking():
     pass  # test "stacking"
 
 
-def test05():
+def test05_verify_show_table():
     table4 = Table()
     txt = table4.to_ascii()
     assert txt == "Empty table"  
@@ -286,7 +456,7 @@ def test05():
     assert txt2 == '+=+=+=+\n|A|B|C|\n+-+-+-+\n+=+=+=+'
     for i in range(5):
         table4['A'] += [i]
-        table4['B'] += [str(i)]
+        table4['B'] += [str(i+9)]
         table4['C'] += [1.1*i]
         txt = table4.to_ascii()
         # +=+==+==================+
@@ -305,7 +475,7 @@ def test05():
     table4.show()
 
 
-def test06():
+def test06_verify_multi_key_indexing_for_tables():
     # doing lookups is supported by indexing
     table6 = Table()
     table6['A'] = ['Alice', 'Bob', 'Bob', 'Ben', 'Charlie', 'Ben','Albert']
@@ -321,27 +491,25 @@ def test06():
     t = Table.copy_from_clipboard()
     t.show()
 
-def test07():
+def test07_verify_import_into_table():
     pass  # import data
 
-def test08():
+def test08_verify_filter_table():
     pass  # filter
 
-def test09():
+def test09_verify_sort():
     pass  # sort  - sort as it appears as string
 
-def test10():
+def test10_verify_join():
     pass  # join + explain join matrix.
 
-def test11():
+def test11_verify_loopup_functionality():
     pass  # lookup
 
-def test12():
+def test12_verify_groupby_functionality():
     pass  # groupby
 
-def test13():
+def test13_verify_pivot_table_functionality():
     pass  # pivot table.
-
-
               #tabs
               #spaces
