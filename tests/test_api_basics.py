@@ -33,7 +33,10 @@ def test01_compatible_datatypes():
     table4['H'] = [now.date(), now.date()]
     table4['I'] = [now.time(), now.time()]
     table4['J'] = [timedelta(1), timedelta(2, 400)]
-    assert table4.columns == ['A','B','C','D','E','F','G','H','I','J']  # testing .columns property.
+    table4['K'] = ['b',"嗨"]  # utf-32
+    table4['L'] = [-10**23,10**23]  # int > int64. 
+    table4['M'] = [float('inf'), float('-inf')]
+    assert table4.columns == ['A','B','C','D','E','F','G','H','I','J','K']  # testing .columns property.
 
     table4.save = True  # testing that save keeps the data in HDF5.
     del table4  
@@ -54,13 +57,13 @@ def test01_compatible_datatypes():
     assert table5['H'] == [now.date(), now.date()]
     assert table5['I'] == [now.time(), now.time()]
     assert table5['J'] == [timedelta(1), timedelta(2, 400)]
-    rows = [row for row in table5.rows]
+    assert table5['K'] == ['b',"嗨"]
+    assert table5['L'] == [-10**23,10**23]  # int > int64. 
+    assert table5['M'] == [float('inf'), float('-inf')]
+    rows = [row for row in table5.rows]  # test .rows iterator.
     assert len(rows) == 2
-    assert rows == [
-        [-1, None, -1.1,     '', None, False, now, now.date(), now.time(), timedelta(days=1)],
-        [ 1,    1,  1.1, '1000',  '1',  True, now, now.date(), now.time(), timedelta(days=2, seconds=400)]
-    ]
-
+    assert rows[0][0] == -1
+    assert rows[0][1] == 1
 
 def test01_confirm_storage_reset():
     tables = Table.reload_saved_tables()
