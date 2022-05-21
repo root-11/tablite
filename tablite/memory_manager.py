@@ -494,13 +494,39 @@ class SimpleType(GenericPage):
             self._len += len(values)
 
     def remove(self, value):
-        raise NotImplementedError("subclasses must implement this method.")
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            result = np.where(dset == value)
+            if result:
+                ix = result[0][0]
+                A,B = dset[:ix], dset[ix+1:]
+                dset.resize(len()-1, axis=0)
+                dset[:ix] = A
+                dset[len(A):] = B
+            else:
+                raise IndexError(f"value not found: {value}")
     
     def remove_all(self, value):
-        raise NotImplementedError("subclasses must implement this method.")
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            mask = (dset != value)
+            if mask.any():
+                new = np.compress(mask, dset[:], axis=0)
+                dset.resize(len(new), axis=0)
+                dset[:] = new
+            else:
+                raise IndexError(f"value not found: {value}")
 
     def pop(self, index):
-        raise NotImplementedError("subclasses must implement this method.")
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            index = len(dset) + index if index < 0 else index
+            if index > len(dset):
+                raise IndexError(f"{index} > len(dset)")
+            A,B = dset[:index], dset[index+1:]
+            dset.resize(len()-1, axis=0)
+            dset[:index] = A
+            dset[len(A):] = B
 
 
 class StringType(GenericPage):
