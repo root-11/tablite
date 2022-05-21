@@ -260,34 +260,6 @@ class GenericPage(object):
     _MixedTypes = "O" # + _type_array
     _StringTypes = "U" # + _str
     _SimpleTypes = "ld?"
-
-    @classmethod
-    def page_class_type_from_np(cls, np_arr):
-        """ returns Page class from np.ndarray """
-        if not isinstance(np_arr, np.ndarray):
-            raise TypeError
-        
-        if np_arr.dtype.char in cls._MixedTypes:
-            clss = MixedType
-        elif np_arr.dtype.char in cls._StringTypes:
-            clss = StringType
-        elif np_arr.dtype.char in cls._SimpleTypes:  # check if a new int8 is not included in an int32.
-            clss = SimpleType
-        else:
-            raise NotImplementedError(f"method missing for {np_arr.dtype.char}")
-        return clss
-
-    @classmethod
-    def page_class_type(cls, h5attr_dtype):
-        if not isinstance(h5attr_dtype,str):
-            raise TypeError
-        
-        class_types = {
-            cls._type_array: MixedType,
-            cls._str: StringType
-        }
-        class_type = class_types.get(h5attr_dtype, SimpleType)
-        return class_type
    
     @classmethod
     def new_id(cls):
@@ -334,7 +306,16 @@ class GenericPage(object):
             dset = h5[group]
             datatype = dset.attrs[cls._datatype]
             
-            pg_class = cls.page_class_type(h5attr_dtype=datatype)
+            if not isinstance(datatype,str):
+                raise TypeError
+        
+            if datatype == cls._type_array:
+                pg_class = MixedType
+            elif datatype == cls._str:
+                pg_class = StringType
+            else:
+                pg_class = SimpleType
+      
             page = pg_class(group)
             page.stored_datatype = dset.dtype
             page.original_datatype = datatype
@@ -351,7 +332,17 @@ class GenericPage(object):
             else:
                 data = np.array(data)  # str, int, float
 
-        pg_cls = cls.page_class_type_from_np(data)
+        if not isinstance(data, np.ndarray):
+            raise TypeError
+        if data.dtype.char in cls._MixedTypes:
+            pg_cls = MixedType
+        elif data.dtype.char in cls._StringTypes:
+            pg_cls = StringType
+        elif data.dtype.char in cls._SimpleTypes:  # check if a new int8 is not included in an int32.
+            pg_cls = SimpleType
+        else:
+            raise NotImplementedError(f"method missing for {data.dtype.char}")
+
         group = f"/page/{cls.new_id()}"
         pg = pg_cls(group,data)
         return pg
