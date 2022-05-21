@@ -440,24 +440,35 @@ class SimpleType(GenericPage):
 
     def __setitem__(self, keys, values):
         with h5py.File(self.path, READWRITE) as h5:
-            if isinstance(keys, int):
-                dset = h5[self.group]
+            dset = h5[self.group]
+            if isinstance(keys,int):
                 if isinstance(values, (list,tuple,np.ndarray)):
                     dset[keys] = values[0]
-                else:    # it's a boolean, int or float or similar. just try and let the exception handler deal with it...
-                    dset[keys] = values  
+                else:  # it's a boolean, int or float or similar. just try and let the exception handler deal with it...
+                    dset[keys] = values
 
-            elif isinstance(keys, slice):  # TODO: ADD TESTS FOR THIS. REWORK!?
-                if len(values) != self._len:
-                    self._len = len(values)
-                    dset = h5[self.group]
-                    dset.resize((len(values)), axis=0)
-                dset[slice] = values
+            elif isinstance(keys, slice):
+                data = dset[:]  # shallow copy
+                data[keys] = values  # update copy
+                if len(data) != len(dset):
+                    dset.resize(len(data))  # resize
+                dset[:] = data  # commit
             else:
-                raise TypeError()
+                raise TypeError(f"bad key type: {type(keys)}")
         
     def __delitem__(self, key):
-        raise NotImplementedError("subclasses must implement this method.")
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            if isinstance(key,int):
+                del dset[key]
+            elif isinstance(key, slice):
+                data = dset[:]  # shallow copy
+                del data[key]  # update copy
+                if len(data) != len(dset):
+                    dset.resize(len(data))  # resize
+                dset[:] = data  # commit
+            else:
+                raise TypeError(f"bad key type: {type(key)}")
 
     def append(self, value):
         # value must be np.ndarray and of same type as self.
@@ -499,10 +510,10 @@ class SimpleType(GenericPage):
             result = np.where(dset == value)
             if result:
                 ix = result[0][0]
-                A,B = dset[:ix], dset[ix+1:]
-                dset.resize(len()-1, axis=0)
-                dset[:ix] = A
-                dset[len(A):] = B
+                data = dset[:]
+                dset.resize(len(dset)-1, axis=0)
+                dset[:ix] = data[:ix]
+                dset[ix:] = data[ix+1:]
             else:
                 raise IndexError(f"value not found: {value}")
     
@@ -523,10 +534,10 @@ class SimpleType(GenericPage):
             index = len(dset) + index if index < 0 else index
             if index > len(dset):
                 raise IndexError(f"{index} > len(dset)")
-            A,B = dset[:index], dset[index+1:]
-            dset.resize(len()-1, axis=0)
-            dset[:index] = A
-            dset[len(A):] = B
+            data = dset[:]
+            dset.resize(len(dset)-1, axis=0)
+            dset[:index] = data[:index]
+            dset[index:] = data[index+1:]
 
 
 class StringType(GenericPage):
@@ -566,11 +577,37 @@ class StringType(GenericPage):
             match = np.array( [v.decode(encoding) for v in match] )
             return match            
 
-    def __setitem__(self, index, value):
-        raise NotImplementedError("subclasses must implement this method.")
+    def __setitem__(self, keys, values):
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            if isinstance(keys,int):
+                if isinstance(values, (list,tuple,np.ndarray)):
+                    dset[keys] = values[0]
+                else:  # it's a boolean, int or float or similar. just try and let the exception handler deal with it...
+                    dset[keys] = values.astype(bytes)
+
+            elif isinstance(keys, slice):  # THIS IMPLEMENTATION CAN BE FASTER IF SEGMENTED INTO SLICE RULES.
+                data = dset[:]  # shallow copy
+                data[keys] = np.array(values, dtype=str).astype(bytes) # encoding to bytes is required.  # update copy
+                if len(data) != len(dset):
+                    dset.resize(len(data))  # resize
+                dset[:] = data  # commit
+            else:
+                raise TypeError(f"bad key type: {type(keys)}")
 
     def __delitem__(self, key):
-        raise NotImplementedError("subclasses must implement this method.")
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            if isinstance(key,int):
+                del dset[key]
+            elif isinstance(key, slice):
+                data = dset[:]  # shallow copy
+                del data[key]  # update copy
+                if len(data) != len(dset):
+                    dset.resize(len(data))  # resize
+                dset[:] = data  # commit
+            else:
+                raise TypeError(f"bad key type: {type(key)}")
 
     def append(self, value):
         # value must be np.ndarray and of same type as self.
@@ -582,7 +619,17 @@ class StringType(GenericPage):
             self._len += len(value)
     
     def insert(self, index, value):
-        raise NotImplementedError("subclasses must implement this method.")
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            value = np.array([value], dtype=dset.dtype)
+            data = dset[:]
+            dset.resize(dset.len() + len(value), axis=0)
+
+            a, b = index, index + len(value)
+            dset[:a] = data[:a]
+            dset[a:b] = value.astype(bytes) # encoding to bytes is required.
+            dset[b:] = data[a:]
+            self._len += len(value)
 
     def extend(self, values):
         with h5py.File(self.path, READWRITE) as h5:
@@ -591,14 +638,42 @@ class StringType(GenericPage):
             dset[-len(values):] = np.array(values, dtype=str).astype(bytes) # encoding to bytes is required.
             self._len += len(values)
     
-    def remove(self, value):
-        raise NotImplementedError("subclasses must implement this method.")
+    def remove(self, value):        
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            value = np.array(value, dtype=dset.dtype)[0]
+            result = np.where(dset == value)
+            if result:
+                ix = result[0][0]
+                data = dset[:]
+                dset.resize(len(dset)-1, axis=0)
+                dset[:ix] = data[:ix]
+                dset[ix:] = data[ix+1:]
+            else:
+                raise IndexError(f"value not found: {value}")
     
     def remove_all(self, value):
-        raise NotImplementedError("subclasses must implement this method.")
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            value = np.array(value, dtype=dset.dtype)[0]
+            mask = (dset != value)
+            if mask.any():
+                new = np.compress(mask, dset[:], axis=0)
+                dset.resize(len(new), axis=0)
+                dset[:] = new
+            else:
+                raise IndexError(f"value not found: {value}")
 
     def pop(self, index):
-        raise NotImplementedError("subclasses must implement this method.")
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[self.group]
+            index = len(dset) + index if index < 0 else index
+            if index > len(dset):
+                raise IndexError(f"{index} > len(dset)")
+            data = dset[:]
+            dset.resize(len(dset)-1, axis=0)
+            dset[:index] = data[:index]
+            dset[index:] = data[index+1:]
 
 
 class MixedType(GenericPage):
