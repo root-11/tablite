@@ -71,37 +71,6 @@ def detect_seperator(path, encoding):
         return frq[0][-1]
 
 
-# def text_escape(s, escape='"', sep=';'):
-#     """ escapes text marks using a depth measure. """
-#     assert isinstance(s, str)
-#     word, words = [], tuple()
-#     in_esc_seq = False
-#     for ix, c in enumerate(s):
-#         if c == escape:
-#             if in_esc_seq:
-#                 if ix+1 != len(s) and s[ix + 1] != sep:
-#                     word.append(c)
-#                     continue  # it's a fake escape.
-#                 in_esc_seq = False
-#             else:
-#                 in_esc_seq = True
-#             if word:
-#                 words += ("".join(word),)
-#                 word.clear()
-#         elif c == sep and not in_esc_seq:
-#             if word:
-#                 words += ("".join(word),)
-#                 word.clear()
-#         else:
-#             word.append(c)
-
-#     if word:
-#         if word:
-#             words += ("".join(word),)
-#             word.clear()
-#     return words
-
-
 class TextEscape(object):
     """
     enables parsing of CSV with respecting brackets and text marks.
