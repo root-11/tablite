@@ -1,6 +1,5 @@
 from tablite import Table
-from tablite.file_reader_utils import text_escape
-from tablite.core import file_reader, find_format
+from tablite.file_reader_utils import TextEscape
 from time import process_time_ns
 from datetime import date, datetime
 from pathlib import Path

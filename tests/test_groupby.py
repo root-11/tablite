@@ -1,6 +1,6 @@
-from tablite import Table, GroupBy
+from tablite.core import Table  #, GroupBy
 
-gb = GroupBy
+# gb = GroupBy
 
 
 def test_groupby():
