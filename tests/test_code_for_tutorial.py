@@ -1,26 +1,23 @@
-from tablite import Table, Column
-from tablite.datatypes import DataTypes
-from datetime import datetime,time,date,timedelta
-import psutils
+import os
+import psutil
 import zlib
 import random
+from time import process_time
+from tablite import Table # Column
+from tablite.datatypes import DataTypes
+from datetime import datetime,time,date
+
 
 def test_basic_table():
     # creating a tablite incrementally is straight forward:
-    table = Table(use_disk=True)
-    table.use_disk = True
-    table.use_disk = False
-    table.use_disk = True
-
-    table.add_column('A', int, False)
-    assert 'A' in table
-
-    table.add_column('B', str, allow_empty=False)
-    assert 'B' in table
-
+    table = Table(save=True)
+    table.save = True
+    table.save = False
+    table.save = True
+    table.add_columns('A', 'B')
     # appending rows is easy:
-    table.add_row((1, 'hello'))
-    table.add_row((2, 'world'))
+    table.add_rows((1, 'hello'))
+    table.add_rows((2, 'world'))
 
     # converting to and from json is easy:
     table_as_json = table.to_json()
@@ -41,7 +38,8 @@ def test_basic_table():
     assert table == table2 == table3
 
     # even if you only want to check metadata:
-    table.compare(table3)  # will raise exception if they're different.
+    
+    # DEPRECATED table.compare(table3)  # will raise exception if they're different.
 
     # append is easy as + also work:
     table3x2 = table3 + table3
@@ -52,18 +50,21 @@ def test_basic_table():
     assert len(table3x2) == len(table3) * 3
 
     # type verification is included:
-    try:
-        table.columns['A'][0] = 'Hallo'
-        assert False, "A TypeError should have been raised."
-    except TypeError:
-        assert True
+    # try:
+    #     table.columns['A'][0] = 'Hallo'
+    #     assert False, "A TypeError should have been raised."
+    # except TypeError:
+    #     assert True
+    # DEPRECATED ABOVE
+
+    # to get the datatypes in a columns use:
+    print(table3.types())
 
     # updating values is familiar to any user who likes a list:
     assert 'A' in table.columns
-    assert isinstance(table.columns['A'], (Column,list))
-    last_row = -1
-    table['A'][last_row] = 44
-    table['B'][last_row] = "Hallo"
+    # assert isinstance(table.columns['A'], (Column,list))  FIXME
+    table['A'][-1] = 44
+    table['B'][-1] = "Hallo"
 
     assert table != table2
 
@@ -550,16 +551,8 @@ def test_lookup():
 
 
 def test_recreate_readme_comparison():  
-    try:
-        import os
-        import psutil
-    except ImportError:
-        return
     process = psutil.Process(os.getpid())
     baseline_memory = process.memory_info().rss
-    from time import process_time
-
-    from tablite import Table
 
     digits = 1_000_000
 

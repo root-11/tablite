@@ -1,4 +1,4 @@
-from tablite.utils import TextEscape
+from tablite.file_reader_utils import TextEscape
 
 
 def test_text_escape():
