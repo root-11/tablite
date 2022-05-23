@@ -83,6 +83,12 @@ class Table(object):
         generators = [iter(mc) for mc in self._columns.values()]
         for _ in range(len(self)):
             yield [next(i) for i in generators]
+    
+    def __iter__(self):
+        """
+        Disabled. Users should use Table.rows or Table.columns
+        """
+        raise AttributeError("use Table.rows or Table.columns")
 
     def __len__(self):
         for v in self._columns.values():  
@@ -118,7 +124,7 @@ class Table(object):
 
             table['a']   # selects column 'a'
             table[:10]   # selects first 10 rows from all columns
-            table['a','b', slice(3:20:2)]  # selects a slice from columns 'a' and 'b'
+            table['a','b', slice(3,20,2)]  # selects a slice from columns 'a' and 'b'
             table['b', 'a', 'a', 'c', 2:20:3]  # selects column 'b' and 'c' and 'a' twice for a slice.
 
         returns values in same order as selection.
@@ -127,11 +133,11 @@ class Table(object):
             return self._columns[keys]
         elif isinstance(keys, tuple):
             cols = tuple(c for c in keys if isinstance(c,str) and c in self._columns)
-            slices = [i for i in keys if isinstance(i, slice)][0]
+            slices = [i for i in keys if isinstance(i, slice)] + [slice(None)]
             t = Table()
             for name in cols:
                 col = self._columns[keys]
-                t[name] = col[slices]
+                t[name] = col[slices[0]]
             return t
         else:
             raise KeyError(f"no such column: {keys}")
