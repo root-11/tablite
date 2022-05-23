@@ -24,12 +24,13 @@ class MemoryManager(object):
         if not self.path.exists():
             self.path.touch()  
 
-    def create_table(self,key, save):  # /table/{key}
+    def create_table(self, key, save, config=None):  # /table/{key}
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5.create_dataset(name=key, dtype=h5py.Empty('f'))
             dset.attrs['columns'] = json.dumps({})
             assert isinstance(save, bool)
             dset.attrs['saved'] = save
+            dset.attrs['config'] = config
 
     def set_saved_flag(self, group, value):
         with h5py.File(self.path, READWRITE) as h5:
