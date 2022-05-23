@@ -1,20 +1,26 @@
 import os
 import io
+import math
 import pathlib
+import random
 import json
+import time
 import zipfile
 import operator
 import warnings
 import logging
+import multiprocessing
 logging.getLogger('lml').propagate = False
 logging.getLogger('pyexcel_io').propagate = False
 logging.getLogger('pyexcel').propagate = False
 
+import chardet
 import pyexcel
 import pyperclip
 from tqdm import tqdm
 import numpy as np
 import h5py
+import psutil
 
 from collections import defaultdict
 from itertools import count, chain
@@ -23,22 +29,23 @@ from itertools import count, chain
 # from tablite.file_reader_utils import detect_encoding, detect_seperator, split_by_sequence, text_escape
 # from tablite.groupby_utils import Max, Min, Sum, First, Last, Count, CountUnique, Average, StandardDeviation, Median, Mode, GroupbyFunction
 
-# from tablite.columns import StoredColumn, InMemoryColumn
-# from tablite.stored_list import tempfile
 
 from tablite.memory_manager import MemoryManager, Page
-from tablite.utils import intercept
+from tablite.file_reader_utils import TextEscape
 
 mem = MemoryManager()
 
 class Table(object):
     ids = count(1)
-    def __init__(self,key=None, save=False, _create=True) -> None:
+    def __init__(self,key=None, save=False, _create=True, config=None) -> None:
         self.key = next(Table.ids) if key is None else key
         self.group = f"/table/{self.key}"
         self._columns = {}  # references for virtual datasets that behave like lists.
         if _create:
-            mem.create_table(self.group, save)  # attrs. 'columns'
+            if config is not None:
+                if not isinstance(config, bytes):
+                    raise TypeError("expected config as utf-8 encoded json")
+            mem.create_table(key=self.group, save=save, config=config)  # attrs. 'columns'
         self._saved = save
     
     @property
@@ -57,6 +64,9 @@ class Table(object):
         for key in self.columns:
             del self[key]
         mem.delete_table(self.group)
+
+    def __str__(self):
+        return f"Table({len(self._columns):,} columns, {len(self):,} rows)"
 
     @property
     def columns(self):
@@ -410,6 +420,67 @@ class Table(object):
             t.add_rows(data)    
         return t
 
+    @classmethod
+    def import_file(cls, path, 
+        import_as, newline='\n', text_qualifier=None,
+        delimiter=',', first_row_has_headers=True, columns=None, sheet=None):
+        """
+        reads path and imports 1 or more tables as hdf5
+
+        path: pathlib.Path or str
+        import_as: 'csv','xlsx','txt'                               *123
+        newline: newline character '\n', '\r\n' or b'\n', b'\r\n'   *13
+        text_qualifier: character: " or '                           +13
+        delimiter: character: typically ",", ";" or "|"             *1+3
+        first_row_has_headers: boolean                              *123
+        columns: dict with column names or indices and datatypes    *123
+            {'A': int, 'B': str, 'C': float, D: datetime}
+            Excess column names are ignored.
+
+        sheet: sheet name to import (e.g. 'sheet_1')                 *2
+            sheets not found excess names are ignored.
+            filenames will be {path}+{sheet}.h5
+        
+        (*) required, (+) optional, (1) csv, (2) xlsx, (3) txt, (4) h5
+
+        TABLES FROM IMPORTED FILES ARE IMMUTABLE.
+        OTHER TABLES EXIST IN MEMORY MANAGERs CACHE IF USE DISK == True
+        """
+        if isinstance(path, str):
+            path = pathlib.Path(path)
+        if not isinstance(path, pathlib.Path):
+            raise TypeError(f"expected pathlib.Path, got {type(path)}")
+        if not path.exists():
+            raise FileNotFoundError(f"file not found: {path}")
+        if not isinstance(import_as, str):
+            raise TypeError(f"import_as is expected to be str, not {type(import_as)}: {import_as}")
+        reader = file_readers.get(import_as,None)
+        if reader is None:
+            raise ValueError(f"{import_as} is not in list of supported reader:\n{list(file_readers.keys())}")
+        
+        # At this point the import seems valid.
+        # Now we check if the file already has been imported.
+        config = {
+            'import_as': import_as,
+            'path': str(path),
+            'filesize': path.stat().st_size,  # if file length changes - re-import.
+            'delimiter': delimiter,
+            'columns': columns, 
+            'newline': newline,
+            'first_row_has_headers': first_row_has_headers,
+            'text_qualifier': text_qualifier,
+            'sheet': sheet
+        }
+        jsnbytes = json.dumps(config)
+        for table_key, jsnb in Table.get_imported_tables().items():
+            if jsnbytes == jsnb:
+                return Table.load(mem.path, table_key)    
+        # not returned yet? Then it's an import job:
+        t = reader(**config)
+        if not t.save is True:
+            raise AttributeError("filereader should set table.save = True to avoid repeated imports")
+        return t
+        
 
 class Column(object):
     ids = count(1)
@@ -783,4 +854,277 @@ class Column(object):
 
     def __gt__(self,other):
         raise NotImplemented()
+
+
+def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, **kwargs):
+    """
+    returns Table(s) from excel path
+
+    **kwargs are excess arguments that are ignored.
+    """
+    if not isinstance(path, pathlib.Path):
+        raise ValueError(f"expected pathlib.Path, got {type(path)}")
+    book = pyexcel.get_book(file_name=str(path))
+
+    if sheet is None:  # help the user.
+        raise ValueError(f"No sheet_name declared: \navailable sheets:\n{[s.name for s in book]}")
+    elif sheet not in {s.name for s in book}:
+        raise ValueError(f"sheet not found: {sheet}")
+
+    # import all sheets or a subset
+    for sheet in book:
+        if sheet.name != sheet:
+            continue
+        else:
+            break
+    config = kwargs.copy()
+    config.update({"first_row_has_headers":first_row_has_headers, "sheet":sheet, "columns":columns})
+    t = Table(save=True, config=json.dumps(config))
+    for idx, column in enumerate(sheet.columns(), 1):
+        
+        if first_row_has_headers:
+            header, start_row_pos = str(column[0]), 1
+        else:
+            header, start_row_pos = f"_{idx}", 0
+
+        if columns is not None:
+            if header not in columns:
+                continue
+
+        t[header] = [v for v in column[start_row_pos:]]
+    return t
+
+
+def ods_reader(path, first_row_has_headers=True, sheet=None, columns=None, **kwargs):
+    """
+    returns Table from .ODS
+
+    **kwargs are excess arguments that are ignored.
+    """
+    if not isinstance(path, pathlib.Path):
+        raise ValueError(f"expected pathlib.Path, got {type(path)}")
+    sheets = pyexcel.get_book_dict(file_name=str(path))
+
+    if sheet is None or sheet not in sheets:
+        raise ValueError(f"No sheet_name declared: \navailable sheets:\n{[s.name for s in sheets]}")
+            
+    data = sheets[sheet]
+    for _ in range(len(data)):  # remove empty lines at the end of the data.
+        if "" == "".join(str(i) for i in data[-1]):
+            data = data[:-1]
+        else:
+            break
+    
+    config = kwargs.copy()
+    config.update({"first_row_has_headers":first_row_has_headers, "sheet":sheet, "columns":columns})
+    t = Table(save=True, config=json.dumps(config))
+    for ix, value in enumerate(data[0]):
+        if first_row_has_headers:
+            header, start_row_pos = str(value), 1
+        else:
+            header, start_row_pos = f"_{ix + 1}", 0
+
+        if columns is not None:
+            if header not in columns:
+                continue    
+
+        t[header] = [row[ix] for row in data[start_row_pos:] if len(row) > ix]
+    return t
+
+
+def text_reader(path, import_as, 
+    newline='\n', text_qualifier=None, delimiter=',', 
+    first_row_has_headers=True, columns=None, **kwargs):
+    """
+
+    **kwargs are excess arguments that are ignored.
+    """
+    file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
+    config = {
+        'import_as': import_as,
+        'path': str(path),
+        'filesize': file_length,  # if this changes - re-import.
+        'delimiter': delimiter,
+        'columns': columns, 
+        'newline': newline,
+        'first_row_has_headers': first_row_has_headers,
+        'text_qualifier': text_qualifier
+    }
+    with path.open('rb') as fi:
+        rawdata = fi.read(10000)
+        encoding = chardet.detect(rawdata)['encoding']
+    
+    text_escape = TextEscape(delimiter=delimiter, qoute=text_qualifier)  # configure t.e.
+
+    with path.open('r', encoding=encoding) as fi:
+        for line in fi:
+            line = line.rstrip('\n')
+            break  # break on first
+        headers = text_escape(line) # use t.e.
+        
+        if first_row_has_headers:    
+            for name in columns:
+                if name not in headers:
+                    raise ValueError(f"column not found: {name}")
+        else:
+            for index in columns:
+                if index not in range(len(headers)):
+                    raise IndexError(f"{index} out of range({len(headers)})")
+    
+    # define and specify tasks.
+    working_overhead = 5  # random guess. Calibrate as required.
+    working_memory_required = file_length * working_overhead
+    memory_usage_ceiling = 0.9
+    if working_memory_required < psutil.virtual_memory().free:
+        mem_per_cpu = math.ceil(working_memory_required / psutil.cpu_count())
+    else:
+        memory_ceiling = int(psutil.virtual_memory().total * memory_usage_ceiling)
+        memory_used = psutil.virtual_memory().used
+        available = memory_ceiling - memory_used  # 6,321,123,321 = 6 Gb
+        mem_per_cpu = int(available / psutil.cpu_count())  # 790,140,415 = 0.8Gb/cpu
+    mem_per_task = mem_per_cpu // working_overhead  # 1 Gb / 10x = 100Mb
+    n_tasks = math.ceil(file_length / mem_per_task)
+    
+    tasks = []
+    for i in range(n_tasks):
+        # add task for each chunk for working
+        tr_cfg = {
+            "source":path, 
+            "destination":mem.path, 
+            "table_key": str(next(Table.ids)),  
+            "columns":columns, 
+            "newline":newline, 
+            "delimiter":delimiter, 
+            "first_row_has_headers":first_row_has_headers,
+            "qoute":text_qualifier,
+            "text_escape_openings":'', "text_escape_closures":'',
+            "start":i * mem_per_task, "limit":mem_per_task,
+            "encoding":encoding,
+        }
+        tasks.append(tr_cfg)
+
+    # execute the tasks
+    with multiprocessing.Pool() as pool:
+        pool.starmap(func=text_reader_task, iterable=tasks)
+
+    # consolidate the task results
+    t = Table(save=True, config=json.dumps(config))
+    for task in tasks:
+        t += Table.load(task['table_key'])
+    return t
+
+
+def text_reader_task(source, destination, table_key, columns, 
+    newline, delimiter=',', first_row_has_headers=True, qoute='"',
+    text_escape_openings='', text_escape_closures='',
+    start=None, limit=None, encoding='utf-8', ):
+    """ PARALLEL TASK FUNCTION
+    reads columnsname + path[start:limit] into hdf5.
+
+    source: csv or txt file
+    destination: available filename
+    
+    columns: column names or indices to import
+
+    newline: '\r\n' or '\n'
+    delimiter: ',' ';' or '|'
+    first_row_has_headers: boolean
+    text_escape_openings: str: default: "({[ 
+    text_escape_closures: str: default: ]})" 
+
+    start: integer: The first newline after the start will be start of blob.
+    limit: integer: appx size of blob. The first newline after start of 
+                    blob + limit will be the real end.
+
+    encoding: chardet encoding ('utf-8, 'ascii', ..., 'ISO-22022-CN')
+    root: hdf5 root, cannot be the same as a column name.
+    """
+    if isinstance(source, str):
+        source = pathlib.Path(source)
+    if not isinstance(source, pathlib.Path):
+        raise TypeError
+    if not source.exists():
+        raise FileNotFoundError(f"File not found: {source}")
+
+    if isinstance(destination, str):
+        destination = pathlib.Path(destination)
+    if not isinstance(destination, pathlib.Path):
+        raise TypeError
+
+    if not isinstance(table_key, str):
+        raise TypeError
+
+    if not isinstance(columns, dict):
+        raise TypeError
+    if not all(isinstance(name,str) for name in columns):
+        raise ValueError
+
+    # declare CSV dialect.
+    text_escape = TextEscape(text_escape_openings, text_escape_closures, qoute=qoute, delimiter=delimiter)
+
+    if first_row_has_headers:
+        with source.open('r', encoding=encoding) as fi:
+            for line in fi:
+                line = line.rstrip('\n')
+                break  # break on first
+        headers = text_escape(line)  
+        indices = {name: headers.index(name) for name in columns}
+    else:
+        indices = {name: int(name) for name in columns}
+
+    # find chunk:
+    # Here is the problem in a nutshell:
+    # --------------------------------------------------------
+    # bs = "this is my \n text".encode('utf-16')
+    # >>> bs
+    # b'\xff\xfet\x00h\x00i\x00s\x00 \x00i\x00s\x00 \x00m\x00y\x00 \x00\n\x00 \x00t\x00e\x00x\x00t\x00'
+    # >>> nl = "\n".encode('utf-16')
+    # >>> nl in bs
+    # False
+    # >>> nl.decode('utf-16') in bs.decode('utf-16')
+    # True
+    # --------------------------------------------------------
+    # This means we can't read the encoded stream to check if in contains a particular character.
+
+    # Fetch the decoded text:
+    with source.open('r', encoding=encoding) as fi:
+        fi.seek(0, 2)
+        filesize = fi.tell()
+        fi.seek(start)
+        text = fi.read(limit)
+        begin = text.index(newline)
+        text = text[begin+len(newline):]
+
+        snipsize = min(1000,limit)
+        while fi.tell() < filesize:
+            remainder = fi.read(snipsize)  # read with decoding
+            
+            if newline not in remainder:  # decoded newline is in remainder
+                text += remainder
+                continue
+            ix = remainder.index(newline)
+            text += remainder[:ix]
+            break
+
+    # read rows with CSV reader.
+    data = {h: [] for h in indices}
+    for row in text.split(newline):
+        fields = text_escape(row)
+        if fields == [""] or fields == []:
+            break
+        for header,index in indices.items():
+            data[header].append(fields[index])
+
+    # turn rows into columns.
+    t = Table(save=True)
+    for col_name, values in data.items():
+        t[col_name] = values
+
+
+file_readers = {
+    'xlsx': excel_reader,
+    'csv': text_reader,
+    'txt': text_reader,
+    'ods': ods_reader
+}
 
