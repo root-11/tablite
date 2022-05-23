@@ -36,7 +36,7 @@ def test01_compatible_datatypes():
     table4['K'] = ['b',"嗨"]  # utf-32
     table4['L'] = [-10**23,10**23]  # int > int64. 
     table4['M'] = [float('inf'), float('-inf')]
-    assert table4.columns == ['A','B','C','D','E','F','G','H','I','J','K']  # testing .columns property.
+    assert table4.columns == ['A','B','C','D','E','F','G','H','I','J','K','L','M']  # testing .columns property.
 
     table4.save = True  # testing that save keeps the data in HDF5.
     del table4  
