@@ -71,34 +71,142 @@ def detect_seperator(path, encoding):
         return frq[0][-1]
 
 
-def text_escape(s, escape='"', sep=';'):
-    """ escapes text marks using a depth measure. """
-    assert isinstance(s, str)
-    word, words = [], tuple()
-    in_esc_seq = False
-    for ix, c in enumerate(s):
-        if c == escape:
-            if in_esc_seq:
-                if ix+1 != len(s) and s[ix + 1] != sep:
-                    word.append(c)
-                    continue  # it's a fake escape.
-                in_esc_seq = False
-            else:
-                in_esc_seq = True
-            if word:
-                words += ("".join(word),)
-                word.clear()
-        elif c == sep and not in_esc_seq:
-            if word:
-                words += ("".join(word),)
-                word.clear()
+# def text_escape(s, escape='"', sep=';'):
+#     """ escapes text marks using a depth measure. """
+#     assert isinstance(s, str)
+#     word, words = [], tuple()
+#     in_esc_seq = False
+#     for ix, c in enumerate(s):
+#         if c == escape:
+#             if in_esc_seq:
+#                 if ix+1 != len(s) and s[ix + 1] != sep:
+#                     word.append(c)
+#                     continue  # it's a fake escape.
+#                 in_esc_seq = False
+#             else:
+#                 in_esc_seq = True
+#             if word:
+#                 words += ("".join(word),)
+#                 word.clear()
+#         elif c == sep and not in_esc_seq:
+#             if word:
+#                 words += ("".join(word),)
+#                 word.clear()
+#         else:
+#             word.append(c)
+
+#     if word:
+#         if word:
+#             words += ("".join(word),)
+#             word.clear()
+#     return words
+
+
+class TextEscape(object):
+    """
+    enables parsing of CSV with respecting brackets and text marks.
+
+    Example:
+    text_escape = TextEscape()  # set up the instance.
+    for line in somefile.readlines():
+        list_of_words = text_escape(line)  # use the instance.
+        ...
+    """
+    def __init__(self, openings='({[', closures=']})', qoute='"', delimiter=','):
+        """
+        As an example, the Danes and Germans use " for inches and ' for feet, 
+        so we will see data that contains nail (75 x 4 mm, 3" x 3/12"), so 
+        for this case ( and ) are valid escapes, but " and ' aren't.
+
+        """
+        if openings is None:
+            pass
+        elif isinstance(openings, str):
+            self.openings = {c for c in openings}
         else:
-            word.append(c)
+            raise TypeError(f"expected str, got {type(openings)}")           
 
-    if word:
-        if word:
-            words += ("".join(word),)
-            word.clear()
-    return words
+        if closures is None:
+            pass
+        elif isinstance(closures, str):
+            self.closures = {c for c in closures}
+        else:
+            raise TypeError(f"expected str, got {type(closures)}")
+    
+        if not isinstance(delimiter, str):
+            raise TypeError(f"expected str, got {type(delimiter)}")
+        self.delimiter = delimiter
+        self._delimiter_length = len(delimiter)
+        
+        if qoute is None:
+            pass
+        elif qoute in openings or qoute in closures:
+            raise ValueError("It's a bad idea to have qoute character appears in openings or closures.")
+        else:
+            self.qoute = qoute
+        
+        if not qoute:
+            self.c = self._call1
+        elif not openings + closures:
+            self.c = self._call2
+        else:
+            # TODO: The regex below needs to be constructed dynamically depending on the inputs.
+            self.re = re.compile("([\d\w\s\u4e00-\u9fff]+)(?=,|$)|((?<=\A)|(?<=,))(?=,|$)|(\(.+\)|\".+\")", "gmu") # <-- Disclaimer: Audrius wrote this.
+            self.c = self._call3
 
+    def __call__(self,s):
+        return self.c(s)
+       
+    def _call1(self,s):  # just looks for delimiter.
+        return s.split(self.delimiter)
 
+    def _call2(self,s): # looks for qoutes.
+        words = []
+        qoute= False
+        ix = 0
+        while ix < len(s):  
+            c = s[ix]
+            if c == self.qoute:
+                qoute = not qoute
+            if qoute:
+                ix += 1
+                continue
+            if c == self.delimiter:
+                word, s = s[:ix], s[ix+self._delimiter_length:]
+                words.append(word)
+                ix = -1
+            ix+=1
+        if s:
+            words.append(s)
+        return words
+
+    def _call3(self, s):  # looks for qoutes, openings and closures.
+        return self.re.match(s)  # TODO - TEST!
+        # words = []
+        # qoute = False
+        # ix,depth = 0,0
+        # while ix < len(s):  
+        #     c = s[ix]
+
+        #     if c == self.qoute:
+        #         qoute = not qoute
+
+        #     if qoute:
+        #         ix+=1
+        #         continue
+
+        #     if depth == 0 and c == self.delimiter:
+        #         word, s = s[:ix], s[ix+self._delimiter_length:]
+        #         words.append(word)
+        #         ix = -1
+        #     elif c in self.openings:
+        #         depth += 1
+        #     elif c in self.closures:
+        #         depth -= 1
+        #     else:
+        #         pass
+        #     ix += 1
+
+        # if s:
+        #     words.append(s)
+        # return words
