@@ -203,11 +203,14 @@ class Table(object):
     @classmethod
     def reload_saved_tables(cls,path=None):
         """
-        Loads saved tables from disk.
+        Loads saved tables from a hdf5 storage.
         
         The default storage locations is:
         >>> from tablite.config import HDF5_Config
         >>> print(Config.H5_STORAGE)
+
+        To import without changing the default location use:
+        tables = reload_saved_tables("c:\another\location.hdf5)
         """
         tables = []
         if path is None:
@@ -420,6 +423,19 @@ class Table(object):
             t.add_rows(data)    
         return t
 
+    def to_json(self):
+        d = {}
+        for name, col in self._columns.items():
+            d[name] = col[:]
+        return json.dumps(d)
+
+    @classmethod
+    def from_json(cls, jsn):
+        t = Table()
+        for name, data in json.loads(json):
+            t[name] = data
+        return t
+
     @classmethod
     def import_file(cls, path, 
         import_as, newline='\n', text_qualifier=None,
@@ -472,9 +488,9 @@ class Table(object):
             'sheet': sheet
         }
         jsnbytes = json.dumps(config)
-        for table_key, jsnb in Table.get_imported_tables().items():
+        for table_key, jsnb in mem.get_imported_tables().items():
             if jsnbytes == jsnb:
-                return Table.load(mem.path, table_key)    
+                return Table.load(mem.path, table_key)  # table already imported.
         # not returned yet? Then it's an import job:
         t = reader(**config)
         if not t.save is True:
@@ -496,6 +512,12 @@ class Column(object):
 
     def __repr__(self) -> str:
         return self.__str__()
+
+    def types(self):
+        """
+        returns dict with datatype: frequency of occurrence
+        """
+        return mem.get_pages(self.group).get_types()
 
     @classmethod
     def load(cls, key):
@@ -991,14 +1013,16 @@ def text_reader(path, import_as,
         tr_cfg = {
             "source":path, 
             "destination":mem.path, 
-            "table_key": str(next(Table.ids)),  
+            "table_key":str(next(Table.ids)),  
             "columns":columns, 
             "newline":newline, 
             "delimiter":delimiter, 
             "first_row_has_headers":first_row_has_headers,
             "qoute":text_qualifier,
-            "text_escape_openings":'', "text_escape_closures":'',
-            "start":i * mem_per_task, "limit":mem_per_task,
+            "text_escape_openings":'', 
+            "text_escape_closures":'',
+            "start":i * mem_per_task, 
+            "limit":mem_per_task,
             "encoding":encoding,
         }
         tasks.append(tr_cfg)
@@ -1010,7 +1034,9 @@ def text_reader(path, import_as,
     # consolidate the task results
     t = Table(save=True, config=json.dumps(config))
     for task in tasks:
-        t += Table.load(task['table_key'])
+        tmp = Table.load(task['table_key'])
+        t += tmp
+        tmp.save=False
     return t
 
 

@@ -189,7 +189,7 @@ class MemoryManager(object):
                     arrays.append(match)
             
             dtype, _ = Page.layout(pages)
-            return np.concatenate(arrays, dtype=dtype)  
+            return np.concatenate(arrays, dtype=dtype)
 
 
 class Pages(list):
@@ -259,8 +259,16 @@ class Pages(list):
                     new = Page(data)
                     L.append(new)
         return L
-
-
+    
+    def get_types(self):
+        """
+        returns dict with datatypes and frequency of occurrence.
+        """
+        d = defaultdict(int)
+        for page in self:
+             for k,v in page.datatypes():
+                 d[k]+=v
+        return d
 
 
 class GenericPage(object):
@@ -578,6 +586,9 @@ class SimpleType(GenericPage):
             dset[:index] = data[:index]
             dset[index:] = data[index+1:]
             self._len = len(dset)
+    
+    def datatypes(self):
+        return {self.stored_datatype: len(self)}
 
 
 class StringType(GenericPage):
@@ -719,6 +730,9 @@ class StringType(GenericPage):
             dset[:index] = data[:index]
             dset[index:] = data[index+1:]
             self._len = len(dset)
+    
+    def datatypes(self):
+        return {str: len(self)}
 
 
 class MixedType(GenericPage):
@@ -932,6 +946,13 @@ class MixedType(GenericPage):
                 dset[index:] = data[index+1:]
                 self._len = len(dset)
 
+    def datatypes(self):
+        with h5py.File(self.path, READONLY) as h5:
+            dset = h5[self.type_group]
+            uarray, carray = np.unique(dset, return_counts=True)
+            tc = DataTypes.type_code_functions
+            return {tc[u]:c for u,c in zip(uarray,carray)}
+
 
 class Page(object):
     """
@@ -1039,6 +1060,8 @@ class Page(object):
     def pop(self, index):   # called by Column.pop if ref count <=1 
         self._page.pop(index)
 
+    def datatypes(self):
+        return self._page.datatypes()
 
 
     
