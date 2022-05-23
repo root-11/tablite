@@ -128,6 +128,20 @@ class MemoryManager(object):
             
             return shape
 
+    def get_imported_tables(self):
+        """
+        returns dict with table key and json of import config
+        """
+        configs = {}
+        with h5py.File(self.path, READONLY) as h5:
+            if "/table" in h5.keys():
+                for table_key in h5["/table"].keys():
+                    dset = h5[f"/table/{table_key}"]
+                    config = dset.attrs.get('config',None)
+                    if config is not None:
+                        configs[table_key] = dset.attrs['config']
+        return configs
+
     def get_pages(self, group):
         if not group.startswith('/column'):
             raise ValueError
