@@ -461,6 +461,26 @@ class Table(object):
             t[name] = data
         return t
 
+    def to_hdf5(self, path):
+        """
+        creates a copy of the table as hdf5
+        the hdf5 layout can be viewed using Table.inspect_h5_file(path/to.hdf5)
+        """
+        if isinstance(path, str):
+            path = pathlib.Path(path)
+        
+        total = ":,".format(len(self.columns) * len(self))
+        print(f"writing {total} records to {path}")
+
+        with h5py.File(path, 'a') as f:
+            with tqdm(total=len(self.columns), unit='columns') as pbar:
+                n = 0
+                for name, mc in self.columns.values():
+                    f.create_dataset(name, data=mc[:])  # stored in hdf5 as '/name'
+                    n += 1
+                    pbar.update(n)
+        print(f"writing {path} to HDF5 done")
+
     @classmethod
     def import_file(cls, path, 
         import_as, newline='\n', text_qualifier=None,
@@ -521,8 +541,574 @@ class Table(object):
         if not t.save is True:
             raise AttributeError("filereader should set table.save = True to avoid repeated imports")
         return t
-        
+    
+    def index(self, *keys):
+        """ 
+        Returns index on *keys columns as d[(key tuple, )] = {index1, index2, ...} 
+        """
+        idx = defaultdict(set)
+        generator = self.__getitem__(*keys)
+        for ix, key in enumerate(generator.rows):
+            idx[key].add(ix)
+        return idx
 
+    def filter(self, columns, filter_type='all'):
+        """
+        enables filtering across columns for multiple criteria.
+        
+        columns: 
+            list of tuples [('A',"==", 4), ('B',">", 2), ('C', "!=", 'B')]
+            list of dicts [{'column':'A', 'criteria': "==", 'value': 4}, {'column':'B', ....}]
+        """
+        if not isinstance(columns, list):
+            raise TypeError
+
+        for column in columns:
+            if isinstance(column, dict):
+                if not len(column)==3:
+                    raise ValueError
+                x = {'column', 'criteria', 'value1', 'value2'}
+                if not set(column.keys()).issubset(x):
+                    raise ValueError
+                if column['criteria'] not in filter_ops:
+                    raise ValueError
+
+            elif isinstance(column, tuple):
+                if not len(column)==3:
+                    raise ValueError
+                A,c,B = column
+                if c not in filter_ops:
+                    raise ValueError
+                if isinstance(A, str) and A in self.columns:
+                    pass
+
+            else:
+                raise TypeError
+        
+        if not isinstance(filter_type, str):
+            raise TypeError
+        if not filter_type in {'all', 'any'}:
+            raise ValueError
+
+        # 1. if dataset < 1_000_000 rows: do the job single proc.
+                
+        if len(columns)==1 and len(self) < 1_000_000:
+            # The logic here is that filtering requires:
+            # 1. the overhead to start a sub process.
+            # 2. the time to filter.
+            # Too few processes and the time increases.
+            # Too many processes and the time increases.
+            # The optimal result is based on the "ideal work block size"
+            # of appx. 1M field evaluations.
+            # If there are 3 columns and 6M rows, then 18M evaluations are
+            # required. This leads to 18M/1M = 18 processes. If I have 64 cores
+            # the optimal assignment is 18 cores.
+            #
+            # If, in contrast, there are 5 columns and 40,000 rows, then 200k 
+            # only requires 1 core. Hereby starting a subprocesses is pointless.
+            #
+            # This assumption is rendered somewhat void if (!) the subprocesses 
+            # can be idle in sleep mode and not require the startup overhead.
+            pass  # TODO
+
+        # the results are to be gathered here:
+        arr = np.zeros(shape=(len(columns), len(self)), dtype='?')
+        result_array = SharedMemory(create=True, size=arr.nbytes)
+        result_address = SharedMemoryAddress(mem_id=1, shape=arr.shape, dtype=arr.dtype, shm_name=result_array.name)
+        
+        # the task manager enables evaluation of a column per core,
+        # which is assembled in the shared array.
+        with TaskManager(cores=1) as tm: 
+            tasks = []
+            for ix, column in enumerate(columns):
+                if isinstance(column, dict):
+                    A, criteria, B = column["column"], column["criteria"], column["value"]
+                else:
+                    A, criteria, B = column
+
+                if A in self.columns:
+                    mc = self.columns[A]
+                    A = mc.address
+                else:  # it's just a value.
+                    pass
+
+                if B in self.columns:
+                    mc = self.columns[B]
+                    B = mc.address
+                else:  # it's just a value.
+                    pass 
+
+                if criteria not in filter_ops:
+                    criteria = filter_ops_from_text.get(criteria)
+
+                blocksize = math.ceil(len(self) / tm._cpus)
+                for block in range(0, len(self), blocksize):
+                    slc = slice(block, block+blocksize,1)
+                    task = Task(filter, A, criteria, B, destination=result_address, destination_index=ix, slice_=slc)
+                    tasks.append(task)
+
+            _ = tm.execute(tasks)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
+
+            # new blocks:
+            blocksize = math.ceil(len(self) / (4*tm._cpus))
+            tasks = []
+            for block in range(0, len(self), blocksize):
+                slc = slice(block, block+blocksize,1)
+                # merge(source=self.address, mask=result_address, filter_type=filter_type, slice_=slc)
+                task = Task(f=merge, source=self.address, mask=result_address, filter_type=filter_type, slice_=slc)
+                tasks.append(task)
+                
+            results = tm.execute(tasks)  # tasks.result contain return the shm address
+            results.sort(key=lambda x: x.task_id)
+
+        table_true, table_false = None, None
+        for task in results:
+            true_address, false_address = task.result
+            if table_true is None:
+                table_true = Table.from_address(true_address)
+                table_false = Table.from_address(false_address)
+            else:
+                table_true += Table.from_address(true_address)
+                table_false += Table.from_address(false_address)
+            
+        return table_true, table_false
+    
+    def sort_index(self, **kwargs):  # TODO: This is slow single core code.
+        """ Helper for methods `sort` and `is_sorted` """
+        if not isinstance(kwargs, dict):
+            raise ValueError("Expected keyword arguments")
+        if not kwargs:
+            kwargs = {c: False for c in self.columns}
+        
+        for k, v in kwargs.items():
+            if k not in self.columns:
+                raise ValueError(f"no column {k}")
+            if not isinstance(v, bool):
+                raise ValueError(f"{k} was mapped to {v} - a non-boolean")
+        none_substitute = float('-inf')
+
+        rank = {i: tuple() for i in range(len(self))}
+        for key in kwargs:
+            unique_values = {v: 0 for v in self.columns[key] if v is not None}
+            for r, v in enumerate(sorted(unique_values, reverse=kwargs[key])):
+                unique_values[v] = r
+            for ix, v in enumerate(self.columns[key]):
+                rank[ix] += (unique_values.get(v, none_substitute),)
+
+        new_order = [(r, i) for i, r in rank.items()]  # tuples are listed and sort...
+        new_order.sort()
+        sorted_index = [i for r, i in new_order]  # new index is extracted.
+
+        rank.clear()  # free memory.
+        new_order.clear()
+        return sorted_index
+
+    def sort(self, **kwargs):  # TODO: This is slow single core code.
+        """ Perform multi-pass sorting with precedence given order of column names.
+        :param kwargs: keys: columns, values: 'reverse' as boolean.
+        """
+        sorted_index = self._sort_index(**kwargs)
+        t = Table()
+        for col_name, col in self.columns.items():
+            t.add_column(col_name, data=[col[ix] for ix in sorted_index])
+        return t
+
+    def is_sorted(self, **kwargs):  # TODO: This is slow single core code.
+        """ Performs multi-pass sorting check with precedence given order of column names.
+        :return bool
+        """
+        sorted_index = self._sort_index(**kwargs)
+        if any(ix != i for ix, i in enumerate(sorted_index)):
+            return False
+        return True
+
+    def all(self, **kwargs):  # TODO: This is slow single core code.
+        """
+        returns Table for rows where ALL kwargs match
+        :param kwargs: dictionary with headers and values / boolean callable
+        """
+        if not isinstance(kwargs, dict):
+            raise TypeError("did you remember to add the ** in front of your dict?")
+        if not all(k in self.columns for k in kwargs):
+            raise ValueError(f"Unknown column(s): {[k for k in kwargs if k not in self.columns]}")
+
+        ixs = None
+        for k, v in kwargs.items():
+            col = self.columns[k]
+            if ixs is None:  # first header.
+                if callable(v):
+                    ix2 = {ix for ix, i in enumerate(col) if v(i)}
+                else:
+                    ix2 = {ix for ix, i in enumerate(col) if v == i}
+
+            else:  # remaining headers.
+                if callable(v):
+                    ix2 = {ix for ix in ixs if v(col[ix])}
+                else:
+                    ix2 = {ix for ix in ixs if v == col[ix]}
+
+            if not isinstance(ixs, set):
+                ixs = ix2
+            else:
+                ixs = ixs.intersection(ix2)
+
+            if not ixs:  # There are no matches.
+                break
+
+        t = Table()
+        for col in tqdm(self.columns.values(), total=len(self.columns), desc="columns"):
+            t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
+        return t
+
+    def any(self, **kwargs):  # TODO: This is slow single core code.
+        """
+        returns Table for rows where ANY kwargs match
+        :param kwargs: dictionary with headers and values / boolean callable
+        """
+        if not isinstance(kwargs, dict):
+            raise TypeError("did you remember to add the ** in front of your dict?")
+
+        ixs = set()
+        for k, v in kwargs.items():
+            col = self.columns[k]
+            if callable(v):
+                ix2 = {ix for ix, r in enumerate(col) if v(r)}
+            else:
+                ix2 = {ix for ix, r in enumerate(col) if v == r}
+            ixs.update(ix2)
+
+        t = Table()
+        for col in tqdm(self.columns.values(), total=len(self.columns), desc="columns"):
+            t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
+        return t
+
+    def groupby(self, keys, functions, pivot_on=None):  # TODO: This is slow single core code.
+        """
+        :param keys: headers for grouping
+        :param functions: list of headers and functions.
+        :return: GroupBy class
+        Example usage:
+            from tablite import Table
+            t = Table()
+            t.add_column('date', data=[1,1,1,2,2,2])
+            t.add_column('sku', data=[1,2,3,1,2,3])
+            t.add_column('qty', data=[4,5,4,5,3,7])
+            from tablite import GroupBy, Sum
+            g = t.groupby(keys=['sku'], functions=[('qty', Sum)])
+            g.tablite.show()
+        """
+        g = GroupBy(keys=keys, functions=functions)
+        g += self
+        if pivot_on:
+            g.pivot(pivot_on)
+        return g.table()
+    
+    def _join_type_check(self, other, left_keys, right_keys, left_columns, right_columns):
+        if not isinstance(other, Table):
+            raise TypeError(f"other expected other to be type Table, not {type(other)}")
+
+        if not isinstance(left_keys, list) and all(isinstance(k, str) for k in left_keys):
+            raise TypeError(f"Expected keys as list of strings, not {type(left_keys)}")
+        if not isinstance(right_keys, list) and all(isinstance(k, str) for k in right_keys):
+            raise TypeError(f"Expected keys as list of strings, not {type(right_keys)}")
+
+        if any(key not in self.columns for key in left_keys):
+            raise ValueError(f"left key(s) not found: {[k for k in left_keys if k not in self.columns]}")
+        if any(key not in other.columns for key in right_keys):
+            raise ValueError(f"right key(s) not found: {[k for k in right_keys if k not in other.columns]}")
+
+        if len(left_keys) != len(right_keys):
+            raise ValueError(f"Keys do not have same length: \n{left_keys}, \n{right_keys}")
+
+        for L, R in zip(left_keys, right_keys):
+            Lcol, Rcol = self.columns[L], other.columns[R]
+            if Lcol.datatype != Rcol.datatype:
+                raise TypeError(f"{L} is {Lcol.datatype}, but {R} is {Rcol.datatype}")
+
+        if not isinstance(left_columns, list) or not left_columns:
+            raise TypeError("left_columns (list of strings) are required")
+        if any(column not in self for column in left_columns):
+            raise ValueError(f"Column not found: {[c for c in left_columns if c not in self.columns]}")
+
+        if not isinstance(right_columns, list) or not right_columns:
+            raise TypeError("right_columns (list or strings) are required")
+        if any(column not in other for column in right_columns):
+            raise ValueError(f"Column not found: {[c for c in right_columns if c not in other.columns]}")
+        # Input is now guaranteed to be valid.
+
+    def join(self, other, left_keys, right_keys, left_columns, right_columns, kind='inner'):
+        """
+        short-cut for all join functions.
+        """
+        kinds = {
+            'inner':self.inner_join,
+            'left':self.left_join,
+            'outer':self.outer_join
+        }
+        if kind not in kinds:
+            raise ValueError(f"join type unknown: {kind}")
+        f = kinds.get(kind,None)
+        return f(self,other,left_keys,right_keys,left_columns,right_columns)
+    
+    def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
+        """
+        :param other: self, other = (left, right)
+        :param left_keys: list of keys for the join
+        :param right_keys: list of keys for the join
+        :param left_columns: list of left columns to retain, if None, all are retained.
+        :param right_columns: list of right columns to retain, if None, all are retained.
+        :return: new Table
+        Example:
+        SQL:   SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
+        Tablite: left_join = numbers.left_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])
+        """
+        if left_columns is None:
+            left_columns = list(self.columns)
+        if right_columns is None:
+            right_columns = list(other.columns)
+
+        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+
+        left_join = Table(use_disk=self._use_disk)
+        for col_name in left_columns:
+            col = self.columns[col_name]
+            left_join.add_column(col_name, col.datatype, allow_empty=True)
+
+        right_join_col_name = {}
+        for col_name in right_columns:
+            col = other.columns[col_name]
+            revised_name = left_join.check_for_duplicate_header(col_name)
+            right_join_col_name[revised_name] = col_name
+            left_join.add_column(revised_name, col.datatype, allow_empty=True)
+
+        left_ixs = range(len(self))
+        right_idx = other.index(*right_keys)
+
+        for left_ix in tqdm(left_ixs, total=len(left_ixs)):
+            key = tuple(self[h][left_ix] for h in left_keys)
+            right_ixs = right_idx.get(key, (None,))
+            for right_ix in right_ixs:
+                for col_name, column in left_join.columns.items():
+                    if col_name in self:
+                        column.append(self[col_name][left_ix])
+                    elif col_name in right_join_col_name:
+                        original_name = right_join_col_name[col_name]
+                        if right_ix is not None:
+                            column.append(other[original_name][right_ix])
+                        else:
+                            column.append(None)
+                    else:
+                        raise Exception('bad logic')
+        return left_join
+
+    def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
+        """
+        :param other: self, other = (left, right)
+        :param left_keys: list of keys for the join
+        :param right_keys: list of keys for the join
+        :param left_columns: list of left columns to retain, if None, all are retained.
+        :param right_columns: list of right columns to retain, if None, all are retained.
+        :return: new Table
+        Example:
+        SQL:   SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
+        Tablite: inner_join = numbers.inner_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])
+        """
+        if left_columns is None:
+            left_columns = list(self.columns)
+        if right_columns is None:
+            right_columns = list(other.columns)
+
+        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+
+        inner_join = Table(use_disk=self._use_disk)
+        for col_name in left_columns:
+            col = self.columns[col_name]
+            inner_join.add_column(col_name, col.datatype, allow_empty=True)
+
+        right_join_col_name = {}
+        for col_name in right_columns:
+            col = other.columns[col_name]
+            revised_name = inner_join.check_for_duplicate_header(col_name)
+            right_join_col_name[revised_name] = col_name
+            inner_join.add_column(revised_name, col.datatype, allow_empty=True)
+
+        key_union = set(self.filter(*left_keys)).intersection(set(other.filter(*right_keys)))
+
+        left_ixs = self.index(*left_keys)
+        right_ixs = other.index(*right_keys)
+
+        for key in tqdm(sorted(key_union), total=len(key_union)):
+            for left_ix in left_ixs.get(key, set()):
+                for right_ix in right_ixs.get(key, set()):
+                    for col_name, column in inner_join.columns.items():
+                        if col_name in self:
+                            column.append(self[col_name][left_ix])
+                        else:  # col_name in right_join_col_name:
+                            original_name = right_join_col_name[col_name]
+                            column.append(other[original_name][right_ix])
+
+        return inner_join
+
+    def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
+        """
+        :param other: self, other = (left, right)
+        :param left_keys: list of keys for the join
+        :param right_keys: list of keys for the join
+        :param left_columns: list of left columns to retain, if None, all are retained.
+        :param right_columns: list of right columns to retain, if None, all are retained.
+        :return: new Table
+        Example:
+        SQL:   SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
+        Tablite: outer_join = numbers.outer_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])
+        """
+        if left_columns is None:
+            left_columns = list(self.columns)
+        if right_columns is None:
+            right_columns = list(other.columns)
+
+        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+
+        outer_join = Table(use_disk=self._use_disk)
+        for col_name in left_columns:
+            col = self.columns[col_name]
+            outer_join.add_column(col_name, col.datatype, allow_empty=True)
+
+        right_join_col_name = {}
+        for col_name in right_columns:
+            col = other.columns[col_name]
+            revised_name = outer_join.check_for_duplicate_header(col_name)
+            right_join_col_name[revised_name] = col_name
+            outer_join.add_column(revised_name, col.datatype, allow_empty=True)
+
+        left_ixs = range(len(self))
+        right_idx = other.index(*right_keys)
+        right_keyset = set(right_idx)
+
+        for left_ix in tqdm(left_ixs, total=left_ixs.stop, desc="left side outer join"):
+            key = tuple(self[h][left_ix] for h in left_keys)
+            right_ixs = right_idx.get(key, (None,))
+            right_keyset.discard(key)
+            for right_ix in right_ixs:
+                for col_name, column in outer_join.columns.items():
+                    if col_name in self:
+                        column.append(self[col_name][left_ix])
+                    elif col_name in right_join_col_name:
+                        original_name = right_join_col_name[col_name]
+                        if right_ix is not None:
+                            column.append(other[original_name][right_ix])
+                        else:
+                            column.append(None)
+                    else:
+                        raise Exception('bad logic')
+
+        for right_key in tqdm(right_keyset, total=len(right_keyset), desc="right side outer join"):
+            for right_ix in right_idx[right_key]:
+                for col_name, column in outer_join.columns.items():
+                    if col_name in self:
+                        column.append(None)
+                    elif col_name in right_join_col_name:
+                        original_name = right_join_col_name[col_name]
+                        column.append(other[original_name][right_ix])
+                    else:
+                        raise Exception('bad logic')
+        return outer_join
+
+    def lookup(self, other, *criteria, all=True):  # TODO: This is slow single core code.
+        """ function for looking up values in other according to criteria
+        :param: other: Table
+        :param: criteria: Each criteria must be a tuple with value comparisons in the form:
+            (LEFT, OPERATOR, RIGHT)
+        :param: all: boolean: True=ALL, False=Any
+        OPERATOR must be a callable that returns a boolean
+        LEFT must be a value that the OPERATOR can compare.
+        RIGHT must be a value that the OPERATOR can compare.
+        Examples:
+              ('column A', "==", 'column B')  # comparison of two columns
+              ('Date', "<", DataTypes.date(24,12) )  # value from column 'Date' is before 24/12.
+              f = lambda L,R: all( ord(L) < ord(R) )  # uses custom function.
+              ('text 1', f, 'text 2')
+              value from column 'text 1' is compared with value from column 'text 2'
+        """
+        assert isinstance(self, Table)
+        assert isinstance(other, Table)
+
+        all = all
+        any = not all
+
+        def not_in(a, b):
+            return not operator.contains(a, b)
+
+        ops = {
+            "in": operator.contains,
+            "not in": not_in,
+            "<": operator.lt,
+            "<=": operator.le,
+            ">": operator.gt,
+            ">=": operator.ge,
+            "!=": operator.ne,
+            "==": operator.eq,
+        }
+
+        table3 = Table(use_disk=self._use_disk)
+        for name, col in chain(self.columns.items(), other.columns.items()):
+            table3.add_column(name, col.datatype, allow_empty=True)
+
+        functions, left_columns, right_columns = [], set(), set()
+
+        for left, op, right in criteria:
+            left_columns.add(left)
+            right_columns.add(right)
+            if callable(op):
+                pass  # it's a custom function.
+            else:
+                op = ops.get(op, None)
+                if not callable(op):
+                    raise ValueError(f"{op} not a recognised operator for comparison.")
+
+            functions.append((op, left, right))
+
+        lru_cache = {}
+        empty_row = tuple(None for _ in other.columns)
+
+        for row1 in tqdm(self.rows, total=self.__len__()):
+            row1_tup = tuple(v for v, name in zip(row1, self.columns) if name in left_columns)
+            row1d = {name: value for name, value in zip(self.columns, row1) if name in left_columns}
+
+            match_found = True if row1_tup in lru_cache else False
+
+            if not match_found:  # search.
+                for row2 in other.rows:
+                    row2d = {name: value for name, value in zip(other.columns, row2) if name in right_columns}
+
+                    evaluations = [op(row1d.get(left, left), row2d.get(right, right)) for op, left, right in functions]
+                    # The evaluations above does a neat trick:
+                    # as L is a dict, L.get(left, L) will return a value
+                    # from the columns IF left is a column name. If it isn't
+                    # the function will treat left as a value.
+                    # The same applies to right.
+
+                    if all and not False in evaluations:
+                        match_found = True
+                        lru_cache[row1_tup] = row2
+                        break
+                    elif any and True in evaluations:
+                        match_found = True
+                        lru_cache[row1_tup] = row2
+                        break
+                    else:
+                        continue
+
+            if not match_found:  # no match found.
+                lru_cache[row1_tup] = empty_row
+
+            new_row = row1 + lru_cache[row1_tup]
+
+            table3.add_row(new_row)
+
+        return table3
+    
+    def pivot_table(self, *args):
+        raise NotImplementedError
 
 
 
@@ -904,6 +1490,148 @@ class Column(object):
 
     def __gt__(self,other):
         raise NotImplemented()
+
+
+def _in(a,b):
+    """
+    enables filter function 'in'
+    """
+    return a.decode('utf-8') in b.decode('utf-8')
+
+
+filter_ops = {
+            ">": operator.gt,
+            ">=": operator.ge,
+            "==": operator.eq,
+            "<": operator.lt,
+            "<=": operator.le,
+            "!=": operator.ne,
+            "in": _in
+        }
+
+filter_ops_from_text = {
+    "gt": ">",
+    "gteq": ">=",
+    "eq": "==",
+    "lt": "<",
+    "lteq": "<=",
+    "neq": "!=",
+    "in": _in
+}
+
+def filter_task(source1, criteria, source2, destination, destination_index, slice_):
+    """ PARALLEL TASK FUNCTION
+    source1: list of addresses
+    criteria: logical operator
+    source1: list of addresses
+    destination: shm address name.
+    destination_index: integer.
+    """    
+    # 1. access the data sources.
+    if isinstance(source1, list):
+        A = ManagedColumn()
+        for address in source1:
+            datablock = DataBlock.from_address(address)
+            A.extend(datablock)
+        sliceA = A[slice_]
+
+        A_is_data = True
+    else:
+        A_is_data = False  # A is value
+    
+    if isinstance(source2, list):
+        B = ManagedColumn()
+        for address in source2:
+            datablock = DataBlock.from_address(address)
+            B.extend(datablock)
+        sliceB = B[slice_]
+
+        B_is_data = True
+    else:
+        B_is_data = False  # B is a value.
+
+    assert isinstance(destination, SharedMemoryAddress)
+    handle, data = destination.to_shm()  # the handle is required to sit idle as gc otherwise deletes it.
+    assert destination_index < len(data),  "len of data is the number of evaluations, so the destination index must be within this range."
+    
+    # ir = range(*normalize_slice(length, slice_))
+    # di = destination_index
+    # if length_A is None:
+    #     if length_B is None:
+    #         result = criteria(source1,source2)
+    #         result = np.ndarray([result for _ in ir], dtype='bool')
+    #     else:  # length_B is not None
+    #         sliceA = np.array([source1] * length_B)
+    # else:
+    #     if length_B is None:
+    #         B = np.array([source2] * length_A)
+    #     else:  # A & B is not None
+    #         pass
+    
+    if A_is_data and B_is_data:
+        result = eval(f"sliceA {criteria} sliceB")
+    if A_is_data or B_is_data:
+        if A_is_data:
+            sliceB = np.array([source2] * len(sliceA))
+        else:
+            sliceA = np.array([source1] * len(sliceB))
+    else:
+        v = criteria(source1,source2)
+        length = slice_.stop - slice_.start 
+        ir = range(*normalize_slice(length, slice_))
+        result = np.ndarray([v for _ in ir], dtype='bool')
+
+    if criteria == "in":
+        result = np.ndarray([criteria(a,b) for a, b in zip(sliceA, sliceB)], dtype='bool')
+    else:
+        result = eval(f"sliceA {criteria} sliceB")  # eval is evil .. blah blah blah... Eval delegates to optimized numpy functions.        
+
+    data[destination_index][slice_] = result
+
+
+def merge(source, mask, filter_type, slice_):
+    """ PARALLEL TASK FUNCTION
+    creates new tables from combining source and mask.
+    """
+    if not isinstance(source, dict):
+        raise TypeError
+    for L in source.values():
+        if not isinstance(L, list):
+            raise TypeError
+        if not all(isinstance(sma, SharedMemoryAddress) for sma in L):
+            raise TypeError
+
+    if not isinstance(mask, SharedMemoryAddress):
+        raise TypeError
+    if not isinstance(filter_type, str) and filter_type in {'any', 'all'}:
+        raise TypeError
+    if not isinstance(slice_, slice):
+        raise TypeError
+    
+    # 1. determine length of Falses and Trues
+    f = any if filter_type == 'any' else all
+    handle, mask = mask.to_shm() 
+    if len(mask) == 1:
+        true_mask = mask[0][slice_]
+    else:
+        true_mask = [f(c[i] for c in mask) for i in range(slice_.start, slice_.stop)]
+    false_mask = np.invert(true_mask)
+
+    t1 = Table.from_address(source)  # 2. load Table.from_shm(source)
+    # 3. populate the tables
+    
+    true, false = Table(), Table()
+    for name, mc in t1.columns.items():
+        mc_unfiltered = np.array(mc[slice_])
+        if any(true_mask):
+            data = mc_unfiltered[true_mask]
+            true.add_column(name, data)  # data = mc_unfiltered[new_mask]
+        if any(false_mask):
+            data = mc_unfiltered[false_mask]
+            false.add_column(name, data)
+
+    # 4. return table.to_shm()
+    return true.address, false.address   
 
 
 def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, **kwargs):
