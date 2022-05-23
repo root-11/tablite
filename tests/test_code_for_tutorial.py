@@ -1,3 +1,10 @@
+from tablite import Table, Column
+from tablite.datatypes import DataTypes
+from datetime import datetime,time,date,timedelta
+import psutils
+import zlib
+import random
+
 def test_basic_table():
     # creating a tablite incrementally is straight forward:
     table = Table(use_disk=True)
@@ -53,7 +60,7 @@ def test_basic_table():
 
     # updating values is familiar to any user who likes a list:
     assert 'A' in table.columns
-    assert isinstance(table.columns['A'], (StoredList,list))
+    assert isinstance(table.columns['A'], (Column,list))
     last_row = -1
     table['A'][last_row] = 44
     table['B'][last_row] = "Hallo"
@@ -323,7 +330,7 @@ def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2):
 
 
 def test_same_join_1():
-    """FIDDLE: http://sqlfiddle.com/#!9/7dd756/7"""
+    """ FIDDLE: http://sqlfiddle.com/#!9/7dd756/7 """
 
     pairs_1 = [
         (1, 'black'),
@@ -387,7 +394,7 @@ def test_same_join_1():
 
 
 def test_left_join_2():
-    """FIDDLE: http://sqlfiddle.com/#!9/986b2a/3"""
+    """ FIDDLE: http://sqlfiddle.com/#!9/986b2a/3 """
 
     pairs_1 = [(1, 'black'), (2, 'blue'), (3, 'white'), (4, 'white'), (None, 'blue')]
     pairs_ans = [
@@ -542,7 +549,7 @@ def test_lookup():
     assert expected == []
 
 
-def test_recreate_readme_comparison():  # TODO: Use cputils for getting the memory footprint.
+def test_recreate_readme_comparison():  
     try:
         import os
         import psutil
