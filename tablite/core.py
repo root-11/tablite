@@ -97,7 +97,7 @@ class Table(object):
 
     def __setitem__(self, keys, values):
         if isinstance(keys, str): 
-            if isinstance(values, (tuple,list)):
+            if isinstance(values, (tuple,list,np.ndarray)):
                 self._columns[keys] = column = Column(values)  # overwrite if exists.
                 mem.create_column_reference(self.key, column_name=keys, column_key=column.key)
             elif isinstance(values, Column):
@@ -109,6 +109,8 @@ class Table(object):
                     self._columns[keys] = values
                 else:                    
                     raise NotImplemented()
+            elif values is None:
+                self._columns[keys] = Column(values)
             else:
                 raise NotImplemented()
         elif isinstance(keys, tuple) and len(keys) == len(values):
@@ -117,7 +119,7 @@ class Table(object):
         else:
             raise NotImplemented()
     
-    def __getitem__(self, keys):
+    def __getitem__(self, *keys):
         """
         Enables selection of columns and rows
         Examples: 
@@ -129,15 +131,19 @@ class Table(object):
 
         returns values in same order as selection.
         """
-        if isinstance(keys, str) and keys in self._columns:
-            return self._columns[keys]
+        if len(keys)==1 and isinstance(keys[0], str) and keys[0] in self._columns:
+            return self._columns[keys[0]]
         elif isinstance(keys, tuple):
-            cols = tuple(c for c in keys if isinstance(c,str) and c in self._columns)
-            slices = [i for i in keys if isinstance(i, slice)] + [slice(None)]
+            cols = [c for c in keys if isinstance(c,str) and c in self._columns]
+            cols = self.columns if not cols else cols
+            slices = [i for i in keys if isinstance(i, slice)]
             t = Table()
             for name in cols:
-                col = self._columns[keys]
-                t[name] = col[slices[0]]
+                col = self._columns[name]
+                if not slices:
+                    t[name] = col
+                else:
+                    t[name] = col[slices[0]]
             return t
         else:
             raise KeyError(f"no such column: {keys}")
@@ -333,7 +339,7 @@ class Table(object):
 
     def add_columns(self, *names):
         for name in names:
-            self.__setitem__(name,[])
+            self.__setitem__(name,None)
 
     def stack(self, other):
         """
@@ -546,10 +552,14 @@ class Table(object):
         """ 
         Returns index on *keys columns as d[(key tuple, )] = {index1, index2, ...} 
         """
-        idx = defaultdict(set)
-        generator = self.__getitem__(*keys)
-        for ix, key in enumerate(generator.rows):
-            idx[key].add(ix)
+        if len(keys) == 1 and keys[0] in self._columns:
+            col = self._columns[keys[0]]
+            idx = {(k,):set(v) for k,v in col.index().items()}
+        else:
+            idx = defaultdict(set)
+            tbl = self.__getitem__(*keys)
+            for ix, key in enumerate(tbl.rows):
+                idx[tuple(key)].add(ix)
         return idx
 
     def filter(self, columns, filter_type='all'):
@@ -1118,7 +1128,7 @@ class Column(object):
         self.key = f"{next(self.ids)}" if key is None else key
         self.group = f"/column/{self.key}"
         self._len = 0
-        if data:
+        if data is not None:
             self.extend(data)
     
     def __str__(self) -> str:

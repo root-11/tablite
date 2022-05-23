@@ -30,7 +30,8 @@ class MemoryManager(object):
             dset.attrs['columns'] = json.dumps({})
             assert isinstance(save, bool)
             dset.attrs['saved'] = save
-            dset.attrs['config'] = config
+            if config is not None:
+                dset.attrs['config'] = config
 
     def set_saved_flag(self, group, value):
         with h5py.File(self.path, READWRITE) as h5:
@@ -600,7 +601,7 @@ class StringType(GenericPage):
     def create(self, data):
         self.original_datatype = self._str
         self.stored_datatype = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)  # 'U'
-        data = data.astype(bytes)
+        data = np.char.encode(data, encoding='utf-8')  
         self._len = len(data)
 
         with h5py.File(self.path, READWRITE) as h5:
