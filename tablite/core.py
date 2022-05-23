@@ -111,9 +111,28 @@ class Table(object):
         else:
             raise NotImplemented()
     
-    def __getitem__(self,keys):
-        if isinstance(keys,str) and keys in self._columns:
+    def __getitem__(self, keys):
+        """
+        Enables selection of columns and rows
+        Examples: 
+
+            table['a']   # selects column 'a'
+            table[:10]   # selects first 10 rows from all columns
+            table['a','b', slice(3:20:2)]  # selects a slice from columns 'a' and 'b'
+            table['b', 'a', 'a', 'c', 2:20:3]  # selects column 'b' and 'c' and 'a' twice for a slice.
+
+        returns values in same order as selection.
+        """
+        if isinstance(keys, str) and keys in self._columns:
             return self._columns[keys]
+        elif isinstance(keys, tuple):
+            cols = tuple(c for c in keys if isinstance(c,str) and c in self._columns)
+            slices = [i for i in keys if isinstance(i, slice)][0]
+            t = Table()
+            for name in cols:
+                col = self._columns[keys]
+                t[name] = col[slices]
+            return t
         else:
             raise KeyError(f"no such column: {keys}")
 
@@ -497,6 +516,9 @@ class Table(object):
             raise AttributeError("filereader should set table.save = True to avoid repeated imports")
         return t
         
+
+
+
 
 class Column(object):
     ids = count(1)
