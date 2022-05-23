@@ -98,7 +98,7 @@ class DataTypes(object):
         seconds = 24 * 60 * 60 * ( float(v) - int( float(v) ) )
         return timedelta(int(days), seconds)
     
-    _type_code_functions = {
+    type_code_functions = {
         1: _none,
         2: _bool,
         3: _int,
@@ -113,7 +113,7 @@ class DataTypes(object):
 
     @classmethod
     def from_type_code(cls, value, code):
-        f = cls._type_code_functions[code]
+        f = cls.type_code_functions[code]
         return f(value)
 
     date_formats = {  # Note: Only recognised ISO8601 formats are accepted.
