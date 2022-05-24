@@ -63,7 +63,7 @@ def test01_compatible_datatypes():
     rows = [row for row in table5.rows]  # test .rows iterator.
     assert len(rows) == 2
     assert rows[0][0] == -1
-    assert rows[0][1] == 1
+    assert rows[1][0] == 1
 
 def test01_confirm_storage_reset():
     tables = Table.reload_saved_tables()
