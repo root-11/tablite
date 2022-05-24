@@ -152,7 +152,12 @@ class MemoryManager(object):
                 return Pages()
             else:
                 dset = h5[group]
-                return Pages([ Page.load(pg_grp) for _,_,pg_grp,_ in dset.virtual_sources() ])  # https://docs.h5py.org/en/stable/high/dataset.html#h5py.Dataset.virtual_sources
+                pages = [pg_grp for _,_,pg_grp,_ in dset.virtual_sources()]           # as table *= 10_000 results in 10k copies of the same page
+                unique_pages = {pg_grp:Page.load(pg_grp) for pg_grp in set(pages)}   # loading the page once and then copy the pointer,
+                loaded_pages = Pages([unique_pages[pg_grp] for pg_grp in pages])            # is 10k faster than loading the page 10k times.
+                return loaded_pages
+
+                # return Pages([ Page.load(pg_grp) for _,_,pg_grp,_ in dset.virtual_sources() ])  # https://docs.h5py.org/en/stable/high/dataset.html#h5py.Dataset.virtual_sources
 
     def get_ref_count(self, page):
         assert isinstance(page, Page)
