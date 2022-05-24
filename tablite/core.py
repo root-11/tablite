@@ -131,22 +131,29 @@ class Table(object):
 
         returns values in same order as selection.
         """
-        if len(keys)==1 and isinstance(keys[0], str) and keys[0] in self._columns:
-            return self._columns[keys[0]]
-        elif isinstance(keys, tuple):
-            cols = [c for c in keys if isinstance(c,str) and c in self._columns]
-            cols = self.columns if not cols else cols
-            slices = [i for i in keys if isinstance(i, slice)]
+        if not isinstance(keys, tuple):
+            keys = (keys, )       
+        
+        cols = [c for c in keys if isinstance(c,str) and c in self._columns]
+        cols = self.columns if not cols else cols
+        slices = [i for i in keys if isinstance(i, slice)]
+        if len(cols)==1:
+            col = self._columns[cols[0]]
+            if slices:
+                return col[slices[0]]
+            else:
+                return col
+        elif slices:
+            slc = slices[0]
             t = Table()
             for name in cols:
-                col = self._columns[name]
-                if not slices:
-                    t[name] = col
-                else:
-                    t[name] = col[slices[0]]
+                t[name] = self._columns[name][slc]
             return t
         else:
-            raise KeyError(f"no such column: {keys}")
+            t = Table()
+            for name in cols:
+                t[name] = self._columns[name]
+            return t
 
     def __delitem__(self, key):
         """
@@ -216,8 +223,8 @@ class Table(object):
         if not isinstance(other, int):
             raise TypeError(f"can't multiply Table with {type(other)}")
         t = self.copy()
-        for _ in range(1,other):
-            t+=self
+        for col in t._columns.values():
+            col *= other
         return t
 
     def __imul__(self,other):
@@ -226,9 +233,9 @@ class Table(object):
         """
         if not isinstance(other, int):
             raise TypeError(f"can't multiply Table with {type(other)}")
-        c = self.copy()
-        for _ in range(other):
-            self += c
+
+        for col in self._columns.values():
+            col *= (other-1)
         return self
 
     @classmethod
@@ -552,14 +559,20 @@ class Table(object):
         """ 
         Returns index on *keys columns as d[(key tuple, )] = {index1, index2, ...} 
         """
-        if len(keys) == 1 and keys[0] in self._columns:
-            col = self._columns[keys[0]]
-            idx = {(k,):set(v) for k,v in col.index().items()}
-        else:
-            idx = defaultdict(set)
-            tbl = self.__getitem__(*keys)
-            for ix, key in enumerate(tbl.rows):
-                idx[tuple(key)].add(ix)
+        # keys = keys[0] if len(keys)==1 else keys
+        # if len(keys) == 1 and keys[0] in self._columns:
+        #     col = self._columns[keys[0]]
+        #     idx = {(k,):set(v) for k,v in col.index().items()}
+        # else:
+        idx = defaultdict(set)
+        tbl = self.__getitem__(*keys)
+        g = tbl.rows if isinstance(tbl, Table) else iter(tbl)
+        for ix, key in enumerate(g):
+            if isinstance(key, list):
+                key = tuple(key)
+            else:
+                key = (key,)
+            idx[key].add(ix)
         return idx
 
     def filter(self, columns, filter_type='all'):
@@ -1428,7 +1441,7 @@ class Column(object):
         
     def copy(self):
         c = Column()
-        c.extend(self)
+        c[:] = self
         return c
 
     def __copy__(self):
@@ -1470,17 +1483,19 @@ class Column(object):
     def __imul__(self, other):
         if not isinstance(other, int):
             raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
-        for _ in range(other):
-            self.extend(self)
+        old_pages = mem.get_pages(self.group)
+        new_pages = old_pages * other
+        self._len = mem.create_virtual_dataset(self.group, old_pages, new_pages)
         return self
     
     def __mul__(self, other):
         if not isinstance(other, int):
             raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
-        c = self.copy()
-        for _ in range(1, other):
-            c.extend(self)
-        return c
+        new = Column()
+        old_pages = mem.get_pages(self.group)
+        new_pages = old_pages * other
+        new._len = mem.create_virtual_dataset(new.group, old_pages, new_pages)
+        return new
     
     def __ne__(self, other):
         if len(self) != len(other):  # quick cheap check.
