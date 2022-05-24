@@ -1,29 +1,34 @@
 import time
 import pathlib
-
+import pytest
 
 from tablite import Table
+
+@pytest.fixture(autouse=True) # this resets the HDF5 file for every test.
+def refresh():
+    Table.reset_storage()
+    yield
 
 
 def test01_timing():
     table1 = Table()
     base_data = list(range(10_000))
-    table1.add_column('A', data=base_data)
-    table1.add_column('B', data=[v*10 for v in base_data])
-    table1.add_column('C', data=[-v for v in base_data])
+    table1['A'] = base_data
+    table1['B'] = [v*10 for v in base_data]
+    table1['C'] = [-v for v in base_data]
     start = time.time()
     big_table = table1 * 10_000  # = 100_000_000
-    print(f"it took {time.time()-start} to extend a table to {len(big_table)} rows")
+    print(f"it took {round(time.time()-start,3)}secs to extend a table to {len(big_table):,} rows")
     start = time.time()
     _ = big_table.copy()
-    print(f"it took {time.time()-start} to copy {len(big_table)} rows")
+    print(f"it took {round(time.time()-start,3)}secs to copy {len(big_table):,} rows")
     
     a_preview = big_table['A', 'B', 1_000:900_000:700]
     for row in a_preview[3:15:3].rows:
         print(row)
     a_preview.show()
-
-
+  
+    
 def test01():
     BIG_PATH = r"d:\remove_duplicates2.csv"
     BIG_FILE = pathlib.Path(BIG_PATH)
