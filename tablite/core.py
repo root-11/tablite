@@ -68,6 +68,9 @@ class Table(object):
     def __str__(self):
         return f"Table({len(self._columns):,} columns, {len(self):,} rows)"
 
+    def __repr__(self):
+        return self.__str__()
+
     @property
     def columns(self):
         return list(self._columns.keys())
@@ -132,7 +135,9 @@ class Table(object):
         returns values in same order as selection.
         """
         if not isinstance(keys, tuple):
-            keys = (keys, )       
+            keys = (keys, )
+        if len(keys)==1 and all(isinstance(i,tuple) for i in keys):
+            keys = keys[0]           
         
         cols = [c for c in keys if isinstance(c,str) and c in self._columns]
         cols = self.columns if not cols else cols
