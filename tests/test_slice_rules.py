@@ -462,3 +462,16 @@ def test_mylist():
     L = MyList([1,2,3,4,5,6,7,8,9])
     del L[::3]
     assert L == [2,3,5,6,8,9]
+
+
+def test_args_rules():
+
+    def f(*args):
+        return args
+
+    assert f(1) == (1,)
+    assert f(1,2) == (1,2)
+    assert f(1,2,3) == (1,2,3)
+
+
+
