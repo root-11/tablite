@@ -23,7 +23,7 @@ import h5py
 import psutil
 
 from collections import defaultdict
-from itertools import count, chain
+from itertools import chain, repeat
 
 # from tablite.datatypes import DataTypes
 # from tablite.file_reader_utils import detect_encoding, detect_seperator, split_by_sequence, text_escape
@@ -33,17 +33,23 @@ from itertools import count, chain
 from tablite.memory_manager import MemoryManager, Page
 from tablite.file_reader_utils import TextEscape
 
+
 mem = MemoryManager()
 
 class Table(object):
-    ids = count(1)
+    
     def __init__(self,key=None, save=False, _create=True, config=None) -> None:
-        self.key = next(Table.ids) if key is None else key
+        if key is None:
+            key = str(mem.new_id('/table'))
+        elif not isinstance(key, str):
+            raise TypeError
+        self.key = key
+
         self.group = f"/table/{self.key}"
         self._columns = {}  # references for virtual datasets that behave like lists.
         if _create:
             if config is not None:
-                if not isinstance(config, bytes):
+                if not isinstance(config, str):
                     raise TypeError("expected config as utf-8 encoded json")
             mem.create_table(key=self.group, save=save, config=config)  # attrs. 'columns'
         self._saved = save
@@ -214,10 +220,9 @@ class Table(object):
         if not isinstance(other, Table):
             raise TypeError(f"no method for {type(other)}")
         if set(self.columns) != set(other.columns) or len(self.columns) != len(other.columns):
-            raise ValueError("Columns names are not the same")
+            raise ValueError("Columns names are not the same. Use table.stack instead.")
         for name, col in self._columns.items():
-            other_col = other[name]
-            col += other_col
+            col += other[name]
         return self
 
     def __mul__(self,other):
@@ -275,15 +280,18 @@ class Table(object):
 
     @classmethod
     def load(cls, path, key):
-        with h5py.File(path, 'r') as h5:
-            t = Table(key, _create=False)
-            dset = h5[f"/table/{key}"]
+        with h5py.File(path, 'r+') as h5:
+            group = f"/table/{key}"
+            dset = h5[group]
+            saved = dset.attrs['saved']
+            t = Table(key=key, save=saved, _create=False)
             columns = json.loads(dset.attrs['columns'])
             for col_name, column_key in columns.items():
                 c = Column.load(key=column_key)
                 ds2 = h5[f"/column/{column_key}"]
                 c._len = ds2.len()
-                t._columns[col_name] = c
+                t[col_name] = c
+                
             return t
 
     @classmethod
@@ -556,7 +564,7 @@ class Table(object):
                 return Table.load(mem.path, table_key)  # table already imported.
         # not returned yet? Then it's an import job:
         t = reader(**config)
-        if not t.save is True:
+        if t.save is False:
             raise AttributeError("filereader should set table.save = True to avoid repeated imports")
         return t
     
@@ -1141,9 +1149,13 @@ class Table(object):
 
 
 class Column(object):
-    ids = count(1)
     def __init__(self, data=None, key=None) -> None:
-        self.key = f"{next(self.ids)}" if key is None else key
+        if key is None:
+            key = str(mem.new_id('/column'))
+        elif not isinstance(key, str):
+            raise TypeError
+        self.key = key
+
         self.group = f"/column/{self.key}"
         self._len = 0
         if data is not None:
@@ -1445,9 +1457,7 @@ class Column(object):
             raise TypeError
         
     def copy(self):
-        c = Column()
-        c[:] = self
-        return c
+        return Column(data=self)
 
     def __copy__(self):
         return self.copy()
@@ -1740,24 +1750,14 @@ def ods_reader(path, first_row_has_headers=True, sheet=None, columns=None, **kwa
     return t
 
 
-def text_reader(path, import_as, 
-    newline='\n', text_qualifier=None, delimiter=',', 
+def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', 
     first_row_has_headers=True, columns=None, **kwargs):
     """
-
     **kwargs are excess arguments that are ignored.
     """
+    path = pathlib.Path(path)
     file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
-    config = {
-        'import_as': import_as,
-        'path': str(path),
-        'filesize': file_length,  # if this changes - re-import.
-        'delimiter': delimiter,
-        'columns': columns, 
-        'newline': newline,
-        'first_row_has_headers': first_row_has_headers,
-        'text_qualifier': text_qualifier
-    }
+
     with path.open('rb') as fi:
         rawdata = fi.read(10000)
         encoding = chardet.detect(rawdata)['encoding']
@@ -1799,7 +1799,7 @@ def text_reader(path, import_as,
         tr_cfg = {
             "source":path, 
             "destination":mem.path, 
-            "table_key":str(next(Table.ids)),  
+            "table_key":str(mem.new_id('/table')),  
             "columns":columns, 
             "newline":newline, 
             "delimiter":delimiter, 
@@ -1813,17 +1813,26 @@ def text_reader(path, import_as,
         }
         tasks.append(tr_cfg)
 
+    tasks = tasks[:4]
     # execute the tasks
-    with multiprocessing.Pool() as pool:
-        pool.starmap(func=text_reader_task, iterable=tasks)
+    with multiprocessing.Pool(1) as pool:
+        kwargs_for_starmap = zip(repeat(text_reader_task), tasks)
+        _ = pool.starmap(handler, tqdm(kwargs_for_starmap, total=len(tasks)))
 
     # consolidate the task results
-    t = Table(save=True, config=json.dumps(config))
+    t = None
     for task in tasks:
-        tmp = Table.load(task['table_key'])
-        t += tmp
-        tmp.save=False
+        tmp = Table.load(path=mem.path, key=task['table_key'])
+        if t is None:
+            t = tmp
+        else:
+            t += tmp
+    t.save = True
     return t
+
+
+def handler(fn, kwargs):
+    return fn(**kwargs)
 
 
 def text_reader_task(source, destination, table_key, columns, 
@@ -1927,11 +1936,24 @@ def text_reader_task(source, destination, table_key, columns,
         for header,index in indices.items():
             data[header].append(fields[index])
 
-    # turn rows into columns.
-    t = Table(save=True)
-    for col_name, values in data.items():
-        t[col_name] = values
+    # write out.
+    for _ in range(100):
+        try:
+            t = Table(key=table_key, save=True)
+            break
+        except OSError:
+            time.sleep(random.randint(10,200)/1000)
 
+    while data.items():
+        col_name, values = data.popitem()
+        for _ in range(100):
+            try:
+                t[col_name] = values
+                break
+            except OSError:
+                time.sleep(random.randint(10,200)/1000)
+    if data:
+        raise OSError("couldn't write dataset.")
 
 file_readers = {
     'xlsx': excel_reader,
