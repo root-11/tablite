@@ -24,8 +24,8 @@ def test01_timing():
     print(f"it took {round(time.time()-start,3)}secs to copy {len(big_table):,} rows")
     
     a_preview = big_table['A', 'B', 1_000:900_000:700]
-    for row in a_preview[3:15:3].rows:
-        print(row)
+    rows = [r for r in a_preview[3:15:3].rows]
+    assert rows == [[3100,31000], [5200,52000], [7300, 73000], [9400, 94000]]
     a_preview.show()
   
     
@@ -48,12 +48,11 @@ def test01():
         'vendor case weight' : 'f'  # float
     }  
 
-    # now use multiprocessing
     start = time.time()
     t1 = Table.import_file(BIG_PATH, import_as='csv', columns=columns, delimiter=',', text_qualifier=None, newline='\n', first_row_has_headers=True)
     end = time.time()
     print(f"import took {round(end-start, 4)} secs.")
-
+    
     start = time.time()
     t2 = Table.load_file(BIG_HDF5)
     end = time.time()
