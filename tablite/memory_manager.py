@@ -46,6 +46,15 @@ class MemoryManager(object):
             if config is not None:
                 dset.attrs['config'] = config
 
+    def set_config(self, group, config):
+        """ method used to set config after table creation.
+        """  # used by Table.import_file(...) at the end of the import.
+        if not isinstance(config, str):
+            raise TypeError(f"not a string: {config}")
+        with h5py.File(self.path, READWRITE) as h5:
+            dset = h5[group]
+            dset.attrs['config'] = config
+
     def set_saved_flag(self, group, value):
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[group]
@@ -81,7 +90,7 @@ class MemoryManager(object):
             saved_flag = dset.attrs['saved']
             if saved_flag:
                 return
-            
+
             columns = json.loads(dset.attrs['columns'])
             del columns[column_name] 
             dset.attrs['columns'] = json.dumps(columns)       
