@@ -78,7 +78,7 @@ class Worker(multiprocessing.Process):
 
 
 class Task(object):
-    def __init__(self, f, args, kwargs) -> None:
+    def __init__(self, f, *args, **kwargs) -> None:
         if not callable(f):
             raise TypeError(f"{f} is not callable")
         self.f = f
