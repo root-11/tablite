@@ -1,15 +1,13 @@
-import os
-import io
 import math
 import pathlib
 import random
 import json
 import time
-import zipfile
+
 import operator
 import warnings
 import logging
-import multiprocessing
+
 logging.getLogger('lml').propagate = False
 logging.getLogger('pyexcel_io').propagate = False
 logging.getLogger('pyexcel').propagate = False
@@ -31,6 +29,7 @@ from itertools import chain, repeat
 
 
 from tablite.memory_manager import MemoryManager, Page
+from tablite.task_manager import TaskManager, Task
 from tablite.file_reader_utils import TextEscape
 
 
@@ -67,7 +66,7 @@ class Table(object):
             mem.set_saved_flag(self.group, value)
 
     def __del__(self):
-        for key in self.columns:
+        for key in list(self._columns):
             del self[key]
         mem.delete_table(self.group)
 
@@ -258,7 +257,7 @@ class Table(object):
         >>> print(Config.H5_STORAGE)
 
         To import without changing the default location use:
-        tables = reload_saved_tables("c:\another\location.hdf5)
+        tables = reload_saved_tables("c:/another/location.hdf5)
         """
         tables = []
         if path is None:
@@ -425,8 +424,8 @@ class Table(object):
             for arg in args:
                 if isinstance(arg, slice):
                     t = self[arg]
-                    print(t.to_ascii(blanks))
-                    
+                    t.show()
+
         elif len(self) < 20:
             print(self.to_ascii(blanks))
         else:
@@ -558,12 +557,13 @@ class Table(object):
             'text_qualifier': text_qualifier,
             'sheet': sheet
         }
-        jsnbytes = json.dumps(config)
+        jsn_str = json.dumps(config)
         for table_key, jsnb in mem.get_imported_tables().items():
-            if jsnbytes == jsnb:
+            if jsn_str == jsnb:
                 return Table.load(mem.path, table_key)  # table already imported.
         # not returned yet? Then it's an import job:
         t = reader(**config)
+        mem.set_config(t.group, jsn_str)
         if t.save is False:
             raise AttributeError("filereader should set table.save = True to avoid repeated imports")
         return t
@@ -1811,18 +1811,22 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
             "limit":mem_per_task,
             "encoding":encoding,
         }
-        tasks.append(tr_cfg)
+        task = Task(f=text_reader_task, **tr_cfg)
+        tasks.append(task)
 
-    tasks = tasks[:4]
     # execute the tasks
-    with multiprocessing.Pool(1) as pool:
-        kwargs_for_starmap = zip(repeat(text_reader_task), tasks)
-        _ = pool.starmap(handler, tqdm(kwargs_for_starmap, total=len(tasks)))
-
+    with TaskManager() as tm:
+        errors = tm.execute(tasks)   # I expects a list of None's if everything is ok.
+        if any(errors):
+            for err in errors:
+                if err is not None:
+                    print(err)
+            raise Exception()
+    
     # consolidate the task results
     t = None
     for task in tasks:
-        tmp = Table.load(path=mem.path, key=task['table_key'])
+        tmp = Table.load(path=mem.path, key=task.kwargs["table_key"])
         if t is None:
             t = tmp
         else:
@@ -1831,14 +1835,10 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
     return t
 
 
-def handler(fn, kwargs):
-    return fn(**kwargs)
-
-
 def text_reader_task(source, destination, table_key, columns, 
     newline, delimiter=',', first_row_has_headers=True, qoute='"',
     text_escape_openings='', text_escape_closures='',
-    start=None, limit=None, encoding='utf-8', ):
+    start=None, limit=None, encoding='utf-8', timeout=10.0):
     """ PARALLEL TASK FUNCTION
     reads columnsname + path[start:limit] into hdf5.
 
@@ -1863,22 +1863,22 @@ def text_reader_task(source, destination, table_key, columns,
     if isinstance(source, str):
         source = pathlib.Path(source)
     if not isinstance(source, pathlib.Path):
-        raise TypeError
+        raise TypeError()
     if not source.exists():
         raise FileNotFoundError(f"File not found: {source}")
 
     if isinstance(destination, str):
         destination = pathlib.Path(destination)
     if not isinstance(destination, pathlib.Path):
-        raise TypeError
+        raise TypeError()
 
     if not isinstance(table_key, str):
-        raise TypeError
+        raise TypeError()
 
     if not isinstance(columns, dict):
         raise TypeError
     if not all(isinstance(name,str) for name in columns):
-        raise ValueError
+        raise ValueError()
 
     # declare CSV dialect.
     text_escape = TextEscape(text_escape_openings, text_escape_closures, qoute=qoute, delimiter=delimiter)
@@ -1937,23 +1937,37 @@ def text_reader_task(source, destination, table_key, columns,
             data[header].append(fields[index])
 
     # write out.
-    for _ in range(100):
-        try:
-            t = Table(key=table_key, save=True)
-            break
+    t = 0.0
+    start = time.process_time()
+    while time.process_time() - start < timeout:
+        try:    
+            columns_refs = {}
+            with h5py.File(destination, 'r+') as h5:
+                for col_name, values in data.items():
+                    new_page = Page(values)
+                    dtype, shape = Page.layout([new_page])
+                    
+                    layout = h5py.VirtualLayout(shape=(shape,), dtype=dtype, maxshape=(None,), filename=destination)
+                    
+                    dset = h5[new_page.group]
+                    vsource = h5py.VirtualSource(dset)
+                    layout[0:len(dset)] = vsource
+                    group_no = str(mem.new_id('/column'))
+                                        
+                    h5.create_virtual_dataset(f"/column/{group_no}", layout=layout)
+                    columns_refs[col_name] = group_no
+                
+                dset = h5.create_dataset(name=f"/table/{table_key}", dtype=h5py.Empty('f'))
+                dset.attrs['columns'] = json.dumps(columns_refs)  
+                dset.attrs['saved'] = True
+            return
         except OSError:
-            time.sleep(random.randint(10,200)/1000)
+            dt = random.randint(10,20)
+            t+=dt
+            time.sleep(dt/1000)
+            
+    raise OSError(f"couldn't write to disk (slept {t} msec")
 
-    while data.items():
-        col_name, values = data.popitem()
-        for _ in range(100):
-            try:
-                t[col_name] = values
-                break
-            except OSError:
-                time.sleep(random.randint(10,200)/1000)
-    if data:
-        raise OSError("couldn't write dataset.")
 
 file_readers = {
     'xlsx': excel_reader,

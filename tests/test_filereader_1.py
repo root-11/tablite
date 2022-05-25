@@ -39,11 +39,10 @@ def test01():
     if BIG_HDF5.exists():
         BIG_HDF5.unlink()
 
-
     columns = {  # numpy type codes: https://numpy.org/doc/stable/reference/generated/numpy.dtype.kind.html
         'SKU ID': 'i', # integer
         'SKU description':'S', # np variable length str
-        'Shipped date' : 'S', #datetime
+        'Shipped date' : 'S', # datetime
         'Shipped time' : 'S', # integer to become time
         'vendor case weight' : 'f'  # float
     }  
@@ -54,7 +53,7 @@ def test01():
     print(f"import took {round(end-start, 4)} secs.")
     
     start = time.time()
-    t2 = Table.load_file(BIG_HDF5)
+    t2 = Table.import_file(BIG_PATH, import_as='csv', columns=columns, delimiter=',', text_qualifier=None, newline='\n', first_row_has_headers=True)
     end = time.time()
     print(f"reloading an imported table took {round(end-start, 4)} secs.")
     t1.show()
