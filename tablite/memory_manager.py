@@ -3,7 +3,9 @@ from collections import defaultdict
 import h5py  #https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr?rq=1  
 import numpy as np
 import json
+from string import digits
 
+DIGITS = set(digits)
 
 from tablite.config import HDF5_Config
 from tablite.utils import intercept
@@ -24,6 +26,17 @@ class MemoryManager(object):
         if not self.path.exists():
             self.path.touch()  
 
+    def new_id(self, group):
+        if group not in {'/page', '/column', '/table'}:
+            raise ValueError(f"expected group to be /page, /column or /table. Not {group}")
+
+        with h5py.File(HDF5_Config.H5_STORAGE, READWRITE) as h5:
+            if group not in h5.keys():
+                h5.create_group(group)
+            dset = h5[group]
+            dset.attrs['pid'] = pid = dset.attrs.get('pid', 0) + 1
+            return pid
+
     def create_table(self, key, save, config=None):  # /table/{key}
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5.create_dataset(name=key, dtype=h5py.Empty('f'))
@@ -39,6 +52,10 @@ class MemoryManager(object):
             dset.attrs['saved'] = value
 
     def create_column_reference(self, table_key, column_name, column_key):  # /column/{key}
+        if not isinstance(table_key, str) and set(table_key).issubset(DIGITS):
+            raise ValueError
+        if not isinstance(column_key, str) and set(column_key).issubset(DIGITS):
+            raise ValueError
         with h5py.File(self.path, READWRITE) as h5:
             table_group = f"/table/{table_key}"
             dset = h5[table_group]  
@@ -312,8 +329,12 @@ class GenericPage(object):
    
     @classmethod
     def new_id(cls):
-        cls._page_ids += 1
-        return cls._page_ids
+        with h5py.File(HDF5_Config.H5_STORAGE, READWRITE) as h5:
+            if '/page' not in h5.keys():
+                h5.create_group('/page')
+            dset = h5['/page']
+            dset.attrs['pid'] = pid = dset.attrs.get('pid', 0) + 1
+            return pid
 
     @classmethod
     def layout(cls, pages):
