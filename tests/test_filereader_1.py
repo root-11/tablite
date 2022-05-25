@@ -32,12 +32,8 @@ def test01_timing():
 def test01():
     BIG_PATH = r"d:\remove_duplicates2.csv"
     BIG_FILE = pathlib.Path(BIG_PATH)
-    BIG_HDF5 = pathlib.Path(str(BIG_FILE) + '.hdf5')
     if not BIG_FILE.exists():
         return
-
-    if BIG_HDF5.exists():
-        BIG_HDF5.unlink()
 
     columns = {  # numpy type codes: https://numpy.org/doc/stable/reference/generated/numpy.dtype.kind.html
         'SKU ID': 'i', # integer
@@ -47,13 +43,22 @@ def test01():
         'vendor case weight' : 'f'  # float
     }  
 
+    config = {
+        "import_as":'csv', 
+        "columns":columns, 
+        "delimiter":',', 
+        "text_qualifier":None, 
+        "newline":'\n', 
+        "first_row_has_headers":True
+    }
+
     start = time.time()
-    t1 = Table.import_file(BIG_PATH, import_as='csv', columns=columns, delimiter=',', text_qualifier=None, newline='\n', first_row_has_headers=True)
+    t1 = Table.import_file(BIG_PATH, **config)
     end = time.time()
     print(f"import took {round(end-start, 4)} secs.")
     
     start = time.time()
-    t2 = Table.import_file(BIG_PATH, import_as='csv', columns=columns, delimiter=',', text_qualifier=None, newline='\n', first_row_has_headers=True)
+    t2 = Table.import_file(BIG_PATH, **config)
     end = time.time()
     print(f"reloading an imported table took {round(end-start, 4)} secs.")
     t1.show()
@@ -62,13 +67,11 @@ def test01():
 
     # re-import bypass check
     start = time.time()
-    t3 = Table.import_file(BIG_PATH, import_as='csv', columns=columns, delimiter=',', text_qualifier=None, newline='\n', first_row_has_headers=True)
+    t3 = Table.import_file(BIG_PATH, **config)
     end = time.time()
     print(f"reloading an already imported table took {round(end-start, 4)} secs.")
-
     t3.show(slice(3,100,17))
 
-    if BIG_HDF5.exists():
-        BIG_HDF5.unlink()
+
 
 
