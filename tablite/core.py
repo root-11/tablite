@@ -264,7 +264,7 @@ class Table(object):
         if path is None:
             path = mem.path
         unsaved = 0
-        with h5py.File(path, 'r') as h5:
+        with h5py.File(path, 'r+') as h5:
             if "/table" not in h5.keys():
                 return []
 
