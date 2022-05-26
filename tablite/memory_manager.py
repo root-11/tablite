@@ -9,7 +9,7 @@ DIGITS = set(digits)
 
 from tablite.config import HDF5_Config
 from tablite.utils import intercept
-from tablite.datatypes import DataTypes
+from tablite.datatypes import DataTypes,numpy_types
 
 READONLY = 'r'   # r  Readonly, file must exist (default)
 READWRITE = 'r+' # r+ Read/write, file must exist
@@ -92,7 +92,8 @@ class MemoryManager(object):
                 return
 
             columns = json.loads(dset.attrs['columns'])
-            del columns[column_name] 
+            if column_name in columns:
+                del columns[column_name] 
             dset.attrs['columns'] = json.dumps(columns)       
 
             pages = self.get_pages(f"/column/{column_key}")
@@ -298,9 +299,9 @@ class Pages(list):
         """
         d = defaultdict(int)
         for page in self:
-             for k,v in page.datatypes():
+             for k,v in page.datatypes().items():
                  d[k]+=v
-        return d
+        return dict(d)
 
 
 class GenericPage(object):
@@ -495,7 +496,7 @@ class SimpleType(GenericPage):
         self._len = len(data)
         self.stored_datatype = data.dtype
         self.original_datatype = data.dtype.name
-             
+        
         with h5py.File(self.path, READWRITE) as h5:
             if self.group in h5:
                 raise ValueError("page already exists")
@@ -624,7 +625,8 @@ class SimpleType(GenericPage):
             self._len = len(dset)
     
     def datatypes(self):
-        return {self.stored_datatype: len(self)}
+        pytype = numpy_types[self.original_datatype]
+        return {pytype: len(self)}
 
 
 class StringType(GenericPage):
@@ -986,7 +988,7 @@ class MixedType(GenericPage):
         with h5py.File(self.path, READONLY) as h5:
             dset = h5[self.type_group]
             uarray, carray = np.unique(dset, return_counts=True)
-            tc = DataTypes.type_code_functions
+            tc = DataTypes.pytype_from_type_code
             return {tc[u]:c for u,c in zip(uarray,carray)}
 
 

@@ -1,5 +1,6 @@
 from datetime import date, datetime, time, timedelta
 from collections import defaultdict
+import numpy as np
 
 
 class DataTypes(object):
@@ -109,6 +110,19 @@ class DataTypes(object):
         8: _date,
         9: _time,
         10: _timedelta
+    }
+
+    pytype_from_type_code = {
+        1: type(None),
+        2: bool,
+        3: int,
+        4: float,
+        5: str,
+        6: bytes,
+        7: datetime,
+        8: date,
+        9: time,
+        10: timedelta,
     }
 
     @classmethod
@@ -560,4 +574,24 @@ class DataTypes(object):
 
         return start, stop, step
 
-    
+
+def _get_numpy_types():
+    d = {}
+    for name in dir(np):
+        obj = getattr(np,name)
+        if hasattr(obj, 'dtype'):
+            try:
+                if 'time' in name:
+                    npn = obj(0, 'D')
+                else:
+                    npn = obj(0)
+                nat = npn.item()
+                d[name] = type(nat)
+                d[npn.dtype.char] = type(nat)
+            except:
+                pass
+    return d
+
+numpy_types = _get_numpy_types()
+
+
