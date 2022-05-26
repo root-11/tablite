@@ -71,6 +71,22 @@ def test01_confirm_storage_reset():
 
 
 def test01_test_numpy_64datetime_and_timedelta():
+    # Help on class datetime64 in module numpy:
+
+    # class datetime64(generic)
+    #  |  If created from a 64-bit integer, it represents an offset from
+    #  |  ``1970-01-01T00:00:00``.
+    #  |  If created from string, the string can be in ISO 8601 date
+    #  |  or datetime format.
+    #  |  
+    #  |  >>> np.datetime64(10, 'Y')
+    #  |  numpy.datetime64('1980')
+    #  |  >>> np.datetime64('1980', 'Y')
+    #  |  numpy.datetime64('1980')
+    #  |  >>> np.datetime64(10, 'D')
+    #  |  numpy.datetime64('1970-01-11')
+
+
     raise NotImplementedError
     a = np.datetime64(b'2014-12-12')   # Y-M-D
     b = np.datetime64(b'2014-12-12T12:23:34')   # Y-M-DTh:m:s
