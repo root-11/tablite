@@ -1,5 +1,22 @@
 from tablite.datatypes import DataTypes
 from datetime import date, time, datetime
+import numpy as np
+
+
+def test_np_types():
+    for name in dir(np):
+        obj = getattr(np, name)
+        if hasattr(obj, 'dtype'):
+            try:
+                if 'time' in name:
+                    npn = obj(0, 'D')
+                else:
+                    npn = obj(0)
+                nat = npn.item()
+                print('{0} ({1!r}) -> {2}'.format(name, npn.dtype.char, type(nat)))
+            except:
+                pass
+    # NOTE: Just use .tolist() to convert 'O' type data to native python.
 
 
 def test_datatype_inference():

@@ -244,7 +244,7 @@ class Table(object):
             raise TypeError(f"can't multiply Table with {type(other)}")
 
         for col in self._columns.values():
-            col *= (other-1)
+            col *= other
         return self
 
     @classmethod
@@ -384,6 +384,13 @@ class Table(object):
                 col.extend([None]*len(other))
         return t
 
+    def types(self):
+        d = {}
+        for name,col in self._columns.items():
+            assert isinstance(col, Column)
+            d[name] = col.types()
+        return d
+
     def to_ascii(self, blanks=None):
         """
         enables viewing in terminals
@@ -476,13 +483,17 @@ class Table(object):
     def to_json(self):
         d = {}
         for name, col in self._columns.items():
-            d[name] = col[:]
+            d[name] = col[:].tolist()
         return json.dumps(d)
 
     @classmethod
     def from_json(cls, jsn):
         t = Table()
-        for name, data in json.loads(json):
+        for name, data in json.loads(jsn).items():
+            if not isinstance(name, str):
+                raise TypeError(f"expect {name} as a string")
+            if not isinstance(data, list):
+                raise TypeError(f"expected {data} as list")
             t[name] = data
         return t
 
@@ -1162,7 +1173,7 @@ class Column(object):
             self.extend(data)
     
     def __str__(self) -> str:
-        return f"<{self.__class__.__name__}>({self._len} | {self.key})"
+        return f"<{self.__class__.__name__}>({self._len} values | key={self.key})"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -1442,18 +1453,17 @@ class Column(object):
 
     def __eq__(self, other):
         if isinstance(other, (list,tuple)):
-            A = self.__getitem__()
-            return all(a==b for a,b in zip(A,other))
+            return all(a==b for a,b in zip(self[:],other))
         
-        if isinstance(other, Column):  # special case.
-            if mem.get_pages(self.group) == mem.get_pages(other.group):
+        elif isinstance(other, Column):  
+            if mem.get_pages(self.group) == mem.get_pages(other.group):  # special case.
                 return True  
-                
-        if isinstance(other, np.ndarray): 
-            B = other
-            A = self.__getitem__()
-            return (A==B).all()
+            else:
+                return (self[:] == other[:]).all()
+        elif isinstance(other, np.ndarray): 
+            return (self[:]==other).all()
         else:
+
             raise TypeError
         
     def copy(self):
@@ -1790,7 +1800,7 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
         memory_used = psutil.virtual_memory().used
         available = memory_ceiling - memory_used  # 6,321,123,321 = 6 Gb
         mem_per_cpu = int(available / psutil.cpu_count())  # 790,140,415 = 0.8Gb/cpu
-    mem_per_task = mem_per_cpu // working_overhead  # 1 Gb / 10x = 100Mb
+    mem_per_task = max(10_000_000, mem_per_cpu // working_overhead)  # min 10Mb, or 1 Gb / 10x = 100Mb
     n_tasks = math.ceil(file_length / mem_per_task)
     
     tasks = []
@@ -1815,7 +1825,7 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
         tasks.append(task)
 
     # execute the tasks
-    with TaskManager() as tm:
+    with TaskManager(cpu_count=min(psutil.cpu_count(), n_tasks)) as tm:
         errors = tm.execute(tasks)   # I expects a list of None's if everything is ok.
         if any(errors):
             for err in errors:
