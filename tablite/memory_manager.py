@@ -35,7 +35,7 @@ class MemoryManager(object):
                 h5.create_group(group)
             dset = h5[group]
             dset.attrs['pid'] = pid = dset.attrs.get('pid', 0) + 1
-            return pid
+            return str(pid)
 
     def create_table(self, key, save, config=None):  # /table/{key}
         with h5py.File(self.path, READWRITE) as h5:
@@ -178,13 +178,11 @@ class MemoryManager(object):
             if group not in h5:
                 return Pages()
             else:
-                dset = h5[group]
+                dset = h5[group]  # https://docs.h5py.org/en/stable/high/dataset.html#h5py.Dataset.virtual_sources
                 pages = [pg_grp for _,_,pg_grp,_ in dset.virtual_sources()]           # as table *= 10_000 results in 10k copies of the same page
                 unique_pages = {pg_grp:Page.load(pg_grp) for pg_grp in set(pages)}   # loading the page once and then copy the pointer,
                 loaded_pages = Pages([unique_pages[pg_grp] for pg_grp in pages])            # is 10k faster than loading the page 10k times.
                 return loaded_pages
-
-                # return Pages([ Page.load(pg_grp) for _,_,pg_grp,_ in dset.virtual_sources() ])  # https://docs.h5py.org/en/stable/high/dataset.html#h5py.Dataset.virtual_sources
 
     def get_ref_count(self, page):
         assert isinstance(page, Page)
@@ -193,7 +191,7 @@ class MemoryManager(object):
     def reset_storage(self):
         with h5py.File(self.path, TRUNCATE) as h5:
             assert list(h5.keys()) == []
-            
+        
     def get_data(self, group, item):
         if not group.startswith('/column'):
             raise ValueError("get data should be called by columns only.")
