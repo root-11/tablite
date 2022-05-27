@@ -2,7 +2,7 @@ from mplite import TaskManager,Task
 import time
 
 
-def test_alpha():
+def test_main():
     args = list(range(10)) * 5
     start = time.time()
     with TaskManager() as tm:
@@ -18,4 +18,4 @@ def f(*args, **kwargs):
 
 
 if __name__ == "__main__":
-    test_alpha()
+    test_main()
