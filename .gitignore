@@ -6,9 +6,15 @@
 # Compiled files
 *.pyc
 tablite_cache.h5
+tablite.hdf5
+tests/new.zip
+VDS.h5
 
 # Notebook checkpoints
 .ipynb_checkpoints/
 
 # Packages
 dist/
+
+# WIP
+.old
