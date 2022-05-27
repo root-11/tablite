@@ -7,6 +7,7 @@ import time
 import operator
 import warnings
 import logging
+from  multiprocessing import shared_memory
 
 logging.getLogger('lml').propagate = False
 logging.getLogger('pyexcel_io').propagate = False
@@ -19,6 +20,7 @@ from tqdm import tqdm
 import numpy as np
 import h5py
 import psutil
+from mplite import TaskManager, Task
 
 from collections import defaultdict
 from itertools import chain, repeat
@@ -29,7 +31,6 @@ from itertools import chain, repeat
 
 
 from tablite.memory_manager import MemoryManager, Page
-from tablite.task_manager import TaskManager, Task
 from tablite.file_reader_utils import TextEscape
 
 
@@ -39,7 +40,7 @@ class Table(object):
     
     def __init__(self,key=None, save=False, _create=True, config=None) -> None:
         if key is None:
-            key = str(mem.new_id('/table'))
+            key = mem.new_id('/table')
         elif not isinstance(key, str):
             raise TypeError
         self.key = key
@@ -437,7 +438,16 @@ class Table(object):
             print(self.to_ascii(blanks))
         else:
             t,n = Table(), len(self)
-            t['#'] = [str(i) for i in range(7)] + ["..."] + [str(i) for i in range(n-7, n)]
+            row_count_tags = ['#', '~', '*'] 
+            rct = row_count_tags[:]
+            cols = set(self.columns)
+            for _ in range(5):
+                for ix,tag in enumerate(rct):
+                    if tag in cols:
+                        rct[ix] = tag + row_count_tags[ix]
+                    else:
+                        break
+            t[tag] = [f"{i:,}" for i in range(7)] + ["..."] + [f"{i:,}" for i in range(n-7, n)]
             for name, col in self._columns.items():
                 t[name] = [str(i) for i in col[:7]] + ["..."] + [str(i) for i in col[-7:]] 
             print(t.to_ascii(blanks))
@@ -599,124 +609,110 @@ class Table(object):
             idx[key].add(ix)
         return idx
 
-    def filter(self, columns, filter_type='all'):
+    def filter(self, expressions, filter_type='all'):
         """
         enables filtering across columns for multiple criteria.
         
-        columns: 
-            list of tuples [('A',"==", 4), ('B',">", 2), ('C', "!=", 'B')]
-            list of dicts [{'column':'A', 'criteria': "==", 'value': 4}, {'column':'B', ....}]
+        expressions: 
+        list of dicts:
+        L = [
+            {'column1':'A', 'criteria': "==", 'column2': 'B'}, 
+            {'column1':'C', 'criteria': "!=", "value2": '4'},
+            {'value1': 200, 'criteria': "<", column2: 'D' }
+        ]
+
+        accepted dictionary keys: 'column1', 'column2', 'criteria', 'value1', 'value2'
+
+        filter_type: 'all' or 'any'
         """
-        if not isinstance(columns, list):
+        if not isinstance(expressions, list):
             raise TypeError
 
-        for column in columns:
-            if isinstance(column, dict):
-                if not len(column)==3:
-                    raise ValueError
-                x = {'column', 'criteria', 'value1', 'value2'}
-                if not set(column.keys()).issubset(x):
-                    raise ValueError
-                if column['criteria'] not in filter_ops:
-                    raise ValueError
+        for expression in expressions:
+            if not isinstance(expression, dict):
+                raise TypeError(f"invalid expression: {expression}")
+            if not len(expression)==3:
+                raise ValueError(f"expected 3 items, got {expression}")
+            x = {'column1', 'column2', 'criteria', 'value1', 'value2'}
+            if not set(expression.keys()).issubset(x):
+                raise ValueError(f"got unknown key: {set(expression.keys()).difference(x)}")
+            if expression['criteria'] not in filter_ops:
+                raise ValueError(f"criteria missing from {expression}")
 
-            elif isinstance(column, tuple):
-                if not len(column)==3:
-                    raise ValueError
-                A,c,B = column
-                if c not in filter_ops:
-                    raise ValueError
-                if isinstance(A, str) and A in self.columns:
-                    pass
+            c1 = expression.get('column1',None) 
+            if c1 is not None and c1 not in self.columns: 
+                raise ValueError(f"no such column: {c1}")
+            v1 = expression.get('value1', None)
+            if v1 is not None and c1 is not None:
+                raise ValueError("filter can only take 1 left expr element. Got 2.")
 
-            else:
-                raise TypeError
-        
+            c2 = expression.get('column1',None) 
+            if c2 is not None and c2 not in self.columns: 
+                raise ValueError(f"no such column: {c2}")
+            v2 = expression.get('value2',None)
+            if v2 is not None and c1 is not None:
+                raise ValueError("filter can only take 1 right expression element. Got 2.")
+               
         if not isinstance(filter_type, str):
-            raise TypeError
+            raise TypeError()
         if not filter_type in {'all', 'any'}:
-            raise ValueError
-
-        # 1. if dataset < 1_000_000 rows: do the job single proc.
-                
-        if len(columns)==1 and len(self) < 1_000_000:
-            # The logic here is that filtering requires:
-            # 1. the overhead to start a sub process.
-            # 2. the time to filter.
-            # Too few processes and the time increases.
-            # Too many processes and the time increases.
-            # The optimal result is based on the "ideal work block size"
-            # of appx. 1M field evaluations.
-            # If there are 3 columns and 6M rows, then 18M evaluations are
-            # required. This leads to 18M/1M = 18 processes. If I have 64 cores
-            # the optimal assignment is 18 cores.
-            #
-            # If, in contrast, there are 5 columns and 40,000 rows, then 200k 
-            # only requires 1 core. Hereby starting a subprocesses is pointless.
-            #
-            # This assumption is rendered somewhat void if (!) the subprocesses 
-            # can be idle in sleep mode and not require the startup overhead.
-            pass  # TODO
+            raise ValueError(f"filter_type: {filter_type} not in ['all', 'any']")
 
         # the results are to be gathered here:
-        arr = np.zeros(shape=(len(columns), len(self)), dtype='?')
-        result_array = SharedMemory(create=True, size=arr.nbytes)
-        result_address = SharedMemoryAddress(mem_id=1, shape=arr.shape, dtype=arr.dtype, shm_name=result_array.name)
+        arr = np.zeros(shape=(len(expressions), len(self)), dtype=bool)
+        shm = shared_memory(create=True, size=arr.nbytes)
+        result_array = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
         
         # the task manager enables evaluation of a column per core,
         # which is assembled in the shared array.
-        with TaskManager(cores=1) as tm: 
-            tasks = []
-            for ix, column in enumerate(columns):
-                if isinstance(column, dict):
-                    A, criteria, B = column["column"], column["criteria"], column["value"]
-                else:
-                    A, criteria, B = column
 
-                if A in self.columns:
-                    mc = self.columns[A]
-                    A = mc.address
-                else:  # it's just a value.
-                    pass
-
-                if B in self.columns:
-                    mc = self.columns[B]
-                    B = mc.address
-                else:  # it's just a value.
-                    pass 
-
-                if criteria not in filter_ops:
-                    criteria = filter_ops_from_text.get(criteria)
-
-                blocksize = math.ceil(len(self) / tm._cpus)
-                for block in range(0, len(self), blocksize):
-                    slc = slice(block, block+blocksize,1)
-                    task = Task(filter, A, criteria, B, destination=result_address, destination_index=ix, slice_=slc)
-                    tasks.append(task)
-
-            _ = tm.execute(tasks)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
-
-            # new blocks:
-            blocksize = math.ceil(len(self) / (4*tm._cpus))
-            tasks = []
+        max_task_size = 1_000_000  # 1 million rows per column per core (best guess!)
+        n_tasks = expressions * math.ceil( len(self) / max_task_size )  
+        n_cpus = min(n_tasks, psutil.cpu_count())
+        
+        tasks = []
+        for ix, expression in enumerate(expressions):
+            blocksize = math.ceil(len(self) / max_task_size)
             for block in range(0, len(self), blocksize):
-                slc = slice(block, block+blocksize,1)
-                # merge(source=self.address, mask=result_address, filter_type=filter_type, slice_=slc)
-                task = Task(f=merge, source=self.address, mask=result_address, filter_type=filter_type, slice_=slc)
+                config = {'table_key':self.key, 'expression':expression, 
+                          'shm_name':shm.name, 'shm_index':ix, 'shm_shape': arr.shape, 
+                          'slice_':slice(block, block+blocksize)}
+                task = Task(f=filter_task, **config)
                 tasks.append(task)
-                
-            results = tm.execute(tasks)  # tasks.result contain return the shm address
-            results.sort(key=lambda x: x.task_id)
+
+        tasks2 = []
+        blocksize = math.ceil(len(self) / max_task_size)
+        for block in range(0, len(self), blocksize):
+            config = {
+                'table_key': self.key,
+                'true_key': mem.new_id('/table'),
+                'false_key': mem.new_id('/table'),
+                'shm_name': shm.name, 'shm_shape': arr.shape,
+                'slice_': slice(block, block+blocksize,1)
+            }
+            task = Task(f=merge_task, **config)
+            tasks2.append(task)
+
+        with TaskManager(n_cpus) as tm: 
+            # EVALUATE 
+            errs = tm.execute(tasks)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
+            if any(i is not None for i in errs):
+                raise Exception(errs)
+            # MERGE RESULTS
+            errs = tm.execute(tasks2)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
+            if any(i is not None for i in errs):
+                raise Exception(errs)
 
         table_true, table_false = None, None
-        for task in results:
-            true_address, false_address = task.result
+        for task in tasks2:
+            tmp_true = Table.load(mem.path, key=task.kwargs['true_key'])
+            tmp_false = Table.load(mem.path, key=task.kwargs['false_key'])
             if table_true is None:
-                table_true = Table.from_address(true_address)
-                table_false = Table.from_address(false_address)
+                table_true = tmp_true
+                table_false = tmp_false
             else:
-                table_true += Table.from_address(true_address)
-                table_false += Table.from_address(false_address)
+                table_true += tmp_true
+                table_false += tmp_false
             
         return table_true, table_false
     
@@ -1162,7 +1158,7 @@ class Table(object):
 class Column(object):
     def __init__(self, data=None, key=None) -> None:
         if key is None:
-            key = str(mem.new_id('/column'))
+            key = mem.new_id('/column')
         elif not isinstance(key, str):
             raise TypeError
         self.key = key
@@ -1569,75 +1565,49 @@ filter_ops_from_text = {
     "in": _in
 }
 
-def filter_task(source1, criteria, source2, destination, destination_index, slice_):
-    """ PARALLEL TASK FUNCTION
-    source1: list of addresses
-    criteria: logical operator
-    source1: list of addresses
-    destination: shm address name.
-    destination_index: integer.
-    """    
-    # 1. access the data sources.
-    if isinstance(source1, list):
-        A = ManagedColumn()
-        for address in source1:
-            datablock = DataBlock.from_address(address)
-            A.extend(datablock)
-        sliceA = A[slice_]
+def filter_task(table_key, expression, shm_name, shm_index, shm_shape, slice_):
+    assert isinstance(table_key, str)  # 10 --> group = '/table/10'
+    assert isinstance(expression, dict)
+    assert len(expression)==3
+    assert isinstance(shm_name, str)
+    assert isinstance(shm_index, int)
+    assert isinstance(shm_shape, tuple)
+    assert isinstance(slice_,slice)
+    c1 = expression.get('column1',None)
+    c2 = expression.get('column2',None)
+    c = expression.get('criteria',None)
+    assert c in filter_ops
+    f = filter_ops.get(c)
+    assert callable(f)
+    v1 = expression.get('value1',None)
+    v2 = expression.get('value2',None)
 
-        A_is_data = True
-    else:
-        A_is_data = False  # A is value
-    
-    if isinstance(source2, list):
-        B = ManagedColumn()
-        for address in source2:
-            datablock = DataBlock.from_address(address)
-            B.extend(datablock)
-        sliceB = B[slice_]
+    with h5py.File(mem.path, 'r') as h5:
+        dset = h5[f'/table/{table_key}']
+        columns = json.loads(dset.attrs['columns'])
+        if c1 is not None:
+            column_key = columns[c1]
+            pages = mem.get_pages(f'/column/{column_key}')
+            dset_A = pages.getslice(slice.start,slice.stop)
+        else:  # v1 is active:
+            dset_A = np.array([v1] * (slice.stop-slice.start))
+        
+        if c2 is not None:
+            column_key = columns[c2]
+            pages = mem.get_pages(f'/column/{column_key}')
+            dset_B = pages.getslice(slice.start, slice.stop)
+        else:  # v2 is active:
+            dset_B = np.array([v2] * (slice.stop-slice.start))
 
-        B_is_data = True
-    else:
-        B_is_data = False  # B is a value.
+        existing_shm = shared_memory.SharedMemory(name=shm_name)  # connect
+        ra = np.ndarray(shm_shape, dtype=np.int64, buffer=existing_shm.buf)
+        ra[shm_index] = f(dset_A,dset_B)
+        existing_shm.close()  # disconnect
+    return None
 
-    assert isinstance(destination, SharedMemoryAddress)
-    handle, data = destination.to_shm()  # the handle is required to sit idle as gc otherwise deletes it.
-    assert destination_index < len(data),  "len of data is the number of evaluations, so the destination index must be within this range."
-    
-    # ir = range(*normalize_slice(length, slice_))
-    # di = destination_index
-    # if length_A is None:
-    #     if length_B is None:
-    #         result = criteria(source1,source2)
-    #         result = np.ndarray([result for _ in ir], dtype='bool')
-    #     else:  # length_B is not None
-    #         sliceA = np.array([source1] * length_B)
-    # else:
-    #     if length_B is None:
-    #         B = np.array([source2] * length_A)
-    #     else:  # A & B is not None
-    #         pass
-    
-    if A_is_data and B_is_data:
-        result = eval(f"sliceA {criteria} sliceB")
-    if A_is_data or B_is_data:
-        if A_is_data:
-            sliceB = np.array([source2] * len(sliceA))
-        else:
-            sliceA = np.array([source1] * len(sliceB))
-    else:
-        v = criteria(source1,source2)
-        length = slice_.stop - slice_.start 
-        ir = range(*normalize_slice(length, slice_))
-        result = np.ndarray([v for _ in ir], dtype='bool')
 
-    if criteria == "in":
-        result = np.ndarray([criteria(a,b) for a, b in zip(sliceA, sliceB)], dtype='bool')
-    else:
-        result = eval(f"sliceA {criteria} sliceB")  # eval is evil .. blah blah blah... Eval delegates to optimized numpy functions.        
-
-    data[destination_index][slice_] = result
-
+def merge_task(table_key, true_key, false_key, shm_name, shm_shape, slice_):
+    raise NotImplementedError("wip")
 
 def merge(source, mask, filter_type, slice_):
     """ PARALLEL TASK FUNCTION
@@ -1765,31 +1735,9 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
     """
     **kwargs are excess arguments that are ignored.
     """
+    # define and specify tasks.
     path = pathlib.Path(path)
     file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
-
-    with path.open('rb') as fi:
-        rawdata = fi.read(10000)
-        encoding = chardet.detect(rawdata)['encoding']
-    
-    text_escape = TextEscape(delimiter=delimiter, qoute=text_qualifier)  # configure t.e.
-
-    with path.open('r', encoding=encoding) as fi:
-        for line in fi:
-            line = line.rstrip('\n')
-            break  # break on first
-        headers = text_escape(line) # use t.e.
-        
-        if first_row_has_headers:    
-            for name in columns:
-                if name not in headers:
-                    raise ValueError(f"column not found: {name}")
-        else:
-            for index in columns:
-                if index not in range(len(headers)):
-                    raise IndexError(f"{index} out of range({len(headers)})")
-    
-    # define and specify tasks.
     working_overhead = 5  # random guess. Calibrate as required.
     working_memory_required = file_length * working_overhead
     memory_usage_ceiling = 0.9
@@ -1802,28 +1750,88 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
         mem_per_cpu = int(available / psutil.cpu_count())  # 790,140,415 = 0.8Gb/cpu
     mem_per_task = max(10_000_000, mem_per_cpu // working_overhead)  # min 10Mb, or 1 Gb / 10x = 100Mb
     n_tasks = math.ceil(file_length / mem_per_task)
+
+    with path.open('rb') as fi:
+        rawdata = fi.read(10000)
+        encoding = chardet.detect(rawdata)['encoding']
     
-    tasks = []
-    for i in range(n_tasks):
-        # add task for each chunk for working
-        tr_cfg = {
-            "source":path, 
+    text_escape = TextEscape(delimiter=delimiter, qoute=text_qualifier)  # configure t.e.
+
+    config = {
+            "source":None,
             "destination":mem.path, 
-            "table_key":str(mem.new_id('/table')),  
-            "columns":columns, 
+            "table_key":None, 
+            "columns":columns,
             "newline":newline, 
             "delimiter":delimiter, 
-            "first_row_has_headers":first_row_has_headers,
             "qoute":text_qualifier,
             "text_escape_openings":'', 
             "text_escape_closures":'',
-            "start":i * mem_per_task, 
-            "limit":mem_per_task,
             "encoding":encoding,
         }
-        task = Task(f=text_reader_task, **tr_cfg)
-        tasks.append(task)
 
+    tasks = []
+    with path.open('r', encoding=encoding) as fi:
+        # task find chunk ...
+        # Here is the problem in a nutshell:
+        # --------------------------------------------------------
+        # bs = "this is my \n text".encode('utf-16')
+        # >>> bs
+        # b'\xff\xfet\x00h\x00i\x00s\x00 \x00i\x00s\x00 \x00m\x00y\x00 \x00\n\x00 \x00t\x00e\x00x\x00t\x00'
+        # >>> nl = "\n".encode('utf-16')
+        # >>> nl in bs
+        # False
+        # >>> nl.decode('utf-16') in bs.decode('utf-16')
+        # True
+        # --------------------------------------------------------
+        # This means we can't read the encoded stream to check if in contains a particular character.
+        # We will need to decode it.
+        # furthermore fi.tell() will not tell us which character we a looking at.
+        # so the only option left is to read the file and split it in workable chunks.
+        for line in fi:
+            line = line.rstrip('\n')
+            break  # break on first
+        fi.seek(0)
+        headers = text_escape(line) # use t.e.
+
+        if first_row_has_headers:    
+            for name in columns:
+                if name not in headers:
+                    raise ValueError(f"column not found: {name}")
+        else:
+            for index in columns:
+                if index not in range(len(headers)):
+                    raise IndexError(f"{index} out of range({len(headers)})")
+
+        newlines = sum(1 for _ in fi)
+        fi.seek(0)
+        bytes_per_line = file_length / newlines
+        lines_per_task = math.ceil(mem_per_task / bytes_per_line)
+
+        parts = []
+        for ix, line in enumerate(fi):
+            if ix == 0:
+                header = line
+                continue
+
+            parts.append(line)
+            if ix % lines_per_task == 0:
+                p = path.parent / (path.stem + f'{ix}' + path.suffix)
+                with p.open('w', encoding='utf-8') as fo:
+                    parts.insert(0, header)
+                    fo.write("".join(parts))
+                parts.clear()
+                tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table')}} ))
+
+        if parts:  # any remaining parts at the end of the loop.
+            p = path.parent / (path.stem + f'{ix}' + path.suffix)
+            with p.open('w', encoding='utf-8') as fo:
+                parts.insert(0, header)
+                fo.write("".join(parts))
+            parts.clear()            
+            config.update({"source":str(p), "table_key":mem.new_id('/table')})
+            tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table')}} ))
+    
     # execute the tasks
     with TaskManager(cpu_count=min(psutil.cpu_count(), n_tasks)) as tm:
         errors = tm.execute(tasks)   # I expects a list of None's if everything is ok.
@@ -1833,6 +1841,11 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
                     print(err)
             raise Exception()
     
+    # clean up the files
+    for task in tasks:
+        tmp = pathlib.Path(task.kwargs['source'])
+        tmp.unlink()
+
     # consolidate the task results
     t = None
     for task in tasks:
@@ -1846,9 +1859,9 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
 
 
 def text_reader_task(source, destination, table_key, columns, 
-    newline, delimiter=',', first_row_has_headers=True, qoute='"',
+    newline, delimiter=',', qoute='"',
     text_escape_openings='', text_escape_closures='',
-    start=None, limit=None, encoding='utf-8', timeout=10.0):
+    encoding='utf-8', timeout=10.0):
     """ PARALLEL TASK FUNCTION
     reads columnsname + path[start:limit] into hdf5.
 
@@ -1859,13 +1872,8 @@ def text_reader_task(source, destination, table_key, columns,
 
     newline: '\r\n' or '\n'
     delimiter: ',' ';' or '|'
-    first_row_has_headers: boolean
     text_escape_openings: str: default: "({[ 
     text_escape_closures: str: default: ]})" 
-
-    start: integer: The first newline after the start will be start of blob.
-    limit: integer: appx size of blob. The first newline after start of 
-                    blob + limit will be the real end.
 
     encoding: chardet encoding ('utf-8, 'ascii', ..., 'ISO-22022-CN')
     root: hdf5 root, cannot be the same as a column name.
@@ -1893,58 +1901,21 @@ def text_reader_task(source, destination, table_key, columns,
     # declare CSV dialect.
     text_escape = TextEscape(text_escape_openings, text_escape_closures, qoute=qoute, delimiter=delimiter)
 
-    if first_row_has_headers:
-        with source.open('r', encoding=encoding) as fi:
-            for line in fi:
-                line = line.rstrip('\n')
-                break  # break on first
-        headers = text_escape(line)  
-        indices = {name: headers.index(name) for name in columns}
-    else:
-        indices = {name: int(name) for name in columns}
 
-    # find chunk:
-    # Here is the problem in a nutshell:
-    # --------------------------------------------------------
-    # bs = "this is my \n text".encode('utf-16')
-    # >>> bs
-    # b'\xff\xfet\x00h\x00i\x00s\x00 \x00i\x00s\x00 \x00m\x00y\x00 \x00\n\x00 \x00t\x00e\x00x\x00t\x00'
-    # >>> nl = "\n".encode('utf-16')
-    # >>> nl in bs
-    # False
-    # >>> nl.decode('utf-16') in bs.decode('utf-16')
-    # True
-    # --------------------------------------------------------
-    # This means we can't read the encoded stream to check if in contains a particular character.
-
-    # Fetch the decoded text:
     with source.open('r', encoding=encoding) as fi:
-        fi.seek(0, 2)
-        filesize = fi.tell()
-        fi.seek(start)
-        text = fi.read(limit)
-        begin = text.index(newline)
-        text = text[begin+len(newline):]
-
-        snipsize = min(1000,limit)
-        while fi.tell() < filesize:
-            remainder = fi.read(snipsize)  # read with decoding
-            
-            if newline not in remainder:  # decoded newline is in remainder
-                text += remainder
-                continue
-            ix = remainder.index(newline)
-            text += remainder[:ix]
-            break
-
-    # read rows with CSV reader.
-    data = {h: [] for h in indices}
-    for row in text.split(newline):
-        fields = text_escape(row)
-        if fields == [""] or fields == []:
-            break
-        for header,index in indices.items():
-            data[header].append(fields[index])
+        for line in fi:
+            line = line.rstrip(newline)
+            break  # break on first
+        headers = text_escape(line)
+        indices = {name: headers.index(name) for name in columns}        
+        data = {h: [] for h in indices}
+        text = fi.read()  # 1 IOP --> RAM.
+        for line in text.split(newline):
+            fields = text_escape(line)
+            if fields == [""] or fields == []:
+                break
+            for header,index in indices.items():
+                data[header].append(fields[index])
 
     # write out.
     t = 0.0
@@ -1962,7 +1933,7 @@ def text_reader_task(source, destination, table_key, columns,
                     dset = h5[new_page.group]
                     vsource = h5py.VirtualSource(dset)
                     layout[0:len(dset)] = vsource
-                    group_no = str(mem.new_id('/column'))
+                    group_no = mem.new_id('/column')
                                         
                     h5.create_virtual_dataset(f"/column/{group_no}", layout=layout)
                     columns_refs[col_name] = group_no
