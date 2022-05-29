@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
-from datetime import datetime,date,time, timedelta
-from tablite import Table
+from datetime import datetime, date, time, timedelta
+from tablite import Table, DataTypes
 
 
 @pytest.fixture(autouse=True) # this resets the HDF5 file for every test.
@@ -35,6 +35,7 @@ def test_the_basics():
     t3.show()
     # +===+===+===========+===========+===========+===========+===========+
     # | # | a |     b     |     c     |     d     |     e     |     f     |
+    # |row|str|    str    |    str    |    str    |    str    |    str    |
     # +---+---+-----------+-----------+-----------+-----------+-----------+
     # |0  |1  |0.060606061|0.090909091|0.121212121|0.151515152|0.181818182|
     # |1  |2  |0.121212121|0.242424242|0.484848485|0.96969697 |1.939393939|
@@ -58,13 +59,14 @@ def test_the_basics():
     # but make sure the column has the same length as the rest of the table!
 
     t.show()
-    # +=+=+=+
-    # |A|B|C|
-    # +-+-+-+
-    # |1|a|4|
-    # |2|b|5|
-    # |3|c|6|
-    # +=+=+=+
+    # +===+===+===+
+    # | A | B | C |
+    # |int|str|int|
+    # +---+---+---+
+    # |  1|a  |  4|
+    # |  2|b  |  5|
+    # |  3|c  |  6|
+    # +===+===+===+
 
     # should you want to mix datatypes, tablite will not complain:
     # What you put in ...
@@ -83,7 +85,17 @@ def test_the_basics():
     ]
     # ... is exactly what you get out:
     print(list(t4['mixed']))
-    # [-1, 0, 1, -12345678909876543211234567890987654321, None, nan, 'one', '', True, True, inf, 0.01, datetime.date(2000, 1, 1), datetime.datetime(2002, 2, 3, 23, 0, 4, 6660), datetime.time(12, 12, 12), datetime.timedelta(days=3, seconds=5678)]
+    # [-1, 0, 1, 
+    # -12345678909876543211234567890987654321, 
+    # None, nan, 
+    # 'one', '', 
+    # True, True, 
+    # inf, 0.01, 
+    # datetime.date(2000, 1, 1), 
+    # datetime.datetime(2002, 2, 3, 23, 0, 4, 6660), 
+    # datetime.time(12, 12, 12), 
+    # datetime.timedelta(days=3, seconds=5678)
+    # ]
 
     print(t4['mixed'])
     # <Column>(16 values | key=25)
@@ -102,6 +114,14 @@ def test_the_basics():
     # <class 'datetime.time'> 1
     # <class 'datetime.timedelta'> 1
     
+    # you may notice that all datatypes in t3 are str. To convert to the most probable
+    # datatype used the datatype modules .guess function on each column
+    t3['a'] = DataTypes.guess(t3['a'])
+    # You can also convert the datatype using a list comprehension
+    t3['b'] = [float(v) for v in t3['b']]
+    t3.show()
+
+
     # APPEND
     # -----------------------------------------
     
@@ -120,16 +140,17 @@ def test_the_basics():
     assert t.columns != t2.columns  # compares list of column names.
     t6 = t.stack(t2)
     t6.show()
-    # +=+=+====+
-    # |A|B| C  |
-    # +-+-+----+
-    # |1|a|   4|
-    # |2|b|   5|
-    # |3|c|   6|
-    # |1|a|None|
-    # |2|b|None|
-    # |3|c|None|
-    # +=+=+====+
+    # +===+===+=====+
+    # | A | B |  C  |
+    # |int|str|mixed|
+    # +---+---+-----+
+    # |  1|a  |    4|
+    # |  2|b  |    5|
+    # |  3|c  |    6|
+    # |  1|a  |None |
+    # |  2|b  |None |
+    # |  3|c  |None |
+    # +===+===+=====+
 
     # As you can see above, t6['C'] is padded with "None" where t2 was missing the columns.
     
@@ -152,24 +173,26 @@ def test_the_basics():
     # you can also perform multi criteria selections using getitem [ ... ]
     t3_slice = t3['a','b','d', 5:25:5]
     t3_slice.show()
-    # +==+===========+===========+
-    # |a |     b     |     d     |
-    # +--+-----------+-----------+
-    # |6 |1.939393939|7.757575758|
-    # |11|62.06060606|248.2424242|
-    # |16|1985.939394|7943.757576|
-    # |21|63550.06061|254200.2424|
-    # +==+===========+===========+
+    # +===+===========+===========+
+    # | a |     b     |     d     |
+    # |str|    str    |    str    |
+    # +---+-----------+-----------+
+    # |6  |1.939393939|7.757575758|
+    # |11 |62.06060606|248.2424242|
+    # |16 |1985.939394|7943.757576|
+    # |21 |63550.06061|254200.2424|
+    # +===+===========+===========+
 
     #deleting items also works the same way:
     del t3_slice[1:3]  # delete row number 2 & 3 
     t3_slice.show()
-    # +==+===========+===========+
-    # |a |     b     |     d     |
-    # +--+-----------+-----------+
-    # |6 |1.939393939|7.757575758|
-    # |21|63550.06061|254200.2424|
-    # +==+===========+===========+
+    # +===+===========+===========+
+    # | a |     b     |     d     |
+    # |str|    str    |    str    |
+    # +---+-----------+-----------+
+    # |6  |1.939393939|7.757575758|
+    # |21 |63550.06061|254200.2424|
+    # +===+===========+===========+
 
     # to wipe a table, use .clear:
     t3_slice.clear()
