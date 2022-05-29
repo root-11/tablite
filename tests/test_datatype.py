@@ -1,4 +1,4 @@
-from tablite.datatypes import DataTypes
+from tablite.datatypes import DataTypes, Rank
 from datetime import date, time, datetime
 import numpy as np
 
@@ -16,8 +16,30 @@ def test_np_types():
                 print('{0} ({1!r}) -> {2}'.format(name, npn.dtype.char, type(nat)))
             except:
                 pass
-    # NOTE: Just use .tolist() to convert 'O' type data to native python.
+    pass # NOTE: Just use .tolist() to convert 'O' type data to native python.
 
+
+def test_dt_ranks():
+    r = Rank('A', 'B', 'C')
+    r.match('C')
+    assert list(r) == ['C', 'A', 'B']
+    assert [i for i in r] == ['C', 'A', 'B']
+    r.match('B')
+    assert list(r) == ['C', 'B', 'A']
+    r.match('C')
+    assert list(r) == ['C', 'B', 'A']
+    r.match('B')
+    assert list(r) == ['C', 'B', 'A']
+    r.match('A')
+    assert list(r) == ['C', 'B', 'A']
+    r.match('A')
+    assert list(r) == ['C', 'B', 'A']
+    r.match('A')
+    assert list(r) == ['A', 'C', 'B']
+    for i in range(5):
+        r.match('A')
+    assert list(r) == ['A', 'C', 'B']
+    
 
 def test_datatype_inference():
     # integers
