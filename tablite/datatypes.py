@@ -1,5 +1,5 @@
 from datetime import date, datetime, time, timedelta
-from collections import defaultdict
+from collections import defaultdict, deque
 import numpy as np
 
 
@@ -17,7 +17,7 @@ class DataTypes(object):
     digits = '1234567890'
     decimals = set('1234567890-+eE.')
     integers = set('1234567890-+')
-    nones = {'null', 'Null', 'NULL', '#N/A', '#n/a', "", 'None', None}
+    nones = {'null', 'Null', 'NULL', '#N/A', '#n/a', "", 'None', None, np.nan}
     none_type = type(None)
 
     _type_codes ={
@@ -35,7 +35,13 @@ class DataTypes(object):
 
     @classmethod
     def type_code(cls, value): 
-        return cls._type_codes[type(value)]
+        if type(value) in cls._type_codes:
+            return cls._type_codes[type(value)]
+        elif hasattr(value,'dtype'):
+            dtype = numpy_types.get(np.dtype(value).name)
+            return cls._type_codes[dtype]
+        else:
+            raise TypeError(f"No handler for {type(value)}")
     
     def b_none(v):
         return b"None"
@@ -73,7 +79,13 @@ class DataTypes(object):
 
     @classmethod
     def to_bytes(cls, v):
-        f = cls.bytes_functions[type(v)]
+        if type(v) in cls.bytes_functions:  # it's a python native type
+            f = cls.bytes_functions[type(v)]
+        elif hasattr(v, 'dtype'):  # it's a numpy/c type.
+            dtype = numpy_types.get(np.dtype(v).name)
+            f = cls.bytes_functions[dtype]
+        else:
+            raise TypeError(f"No handler for {type(v)}")
         return f(v)
 
     def _none(v):
@@ -322,25 +334,49 @@ class DataTypes(object):
     types = [datetime, date, time, int, bool, float, str]
 
     @staticmethod
-    def guess(*values):
+    def guess_types(*values):
         """
         Attempts to guess the datatype for *values
         returns dict with matching datatypes and probabilities
         """
+
         d = defaultdict(int)
-        for value in values:
-            for dtype in DataTypes.types[:-1]:
+        probability = Rank(DataTypes.types[:])
+        
+        for ix, value in enumerate(values):
+            for dtype in probability:
                 try:
-                    _ = DataTypes.infer(value, dtype)
-                    d[dtype] += 1
+                    _ = DataTypes.infer(value,dtype)
+                    d[dtype] += 1 
+                    probability.match(dtype)
+                    break
                 except (ValueError, TypeError):
-                    continue
+                    pass
         if not d:
             d[str]=len(values)
         return {k:round(v/len(values),3) for k,v in d.items()}
 
     @staticmethod
-    def infer(v, dtype):
+    def guess(*values):
+        """
+        Makes a best guess the datatype for *values
+        returns list of native python values
+        """
+        probability = Rank(*DataTypes.types[:])
+        matches = [None for _ in values[0]]
+        
+        for ix, value in enumerate(values[0]):
+            for dtype in probability:
+                try:
+                    matches[ix] = DataTypes.infer(value,dtype)
+                    probability.match(dtype)
+                    break
+                except (ValueError, TypeError):
+                    pass
+        return matches
+
+    @classmethod
+    def infer(cls, v, dtype):
         if v in DataTypes.nones:
             return None
         if dtype is int:
@@ -360,8 +396,8 @@ class DataTypes(object):
         else:
             raise TypeError(f"The datatype {str(dtype)} is not supported.")
 
-    @staticmethod
-    def _infer_bool(value):
+    @classmethod
+    def _infer_bool(cls, value):
         if isinstance(value, bool):
             return value
         elif isinstance(value, int):
@@ -374,12 +410,12 @@ class DataTypes(object):
             elif value.lower() == "false":
                 return False
             else:
-                raise ValueError
+                raise ValueError()
         else:
-            raise ValueError
+            raise ValueError()
 
-    @staticmethod
-    def _infer_int(value):
+    @classmethod
+    def _infer_int(cls, value):
         if isinstance(value, bool):
             raise ValueError("it's a boolean")
         if isinstance(value, int):
@@ -400,10 +436,10 @@ class DataTypes(object):
             except Exception:
                 raise ValueError(f"{value} is not an integer")
         else:
-            raise ValueError
+            raise ValueError()
 
-    @staticmethod
-    def _infer_float(value):
+    @classmethod
+    def _infer_float(cls, value):
         if isinstance(value, int):
             raise ValueError("it's an integer")
         if isinstance(value, float):
@@ -427,7 +463,7 @@ class DataTypes(object):
             value_set = set(value)
 
             if not value_set.issubset(DataTypes.decimals):
-                raise TypeError
+                raise TypeError()
 
             # if it's a string, do also
             # check that reverse conversion is valid,
@@ -462,14 +498,14 @@ class DataTypes(object):
                 reconstructed_input = str(float_value)
 
             if value.lower() != reconstructed_input:
-                raise ValueError
+                raise ValueError()
 
             return float_value
         else:
-            raise ValueError
+            raise ValueError()
 
-    @staticmethod
-    def _infer_date(value):
+    @classmethod
+    def _infer_date(cls, value):
         if isinstance(value, date):
             return value
         elif isinstance(value, str):
@@ -481,12 +517,12 @@ class DataTypes(object):
                 if f:
                     return f(value)
                 else:
-                    raise ValueError
+                    raise ValueError()
         else:
-            raise ValueError
+            raise ValueError()
 
-    @staticmethod
-    def _infer_datetime(value):
+    @classmethod
+    def _infer_datetime(cls, value):
         if isinstance(value, datetime):
             return value
         elif isinstance(value, str):
@@ -505,93 +541,118 @@ class DataTypes(object):
                 if f:
                     return f(value)
                 else:
-                    raise ValueError
+                    raise ValueError()
         else:
-            raise ValueError
+            raise ValueError()
 
-    @staticmethod
-    def _infer_time(value):
+    @classmethod
+    def _infer_time(cls, value):
         if isinstance(value, time):
             return value
         elif isinstance(value, str) and ":" in value:
             # beware time.fromisoformat reads "20" as "20:00:00", despite that it is more likely to be an integer.
             return time.fromisoformat(value)
         else:
-            raise ValueError
+            raise ValueError()
 
-    @staticmethod
-    def _infer_str(value):
+    @classmethod
+    def _infer_str(cls, value):
         if isinstance(value, str):
             return value
         else:
             return str(value)
 
-    @staticmethod
-    def infer_range_from_slice(slice_item, length):
-        assert isinstance(slice_item, slice)
-        assert isinstance(length, int)
-        item = slice_item
-
-        if all((item.start is None,
-               item.stop is None,
-               item.step is None)):
-            return 0, length, 1
-
-        if item.step is None or item.step > 0:  # forward traverse
-            step = 1 if item.step is None else item.step
-            if item.start is None:
-                start = 0
-            elif item.start < 0:
-                start = length + item.start
-            else:
-                start = item.start
-
-            if item.stop is None or item.stop > length:
-                stop = length
-            elif item.stop < 0:
-                stop = length + item.stop
-            else:
-                stop = item.stop
-
-        elif item.step == 0:
-            raise ValueError("slice step cannot be zero")
-
-        else:  # item.step < 0: backward traverse
-            step = item.step
-            if item.start is None:  # a[::-1]
-                start = length
-            elif item.start < 0:
-                start = item.start + length
-            else:
-                start = item.start
-
-            if item.stop is None:
-                stop = 0
-            elif item.stop < 0:
-                stop = item.stop + length
-            else:
-                stop = item.stop
-
-        return start, stop, step
+    @classmethod
+    def _infer_none(cls, value):
+        if value is None:
+            return None
+        if isinstance(value,str) and value == str(None):
+            return None
+        raise ValueError()
 
 
 def _get_numpy_types():
-    d = {}
-    for name in dir(np):
-        obj = getattr(np,name)
-        if hasattr(obj, 'dtype'):
-            try:
-                if 'time' in name:
-                    npn = obj(0, 'D')
-                else:
-                    npn = obj(0)
-                nat = npn.item()
-                d[name] = type(nat)
-                d[npn.dtype.char] = type(nat)
-            except:
-                pass
-    return d
+    # d = {}
+    # for name in dir(np):
+    #     obj = getattr(np,name)
+    #     if hasattr(obj, 'dtype'):
+    #         try:
+    #             if 'time' in name:
+    #                 npn = obj(0, 'D')
+    #             else:
+    #                 npn = obj(0)
+    #             nat = npn.item()
+    #             d[name] = type(nat)
+    #             d[npn.dtype.char] = type(nat)
+    #         except:
+    #             pass
+    # return d
+    return {
+        "bool_":bool,  #  ('?') -> <class 'bool'>
+        "byte": int,  # ('b') -> <class 'int'>
+        "bytes0": bytes,  #  ('S') -> <class 'bytes'>
+        "bytes_": bytes,  #  ('S') -> <class 'bytes'>
+        "cdouble": complex,   #('D') -> <class 'complex'>
+        "cfloat": complex,  # ('D') -> <class 'complex'>
+        "clongdouble": float,  # ('G') -> <class 'numpy.clongdouble'>
+        "clongfloat": float,  # ('G') -> <class 'numpy.clongdouble'>
+        "complex128": complex,  # ('D') -> <class 'complex'>
+        "complex64": complex,  # ('F') -> <class 'complex'>
+        "complex_": complex,  # ('D') -> <class 'complex'>
+        "csingle": complex,  # ('F') -> <class 'complex'>
+        "datetime64": date,  # ('M') -> <class 'datetime.date'>
+        "double": float,  # ('d') -> <class 'float'>
+        "float16": float,  # ('e') -> <class 'float'>
+        "float32": float,  # ('f') -> <class 'float'>
+        "float64": float,  # ('d') -> <class 'float'>
+        "float_": float,  # ('d') -> <class 'float'>
+        "half": float,  # ('e') -> <class 'float'>
+        "int0": int,  # ('q') -> <class 'int'>
+        "int16": int,  # ('h') -> <class 'int'>
+        "int32": int,  # ('l') -> <class 'int'>
+        "int64": int,  # ('q') -> <class 'int'>
+        "int8": int,  # ('b') -> <class 'int'>
+        "int_": int,  # ('l') -> <class 'int'>
+        "intc": int,  # ('i') -> <class 'int'>
+        "intp": int,  # ('q') -> <class 'int'>
+        "longcomplex":float,  # ('G') -> <class 'numpy.clongdouble'>
+        "longdouble": float,  # ('g') -> <class 'numpy.longdouble'>
+        "longfloat":  float,  # ('g') -> <class 'numpy.longdouble'>
+        "longlong": int,  # ('q') -> <class 'int'>
+        "matrix": int,  # ('l') -> <class 'int'>
+        "record": bytes,  # ('V') -> <class 'bytes'>
+        "short": int,  # ('h') -> <class 'int'>
+    }
 
 numpy_types = _get_numpy_types()
+
+
+class Rank(object):
+    def __init__(self, *items):
+        self.items = {i:ix for i,ix in zip(items,range(len(items)))}
+        self.ranks = [0 for _ in items]
+        self.items_list = [i for i in items]
+    
+    def match(self, k):  # k+=1
+        ix = self.items[k]
+        r = self.ranks
+        r[ix]+=1
+
+        if ix > 0:
+            p = self.items_list
+            while r[ix] > r[ix-1] and ix >0:
+                r[ix], r[ix-1] = r[ix-1], r[ix]
+                p[ix], p[ix-1] = p[ix-1], p[ix]
+                old = p[ix]
+                self.items[old] = ix
+                self.items[k] = ix-1
+                ix -= 1
+    
+    def __iter__(self):
+        return iter(self.items_list)
+
+
+
+
 
 
