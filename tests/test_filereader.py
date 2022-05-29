@@ -1,101 +1,118 @@
 from tablite import Table
 from tablite.file_reader_utils import TextEscape
+from tablite.datatypes import DataTypes
 from time import process_time_ns
 from datetime import date, datetime
 from pathlib import Path
 import zipfile
+import pytest
+
+
+@pytest.fixture(autouse=True) # this resets the HDF5 file for every test.
+def refresh():
+    Table.reset_storage()
+    yield
 
 
 def test_text_escape():
+    text_escape = TextEscape(delimiter=';',openings=None,closures=None)
+
     te = text_escape('"t"')
-    assert te == ("t",)
+    assert te ==["t"]
 
     te = text_escape('"t";"3";"2"')
-    assert te == ("t", "3", "2")
+    assert te == ["t", "3", "2"]
 
     te = text_escape('"this";"123";234;"this";123;"234"')
-    assert te == ('this', '123', '234', 'this', '123', '234')
+    assert te == ['this', '123', '234', 'this', '123', '234']
 
     te = text_escape('"this";"123";"234"')
-    assert te == ("this", "123", "234")
+    assert te == ["this", "123", "234"]
 
     te = text_escape('"this";123;234')
-    assert te == ("this", "123", "234")
+    assert te == ["this", "123", "234"]
 
     te = text_escape('"this";123;"234"')
-    assert te == ("this", "123", "234")
+    assert te == ["this", "123", "234"]
 
     te = text_escape('123;"1\'3";234')
-    assert te == ("123", "1'3", "234"), te
+    assert te == ["123", "1'3", "234"], te
 
     te = text_escape('"1000627";"MOC;SEaert;pás;krk;XL;černá";"2.180,000";"CM3";2')
-    assert te == ("1000627", "MOC;SEaert;pás;krk;XL;černá", "2.180,000", "CM3", '2')
+    assert te == ["1000627", "MOC;SEaert;pás;krk;XL;černá", "2.180,000", "CM3", '2']
 
     te = text_escape('"1000294";"S2417DG 24"" LED monitor (210-AJWM)";"47.120,000";"CM3";3')
-    assert te == ('1000294', 'S2417DG 24"" LED monitor (210-AJWM)', '47.120,000', 'CM3', '3')
+    assert te == ['1000294', 'S2417DG 24"" LED monitor (210-AJWM)', '47.120,000', 'CM3', '3']
 
 
 def test_filereader_123csv():
     csv_file = Path(__file__).parent / "data" / "123.csv"
 
-    table7 = Table(filename=csv_file.name)
-    table7.metadata['filename'] = '123.csv'
-    table7.add_column('A', int, data=[1, None, 8, 3, 4, 6, 5, 7, 9], allow_empty=True)
-    table7.add_column('B', int, data=[10, 100, 1, 1, 1, 1, 10, 10, 10])
-    table7.add_column('C', int, data=[0, 1, 0, 1, 0, 1, 0, 1, 0])
+    table7 = Table()
+    # table7.metadata['filename'] = '123.csv'
+    table7.add_column('A', data=[1, None, 8, 3, 4, 6, 5, 7, 9])
+    table7.add_column('B', data=[10, 100, 1, 1, 1, 1, 10, 10, 10])
+    table7.add_column('C', data=[0, 1, 0, 1, 0, 1, 0, 1, 0])
     sort_order = {'B': False, 'C': False, 'A': False}
-    table7.sort(**sort_order)
+    table7 = table7.sort(**sort_order)
 
-    headers = ", ".join([c for c in table7.columns])
+    headers = ",".join([c for c in table7.columns])
     data = [headers]
     for row in table7.rows:
-        data.append(", ".join(str(v) for v in row))
+        data.append(",".join(str(v) for v in row))
 
     s = "\n".join(data)
     print(s)
     csv_file.write_text(s)  # write
-    tr_table = list(file_reader(csv_file))[0]  # read
+    tr_table = Table.import_file(csv_file, import_as='csv', columns={v:'?' for v in 'ABC'})
     csv_file.unlink()  # cleanup
 
     tr_table.show()
-    find_format(tr_table)
+    for c in tr_table.columns:
+        col = tr_table[c]
+        col[:] = DataTypes.guess(col)
+    
+    tr_table.show()
 
     assert tr_table == table7
 
 
 def test_filereader_csv_f12():
     path = Path(__file__).parent / "data" / 'f12.csv'
-    data = next(Table.from_file(path))
+    columns = ['Prod Slbl', 'Prod Tkt Descp Txt', 'Case Qty', 'Height', 'Width', 'Length', 'Weight', 'sale_date', 'cust_nbr', 'Case Qty_1', 'EA Location', 'CDY/Cs', 'EA/Cs', 'EA/CDY', 'Ordered As', 'Picked As', 'Cs/Pal', 'SKU', 'Order_Number', 'cases']
+    data = Table.import_file(path, import_as='csv', columns={n:'f' for n in columns})
     assert len(data) == 13
+    for name in data.columns:
+        data[name] = DataTypes.guess(data[name])
     assert list(data.rows) == [
-        (52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 1365660, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1365660_2012/01/01', 1),
-        (52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 1696753, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1696753_2012/01/01', 1),
-        (52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 1828693, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1828693_2012/01/01', 1),
-        (52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 2211182, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '2211182_2012/01/01', 2),
-        (52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 2229312, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '2229312_2012/01/01', 1),
-        (52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 2414206, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '2414206_2012/01/01', 1),
-        (52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 266791, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '266791_2012/01/01', 2),
-        (52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1017988, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1017988_2012/01/02', 1),
-        (52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1020158, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1020158_2012/01/02', 2),
-        (52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1032132, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1032132_2012/01/02', 1),
-        (52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1048323, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1048323_2012/01/02', 1),
-        (52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1056865, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1056865_2012/01/02', 2),
-        (52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1057577, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1057577_2012/01/02', 0)
-    ]
+        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 1365660, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1365660_2012/01/01', 1],
+        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 1696753, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1696753_2012/01/01', 1],
+        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 1828693, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1828693_2012/01/01', 1],
+        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 2211182, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '2211182_2012/01/01', 2],
+        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 2229312, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '2229312_2012/01/01', 1],
+        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 2414206, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '2414206_2012/01/01', 1],
+        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 266791, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '266791_2012/01/01', 2],
+        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1017988, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1017988_2012/01/02', 1],
+        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1020158, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1020158_2012/01/02', 2],
+        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1032132, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1032132_2012/01/02', 1],
+        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1048323, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1048323_2012/01/02', 1],
+        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1056865, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1056865_2012/01/02', 2],
+        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1057577, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1057577_2012/01/02', 0]
+    ], list(data.rows)
 
 
 def test_filereader_book1csv():
     path = Path(__file__).parent / "data" / 'book1.csv'
     assert path.exists()
-    table = list(file_reader(path))[0]
+    table = Table.import_file(path, import_as='csv', columns={n:'f' for n in ['a', 'b', 'c', 'd', 'e', 'f']})
     table.show(slice(0, 10))
+    for name in table.columns:
+        table[name] = DataTypes.guess(table[name])
 
-    book1_csv = Table(filename=path.name)
-    book1_csv.add_column('a', int)
-    for float_type in list('bcdef'):
-        book1_csv.add_column(float_type, float)
+    assert table['a'].types() == {int:45}
+    for name in list('bcdef'):
+        assert table[name].types() == {float:45}
 
-    assert table.compare(book1_csv), table.compare(book1_csv)
     assert len(table) == 45
 
 

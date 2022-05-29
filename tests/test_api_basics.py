@@ -484,7 +484,7 @@ def test05_verify_show_table():
 
     table4.add_columns('A', 'B', 'C')
     txt2 = table4.to_ascii()
-    assert txt2 == '+=+=+=+\n|A|B|C|\n+-+-+-+\n+=+=+=+'
+    assert txt2 == '+=====+=====+=====+\n|  A  |  B  |  C  |\n|mixed|mixed|mixed|\n+-----+-----+-----+\n+=====+=====+=====+'
     for i in range(5):
         table4['A'] += [i]
         table4['B'] += [str(i+9)]
@@ -492,6 +492,7 @@ def test05_verify_show_table():
         txt = table4.to_ascii()
         # +=+==+==================+
         # |A|B |        C         |
+        #
         # +-+--+------------------+
         # |0| 9 |               0.0|
         # |1|10 |               1.1|
@@ -499,7 +500,7 @@ def test05_verify_show_table():
         # |3|12 |3.3000000000000003|
         # |4|13 |               4.4|
         # +=+==+==================+
-        assert txt.count('\n') == i+4
+        assert txt.count('\n') == i+5
         
     table4.show()  # launch the print function.
     table4 *= 10
