@@ -10,7 +10,7 @@ def test_text_escape():
     assert L == ["this", "is", "a", "","嗨", "(comma,sep'd)", "\"text\""]
 
 def test2():
-    text_escape = TextEscape(openings='"({[', closures=']})"', delimiter=',')
+    text_escape = TextEscape(openings='({[', closures=']})', delimiter=',')
 
     s = "this,is,a,,嗨,(comma,sep'd),text"
     L = text_escape(s)
