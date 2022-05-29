@@ -275,7 +275,8 @@ class Table(object):
                 else:
                     t = Table.load(path, key=table_key)
                     tables.append(t)
-        warnings.warn(f"Dropping {unsaved} tables from cache where save==False.")
+        if unsaved:
+            warnings.warn(f"Dropping {unsaved} tables from cache where save==False.")
         return tables
 
     @classmethod
@@ -361,6 +362,15 @@ class Table(object):
         for name in names:
             self.__setitem__(name,None)
 
+    def add_column(self,name, data=None):
+        if not isinstance(name, str):
+            raise TypeError()
+        if name in self.columns:
+            raise ValueError(f"{name} already in {self.columns}")
+        if not data:
+            pass
+        self.__setitem__(name,data)
+
     def stack(self, other):
         """
         returns the joint stack of tables
@@ -392,17 +402,28 @@ class Table(object):
             d[name] = col.types()
         return d
 
-    def to_ascii(self, blanks=None):
+    def to_ascii(self, blanks=None, row_counts=None):
         """
         enables viewing in terminals
         returns the table as ascii string
         """
         widths = {}
+        column_types = {}
         names = list(self.columns)
         if not names:
             return "Empty table"
         for name,col in self._columns.items():
-            widths[name] = max([len(name)] + [len(str(v)) for v in col])
+            
+            types = col.types()
+            if name == row_counts:
+                column_types[name] = 'row'
+            elif len(types) == 1:
+                dt,n = types.popitem()
+                column_types[name] = dt.__name__
+            else:
+                column_types[name] = 'mixed'
+
+            widths[name] = max([len(column_types[name])] + [len(name)] + [len(str(v)) if not isinstance(v,str) else len(str(v)) for v in col])
 
         def adjust(v, length):
             if v is None:
@@ -415,7 +436,7 @@ class Table(object):
         s = []
         s.append("+" + "+".join(["=" * widths[n] for n in names]) + "+")
         s.append("|" + "|".join([n.center(widths[n], " ") for n in names]) + "|")
-        # s.append("| " + "|".join([str(table.columns[n].dtype).center(widths[n], " ") for n in names]) + " |")
+        s.append("|" + "|".join([column_types[n].center(widths[n], " ") for n in names]) + "|")
         s.append("+" + "+".join(["-" * widths[n] for n in names]) + "+")
         for row in self.rows:
             s.append("|" + "|".join([adjust(v, widths[n]) for v, n in zip(row, names)]) + "|")
@@ -449,8 +470,8 @@ class Table(object):
                         break
             t[tag] = [f"{i:,}" for i in range(7)] + ["..."] + [f"{i:,}" for i in range(n-7, n)]
             for name, col in self._columns.items():
-                t[name] = [str(i) for i in col[:7]] + ["..."] + [str(i) for i in col[-7:]] 
-            print(t.to_ascii(blanks))
+                t[name] = [i for i in col[:7]] + ["..."] + [i for i in col[-7:]] 
+            print(t.to_ascii(blanks=blanks,row_counts=tag))
 
     def index(self, *args):
         cols = []
@@ -716,8 +737,12 @@ class Table(object):
             
         return table_true, table_false
     
-    def sort_index(self, **kwargs):  # TODO: This is slow single core code.
-        """ Helper for methods `sort` and `is_sorted` """
+    def sort_index(self, nan_value=float('inf'), **kwargs):  # TODO: This is slow single core code.
+        """ 
+        helper for methods `sort` and `is_sorted` 
+        nan_value: value used to represent non-sortable values such as None and np.nan during sort.
+        kwargs: sort criteria. See Table.sort()
+        """
         if not isinstance(kwargs, dict):
             raise ValueError("Expected keyword arguments")
         if not kwargs:
@@ -728,15 +753,14 @@ class Table(object):
                 raise ValueError(f"no column {k}")
             if not isinstance(v, bool):
                 raise ValueError(f"{k} was mapped to {v} - a non-boolean")
-        none_substitute = float('-inf')
 
         rank = {i: tuple() for i in range(len(self))}
         for key in kwargs:
-            unique_values = {v: 0 for v in self.columns[key] if v is not None}
+            unique_values = {v: 0 for v in self._columns[key] if v is not None}
             for r, v in enumerate(sorted(unique_values, reverse=kwargs[key])):
                 unique_values[v] = r
-            for ix, v in enumerate(self.columns[key]):
-                rank[ix] += (unique_values.get(v, none_substitute),)
+            for ix, v in enumerate(self._columns[key]):
+                rank[ix] += (unique_values.get(v, nan_value),)
 
         new_order = [(r, i) for i, r in rank.items()]  # tuples are listed and sort...
         new_order.sort()
@@ -746,21 +770,28 @@ class Table(object):
         new_order.clear()
         return sorted_index
 
-    def sort(self, **kwargs):  # TODO: This is slow single core code.
+    def sort(self, nan_value=float('-inf'), **kwargs):  # TODO: This is slow single core code.
         """ Perform multi-pass sorting with precedence given order of column names.
-        :param kwargs: keys: columns, values: 'reverse' as boolean.
+        nan_value: value used to represent non-sortable values such as None and np.nan during sort.
+        kwargs: keys: columns, values: 'reverse' as boolean.
+
+        examples: 
+        Table.sort('A'=False)  means sort by 'A' in ascending order.
+        Table.sort('A'=True, 'B'=False) means sort 'A' in descending order, then (2nd priority) sort B in ascending order.
         """
-        sorted_index = self._sort_index(**kwargs)
+        sorted_index = self.sort_index(nan_value, **kwargs)
         t = Table()
-        for col_name, col in self.columns.items():
+        for col_name, col in self._columns.items():
             t.add_column(col_name, data=[col[ix] for ix in sorted_index])
         return t
 
-    def is_sorted(self, **kwargs):  # TODO: This is slow single core code.
+    def is_sorted(self, nan_value=float('inf'), **kwargs):  # TODO: This is slow single core code.
         """ Performs multi-pass sorting check with precedence given order of column names.
+        nan_value: value used to represent non-sortable values such as None and np.nan during sort.
+        **kwargs: sort criteria. See Table.sort()
         :return bool
         """
-        sorted_index = self._sort_index(**kwargs)
+        sorted_index = self.sort_index(nan_value, **kwargs)
         if any(ix != i for ix, i in enumerate(sorted_index)):
             return False
         return True
@@ -1793,6 +1824,8 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
             break  # break on first
         fi.seek(0)
         headers = text_escape(line) # use t.e.
+        if not columns:
+            raise ValueError(f"No columns selected:\nAvailable columns: {headers}")
 
         if first_row_has_headers:    
             for name in columns:
@@ -1808,29 +1841,36 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
         bytes_per_line = file_length / newlines
         lines_per_task = math.ceil(mem_per_task / bytes_per_line)
 
-        parts = []
-        for ix, line in enumerate(fi):
-            if ix == 0:
-                header = line
-                continue
+        
+        if newlines < lines_per_task:  # there is only one task.
+            tasks.append(Task( text_reader_task, **{**config, **{"source":str(path), "table_key":mem.new_id('/table')}} ))
+            unlink_after_completion = False  # do not delete the source after completion.
+        else:  # there are multiple tasks.
+            unlink_after_completion = True  # delete the tmp sources after completion.
 
-            parts.append(line)
-            if ix % lines_per_task == 0:
+            parts = []
+            for ix, line in enumerate(fi):
+                if ix == 0:
+                    header = line
+                    continue
+
+                parts.append(line)
+                if ix % lines_per_task == 0:
+                    p = path.parent / (path.stem + f'{ix}' + path.suffix)
+                    with p.open('w', encoding='utf-8') as fo:
+                        parts.insert(0, header)
+                        fo.write("".join(parts))
+                    parts.clear()
+                    tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table')}} ))
+
+            if parts:  # any remaining parts at the end of the loop.
                 p = path.parent / (path.stem + f'{ix}' + path.suffix)
                 with p.open('w', encoding='utf-8') as fo:
                     parts.insert(0, header)
                     fo.write("".join(parts))
-                parts.clear()
+                parts.clear()            
+                config.update({"source":str(p), "table_key":mem.new_id('/table')})
                 tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table')}} ))
-
-        if parts:  # any remaining parts at the end of the loop.
-            p = path.parent / (path.stem + f'{ix}' + path.suffix)
-            with p.open('w', encoding='utf-8') as fo:
-                parts.insert(0, header)
-                fo.write("".join(parts))
-            parts.clear()            
-            config.update({"source":str(p), "table_key":mem.new_id('/table')})
-            tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table')}} ))
     
     # execute the tasks
     with TaskManager(cpu_count=min(psutil.cpu_count(), n_tasks)) as tm:
@@ -1842,9 +1882,10 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
             raise Exception()
     
     # clean up the files
-    for task in tasks:
-        tmp = pathlib.Path(task.kwargs['source'])
-        tmp.unlink()
+    if unlink_after_completion:
+        for task in tasks:
+            tmp = pathlib.Path(task.kwargs['source'])
+            tmp.unlink()
 
     # consolidate the task results
     t = None
