@@ -90,19 +90,19 @@ class TextEscape(object):
 
         """
         if openings is None:
-            pass
+            openings = [None]
         elif isinstance(openings, str):
             self.openings = {c for c in openings}
         else:
             raise TypeError(f"expected str, got {type(openings)}")           
 
         if closures is None:
-            pass
+            closures = [None]
         elif isinstance(closures, str):
             self.closures = {c for c in closures}
         else:
             raise TypeError(f"expected str, got {type(closures)}")
-    
+
         if not isinstance(delimiter, str):
             raise TypeError(f"expected str, got {type(delimiter)}")
         self.delimiter = delimiter
@@ -110,20 +110,23 @@ class TextEscape(object):
         
         if qoute is None:
             pass
-        elif qoute in openings or qoute in closures:
+        elif qoute in openings + closures:
             raise ValueError("It's a bad idea to have qoute character appears in openings or closures.")
         else:
             self.qoute = qoute
         
         if not qoute:
             self.c = self._call1
-        elif not openings + closures:
+        elif not any(openings + closures):
             self.c = self._call2
         else:
-            # TODO: The regex below needs to be constructed dynamically depending on the inputs.
-            self.re = re.compile("([\d\w\s\u4e00-\u9fff]+)(?=,|$)|((?<=\A)|(?<=,))(?=,|$)|(\(.+\)|\".+\")", "gmu") # <-- Disclaimer: Audrius wrote this.
-            self.c = self._call3
-
+            try:
+                # TODO: The regex below needs to be constructed dynamically depending on the inputs.
+                self.re = re.compile("([\d\w\s\u4e00-\u9fff]+)(?=,|$)|((?<=\A)|(?<=,))(?=,|$)|(\(.+\)|\".+\")", "gmu") # <-- Disclaimer: Audrius wrote this.
+                self.c = self._call3
+            except TypeError:
+                self.c = self._call3_slow
+            
     def __call__(self,s):
         return self.c(s)
        
@@ -143,40 +146,44 @@ class TextEscape(object):
                 continue
             if c == self.delimiter:
                 word, s = s[:ix], s[ix+self._delimiter_length:]
+                word = word.lstrip(self.qoute).rstrip(self.qoute)
                 words.append(word)
                 ix = -1
             ix+=1
         if s:
+            s=s.lstrip(self.qoute).rstrip(self.qoute)
             words.append(s)
         return words
 
     def _call3(self, s):  # looks for qoutes, openings and closures.
         return self.re.match(s)  # TODO - TEST!
-        # words = []
-        # qoute = False
-        # ix,depth = 0,0
-        # while ix < len(s):  
-        #     c = s[ix]
+    
+    def _call3_slow(self, s):
+        words = []
+        qoute = False
+        ix,depth = 0,0
+        while ix < len(s):  
+            c = s[ix]
 
-        #     if c == self.qoute:
-        #         qoute = not qoute
+            if c == self.qoute:
+                qoute = not qoute
 
-        #     if qoute:
-        #         ix+=1
-        #         continue
+            if qoute:
+                ix+=1
+                continue
 
-        #     if depth == 0 and c == self.delimiter:
-        #         word, s = s[:ix], s[ix+self._delimiter_length:]
-        #         words.append(word)
-        #         ix = -1
-        #     elif c in self.openings:
-        #         depth += 1
-        #     elif c in self.closures:
-        #         depth -= 1
-        #     else:
-        #         pass
-        #     ix += 1
+            if depth == 0 and c == self.delimiter:
+                word, s = s[:ix], s[ix+self._delimiter_length:]
+                words.append(word)
+                ix = -1
+            elif c in self.openings:
+                depth += 1
+            elif c in self.closures:
+                depth -= 1
+            else:
+                pass
+            ix += 1
 
-        # if s:
-        #     words.append(s)
-        # return words
+        if s:
+            words.append(s)
+        return words
