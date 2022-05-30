@@ -1816,8 +1816,6 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
             "text_escape_openings":'', 
             "text_escape_closures":'',
             "encoding":encoding,
-            "start":start,
-            "limit":limit
         }
 
     tasks = []
@@ -1884,14 +1882,14 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
                 parts.clear()
                 tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table')}} ))
 
-            if parts and ix < start + limit:  # any remaining parts at the end of the loop.
-                p = path.parent / (path.stem + f'{ix}' + path.suffix)
-                with p.open('w', encoding='utf-8') as fo:
-                    parts.insert(0, header)
-                    fo.write("".join(parts))
-                parts.clear()            
-                config.update({"source":str(p), "table_key":mem.new_id('/table')})
-                tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table')}} ))
+        if parts and ix < start + limit:  # any remaining parts at the end of the loop.
+            p = path.parent / (path.stem + f'{ix}' + path.suffix)
+            with p.open('w', encoding='utf-8') as fo:
+                parts.insert(0, header)
+                fo.write("".join(parts))
+            parts.clear()            
+            config.update({"source":str(p), "table_key":mem.new_id('/table')})
+            tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table')}} ))
     
     # execute the tasks
     with TaskManager(cpu_count=min(psutil.cpu_count(), n_tasks)) as tm:
