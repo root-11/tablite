@@ -3,6 +3,7 @@ import pathlib
 import random
 import json
 import time
+import sys
 
 import operator
 import warnings
@@ -551,7 +552,7 @@ class Table(object):
     @classmethod
     def import_file(cls, path, 
         import_as, newline='\n', text_qualifier=None,
-        delimiter=',', first_row_has_headers=True, columns=None, sheet=None):
+        delimiter=',', first_row_has_headers=True, columns=None, sheet=None, start=0, limit=sys.maxsize):
         """
         reads path and imports 1 or more tables as hdf5
 
@@ -569,6 +570,9 @@ class Table(object):
             sheets not found excess names are ignored.
             filenames will be {path}+{sheet}.h5
         
+        start: the first line to be read.
+        limit: the number of lines to be read from start
+
         (*) required, (+) optional, (1) csv, (2) xlsx, (3) txt, (4) h5
 
         TABLES FROM IMPORTED FILES ARE IMMUTABLE.
@@ -597,7 +601,9 @@ class Table(object):
             'newline': newline,
             'first_row_has_headers': first_row_has_headers,
             'text_qualifier': text_qualifier,
-            'sheet': sheet
+            'sheet': sheet,
+            'start': start,
+            'limit': limit
         }
         jsn_str = json.dumps(config)
         for table_key, jsnb in mem.get_imported_tables().items():
@@ -1685,7 +1691,7 @@ def merge(source, mask, filter_type, slice_):
     return true.address, false.address   
 
 
-def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, **kwargs):
+def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
     """
     returns Table(s) from excel path
 
@@ -1699,6 +1705,11 @@ def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, **k
         raise ValueError(f"No sheet_name declared: \navailable sheets:\n{[s.name for s in book]}")
     elif sheet not in {s.name for s in book}:
         raise ValueError(f"sheet not found: {sheet}")
+    
+    if not isinstance(start, int) and start >= 0:
+        raise ValueError("expected start as an integer >=0")
+    if not isinstance(limit, int) and limit < 0:
+        raise ValueError("expected limit as integer > 0")
 
     # import all sheets or a subset
     for sheet in book:
@@ -1706,25 +1717,26 @@ def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, **k
             continue
         else:
             break
+    assert sheet.name == sheet, "sheet not found."
+
     config = kwargs.copy()
-    config.update({"first_row_has_headers":first_row_has_headers, "sheet":sheet, "columns":columns})
-    t = Table(save=True, config=json.dumps(config))
+    config.update({"first_row_has_headers":first_row_has_headers, "sheet":sheet, "columns":columns, 'start':start, 'limit':limit})
     for idx, column in enumerate(sheet.columns(), 1):
         
         if first_row_has_headers:
-            header, start_row_pos = str(column[0]), 1
+            header, start_row_pos = str(column[0]), max(1, start)
         else:
-            header, start_row_pos = f"_{idx}", 0
+            header, start_row_pos = f"_{idx}", max(0,start)
 
         if columns is not None:
             if header not in columns:
                 continue
 
-        t[header] = [v for v in column[start_row_pos:]]
+        t[header] = [v for v in column[start_row_pos:start_row_pos+limit]]
     return t
 
 
-def ods_reader(path, first_row_has_headers=True, sheet=None, columns=None, **kwargs):
+def ods_reader(path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
     """
     returns Table from .ODS
 
@@ -1744,8 +1756,13 @@ def ods_reader(path, first_row_has_headers=True, sheet=None, columns=None, **kwa
         else:
             break
     
+    if not isinstance(start, int) and start >= 0:
+        raise ValueError("expected start as an integer >=0")
+    if not isinstance(limit, int) and limit < 0:
+        raise ValueError("expected limit as integer > 0")
+
     config = kwargs.copy()
-    config.update({"first_row_has_headers":first_row_has_headers, "sheet":sheet, "columns":columns})
+    config.update({"first_row_has_headers":first_row_has_headers, "sheet":sheet, "columns":columns, 'start':start, 'limit':limit})
     t = Table(save=True, config=json.dumps(config))
     for ix, value in enumerate(data[0]):
         if first_row_has_headers:
@@ -1757,12 +1774,12 @@ def ods_reader(path, first_row_has_headers=True, sheet=None, columns=None, **kwa
             if header not in columns:
                 continue    
 
-        t[header] = [row[ix] for row in data[start_row_pos:] if len(row) > ix]
+        t[header] = [row[ix] for row in data[start_row_pos:start_row_pos+limit] if len(row) > ix]
     return t
 
 
 def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', 
-    first_row_has_headers=True, columns=None, **kwargs):
+    first_row_has_headers=True, columns=None, start=0, limit=sys.maxsize, **kwargs):
     """
     **kwargs are excess arguments that are ignored.
     """
@@ -1799,6 +1816,8 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
             "text_escape_openings":'', 
             "text_escape_closures":'',
             "encoding":encoding,
+            "start":start,
+            "limit":limit
         }
 
     tasks = []
@@ -1836,34 +1855,36 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
                 if index not in range(len(headers)):
                     raise IndexError(f"{index} out of range({len(headers)})")
 
+        if not isinstance(start, int) and start >= 0:
+            raise ValueError("expected start as an integer >= 0")
+        if not isinstance(limit, int) and limit < 0:
+            raise ValueError("expected limit as integer > 0")
+
         newlines = sum(1 for _ in fi)
         fi.seek(0)
         bytes_per_line = file_length / newlines
         lines_per_task = math.ceil(mem_per_task / bytes_per_line)
 
-        
-        if newlines < lines_per_task:  # there is only one task.
-            tasks.append(Task( text_reader_task, **{**config, **{"source":str(path), "table_key":mem.new_id('/table')}} ))
-            unlink_after_completion = False  # do not delete the source after completion.
-        else:  # there are multiple tasks.
-            unlink_after_completion = True  # delete the tmp sources after completion.
+        parts = []
+        for ix, line in enumerate(fi):
+            if ix == 0:
+                header = line
+                continue
+            if ix < start:
+                continue
+            if ix > start+limit:
+                break
 
-            parts = []
-            for ix, line in enumerate(fi):
-                if ix == 0:
-                    header = line
-                    continue
+            parts.append(line)
+            if ix % lines_per_task == 0:
+                p = path.parent / (path.stem + f'{ix}' + path.suffix)
+                with p.open('w', encoding='utf-8') as fo:
+                    parts.insert(0, header)
+                    fo.write("".join(parts))
+                parts.clear()
+                tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table')}} ))
 
-                parts.append(line)
-                if ix % lines_per_task == 0:
-                    p = path.parent / (path.stem + f'{ix}' + path.suffix)
-                    with p.open('w', encoding='utf-8') as fo:
-                        parts.insert(0, header)
-                        fo.write("".join(parts))
-                    parts.clear()
-                    tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table')}} ))
-
-            if parts:  # any remaining parts at the end of the loop.
+            if parts and ix < start + limit:  # any remaining parts at the end of the loop.
                 p = path.parent / (path.stem + f'{ix}' + path.suffix)
                 with p.open('w', encoding='utf-8') as fo:
                     parts.insert(0, header)
@@ -1876,16 +1897,18 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
     with TaskManager(cpu_count=min(psutil.cpu_count(), n_tasks)) as tm:
         errors = tm.execute(tasks)   # I expects a list of None's if everything is ok.
         if any(errors):
-            for err in errors:
+            e = []
+            for ix, err in enumerate(errors):
                 if err is not None:
-                    print(err)
-            raise Exception()
+                    e.append("-" * 19)
+                    e.append(f"Error in task {ix}:")
+                    e.append(err)
+            raise Exception("\n".join(e))
     
     # clean up the files
-    if unlink_after_completion:
-        for task in tasks:
-            tmp = pathlib.Path(task.kwargs['source'])
-            tmp.unlink()
+    for task in tasks:
+        tmp = pathlib.Path(task.kwargs['source'])
+        tmp.unlink()
 
     # consolidate the task results
     t = None
@@ -1941,7 +1964,6 @@ def text_reader_task(source, destination, table_key, columns,
 
     # declare CSV dialect.
     text_escape = TextEscape(text_escape_openings, text_escape_closures, qoute=qoute, delimiter=delimiter)
-
 
     with source.open('r', encoding=encoding) as fi:
         for line in fi:
