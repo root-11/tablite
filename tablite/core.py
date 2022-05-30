@@ -1548,7 +1548,7 @@ class Column(object):
         v,c = self.histogram()
         mean, mode, median, m0, total, cN, err =  0, None, None, -1, 0, sum(c), 1
         cnt,mn,c = 0,0,0.0
-        iqr_low, iqr_high, A,B = 0,0,0,0
+        iqr_low, iqr_high = 0,0
 
         for vx, cx in zip(v,c):
             if vx is None:
