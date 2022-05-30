@@ -217,32 +217,36 @@ def test_filereader_gdocsc1ods():
 def test_filereader_gdocs1xlsx():
     path = Path(__file__).parent / "data" / 'gdocs1.xlsx'
     assert path.exists()
-    table = list(file_reader(path))[0]
-    table.show(slice(0, 10))
+    sheet1 = Table.import_file(path, import_as='xlsx', sheet='Sheet1')
+    sheet1.show(slice(0, 10))
 
-    gdocs1xlsx = Table(filename=path.name, import_as='xlsx', sheet_name='Sheet1')
-    for float_type in list('abcdef'):
-        gdocs1xlsx.add_column(float_type, int)
-
-    assert table.compare(gdocs1xlsx), table.compare(gdocs1xlsx)
-    assert len(table) == 45
+    for name in sheet1.columns:
+        sheet1[name] = DataTypes.guess(sheet1[name])
+        assert sheet1[name].types() == {int:45}
+    assert len(sheet1) == 45
 
 
 def test_filereader_utf8csv():
     path = Path(__file__).parent / "data" / 'utf8_test.csv'
     assert path.exists()
-    table = list(file_reader(path, sep=';'))[0]
+
+    columns = ["Item","Materiál","Objem","Jednotka objemu","Free Inv Pcs"]
+    table = Table.import_file(path, import_as='csv', delimiter=';', columns={k:'f' for k in columns}, text_qualifier='"')
     table.show(slice(0, 10))
-    table.show(slice(-15))
+    table.show(slice(-15,None))
 
-    book1_csv = Table(filename=path.name)
-    book1_csv.add_column('Item', int)
-    book1_csv.add_column('Materiál', str)
-    book1_csv.add_column('Objem', float)
-    book1_csv.add_column('Jednotka objemu', str)
-    book1_csv.add_column('Free Inv Pcs', int)
+    types = {
+        'Item': int,
+        'Materiál': str,
+        'Objem': float,
+        'Jednotka objemu': str,
+        'Free Inv Pcs': int
+    }
 
-    assert table.compare(book1_csv), table.compare(book1_csv)
+    for name in table.columns:
+        table[name] = DataTypes.guess(table[name])
+        assert table[name].types() == {types[name]: 99}
+
     assert len(table) == 99, len(table)
 
 
