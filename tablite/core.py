@@ -1706,9 +1706,9 @@ def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, sta
     elif sheet not in {s.name for s in book}:
         raise ValueError(f"sheet not found: {sheet}")
     
-    if not isinstance(start, int) and start >= 0:
+    if not (isinstance(start, int) and start >= 0):
         raise ValueError("expected start as an integer >=0")
-    if not isinstance(limit, int) and limit < 0:
+    if not (isinstance(limit, int) and limit > 0):
         raise ValueError("expected limit as integer > 0")
 
     # import all sheets or a subset
@@ -1756,9 +1756,9 @@ def ods_reader(path, first_row_has_headers=True, sheet=None, columns=None, start
         else:
             break
     
-    if not isinstance(start, int) and start >= 0:
+    if not (isinstance(start, int) and start >= 0):
         raise ValueError("expected start as an integer >=0")
-    if not isinstance(limit, int) and limit < 0:
+    if not (isinstance(limit, int) and limit > 0):
         raise ValueError("expected limit as integer > 0")
 
     config = kwargs.copy()
@@ -1837,6 +1837,7 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
         # furthermore fi.tell() will not tell us which character we a looking at.
         # so the only option left is to read the file and split it in workable chunks.
         for line in fi:
+            header_line = line
             line = line.rstrip('\n')
             break  # break on first
         fi.seek(0)
@@ -1848,14 +1849,15 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
             for name in columns:
                 if name not in headers:
                     raise ValueError(f"column not found: {name}")
-        else:
+        else: # no headers.
             for index in columns:
                 if index not in range(len(headers)):
                     raise IndexError(f"{index} out of range({len(headers)})")
+            header_line = delimiter.join(str(i) for i in range(len(headers)))
 
-        if not isinstance(start, int) and start >= 0:
+        if not (isinstance(start, int) and start >= 0):
             raise ValueError("expected start as an integer >= 0")
-        if not isinstance(limit, int) and limit < 0:
+        if not (isinstance(limit, int) and limit > 0):
             raise ValueError("expected limit as integer > 0")
 
         newlines = sum(1 for _ in fi)
@@ -1863,31 +1865,38 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
         bytes_per_line = file_length / newlines
         lines_per_task = math.ceil(mem_per_task / bytes_per_line)
 
+        if newlines <= start + (1 if first_row_has_headers else 0):  # Then start > end.
+            t = Table()
+            t.add_columns(*list(columns.keys()))
+            t.save = True
+            return t
+
         parts = []
-        for ix, line in enumerate(fi):
-            if ix == 0:
-                header = line
-                continue
+        assert header_line != ""
+
+        for ix, line in enumerate(fi, start=(-1 if first_row_has_headers else 0) ):
             if ix < start:
+                # ix is -1 if the first row has headers, but header_line already has the first line.
+                # ix is 0 if there are no headers, and if start is 0, the first row is added to parts.
                 continue
-            if ix > start+limit:
+            if ix >= start + limit:
                 break
 
             parts.append(line)
-            if ix % lines_per_task == 0:
+            if ix!=0 and ix % lines_per_task == 0:
                 p = path.parent / (path.stem + f'{ix}' + path.suffix)
                 with p.open('w', encoding='utf-8') as fo:
-                    parts.insert(0, header)
+                    parts.insert(0, header_line)
                     fo.write("".join(parts))
                 parts.clear()
                 tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table')}} ))
 
-        if parts and ix < start + limit:  # any remaining parts at the end of the loop.
+        if parts:  # any remaining parts at the end of the loop.
             p = path.parent / (path.stem + f'{ix}' + path.suffix)
             with p.open('w', encoding='utf-8') as fo:
-                parts.insert(0, header)
+                parts.insert(0, header_line)
                 fo.write("".join(parts))
-            parts.clear()            
+            parts.clear()
             config.update({"source":str(p), "table_key":mem.new_id('/table')})
             tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table')}} ))
     

@@ -143,17 +143,22 @@ def test_filereader_book1txt():
 def test_filereader_book1_txt_chunks():
     path = Path(__file__).parent / "data" / 'book1.txt'
     assert path.exists()
-    all_chunks = None
-    for table_chunk in file_reader(path, chunk_size=5, no_type_detection=True):
-        if all_chunks is None:
-            all_chunks = table_chunk
+    table1 = Table.import_file(path, import_as='csv', columns={n:'f' for n in ['a', 'b', 'c', 'd', 'e', 'f']}, delimiter='\t', text_qualifier=None)
+    start = 0
+    table2 = None
+    while True:
+        tmp = Table.import_file(path, import_as='csv', columns={n:'f' for n in ['a', 'b', 'c', 'd', 'e', 'f']}, delimiter='\t', text_qualifier=None, start=start, limit=5)
+        if len(tmp)==0:
+            break
+        start += len(tmp) 
+
+        if table2 is None:
+            table2 = tmp
         else:
-            all_chunks += table_chunk
-
-    ref_table = next(file_reader(path, no_type_detection=True))
-
-    assert ref_table == all_chunks
-
+            table2 += tmp
+        
+    assert table1 == table2
+        
 
 def test_filereader_book1_txt_chunks_and_offset():
     path = Path(__file__).parent / "data" / 'book1.txt'
