@@ -8,6 +8,7 @@ import itertools
 import operator
 import warnings
 import logging
+import statistics
 from  multiprocessing import shared_memory
 
 logging.getLogger('lml').propagate = False
@@ -467,8 +468,8 @@ class Table(object):
 
         elif len(self) < 20:
             t[tag] = [f"{i:,}" for i in range(len(self))]  # add rowcounts to copy 
-            for name in self.columns:
-                t[name] = self.columns[:]
+            for name,col in self._columns.items():
+                t[name] = col
 
         else:  # take first and last 7 rows.
             n = len(self)
@@ -1529,6 +1530,65 @@ class Column(object):
         """
         uarray, carray = np.unique(self.__getitem__(), return_counts=True)
         return uarray, carray
+
+    def statistics(self):
+        """
+        returns dict with:
+        - min (int/float, length of str, date)
+        - max (int/float, length of str, date)
+        - mean (int/float, length of str, date)
+        - median (int/float, length of str, date)
+        - stdev (int/float, length of str, date)
+        - mode (int/float, length of str, date)
+        - distinct (int/float, length of str, date)
+        - iqr (int/float, length of str, date)
+        - sum (int/float, length of str, date)
+        - histogram
+        """
+        v,c = self.histogram()
+        mean, mode, median, m0, total, cN, err =  0, None, None, -1, 0, sum(c), 1
+        cnt,mn,c = 0,0,0.0
+        iqr_low, iqr_high, A,B = 0,0,0,0
+
+        for vx, cx in zip(v,c):
+            if vx is None:
+                continue
+            c0+=cx
+
+            if c0 / total <= 1/4:
+                iqr_low = vx
+            if c0/total <=3/4:
+                iqr_high = vx
+
+            cnt += cx  # self.count += 1
+            dt = cx * (vx-mn) # dt = value - self.mean
+            mn += dt / cnt  # self.mean += dt / self.count
+            c += dt * (vx-mn)  #self.c += dt * (value - self.mean)
+
+            err = 1/2 - c0/cN if 1/2 - c0/cN < err else err
+            if abs(1/2 - c0/cN) < err:
+                err = c0/cN
+                median = vx
+            if cx > m0:
+                mode = vx
+            mean = vx*cx
+        
+        var = c/(cnt-1)
+        stdev = var**(1/2)
+        
+        d = {
+            'min': min(v),
+            'max': max(v),
+            'mean': mean / total,
+            'median': median,
+            'stdev': stdev,
+            'mode': mode,
+            'distinct': list(v),
+            'iqr': iqr_high-iqr_low,
+            'sum': total,
+            'histogram': [v,c]
+        }
+        return d
 
     def __add__(self, other):
         c = self.copy()
