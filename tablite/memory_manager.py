@@ -311,9 +311,9 @@ class GenericPage(object):
     _encoding = 'encoding'
     _MixedTypes = "O" # + _type_array
     _StringTypes = "U" # + _str
-    _SimpleTypes = "ld?"
+    _SimpleTypes = "ldq?"
 
-    # all simple types are:
+    # all simple types are listed in DataTypes.numpy_types
     # ---------------------
     # '?'  boolean
     # 'b'  (signed) byte

@@ -1,5 +1,5 @@
 from datetime import date, datetime, time, timedelta
-from collections import defaultdict, deque
+from collections import defaultdict
 import numpy as np
 
 
@@ -12,6 +12,7 @@ class DataTypes(object):
     date = date
     datetime = datetime
     time = time
+    # timedelta = timedelta  # TODO ?
 
     numeric_types = {int, float, date, time, datetime}
     digits = '1234567890'
@@ -343,7 +344,10 @@ class DataTypes(object):
         d = defaultdict(int)
         probability = Rank(DataTypes.types[:])
         
-        for ix, value in enumerate(values):
+        for value in values:
+            if hasattr(value, 'dtype'):
+                value = numpy_types[np.dtype(value).name](value)
+
             for dtype in probability:
                 try:
                     _ = DataTypes.infer(value,dtype)
@@ -366,6 +370,8 @@ class DataTypes(object):
         matches = [None for _ in values[0]]
         
         for ix, value in enumerate(values[0]):
+            if hasattr(value, 'dtype'):
+                value = numpy_types[np.dtype(value).name](value)
             for dtype in probability:
                 try:
                     matches[ix] = DataTypes.infer(value,dtype)
@@ -640,7 +646,7 @@ class Rank(object):
 
         if ix > 0:
             p = self.items_list
-            while r[ix] > r[ix-1] and ix >0:
+            while r[ix] > r[ix-1] and ix >0:  # use a simple bubble sort to maintain rank
                 r[ix], r[ix-1] = r[ix-1], r[ix]
                 p[ix], p[ix-1] = p[ix-1], p[ix]
                 old = p[ix]
