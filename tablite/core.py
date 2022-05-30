@@ -1719,8 +1719,8 @@ def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, sta
             break
     assert sheet.name == sheet, "sheet not found."
 
-    config = kwargs.copy()
-    config.update({"first_row_has_headers":first_row_has_headers, "sheet":sheet, "columns":columns, 'start':start, 'limit':limit})
+    config = {**kwargs, **{"first_row_has_headers":first_row_has_headers, "sheet":sheet, "columns":columns, 'start':start, 'limit':limit}}
+    t = Table(save=True, config=json.dumps(config))
     for idx, column in enumerate(sheet.columns(), 1):
         
         if first_row_has_headers:
@@ -1742,8 +1742,6 @@ def ods_reader(path, first_row_has_headers=True, sheet=None, columns=None, start
 
     **kwargs are excess arguments that are ignored.
     """
-    if not isinstance(path, pathlib.Path):
-        raise ValueError(f"expected pathlib.Path, got {type(path)}")
     sheets = pyexcel.get_book_dict(file_name=str(path))
 
     if sheet is None or sheet not in sheets:
@@ -1761,8 +1759,7 @@ def ods_reader(path, first_row_has_headers=True, sheet=None, columns=None, start
     if not (isinstance(limit, int) and limit > 0):
         raise ValueError("expected limit as integer > 0")
 
-    config = kwargs.copy()
-    config.update({"first_row_has_headers":first_row_has_headers, "sheet":sheet, "columns":columns, 'start':start, 'limit':limit})
+    config = {**kwargs, **{"first_row_has_headers":first_row_has_headers, "sheet":sheet, "columns":columns, 'start':start, 'limit':limit}}
     t = Table(save=True, config=json.dumps(config))
     for ix, value in enumerate(data[0]):
         if first_row_has_headers:

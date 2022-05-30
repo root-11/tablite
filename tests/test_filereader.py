@@ -163,52 +163,55 @@ def test_filereader_book1_txt_chunks():
 def test_filereader_book1_txt_chunks_and_offset():
     path = Path(__file__).parent / "data" / 'book1.txt'
     assert path.exists()
-    all_chunks = None
-    for table_chunk in file_reader(path, start=2, chunk_size=5, limit=15, no_type_detection=True):
-        if all_chunks is None:
-            all_chunks = table_chunk
+
+    start = 2
+
+    table1 = Table.import_file(path, import_as='csv', columns={n:'f' for n in ['a', 'b', 'c', 'd', 'e', 'f']}, delimiter='\t', text_qualifier=None,start=start)
+    
+    table2 = None
+    while True:
+        tmp = Table.import_file(path, import_as='csv', columns={n:'f' for n in ['a', 'b', 'c', 'd', 'e', 'f']}, delimiter='\t', text_qualifier=None, start=start, limit=5)
+        if len(tmp)==0:
+            break
+        start += len(tmp) 
+        if table2 is None:
+            table2 = tmp
         else:
-            all_chunks += table_chunk
-
-    ref_table = next(file_reader(path, start=2, limit=15, no_type_detection=True))
-
-    assert ref_table == all_chunks
+            table2 += tmp
+    
+    assert table1 == table2
 
 
 def test_filereader_gdocsc1tsv():
     path = Path(__file__).parent / "data" / 'gdocs1.tsv'
     assert path.exists()
-    table = list(file_reader(path))[0]
+    table = Table.import_file(path, import_as='csv', columns={n:'f' for n in ['a', 'b', 'c', 'd', 'e', 'f']}, text_qualifier=None, delimiter='\t')
     table.show(slice(0, 10))
-
-    book1_csv = Table(filename=path.name)
-    book1_csv.add_column('a', int)
-    for float_type in list('bcdef'):
-        book1_csv.add_column(float_type, float)
-
-    assert table.compare(book1_csv), table.compare(book1_csv)
     assert len(table) == 45
+    for name in table.columns:
+        table[name] = DataTypes.guess(table[name])
+    
+    assert table['a'].types() == {int:45}
+    for name in list('bcdef'):
+        assert table[name].types() == {float:45}
 
 
 def test_filereader_gdocsc1ods():
     path = Path(__file__).parent / "data" / 'gdocs1.ods'
     assert path.exists()
-    tables = file_reader(path)
 
-    sheet1 = Table(filename=path.name, sheet_name='Sheet1')
-    for int_type in list('abcdef'):
-        sheet1.add_column(int_type, int)
+    sheet1 = Table.import_file(path, import_as='ods', sheet='Sheet1')
+    for name in sheet1.columns:
+        sheet1[name] = DataTypes.guess(sheet1[name])
+        assert sheet1[name].types() == {int:45}
 
-    sheet2 = Table(filename=path.name, sheet_name='Sheet2')
-    sheet2.add_column('a', int)
-    for float_type in list('bcdef'):
-        sheet2.add_column(float_type, float)
-
-    sheets = [sheet1, sheet2]
-
-    for sheet, table in zip(sheets, tables):
-        table.compare(sheet)
-        assert len(table) == 45, table.show(blanks="")
+    sheet2 = Table.import_file(path, import_as='ods', sheet='Sheet2')
+    for name in sheet2.columns:
+        sheet2[name] = DataTypes.guess(sheet2[name])
+        if name == 'a':
+            assert sheet2[name].types() == {int:45}
+        else:
+            assert sheet2[name].types() == {float:45}
 
 
 def test_filereader_gdocs1xlsx():
@@ -217,7 +220,7 @@ def test_filereader_gdocs1xlsx():
     table = list(file_reader(path))[0]
     table.show(slice(0, 10))
 
-    gdocs1xlsx = Table(filename=path.name, sheet_name='Sheet1')
+    gdocs1xlsx = Table(filename=path.name, import_as='xlsx', sheet_name='Sheet1')
     for float_type in list('abcdef'):
         gdocs1xlsx.add_column(float_type, int)
 
