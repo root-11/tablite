@@ -4,7 +4,7 @@ import random
 import json
 import time
 import sys
-
+import itertools
 import operator
 import warnings
 import logging
@@ -450,29 +450,33 @@ class Table(object):
           - slice
 
         """ 
+        row_count_tags = ['#', '~', '*'] 
+        cols = set(self.columns)
+        for n,tag in itertools.product(range(1,6), row_count_tags):
+            if n*tag not in cols:
+                tag = n*tag
+                break
+
+        t = Table()
         if args:
             for arg in args:
                 if isinstance(arg, slice):
-                    t = self[arg]
-                    t.show()
+                    t[tag] = [f"{i:,}" for i in range(*arg.indices(len(self)))]  # add rowcounts as first column.
+                    for name,col in self._columns.items():
+                        t[name] = col[arg]  # copy to match slices
 
         elif len(self) < 20:
-            print(self.to_ascii(blanks))
-        else:
-            t,n = Table(), len(self)
-            row_count_tags = ['#', '~', '*'] 
-            rct = row_count_tags[:]
-            cols = set(self.columns)
-            for _ in range(5):
-                for ix,tag in enumerate(rct):
-                    if tag in cols:
-                        rct[ix] = tag + row_count_tags[ix]
-                    else:
-                        break
+            t[tag] = [f"{i:,}" for i in range(len(self))]  # add rowcounts to copy 
+            for name in self.columns:
+                t[name] = self.columns[:]
+
+        else:  # take first and last 7 rows.
+            n = len(self)
             t[tag] = [f"{i:,}" for i in range(7)] + ["..."] + [f"{i:,}" for i in range(n-7, n)]
             for name, col in self._columns.items():
                 t[name] = [i for i in col[:7]] + ["..."] + [i for i in col[-7:]] 
-            print(t.to_ascii(blanks=blanks,row_counts=tag))
+
+        print(t.to_ascii(blanks=blanks,row_counts=tag))
 
     def index(self, *args):
         cols = []
@@ -1697,13 +1701,11 @@ def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, sta
 
     **kwargs are excess arguments that are ignored.
     """
-    if not isinstance(path, pathlib.Path):
-        raise ValueError(f"expected pathlib.Path, got {type(path)}")
     book = pyexcel.get_book(file_name=str(path))
 
     if sheet is None:  # help the user.
         raise ValueError(f"No sheet_name declared: \navailable sheets:\n{[s.name for s in book]}")
-    elif sheet not in {s.name for s in book}:
+    elif sheet not in {ws.name for ws in book}:
         raise ValueError(f"sheet not found: {sheet}")
     
     if not (isinstance(start, int) and start >= 0):
@@ -1712,16 +1714,16 @@ def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, sta
         raise ValueError("expected limit as integer > 0")
 
     # import all sheets or a subset
-    for sheet in book:
-        if sheet.name != sheet:
+    for ws in book:
+        if ws.name != sheet:
             continue
         else:
             break
-    assert sheet.name == sheet, "sheet not found."
+    assert ws.name == sheet, "sheet not found."
 
     config = {**kwargs, **{"first_row_has_headers":first_row_has_headers, "sheet":sheet, "columns":columns, 'start':start, 'limit':limit}}
     t = Table(save=True, config=json.dumps(config))
-    for idx, column in enumerate(sheet.columns(), 1):
+    for idx, column in enumerate(ws.columns(), 1):
         
         if first_row_has_headers:
             header, start_row_pos = str(column[0]), max(1, start)
@@ -2019,6 +2021,7 @@ def text_reader_task(source, destination, table_key, columns,
 
 file_readers = {
     'xlsx': excel_reader,
+    'xls': excel_reader,
     'csv': text_reader,
     'txt': text_reader,
     'ods': ods_reader

@@ -174,7 +174,7 @@ class TextEscape(object):
 
             if depth == 0 and c == self.delimiter:
                 word, s = s[:ix], s[ix+self._delimiter_length:]
-                words.append(word)
+                words.append(word.rstrip(self.qoute).lstrip(self.qoute))
                 ix = -1
             elif c in self.openings:
                 depth += 1
@@ -185,5 +185,5 @@ class TextEscape(object):
             ix += 1
 
         if s:
-            words.append(s)
+            words.append(s.rstrip(self.qoute).lstrip(self.qoute))
         return words
