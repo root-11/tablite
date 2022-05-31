@@ -8,7 +8,7 @@ import itertools
 import operator
 import warnings
 import logging
-import statistics
+import datetime as dt
 from  multiprocessing import shared_memory
 
 logging.getLogger('lml').propagate = False
@@ -34,6 +34,7 @@ from itertools import chain, repeat
 
 from tablite.memory_manager import MemoryManager, Page
 from tablite.file_reader_utils import TextEscape
+from tablite.utils import summary_statistics
 
 
 mem = MemoryManager()
@@ -1545,50 +1546,7 @@ class Column(object):
         - sum (int/float, length of str, date)
         - histogram
         """
-        v,c = self.histogram()
-        mean, mode, median, m0, total, cN, err =  0, None, None, -1, 0, sum(c), 1
-        cnt,mn,c = 0,0,0.0
-        iqr_low, iqr_high = 0,0
-
-        for vx, cx in zip(v,c):
-            if vx is None:
-                continue
-            c0+=cx
-
-            if c0 / total <= 1/4:
-                iqr_low = vx
-            if c0/total <=3/4:
-                iqr_high = vx
-
-            cnt += cx  # self.count += 1
-            dt = cx * (vx-mn) # dt = value - self.mean
-            mn += dt / cnt  # self.mean += dt / self.count
-            c += dt * (vx-mn)  #self.c += dt * (value - self.mean)
-
-            err = 1/2 - c0/cN if 1/2 - c0/cN < err else err
-            if abs(1/2 - c0/cN) < err:
-                err = c0/cN
-                median = vx
-            if cx > m0:
-                mode = vx
-            mean = vx*cx
-        
-        var = c/(cnt-1)
-        stdev = var**(1/2)
-        
-        d = {
-            'min': min(v),
-            'max': max(v),
-            'mean': mean / total,
-            'median': median,
-            'stdev': stdev,
-            'mode': mode,
-            'distinct': list(v),
-            'iqr': iqr_high-iqr_low,
-            'sum': total,
-            'histogram': [v,c]
-        }
-        return d
+        return summary_statistics(self.histogram())
 
     def __add__(self, other):
         c = self.copy()
