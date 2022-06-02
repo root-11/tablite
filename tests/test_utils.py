@@ -1,5 +1,7 @@
 from tablite.utils import intercept, summary_statistics
 import statistics
+from random import randint
+from datetime import date,time,datetime
 from itertools import chain
 
 def test_range_intercept():
@@ -95,3 +97,116 @@ def test_summary_statistics_odd_ints_equal():
     assert d['iqr'] == high-low
     assert d['sum'] == sum(L)
 
+
+def test_summary_statistics_min_data():
+    V,C  = [1], [2]  # Value, Count
+    L = list(chain(*([v]*c for v,c in zip(V,C))))
+    
+    d = summary_statistics(V,C)
+    assert d['min'] == min(L)
+    assert d['max'] == max(L)
+    assert d['mean'] == statistics.mean(L)
+    assert d['median'] == statistics.median(L)
+    assert d['stdev'] == statistics.stdev(L)
+    assert d['mode'] == statistics.mode(L)
+    assert d['distinct'] == len(V)
+    low,mid,high = statistics.quantiles(L,method='inclusive')
+    assert d['iqr'] == high-low
+    assert d['sum'] == sum(L)
+
+
+def test_summary_statistics_min_data2():
+    V,C  = [1], [1]  # Value, Count
+    L = list(chain(*([v]*c for v,c in zip(V,C))))
+    
+    d = summary_statistics(V,C)
+    assert d['min'] == min(L)
+    assert d['max'] == max(L)
+    assert d['mean'] == statistics.mean(L)
+    assert d['median'] == statistics.median(L)
+    assert d['mode'] == statistics.mode(L)
+    assert d['distinct'] == len(V)
+    assert d['sum'] == sum(L)
+
+
+def test_summary_statistics_even_floats():
+    V,C  = [1.1,2.2,3.3,4.4], [2,3,4,5]  # Value, Count
+    L = list(chain(*([v]*c for v,c in zip(V,C))))
+    
+    d = summary_statistics(V,C)
+    assert d['min'] == min(L)
+    assert d['max'] == max(L)
+    assert d['mean'] == statistics.mean(L)
+    assert d['median'] == statistics.median(L)
+    assert d['stdev'] == statistics.stdev(L)
+    assert d['mode'] == statistics.mode(L)
+    assert d['distinct'] == len(V)
+    low,mid,high = statistics.quantiles(L)
+    assert d['iqr'] == high-low
+    assert d['sum'] == sum(L)
+
+
+def test_summary_statistics_even_strings():
+    V,C  = ["a","bb","ccc","dddd"], [2, 3, 4, 5]  # Value, Count
+
+    d = summary_statistics(V,C)
+    assert d['min'] == "1 characters"
+    assert d['max'] == "4 characters"
+    assert d['mean'] == '2.857142857142857 characters'
+    assert d['median'] == '3 characters'
+    assert d['stdev'] == '1.0994504121565505 characters'
+    assert d['mode'] == '4 characters'
+    assert d['distinct'] == len(V)
+    assert d['iqr'] == '2 characters'
+    assert d['sum'] == '40 characters'
+
+
+def test_summary_statistics_mixed_most_floats():
+    V,C  = ["a",None,1,1.1], [2, 3, 4, 5]  # Value, Count
+    L = list(chain(*([v]*c for v,c in zip(V,C))))
+    
+    d = summary_statistics(V,C)
+    assert d['min'] == 1.1
+    assert d['max'] == 1.1
+    assert d['mean'] == 1.1
+    assert d['median'] == 1.1
+    assert d['stdev'] == 0.0
+    assert d['mode'] == 1.1
+    assert d['distinct'] == len(V)
+    # low,mid,high = statistics.quantiles(L)
+    assert d['iqr'] == 0.0
+    assert d['sum'] == 5.5
+
+
+def test_summary_statistics_datetimes():
+    V = [datetime(1999,12,i,23,59,59,999999) for i in range(1,5)]
+    C = [2,3,4,5]  # Value, Count
+    L = list(chain(*([v]*c for v,c in zip(V,C))))
+    
+    d = summary_statistics(V,C)
+    assert d['min'] == min(L)
+    assert d['max'] == max(L)
+    assert d['mean'] == datetime(1999, 12, 3, 20, 34, 17, 142856)
+    assert d['median'] == datetime(1999, 12, 3, 23, 59, 59, 999999)
+    assert d['stdev'] == '1.0994504121563666 days'
+    assert d['mode'] == datetime(1999, 12, 4, 23, 59, 59, 999999)
+    assert d['distinct'] == len(V)
+    assert d['iqr'] == '2.0 days'
+    assert d['sum'] == '153003.99999999985 days'
+
+
+def test_summary_statistics_mixed_types():
+    V = ["a", None, datetime(1999,12,12,23,59,59,999999), date(2045,12,12), time(12,0,0,0), 3.1459, True,False]
+    C = [5, 5, 4, 3, 1, 3, 5, 1]  # Value, Count
+    L = list(chain(*([v]*c for v,c in zip(V,C))))
+    
+    d = summary_statistics(V,C)
+    assert d['min'] == False
+    assert d['max'] == True
+    assert d['mean'] == 0.8333333333333334  # 5/6 True
+    assert d['median'] == True
+    assert d['stdev'] == 0.40824829046386296
+    assert d['mode'] == True
+    assert d['distinct'] == len(V)
+    assert d['iqr'] == 0  # iqr high = True , iqr low = True, so True-True becomes 1-1 = 0.
+    assert d['sum'] == 5
