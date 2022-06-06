@@ -463,9 +463,13 @@ class Table(object):
         if args:
             for arg in args:
                 if isinstance(arg, slice):
-                    t[tag] = [f"{i:,}" for i in range(*arg.indices(len(self)))]  # add rowcounts as first column.
-                    for name,col in self._columns.items():
-                        t[name] = col[arg]  # copy to match slices
+                    ro = range(*arg.indices(len(self)))
+                    if len(ro)!=0:
+                        t[tag] = [f"{i:,}" for i in ro]  # add rowcounts as first column.
+                        for name,col in self._columns.items():
+                            t[name] = col[arg]  # copy to match slices
+                    else:
+                        t.add_columns(*[tag] + self.columns)
 
         elif len(self) < 20:
             t[tag] = [f"{i:,}" for i in range(len(self))]  # add rowcounts to copy 
@@ -1906,7 +1910,7 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
                     parts.insert(0, header_line)
                     fo.write("".join(parts))
                 parts.clear()
-                tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table')}} ))
+                tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ))
 
         if parts:  # any remaining parts at the end of the loop.
             p = path.parent / (path.stem + f'{ix}' + path.suffix)
@@ -1915,7 +1919,7 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
                 fo.write("".join(parts))
             parts.clear()
             config.update({"source":str(p), "table_key":mem.new_id('/table')})
-            tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table')}} ))
+            tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ))
     
     # execute the tasks
     with TaskManager(cpu_count=min(psutil.cpu_count(), n_tasks)) as tm:
