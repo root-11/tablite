@@ -253,49 +253,45 @@ def test_filereader_utf8csv():
 def test_filereader_utf16csv():
     path = Path(__file__).parent / "data" / 'utf16_test.csv'
     assert path.exists()
-    table = list(file_reader(path, sep=';'))[0]
+    col_names = ['"Item"', '"Materiál"', '"Objem"', '"Jednotka objemu"', '"Free Inv Pcs"']
+    table = Table.import_file(path, import_as='csv', delimiter=';', columns={k:'f' for k in col_names})
     table.show(slice(0, 10))
+    # +===+============+=======================================+============+=================+==============+
+    # | # |   "Item"   |               "Materiál"              |  "Objem"   |"Jednotka objemu"|"Free Inv Pcs"|
+    # |row|    str     |                  str                  |    str     |       str       |     str      |
+    # +---+------------+---------------------------------------+------------+-----------------+--------------+
+    # |0  |"1000028"   |"SL 70"                                |"1.248,000" |"CM3"            |21            |
+    # |1  |"1000031"   |"Karibik 12,5 kg"                      |"41.440,000"|"CM3"            |2             |
+    # |2  |"1000036"   |"IH 26"                                |"6.974,100" |"CM3"            |2             |
+    # |3  |"1000062"   |"IL 35"                                |"6.557,300" |"CM3"            |15            |
+    # |4  |"1000078"   |"Projektor Tomáš se zvukem"            |"8.742,400" |"CM3"            |11            |
+    # |5  |"1000081"   |"FC 48"                                |"2.667,600" |"CM3"            |29            |
+    # |6  |"1000087004"|"HG Ar Racer Tank Blk Met Sil L"       |"2.552,000" |"CM3"            |2             |
+    # |7  |"1000091"   |"MG 520"                               |"18.581,000"|"CM3"            |5             |
+    # |8  |"1000094001"|"HG Ar Racer Tank Abs Green Met Sil XS"|"1.386,000" |"CM3"            |4             |
+    # |9  |"1000094002"|"HG Ar Racer Tank Abs Green Met Sil S" |"1.216,000" |"CM3"            |7             |
+    # +===+============+=======================================+============+=================+==============+
     table.show(slice(-15))
-
-    book1_csv = Table(filename=path.name)
-    book1_csv.add_column('Item', int)
-    book1_csv.add_column('Materiál', str)
-    book1_csv.add_column('Objem', float)
-    book1_csv.add_column('Jednotka objemu', str)
-    book1_csv.add_column('Free Inv Pcs', int)
-
-    assert table.compare(book1_csv), table.compare(book1_csv)
     assert len(table) == 99, len(table)
 
 
 def test_filereader_win1251_encoding_csv():
     path = Path(__file__).parent / "data" / 'win1250_test.csv'
     assert path.exists()
-    table = list(file_reader(path, sep=';'))[0]
+    col_names = ['"Item"', '"Materiál"', '"Objem"', '"Jednotka objemu"', '"Free Inv Pcs"']
+    table = Table.import_file(path, import_as='csv', delimiter=';', columns={k:'f' for k in col_names})
     table.show(slice(0, 10))
-    table.show(slice(-15))
-
-    book1_csv = Table(filename=path.name)
-    book1_csv.add_column('Item', int)
-    book1_csv.add_column('Materiál', str)
-    book1_csv.add_column('Objem', float)
-    book1_csv.add_column('Jednotka objemu', str)
-    book1_csv.add_column('Free Inv Pcs', int)
-    assert table.compare(book1_csv), table.compare(book1_csv)
+    table.show(slice(None, -15))
     assert len(table) == 99, len(table)
 
 
 def test_filereader_utf8sig_encoding_csv():
     path = Path(__file__).parent / "data" / 'utf8sig.csv'
     assert path.exists()
-    table = list(file_reader(path, sep=','))[0]
+    col_names = ['432', '1']
+    table = Table.import_file(path, import_as='csv', delimiter=',', columns={k:'f' for k in col_names})
     table.show(slice(0, 10))
     table.show(slice(-15))
-
-    book1_csv = Table(filename=path.name)
-    book1_csv.add_column('432', int)
-    book1_csv.add_column('1', int)
-    assert table.compare(book1_csv), table.compare(book1_csv)
     assert len(table) == 2, len(table)
 
 
