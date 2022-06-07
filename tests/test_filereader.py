@@ -300,30 +300,13 @@ def test_filereader_saptxt():
     assert path.exists()
     # test part 1: split using user defined sequence.
     header = "    | Delivery |  Item|Pl.GI date|Route |SC|Ship-to   |SOrg.|Delivery quantity|SU| TO Number|Material    |Dest.act.qty.|BUn|Typ|Source Bin|Cty"
-    split_sequence = ["|"] * header.count('|')
-    table = list(file_reader(path, split_sequence=split_sequence))[0]
-    table.show(slice(5))
+    # split_sequence = ["|"] * header.count('|')
+    col_names = [w.strip(" ").rstrip(" ") for w in header.split("|")]
+    table = Table.import_file(path, delimiter="|", import_as='txt', columns={k:'f' for k in col_names if k!=""}, strip_leading_and_tailing_whitespace=True)
+    for name in table.columns:
+        table[name] = DataTypes.guess(table[name])
+    table.show()
 
-    sap_sample = Table(filename=path.name)
-    sap_sample.add_column('None', str, True)
-    sap_sample.add_column('Delivery', int, False)
-    sap_sample.add_column('Item', int, False)
-    sap_sample.add_column('Pl.GI date', date, False)
-    sap_sample.add_column('Route', str, False)
-    sap_sample.add_column('SC', str, False)
-    sap_sample.add_column('Ship-to', str, False)
-    sap_sample.add_column('SOrg.', str, False)
-    sap_sample.add_column('Delivery quantity', int, False)
-    sap_sample.add_column('SU', str, False)
-    sap_sample.add_column('TO Number', int, False)
-    sap_sample.add_column('Material', str, False)
-    sap_sample.add_column('Dest.act.qty.', int, False)
-    sap_sample.add_column('BUn', str, False)
-    sap_sample.add_column('Typ', str, False)
-    sap_sample.add_column('Source Bin', str, False)
-    sap_sample.add_column('Cty|', str, False)
-
-    assert table.compare(sap_sample)
     assert len(table) == 20, len(table)
 
 
