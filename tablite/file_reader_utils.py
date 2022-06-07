@@ -82,7 +82,7 @@ class TextEscape(object):
         list_of_words = text_escape(line)  # use the instance.
         ...
     """
-    def __init__(self, openings='({[', closures=']})', qoute='"', delimiter=','):
+    def __init__(self, openings='({[', closures=']})', qoute='"', delimiter=',', strip_leading_and_tailing_whitespace=False):
         """
         As an example, the Danes and Germans use " for inches and ' for feet, 
         so we will see data that contains nail (75 x 4 mm, 3" x 3/12"), so 
@@ -107,6 +107,7 @@ class TextEscape(object):
             raise TypeError(f"expected str, got {type(delimiter)}")
         self.delimiter = delimiter
         self._delimiter_length = len(delimiter)
+        self.strip_leading_and_tailing_whitespace= strip_leading_and_tailing_whitespace
         
         if qoute is None:
             pass
@@ -128,7 +129,10 @@ class TextEscape(object):
                 self.c = self._call3_slow
             
     def __call__(self,s):
-        return self.c(s)
+        s2 = self.c(s)
+        if self.strip_leading_and_tailing_whitespace:
+            s2 = [w.rstrip(" ").lstrip(" ") for w in s2]
+        return s2
        
     def _call1(self,s):  # just looks for delimiter.
         return s.split(self.delimiter)
