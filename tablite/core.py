@@ -405,10 +405,14 @@ class Table(object):
             d[name] = col.types()
         return d
 
-    def to_ascii(self, blanks=None, row_counts=None):
+    def to_ascii(self, blanks=None, row_counts=None,split_after=None):
         """
         enables viewing in terminals
         returns the table as ascii string
+
+        blanks: any stringable item.
+        row_counts: declares the column with row counts, so it is presented as the first column.
+        split_after: integer: inserts "..." to highlight split of rows
         """
         widths = {}
         column_types = {}
@@ -425,8 +429,8 @@ class Table(object):
                 column_types[name] = dt.__name__
             else:
                 column_types[name] = 'mixed'
-
-            widths[name] = max([len(column_types[name])] + [len(name)] + [len(str(v)) if not isinstance(v,str) else len(str(v)) for v in col])
+            dots = len("...") if split_after is not None else 0
+            widths[name] = max([len(column_types[name]), len(name), dots] + [len(str(v)) if not isinstance(v,str) else len(str(v)) for v in col])
 
         def adjust(v, length):
             if v is None:
@@ -441,8 +445,11 @@ class Table(object):
         s.append("|" + "|".join([n.center(widths[n], " ") for n in names]) + "|")
         s.append("|" + "|".join([column_types[n].center(widths[n], " ") for n in names]) + "|")
         s.append("+" + "+".join(["-" * widths[n] for n in names]) + "+")
-        for row in self.rows:
+        for ix, row in enumerate(self.rows):
             s.append("|" + "|".join([adjust(v, widths[n]) for v, n in zip(row, names)]) + "|")
+            if ix == split_after:
+                s.append("|" + "|".join([adjust("...", widths[n]) for _, n in zip(row, names)]) + "|")
+                
         s.append("+" + "+".join(["=" * widths[h] for h in names]) + "+")
         return "\n".join(s)
 
@@ -460,6 +467,7 @@ class Table(object):
                 break
 
         t = Table()
+        split_after = None
         if args:
             for arg in args:
                 if isinstance(arg, slice):
@@ -478,11 +486,12 @@ class Table(object):
 
         else:  # take first and last 7 rows.
             n = len(self)
-            t[tag] = [f"{i:,}" for i in range(7)] + ["..."] + [f"{i:,}" for i in range(n-7, n)]
+            split_after = 7
+            t[tag] = [f"{i:,}" for i in range(7)] + [f"{i:,}" for i in range(n-7, n)]
             for name, col in self._columns.items():
-                t[name] = [i for i in col[:7]] + ["..."] + [i for i in col[-7:]] 
+                t[name] = [i for i in col[:7]] + [i for i in col[-7:]] 
 
-        print(t.to_ascii(blanks=blanks,row_counts=tag))
+        print(t.to_ascii(blanks=blanks,row_counts=tag, split_after=split_after))
 
     def index(self, *args):
         cols = []
@@ -560,9 +569,9 @@ class Table(object):
         print(f"writing {path} to HDF5 done")
 
     @classmethod
-    def import_file(cls, path, 
-        import_as, newline='\n', text_qualifier=None,
-        delimiter=',', first_row_has_headers=True, columns=None, sheet=None, start=0, limit=sys.maxsize):
+    def import_file(cls, path,  import_as, 
+        newline='\n', text_qualifier=None,  delimiter=',', first_row_has_headers=True, columns=None, sheet=None, 
+        start=0, limit=sys.maxsize, strip_leading_and_tailing_whitespace=True):
         """
         reads path and imports 1 or more tables as hdf5
 
@@ -582,6 +591,7 @@ class Table(object):
         
         start: the first line to be read.
         limit: the number of lines to be read from start
+        strip_leading_and_tailing_whitespace: bool: default True. 
 
         (*) required, (+) optional, (1) csv, (2) xlsx, (3) txt, (4) h5
 
@@ -600,6 +610,9 @@ class Table(object):
         if reader is None:
             raise ValueError(f"{import_as} is not in list of supported reader:\n{list(file_readers.keys())}")
         
+        if not isinstance(strip_leading_and_tailing_whitespace, bool):
+            raise TypeError()
+        
         # At this point the import seems valid.
         # Now we check if the file already has been imported.
         config = {
@@ -613,7 +626,8 @@ class Table(object):
             'text_qualifier': text_qualifier,
             'sheet': sheet,
             'start': start,
-            'limit': limit
+            'limit': limit,
+            'strip_leading_and_tailing_whitespace': strip_leading_and_tailing_whitespace
         }
         jsn_str = json.dumps(config)
         for table_key, jsnb in mem.get_imported_tables().items():
@@ -1799,8 +1813,9 @@ def ods_reader(path, first_row_has_headers=True, sheet=None, columns=None, start
     return t
 
 
-def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', 
-    first_row_has_headers=True, columns=None, start=0, limit=sys.maxsize, **kwargs):
+def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_row_has_headers=True, 
+                columns=None, start=0, limit=sys.maxsize, 
+                strip_leading_and_tailing_whitespace=True, **kwargs):
     """
     **kwargs are excess arguments that are ignored.
     """
@@ -1824,7 +1839,7 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
         rawdata = fi.read(10000)
         encoding = chardet.detect(rawdata)['encoding']
     
-    text_escape = TextEscape(delimiter=delimiter, qoute=text_qualifier)  # configure t.e.
+    text_escape = TextEscape(delimiter=delimiter, qoute=text_qualifier, strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace)  # configure t.e.
 
     config = {
             "source":None,
@@ -1837,6 +1852,7 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
             "text_escape_openings":'', 
             "text_escape_closures":'',
             "encoding":encoding,
+            "strip_leading_and_tailing_whitespace":strip_leading_and_tailing_whitespace
         }
 
     tasks = []
@@ -1951,9 +1967,8 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',',
 
 
 def text_reader_task(source, destination, table_key, columns, 
-    newline, delimiter=',', qoute='"',
-    text_escape_openings='', text_escape_closures='',
-    encoding='utf-8', timeout=10.0):
+    newline, delimiter=',', qoute='"', text_escape_openings='', text_escape_closures='', 
+    strip_leading_and_tailing_whitespace=True, encoding='utf-8', timeout=10.0):
     """ PARALLEL TASK FUNCTION
     reads columnsname + path[start:limit] into hdf5.
 
@@ -1966,6 +1981,7 @@ def text_reader_task(source, destination, table_key, columns,
     delimiter: ',' ';' or '|'
     text_escape_openings: str: default: "({[ 
     text_escape_closures: str: default: ]})" 
+    strip_leading_and_tailing_whitespace: bool
 
     encoding: chardet encoding ('utf-8, 'ascii', ..., 'ISO-22022-CN')
     root: hdf5 root, cannot be the same as a column name.
@@ -1991,7 +2007,8 @@ def text_reader_task(source, destination, table_key, columns,
         raise ValueError()
 
     # declare CSV dialect.
-    text_escape = TextEscape(text_escape_openings, text_escape_closures, qoute=qoute, delimiter=delimiter)
+    text_escape = TextEscape(text_escape_openings, text_escape_closures, qoute=qoute, delimiter=delimiter, 
+                             strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace)
 
     with source.open('r', encoding=encoding) as fi:
         for line in fi:
