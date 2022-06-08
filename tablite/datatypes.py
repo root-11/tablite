@@ -594,6 +594,7 @@ def _get_numpy_types():
     #             pass
     # return d
     return {
+        "bool": bool,
         "bool_":bool,  #  ('?') -> <class 'bool'>
         "byte": int,  # ('b') -> <class 'int'>
         "bytes0": bytes,  #  ('S') -> <class 'bytes'>

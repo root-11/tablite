@@ -217,7 +217,7 @@ def test_filereader_gdocsc1ods():
 def test_filereader_gdocs1xlsx():
     path = Path(__file__).parent / "data" / 'gdocs1.xlsx'
     assert path.exists()
-    sheet1 = Table.import_file(path, import_as='xlsx', sheet='Sheet1')
+    sheet1 = Table.import_file(path, import_as='xlsx', sheet='Sheet1', columns={k:'f' for k in ['a', 'b', 'c', 'd', 'e', 'f']})
     sheet1.show(slice(0, 10))
 
     for name in sheet1.columns:
@@ -298,13 +298,15 @@ def test_filereader_utf8sig_encoding_csv():
 def test_filereader_saptxt():
     path = Path(__file__).parent / "data" / 'sap.txt'
     assert path.exists()
-    # test part 1: split using user defined sequence.
+    
     header = "    | Delivery |  Item|Pl.GI date|Route |SC|Ship-to   |SOrg.|Delivery quantity|SU| TO Number|Material    |Dest.act.qty.|BUn|Typ|Source Bin|Cty"
-    # split_sequence = ["|"] * header.count('|')
     col_names = [w.strip(" ").rstrip(" ") for w in header.split("|")]
+
     table = Table.import_file(path, delimiter="|", import_as='txt', columns={k:'f' for k in col_names if k!=""}, strip_leading_and_tailing_whitespace=True)
+    
     for name in table.columns:
         table[name] = DataTypes.guess(table[name])
+    
     table.show()
 
     assert len(table) == 20, len(table)
@@ -314,171 +316,171 @@ def test_filereader_book1xlsx():
     path = Path(__file__).parent / "data" / 'book1.xlsx'
     assert path.exists()
     start = process_time_ns()
-    tables = list(file_reader(path))
+    sheet1 = Table.import_file(path, import_as='xls', sheet='Sheet1', columns={k:'f' for k in ['a', 'b', 'c', 'd', 'e', 'f']})
+    sheet2 = Table.import_file(path, import_as='xls', columns={k:'f' for k in ['a', 'b', 'c', 'd', 'e', 'f']}, sheet='Sheet2 ')  # there's a deliberate white space at the end!)
     end = process_time_ns()
 
+    tables = [sheet1,sheet2]
     fields = sum(len(t) * len(t.columns) for t in tables)
     print("{:,} fields/seccond".format(round(1e9 * fields / max(1, end - start), 0)))
 
-    sheet1 = Table(filename=path.name, sheet_name='Sheet1')
-    for column_name in list('abcdef'):
-        sheet1.add_column(column_name, int, False)
+    for name in 'abcdef':
+        sheet1[name] = DataTypes.guess(sheet1[name])
+        assert sheet1[name].types() == {int: len(sheet1)}
 
-    sheet2 = Table(filename=path.name, sheet_name='Sheet2 ')  # there's a deliberate white space at the end!
-    sheet2.add_column('a', int, False)
-    for column_name in list('bcdef'):
-        sheet2.add_column(column_name, float, False)
-
-    books = [sheet1, sheet2]
-
-    for book, table in zip(books, tables):
-        table.show(slice(5))
-        assert table.compare(book)
-        assert len(table) == 45, len(table)
+    sheet2['a'] == DataTypes.guess(sheet2['a'])
+    assert sheet2['a'].types() == {int: len(sheet2)}
+    
+    for name in list('bcdef'):
+        sheet2[name] = DataTypes.guess(sheet2[name])
+        assert sheet2[name].types() == {float: len(sheet2)}
 
 
 def test_filereader_exceldatesxlsx():
     path = Path(__file__).parent / "data" / 'excel_dates.xlsx'
     assert path.exists()
-    table = list(file_reader(path))[0]
+    table = Table.import_file(path, import_as='xls', sheet='Sheet1', columns={k:'f' for k in ['Date', 'numeric value', 'string', 'bool']})
     table.show()
-
-    sheet1 = Table(filename=path.name, sheet_name='Sheet1')
-    sheet1.add_column('Date', datetime, False)
-    sheet1.add_column('numeric value', int, False)
-    sheet1.add_column('string', date, False)
-    sheet1.add_column('bool', bool, False)
-
-    assert table.compare(sheet1)
+    # +===+===================+=============+==========+=====+
+    # | # |        Date       |numeric value|  string  | bool|
+    # |row|      datetime     |     int     |   str    | bool|
+    # +---+-------------------+-------------+----------+-----+
+    # |0  |1920-01-01 00:00:00|            0|1920/01/01| True|
+    # |1  |2016-10-31 00:00:00|        42674|2016/10/31|False|
+    # +===+===================+=============+==========+=====+
     assert len(table) == 2, len(table)
+    assert table['Date'].types() == {datetime: len(table)}
+    assert table['numeric value'].types() == {int: len(table)}
+    assert table['bool'].types() == {bool: len(table)}
+
+    assert table['string'].types() == {str: len(table)}
+    table['string'] = DataTypes.guess(table['string'])
+    # table.show()
+    # +===+===================+=============+==========+=====+
+    # | # |        Date       |numeric value|  string  | bool|
+    # |row|      datetime     |     int     |   date   | bool|
+    # +---+-------------------+-------------+----------+-----+
+    # |0  |1920-01-01 00:00:00|            0|1920-01-01| True|
+    # |1  |2016-10-31 00:00:00|        42674|2016-10-31|False|
+    # +===+===================+=============+==========+=====+
+    assert table['string'].types() == {date:len(table)}
 
 
-def test_filereader_zipped():
-    path = Path(__file__).parent / 'data'
-    assert path.exists()
-    assert path.is_dir()
-    zipped = Path(__file__).parent / 'new.zip'
-    file_count = 0
-    file_names = []
-    with zipfile.ZipFile(zipped, 'w') as zipf:
-        for file in path.iterdir():
-            zipf.write(file)
-            file_count += 1
-            file_names.append(file.name)
+# def test_filereader_zipped():
+#     path = Path(__file__).parent / 'data'
+#     assert path.exists()
+#     assert path.is_dir()
+#     zipped = Path(__file__).parent / 'new.zip'
+#     file_count = 0
+#     file_names = []
+#     with zipfile.ZipFile(zipped, 'w') as zipf:
+#         for file in path.iterdir():
+#             zipf.write(file)
+#             file_count += 1
+#             file_names.append(file.name)
 
-    tables = list(file_reader(zipped))
-    assert len(tables) >= file_count
-    a, b = {t.metadata['filename'] for t in tables}, set(file_names)
-    assert a == b, a.difference(b).union(b.difference(a))
-    zipped.unlink()
+#     tables = list(file_reader(zipped))
+#     assert len(tables) >= file_count
+#     a, b = {t.metadata['filename'] for t in tables}, set(file_names)
+#     assert a == b, a.difference(b).union(b.difference(a))
+#     zipped.unlink()
 
 
-def test_all_on_disk():
-    Table.new_tables_use_disk = True
-    for k, v in sorted(globals().items()):
-        if k == 'test_all_on_disk':
-            continue
-        if k.startswith('test') and callable(v):
-            v()
-    Table.new_tables_use_disk = False
+# def test_all_on_disk():
+#     Table.new_tables_use_disk = True
+#     for k, v in sorted(globals().items()):
+#         if k == 'test_all_on_disk':
+#             continue
+#         if k.startswith('test') and callable(v):
+#             v()
+#     Table.new_tables_use_disk = False
 
 
 def test_filereader_gdocs1csv_no_header():
     path = Path(__file__).parent / "data" / 'gdocs1.csv'
     assert path.exists()
-    table = list(file_reader(path, has_headers=False))[0]
+    try:
+        table = Table.import_file(path, import_as='csv', first_row_has_headers=False)
+        assert False, "headers missing"
+    except ValueError:
+        assert True
+    table = Table.import_file(path, import_as='csv', first_row_has_headers=False, columns={str(n):'f' for n in [0, 1, 2, 3, 4, 5]})
     table.show(slice(0, 10))
-
-    book1_csv = Table(filename=path.name)
-    for idx, _ in enumerate(list('abcdef'), 1):
-        book1_csv.add_column(f"_{idx}", str)
-
-    assert table.compare(book1_csv), table.compare(book1_csv)
+    # +===+===+=============+=============+============+============+============+
+    # | # | 0 |      1      |      2      |     3      |     4      |     5      |
+    # |row|str|     str     |     str     |    str     |    str     |    str     |
+    # +---+---+-------------+-------------+------------+------------+------------+
+    # |0  |a  |b            |c            |d           |e           |f           |  <--- strings!
+    # |1  |1  |0.06060606061|0.09090909091|0.1212121212|0.1515151515|0.1818181818|
+    # |2  |2  |0.1212121212 |0.2424242424 |0.4848484848|0.9696969697|1.939393939 |
+    # |3  |3  |0.2424242424 |0.4848484848 |0.9696969697|1.939393939 |3.878787879 |
+    # |4  |4  |0.4848484848 |0.9696969697 |1.939393939 |3.878787879 |7.757575758 |
+    # |5  |5  |0.9696969697 |1.939393939  |3.878787879 |7.757575758 |15.51515152 |
+    # |6  |6  |1.939393939  |3.878787879  |7.757575758 |15.51515152 |31.03030303 |
+    # |7  |7  |3.878787879  |7.757575758  |15.51515152 |31.03030303 |62.06060606 |
+    # |8  |8  |7.757575758  |15.51515152  |31.03030303 |62.06060606 |124.1212121 |
+    # |9  |9  |15.51515152  |31.03030303  |62.06060606 |124.1212121 |248.2424242 |
+    # +===+===+=============+=============+============+============+============+
     assert len(table) == 46
+    assert table.types() == {str(i): {str: len(table)} for i in range(6)}
 
 
 def test_filereader_gdocs1xlsx_no_header():
     path = Path(__file__).parent / "data" / 'gdocs1.xlsx'
     assert path.exists()
-    table = list(file_reader(path, has_headers=False))[0]
-    table.show(slice(0, 10))
+    tables = []
+    for sheet in ('Sheet1', 'Sheet2', 'Sheet3'):
 
-    gdocs1xlsx = Table(filename=path.name, sheet_name='Sheet1')
-    for idx, _ in enumerate(list('abcdef'), 1):
-        gdocs1xlsx.add_column(f"_{idx}", str)
-
-    assert table.compare(gdocs1xlsx), table.compare(gdocs1xlsx)
-    assert len(table) == 46
-
-
-def test_filereader_gdocsc1ods_no_header():
-    path = Path(__file__).parent / "data" / 'gdocs1.ods'
-    assert path.exists()
-    tables = file_reader(path, has_headers=False)
-
-    sheet1 = Table(filename=path.name, sheet_name='Sheet1')
-    for idx, _ in enumerate(list('abcdef'), 1):
-        sheet1.add_column(f"_{idx}", str)
-
-    sheet2 = Table(filename=path.name, sheet_name='Sheet2')
-    for idx, _ in enumerate(list('abcdef'), 1):
-        sheet2.add_column(f"_{idx}", str)
-
-    sheets = [sheet1, sheet2]
-
-    for sheet, table in zip(sheets, tables):
+        table = Table.import_file(path, import_as='xls', sheet=sheet, first_row_has_headers=False, columns={str(n):'f' for n in [0, 1, 2, 3, 4, 5]})
         table.show(slice(0, 10))
-        table.compare(sheet)
-        assert len(table) == 46, table.show(blanks="")
-
-
-def test_filereader_gdocs1xlsx_import_single_sheet():
-    path = Path(__file__).parent / "data" / 'gdocs1.xlsx'
-    assert path.exists()
-
-    # all sheets
-    tables = list(file_reader(path, has_headers=False))
-    assert len(tables) == 2
-
-    # multiple sheets
-    tables = list(file_reader(path, has_headers=False, sheet_names=['Sheet1', 'Sheet2']))
-    assert len(tables) == 2
-
-    tables = list(file_reader(path, has_headers=False, sheet_names='Sheet2'))
-    assert len(tables) == 1
+        # +===+===+=============+=============+============+============+============+
+        # | # | 0 |      1      |      2      |     3      |     4      |     5      |
+        # |row|str|     str     |     str     |    str     |    str     |    str     |
+        # +---+---+-------------+-------------+------------+------------+------------+
+        # |0  |a  |b            |c            |d           |e           |f           |  <--- strings!
+        # |1  |1  |0.06060606061|0.09090909091|0.1212121212|0.1515151515|0.1818181818|
+        # |2  |2  |0.1212121212 |0.2424242424 |0.4848484848|0.9696969697|1.939393939 |
+        # |3  |3  |0.2424242424 |0.4848484848 |0.9696969697|1.939393939 |3.878787879 |
+        # |4  |4  |0.4848484848 |0.9696969697 |1.939393939 |3.878787879 |7.757575758 |
+        # |5  |5  |0.9696969697 |1.939393939  |3.878787879 |7.757575758 |15.51515152 |
+        # |6  |6  |1.939393939  |3.878787879  |7.757575758 |15.51515152 |31.03030303 |
+        # |7  |7  |3.878787879  |7.757575758  |15.51515152 |31.03030303 |62.06060606 |
+        # |8  |8  |7.757575758  |15.51515152  |31.03030303 |62.06060606 |124.1212121 |
+        # |9  |9  |15.51515152  |31.03030303  |62.06060606 |124.1212121 |248.2424242 |
+        # +===+===+=============+=============+============+============+============+
+        
+        if sheet == "Sheet1":
+            assert len(table) == 46
+            assert table.types() == {
+                '0': {int: 44, float: 1, str: 1}, 
+                '1': {int: 43, float: 2, str: 1}, 
+                '2': {int: 43, float: 2, str: 1}, 
+                '3': {int: 43, float: 2, str: 1}, 
+                '4': {int: 43, float: 2, str: 1}, 
+                '5': {int: 43, float: 2, str: 1}
+                }
+        elif sheet == "Sheet2":
+            assert len(table) == 46
+            assert table.types() == {
+                '0': {int: 45, str: 1}, 
+                '1': {int: 11, float: 34, str: 1}, 
+                '2': {int: 12, float: 33, str: 1}, 
+                '3': {int: 13, float: 32, str: 1}, 
+                '4': {int: 14, float: 31, str: 1},
+                '5': {int: 15, float: 30, str: 1}
+                }
+        elif sheet == "Sheet3":
+            assert len(table) == 0
+            assert table.types() == {}
+        # assert table.types() == {str(i): {str: len(table)} for i in range(6)}
+        tables.append(table)
 
 
 def test_keep():
     path = Path(__file__).parent / "data" / 'book1.csv'
     assert path.exists()
-    table = next(file_reader(path, keep=['a', 'b']))
+    table = Table.import_file(path, columns={'a':'f','b':'f'}, import_as='csv')
     assert set(table.columns) == {'a', 'b'}
     assert len(table) == 45
 
 
-def test_skip():
-    path = Path(__file__).parent / "data" / 'book1.csv'
-    assert path.exists()
-    table = next(file_reader(path, skip=['a', 'b']))
-    assert set(table.columns) == {'c', 'd', 'e', 'f'}
-    assert len(table) == 45
-
-
-def test_skip_and_keep():
-    path = Path(__file__).parent / "data" / 'book1.csv'
-    assert path.exists()
-    try:
-        _ = next(file_reader(path, skip=['a', 'b'], keep=['c', 'd']))
-        assert False
-    except ValueError:
-        assert True
-
-
-def test_datatype_from_user():
-    """ tests that datatype guess from user is used. """
-    path = Path(__file__).parent / "data" / 'book1.csv'
-    assert path.exists()
-    table = next(file_reader(path, keep=['a', 'b'], datatypes={'a': int, 'b': str}))
-    assert set(table.columns) == {'a', 'b'}
-    assert len(table) == 45
-    assert table['b'].datatype == str
