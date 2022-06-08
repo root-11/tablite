@@ -1757,18 +1757,23 @@ def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, sta
             break
     assert ws.name == sheet, "sheet not found."
 
+    if columns is None:
+        if first_row_has_headers:
+            raise ValueError(f"no columns declared: \navailable columns: {[i[0] for i in ws.columns()]}")
+        else:
+            raise ValueError(f"no columns declared: \navailable columns: {[str(i) for i in range(len(ws.columns()))]}")
+
     config = {**kwargs, **{"first_row_has_headers":first_row_has_headers, "sheet":sheet, "columns":columns, 'start':start, 'limit':limit}}
     t = Table(save=True, config=json.dumps(config))
-    for idx, column in enumerate(ws.columns(), 1):
+    for idx, column in enumerate(ws.columns()):
         
         if first_row_has_headers:
             header, start_row_pos = str(column[0]), max(1, start)
         else:
-            header, start_row_pos = f"_{idx}", max(0,start)
+            header, start_row_pos = str(idx), max(0,start)
 
-        if columns is not None:
-            if header not in columns:
-                continue
+        if header not in columns:
+            continue
 
         t[header] = [v for v in column[start_row_pos:start_row_pos+limit]]
     return t
@@ -1879,18 +1884,21 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
             break  # break on first
         fi.seek(0)
         headers = text_escape(line) # use t.e.
-        if not columns:
-            raise ValueError(f"No columns selected:\nAvailable columns: {headers}")
 
-        if first_row_has_headers:    
+        if first_row_has_headers:
+            if not columns:
+                raise ValueError(f"No columns selected:\nAvailable columns: {headers}")
             for name in columns:
                 if name not in headers:
                     raise ValueError(f"column not found: {name}")
         else: # no headers.
+            valid_indices = [str(i) for i in range(len(headers))]
+            if not columns:
+                raise ValueError(f"No column index selected:\nAvailable columns: {valid_indices}")
             for index in columns:
-                if index not in range(len(headers)):
-                    raise IndexError(f"{index} out of range({len(headers)})")
-            header_line = delimiter.join(str(i) for i in range(len(headers)))
+                if index not in valid_indices:
+                    raise IndexError(f"{index} not in valid range: {valid_indices}")
+            header_line = delimiter.join(valid_indices) + '\n'
 
         if not (isinstance(start, int) and start >= 0):
             raise ValueError("expected start as an integer >= 0")
