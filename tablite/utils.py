@@ -4,6 +4,19 @@ from datetime import datetime,date,time,timedelta
 from itertools import compress
 from statistics import StatisticsError
 
+
+def unique_name(wanted_name, list_of_names):
+    """
+    returns a wanted_name as wanted_name_i given a list of names
+    which guarantees unique naming.
+    """
+    name,i = wanted_name,1
+    while name in list_of_names:
+        name = f"{wanted_name}_{i}"
+        i+=1
+    return name
+
+
 def intercept(A,B):
     """
     enables calculation of the intercept of two range objects.
