@@ -470,11 +470,11 @@ def test04_verify_add_rows_for_table():
     assert t['row'] == list(range(1,17))
 
 def test04_verify_multiprocessing_index_in_shared_memory():
-    pass  # multi processing index. with shared memory. :Pool.starmap
+    pass  # done in filereader, filter, sort.
 
 
 def test04_verify_table_stacking():
-    pass  # test "stacking"
+    pass  # done in the new tutorial
 
 
 def test05_verify_show_table():
