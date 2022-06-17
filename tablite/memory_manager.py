@@ -78,10 +78,6 @@ class MemoryManager(object):
             saved_flag = dset.attrs['saved']
             if saved_flag:
                 return
-
-            columns = json.loads(dset.attrs['columns'])
-            for name, column_key in columns.items():
-                self.delete_column_reference(table_key=table_key, column_name=name, column_key=column_key)
             del h5[table_key]
 
     def delete_column_reference(self, table_key, column_name, column_key):
@@ -118,15 +114,15 @@ class MemoryManager(object):
 
     def create_virtual_dataset(self, group, pages_before, pages_after):
         """ The consumer API for Columns to create, update and delete datasets."""
-        if not isinstance(pages_before,list):
-            raise TypeError("expected at least an empty list.")
-        if not isinstance(pages_after, list):
-            raise TypeError("expected at least an empty list.")
+        if not isinstance(pages_before,Pages):
+            raise TypeError("expected Pages.")
+        if not isinstance(pages_after, Pages):
+            raise TypeError("expected Pages.")
                 
         with h5py.File(self.path, READWRITE) as h5:
             # 1. adjust ref count by adding first, then remove, as this prevents ref count < 1.
             all_pages = pages_before + pages_after
-            assert all(isinstance(i, Page) for i in all_pages)
+            assert isinstance(all_pages, Pages)
 
             for page in pages_after:
                 if len(page)==0:
@@ -136,25 +132,21 @@ class MemoryManager(object):
                 self.ref_counts[page.group] -= 1
                 
             self.del_pages_if_required(pages_before)
-            
-            # 2. determine new layout.
-            dtype, shape = Page.layout(pages_after)
-            # 3. create the layout.
-            layout = h5py.VirtualLayout(shape=(shape,), dtype=dtype, maxshape=(None,), filename=self.path)
-            a, b = 0, 0
-            for page in pages_after:
-                dset = h5[page.group]
-                b += dset.len()
-                vsource = h5py.VirtualSource(dset)
-                layout[a:b] = vsource
-                a = b
-
-            # 4. final write to disk.
+           
             if group in h5:
                 del h5[group]
-            h5.create_virtual_dataset(group, layout=layout)
-            
+
+            dset = h5.create_dataset(name=group, dtype=h5py.Empty('f'))
+            dset.attrs['pages'] = json.dumps([page.group for page in pages_after])
+            dset.attrs['length'] = shape = pages_after.length()
             return shape
+
+    def load_column_attrs(self, group):
+        with h5py.File(self.path, READONLY) as h5:
+            dset = h5[group]
+            page_groups = json.loads(dset.attrs['pages'])
+            length = dset.attrs['length']
+            return length, page_groups
 
     def get_imported_tables(self):
         """
@@ -178,8 +170,8 @@ class MemoryManager(object):
             if group not in h5:
                 return Pages()
             else:
-                dset = h5[group]  # https://docs.h5py.org/en/stable/high/dataset.html#h5py.Dataset.virtual_sources
-                pages = [pg_grp for _,_,pg_grp,_ in dset.virtual_sources()]           # as table *= 10_000 results in 10k copies of the same page
+                dset = h5[group]
+                pages = json.loads(dset.attrs['pages'])
                 unique_pages = {pg_grp:Page.load(pg_grp) for pg_grp in set(pages)}   # loading the page once and then copy the pointer,
                 loaded_pages = Pages([unique_pages[pg_grp] for pg_grp in pages])            # is 10k faster than loading the page 10k times.
                 return loaded_pages
@@ -202,11 +194,11 @@ class MemoryManager(object):
             if group not in h5:
                 return np.array([])
             dset = h5[group]
-
+                        
             # As a Column can have multiple datatypes across the pages, traversal is required.
             arrays = []
             assert isinstance(item, slice)
-            item_range = range(*item.indices(dset.len()))
+            item_range = range(*item.indices(dset.attrs['length']))
             
             start,end = 0,0
             pages = self.get_pages(group)
@@ -232,7 +224,27 @@ class Pages(list):
             super().__init__(values)
         else:
             super().__init__()
-        
+
+    def __str__(self) -> str:
+        return f"Pages {super().__str__()}"
+    def __repr__(self) -> str:
+        return f"Pages {super().__repr__()}"
+
+    def __add__(self,other):
+        if not isinstance(other, Pages):
+            raise TypeError(f"Got {type(other)}, Not Pages!")
+        else:
+            return Pages(super().__add__(other))
+
+    def __mul__(self, __n):
+        return Pages(super().__mul__(__n))
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return super().__getitem__(key)
+        else:
+            return Pages(super().__getitem__(key))
+
     def get_page_by_index(self, index):
         a,b = 0,0
         for ix, page in enumerate(self):
@@ -269,9 +281,10 @@ class Pages(list):
             a-+-------+-b      include page          (13)
         
         """
+        pages = Pages()
         if start==stop:
-            return []
-        L = []
+            return pages
+
         a, b = 0, 0
         for page in self:
             a = b
@@ -281,15 +294,15 @@ class Pages(list):
             elif b < start:  # cases (8,9)
                 continue
             elif start <= a and b <= stop:  # cases (10,11,12,13)
-                L.append(page)
+                pages.append(page)
             else:  # cases (3,4,5,6,7)
                 p_start = a if start < a else start
                 p_stop = b if stop > b else stop                   
                 data = page[p_start-a:p_stop-a]
                 if len(data):
                     new = Page(data)
-                    L.append(new)
-        return L
+                    pages.append(new)
+        return pages
     
     def get_types(self):
         """
