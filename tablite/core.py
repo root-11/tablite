@@ -8,8 +8,9 @@ import itertools
 import operator
 import warnings
 import logging
-import datetime as dt
-from  multiprocessing import shared_memory
+
+from collections import defaultdict
+from multiprocessing import shared_memory
 
 logging.getLogger('lml').propagate = False
 logging.getLogger('pyexcel_io').propagate = False
@@ -24,17 +25,16 @@ import h5py
 import psutil
 from mplite import TaskManager, Task
 
-from collections import defaultdict
-from itertools import chain, repeat
 
 # from tablite.datatypes import DataTypes
 # from tablite.file_reader_utils import detect_encoding, detect_seperator, split_by_sequence, text_escape
 # from tablite.groupby_utils import Max, Min, Sum, First, Last, Count, CountUnique, Average, StandardDeviation, Median, Mode, GroupbyFunction
 
 
-from tablite.memory_manager import MemoryManager, Page
+from tablite.memory_manager import MemoryManager, Page, Pages
 from tablite.file_reader_utils import TextEscape
-from tablite.utils import summary_statistics
+from tablite.utils import summary_statistics, unique_name
+from tablite import sortation
 
 
 mem = MemoryManager()
@@ -293,7 +293,7 @@ class Table(object):
             for col_name, column_key in columns.items():
                 c = Column.load(key=column_key)
                 ds2 = h5[f"/column/{column_key}"]
-                c._len = ds2.len()
+                c._len = ds2.attrs['length'] 
                 t[col_name] = c
                 
             return t
@@ -459,6 +459,10 @@ class Table(object):
           - slice
 
         """ 
+        if not self.columns:
+            print("Empty Table")
+            return
+
         row_count_tags = ['#', '~', '*'] 
         cols = set(self.columns)
         for n,tag in itertools.product(range(1,6), row_count_tags):
@@ -486,7 +490,7 @@ class Table(object):
 
         else:  # take first and last 7 rows.
             n = len(self)
-            split_after = 7
+            split_after = 6
             t[tag] = [f"{i:,}" for i in range(7)] + [f"{i:,}" for i in range(n-7, n)]
             for name, col in self._columns.items():
                 t[name] = [i for i in col[:7]] + [i for i in col[-7:]] 
@@ -712,7 +716,7 @@ class Table(object):
         # the results are to be gathered here:
         arr = np.zeros(shape=(len(expressions), len(self)), dtype=bool)
         shm = shared_memory(create=True, size=arr.nbytes)
-        result_array = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
+        _ = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
         
         # the task manager enables evaluation of a column per core,
         # which is assembled in the shared array.
@@ -721,7 +725,7 @@ class Table(object):
         n_tasks = expressions * math.ceil( len(self) / max_task_size )  
         n_cpus = min(n_tasks, psutil.cpu_count())
         
-        tasks = []
+        filter_tasks = []
         for ix, expression in enumerate(expressions):
             blocksize = math.ceil(len(self) / max_task_size)
             for block in range(0, len(self), blocksize):
@@ -729,9 +733,9 @@ class Table(object):
                           'shm_name':shm.name, 'shm_index':ix, 'shm_shape': arr.shape, 
                           'slice_':slice(block, block+blocksize)}
                 task = Task(f=filter_task, **config)
-                tasks.append(task)
+                filter_tasks.append(task)
 
-        tasks2 = []
+        merge_tasks = []
         blocksize = math.ceil(len(self) / max_task_size)
         for block in range(0, len(self), blocksize):
             config = {
@@ -742,20 +746,20 @@ class Table(object):
                 'slice_': slice(block, block+blocksize,1)
             }
             task = Task(f=merge_task, **config)
-            tasks2.append(task)
+            merge_tasks.append(task)
 
         with TaskManager(n_cpus) as tm: 
             # EVALUATE 
-            errs = tm.execute(tasks)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
+            errs = tm.execute(filter_tasks)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
             if any(i is not None for i in errs):
                 raise Exception(errs)
             # MERGE RESULTS
-            errs = tm.execute(tasks2)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
+            errs = tm.execute(merge_tasks)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
             if any(i is not None for i in errs):
                 raise Exception(errs)
 
         table_true, table_false = None, None
-        for task in tasks2:
+        for task in merge_tasks:
             tmp_true = Table.load(mem.path, key=task.kwargs['true_key'])
             tmp_false = Table.load(mem.path, key=task.kwargs['false_key'])
             if table_true is None:
@@ -767,14 +771,14 @@ class Table(object):
             
         return table_true, table_false
     
-    def sort_index(self, nan_value=float('inf'), **kwargs):  # TODO: This is slow single core code.
+    def sort_index(self, sort_mode='excel', **kwargs):  # TODO: This is slow single core code.
         """ 
         helper for methods `sort` and `is_sorted` 
-        nan_value: value used to represent non-sortable values such as None and np.nan during sort.
+        sort_mode: str: "alphanumeric", "unix", or, "excel"
         kwargs: sort criteria. See Table.sort()
         """
         if not isinstance(kwargs, dict):
-            raise ValueError("Expected keyword arguments")
+            raise ValueError("Expected keyword arguments, did you forget the ** in front of your dict?")
         if not kwargs:
             kwargs = {c: False for c in self.columns}
         
@@ -783,24 +787,27 @@ class Table(object):
                 raise ValueError(f"no column {k}")
             if not isinstance(v, bool):
                 raise ValueError(f"{k} was mapped to {v} - a non-boolean")
+        
+        if sort_mode not in sortation.modes:
+            raise ValueError(f"{sort_mode} not in list of sort_modes: {list(sortation.Sortable.modes.modes)}")
 
-        rank = {i: tuple() for i in range(len(self))}
-        for key in kwargs:
-            unique_values = {v: 0 for v in self._columns[key] if v is not None}
-            for r, v in enumerate(sorted(unique_values, reverse=kwargs[key])):
-                unique_values[v] = r
-            for ix, v in enumerate(self._columns[key]):
-                rank[ix] += (unique_values.get(v, nan_value),)
+        rank = {i: tuple() for i in range(len(self))}  # create index and empty tuple for sortation.
+        for key, reverse in tqdm(kwargs.items(), desc='creating sort index'):
+            col = self._columns[key]
+            assert isinstance(col, Column)
+            ranks = sortation.rank(values=set(col[:].tolist()), reverse=reverse, mode=sort_mode)
+            assert isinstance(ranks, dict)
+            for ix, v in enumerate(col):
+                rank[ix] += (ranks[v],)  # add tuple
 
         new_order = [(r, i) for i, r in rank.items()]  # tuples are listed and sort...
-        new_order.sort()
-        sorted_index = [i for r, i in new_order]  # new index is extracted.
-
         rank.clear()  # free memory.
+        new_order.sort()
+        sorted_index = [i for _, i in new_order]  # new index is extracted.
         new_order.clear()
         return sorted_index
 
-    def sort(self, nan_value=float('-inf'), **kwargs):  # TODO: This is slow single core code.
+    def sort(self, sort_mode='excel', **kwargs):  # TODO: This is slow single core code.
         """ Perform multi-pass sorting with precedence given order of column names.
         nan_value: value used to represent non-sortable values such as None and np.nan during sort.
         kwargs: keys: columns, values: 'reverse' as boolean.
@@ -809,43 +816,115 @@ class Table(object):
         Table.sort('A'=False)  means sort by 'A' in ascending order.
         Table.sort('A'=True, 'B'=False) means sort 'A' in descending order, then (2nd priority) sort B in ascending order.
         """
-        sorted_index = self.sort_index(nan_value, **kwargs)
-        t = Table()
-        for col_name, col in self._columns.items():
-            t.add_column(col_name, data=[col[ix] for ix in sorted_index])
-        return t
+        if len(self) * len(self.columns) < 1_000_000 :  # the task is so small that multiprocessing doesn't make sense.
+            sorted_index = self.sort_index(sort_mode=sort_mode, **kwargs)
+            t = Table()
+            for col_name, col in self._columns.items():  # this LOOP can be done with TaskManager
+                data = list(col[:])
+                t.add_column(col_name, data=[data[ix] for ix in sorted_index])
+            return t
+        else:
+            arr = np.zeros(shape=(len(self), ), dtype=np.int64)
+            shm = shared_memory.SharedMemory(create=True, size=arr.nbytes)  # the co_processors will read this.
+            sort_index = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
+            sort_index[:] = self.sort_index(sort_mode=sort_mode, **kwargs)
 
-    def is_sorted(self, nan_value=float('inf'), **kwargs):  # TODO: This is slow single core code.
+            tasks = []
+            columns_refs = {}
+            for name in self.columns:
+                col = self[name]
+                columns_refs[name] = d_key = mem.new_id('/column')
+                tasks.append(Task(column_sort_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=shm.name, shape=arr.shape))
+
+            with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
+                results = tm.execute(tasks)
+                
+                if any(i is not None for i in results):
+                    for err in results:
+                        if err is not None:
+                            print(err)
+                    raise Exception("multiprocessing error.")
+                
+            with h5py.File(mem.path, 'r+') as h5:
+                table_key = mem.new_id('/table')
+                dset = h5.create_dataset(name=f"/table/{table_key}", dtype=h5py.Empty('f'))
+                dset.attrs['columns'] = json.dumps(columns_refs)  
+                dset.attrs['saved'] = False
+            
+            shm.close()
+            shm.unlink()
+            t = Table.load(path=mem.path, key=table_key)
+            return t            
+
+    def is_sorted(self, **kwargs):  # TODO: This is slow single core code.
         """ Performs multi-pass sorting check with precedence given order of column names.
         nan_value: value used to represent non-sortable values such as None and np.nan during sort.
         **kwargs: sort criteria. See Table.sort()
         :return bool
         """
-        sorted_index = self.sort_index(nan_value, **kwargs)
+        sorted_index = self.sort_index(**kwargs)
         if any(ix != i for ix, i in enumerate(sorted_index)):
             return False
         return True
 
-    def all(self, **kwargs):  # TODO: This is slow single core code.
+    def _mp_compress(self, mask):
+        """
+        helper for any and all that performs compression of the table self according to mask
+        using multiprocessing.
+        """
+        arr = np.zeros(shape=(len(self), ), dtype=bool)
+        shm = shared_memory(create=True, size=arr.nbytes)  # the co_processors will read this.
+        compresssion_mask = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
+        compresssion_mask[:] = mask
+
+        t = Table()
+        tasks = []
+        columns_refs = {}
+        for name in self.columns:
+            col = self[name]
+            d_key = mem.new_id('/column')
+            columns_refs[name] = d_key
+            t = Task(compress_task, path=mem.path, source_key=col.key, destination_key=d_key, shm_index_name=shm.name, shape=arr.shape)
+            tasks.append(t)
+
+        with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
+            results = tm.execute(tasks)
+            if any(r is not None for r in results):
+                for r in results:
+                    print(r)
+                raise Exception("!")
+        
+        with h5py.File(mem.path, 'r+') as h5:
+            table_key = mem.new_id('/table')
+            dset = h5.create_dataset(name=f"/table/{table_key}", dtype=h5py.Empty('f'))
+            dset.attrs['columns'] = json.dumps(columns_refs)  
+            dset.attrs['saved'] = False
+        
+        shm.close()
+        shm.unlink()
+        t = Table.load(path=mem.path, key=table_key)
+        return t
+
+    def all(self, **kwargs):  
         """
         returns Table for rows where ALL kwargs match
         :param kwargs: dictionary with headers and values / boolean callable
         """
         if not isinstance(kwargs, dict):
-            raise TypeError("did you remember to add the ** in front of your dict?")
+            raise TypeError("did you forget to add the ** in front of your dict?")
         if not all(k in self.columns for k in kwargs):
             raise ValueError(f"Unknown column(s): {[k for k in kwargs if k not in self.columns]}")
 
         ixs = None
         for k, v in kwargs.items():
             col = self.columns[k]
-            if ixs is None:  # first header.
+            if ixs is None:  # first header generates base set.
                 if callable(v):
                     ix2 = {ix for ix, i in enumerate(col) if v(i)}
                 else:
                     ix2 = {ix for ix, i in enumerate(col) if v == i}
 
-            else:  # remaining headers.
+            else:  # remaining headers reduce the base set.
                 if callable(v):
                     ix2 = {ix for ix in ixs if v(col[ix])}
                 else:
@@ -859,18 +938,16 @@ class Table(object):
             if not ixs:  # There are no matches.
                 break
 
-        t = Table()
-        for col in tqdm(self.columns.values(), total=len(self.columns), desc="columns"):
-            t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
-        return t
+        mask =  np.array([True if i in ixs else False for i in range(len(self))],dtype=bool)
+        return self._mp_compress(mask)
 
-    def any(self, **kwargs):  # TODO: This is slow single core code.
+    def any(self, **kwargs):  
         """
         returns Table for rows where ANY kwargs match
         :param kwargs: dictionary with headers and values / boolean callable
         """
         if not isinstance(kwargs, dict):
-            raise TypeError("did you remember to add the ** in front of your dict?")
+            raise TypeError("did you forget to add the ** in front of your dict?")
 
         ixs = set()
         for k, v in kwargs.items():
@@ -881,10 +958,8 @@ class Table(object):
                 ix2 = {ix for ix, r in enumerate(col) if v == r}
             ixs.update(ix2)
 
-        t = Table()
-        for col in tqdm(self.columns.values(), total=len(self.columns), desc="columns"):
-            t.add_column(col.header, col.datatype, col.allow_empty, data=[col[ix] for ix in ixs])
-        return t
+        mask =  np.array([i in ixs for i in range(len(self))],dtype=bool)
+        return self._mp_compress(mask)
 
     def groupby(self, keys, functions, pivot_on=None):  # TODO: This is slow single core code.
         """
@@ -925,18 +1000,18 @@ class Table(object):
             raise ValueError(f"Keys do not have same length: \n{left_keys}, \n{right_keys}")
 
         for L, R in zip(left_keys, right_keys):
-            Lcol, Rcol = self.columns[L], other.columns[R]
-            if Lcol.datatype != Rcol.datatype:
-                raise TypeError(f"{L} is {Lcol.datatype}, but {R} is {Rcol.datatype}")
+            Lcol, Rcol = self[L], other[R]
+            if not set(Lcol.types()).intersection(set(Rcol.types())):
+                raise TypeError(f"{L} is {Lcol.types()}, but {R} is {Rcol.types()}")
 
         if not isinstance(left_columns, list) or not left_columns:
             raise TypeError("left_columns (list of strings) are required")
-        if any(column not in self for column in left_columns):
+        if any(column not in self.columns for column in left_columns):
             raise ValueError(f"Column not found: {[c for c in left_columns if c not in self.columns]}")
 
         if not isinstance(right_columns, list) or not right_columns:
             raise TypeError("right_columns (list or strings) are required")
-        if any(column not in other for column in right_columns):
+        if any(column not in other.columns for column in right_columns):
             raise ValueError(f"Column not found: {[c for c in right_columns if c not in other.columns]}")
         # Input is now guaranteed to be valid.
 
@@ -973,17 +1048,15 @@ class Table(object):
 
         self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
 
-        left_join = Table(use_disk=self._use_disk)
+        left_join = Table()
         for col_name in left_columns:
-            col = self.columns[col_name]
-            left_join.add_column(col_name, col.datatype, allow_empty=True)
+            left_join[col_name] = self[col_name]
 
         right_join_col_name = {}
         for col_name in right_columns:
-            col = other.columns[col_name]
-            revised_name = left_join.check_for_duplicate_header(col_name)
+            revised_name = unique_name(col_name, left_join.columns)
             right_join_col_name[revised_name] = col_name
-            left_join.add_column(revised_name, col.datatype, allow_empty=True)
+            left_join.add_column(revised_name)
 
         left_ixs = range(len(self))
         right_idx = other.index(*right_keys)
@@ -992,8 +1065,9 @@ class Table(object):
             key = tuple(self[h][left_ix] for h in left_keys)
             right_ixs = right_idx.get(key, (None,))
             for right_ix in right_ixs:
-                for col_name, column in left_join.columns.items():
-                    if col_name in self:
+                for col_name in left_join.columns:
+                    column = left_join[col_name]
+                    if col_name in self.columns:
                         column.append(self[col_name][left_ix])
                     elif col_name in right_join_col_name:
                         original_name = right_join_col_name[col_name]
@@ -1153,9 +1227,10 @@ class Table(object):
             "==": operator.eq,
         }
 
-        table3 = Table(use_disk=self._use_disk)
-        for name, col in chain(self.columns.items(), other.columns.items()):
-            table3.add_column(name, col.datatype, allow_empty=True)
+        table3 = Table()
+        for name  in self.columns + other.columns:
+            new_name = unique_name(name, table3.columns)
+            table3.add_column(new_name)
 
         functions, left_columns, right_columns = [], set(), set()
 
@@ -1218,16 +1293,19 @@ class Table(object):
 
 class Column(object):
     def __init__(self, data=None, key=None) -> None:
-        if key is None:
-            key = mem.new_id('/column')
-        elif not isinstance(key, str):
-            raise TypeError
-        self.key = key
 
+        if key is None:
+            self.key = mem.new_id('/column')
+        else:
+            self.key = key            
         self.group = f"/column/{self.key}"
-        self._len = 0
-        if data is not None:
-            self.extend(data)
+        if key is None:
+            self._len = 0
+            if data is not None:
+                self.extend(data)
+        else:
+            length, pages = mem.load_column_attrs(self.group)
+            self._len = length
     
     def __str__(self) -> str:
         return f"<{self.__class__.__name__}>({self._len} values | key={self.key})"
@@ -1376,7 +1454,7 @@ class Column(object):
                     after = mem.get_pages(value.group)
                 elif isinstance(value, (list,tuple,np.ndarray)):
                     new_page = Page(value)
-                    after = [new_page]
+                    after = Pages([new_page])
                 else:
                     raise TypeError
                 self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
@@ -1391,7 +1469,7 @@ class Column(object):
                     after = before_slice + mem.get_pages(value.group)
                 elif isinstance(value, (list, tuple, np.ndarray)):
                     if not before_slice:
-                        after = [Page(value)]
+                        after = Pages((Page(value),))
                     else:
                         last_page = before_slice[-1] 
                         if mem.get_ref_count(last_page) == 1:
@@ -1399,7 +1477,7 @@ class Column(object):
                             after = before_slice
                         else:  # ref count > 1
                             new_page = Page(value)
-                            after = before_slice + [new_page]
+                            after = before_slice + Pages([new_page])
                 else:
                     raise TypeError
                 self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
@@ -1413,7 +1491,7 @@ class Column(object):
                     after = mem.get_pages(value.group) + before_slice
                 elif isinstance(value, (list,tuple, np.ndarray)):
                     new_page = Page(value)
-                    after = [new_page] + before_slice
+                    after = Pages([new_page]) + before_slice
                 else:
                     raise TypeError
                 self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
@@ -1430,7 +1508,7 @@ class Column(object):
                 elif isinstance(value, (list, tuple, np.ndarray)):
                     if value:
                         new_page = Page(value)
-                        after = A + [new_page] + B  # new = old._getslice_(0,start) + list(value) + old._getslice_(stop,len(self.items))
+                        after = A + Pages([new_page]) + B  # new = old._getslice_(0,start) + list(value) + old._getslice_(stop,len(self.items))
                     else:
                         after = A + B
                 else:
@@ -1449,7 +1527,7 @@ class Column(object):
                 for new_index, position in zip(range(len(value)), seq):
                     new[position] = value[new_index]
                 # all went well. No exceptions. Now update self.
-                after = [Page(new)]  # This may seem redundant, but is in fact is good as the user may 
+                after = Pages([Page(new)])  # This may seem redundant, but is in fact is good as the user may 
                 # be cleaning up the dataset, so that we end up with a simple datatype instead of mixed.
                 self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
             else:
@@ -1497,7 +1575,7 @@ class Column(object):
                     mask[i] = 0
                 new = np.compress(mask, data, axis=0)
                 # all went well. No exceptions.
-                after = [Page(new)]  # This may seem redundant, but is in fact is good as the user may 
+                after = Pages([Page(new)])  # This may seem redundant, but is in fact is good as the user may 
                 # be cleaning up the dataset, so that we end up with a simple datatype instead of mixed.
                 self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
             else:
@@ -1537,7 +1615,10 @@ class Column(object):
         return d
 
     def unique(self):  
-        return np.unique(self.__getitem__())
+        try:
+            return np.unique(self.__getitem__())
+        except TypeError:  # np arrays can't handle dtype='O':
+            return np.array({i for i in self.__getitem__()})
 
     def histogram(self):
         """ 
@@ -1547,7 +1628,15 @@ class Column(object):
         >>> for item, counts in zip(self.histogram()):
         >>>     print(item,counts)
         """
-        uarray, carray = np.unique(self.__getitem__(), return_counts=True)
+        try:
+            uarray, carray = np.unique(self.__getitem__(), return_counts=True)
+        except TypeError:  # np arrays can't handle dtype='O':
+            d = defaultdict(int)
+            for i in self.__getitem__():
+                d[i]+=1
+            uarray, carray = [],[]
+            for k,v in d.items():
+                uarray.append(k), carray.append(v)
         return uarray, carray
 
     def statistics(self):
@@ -1947,6 +2036,7 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
     
     # execute the tasks
     with TaskManager(cpu_count=min(psutil.cpu_count(), n_tasks)) as tm:
+        print("sorting ...")
         errors = tm.execute(tasks)   # I expects a list of None's if everything is ok.
         if any(errors):
             e = []
@@ -2042,17 +2132,11 @@ def text_reader_task(source, destination, table_key, columns,
             with h5py.File(destination, 'r+') as h5:
                 for col_name, values in data.items():
                     new_page = Page(values)
-                    dtype, shape = Page.layout([new_page])
-                    
-                    layout = h5py.VirtualLayout(shape=(shape,), dtype=dtype, maxshape=(None,), filename=destination)
-                    
-                    dset = h5[new_page.group]
-                    vsource = h5py.VirtualSource(dset)
-                    layout[0:len(dset)] = vsource
                     group_no = mem.new_id('/column')
-                                        
-                    h5.create_virtual_dataset(f"/column/{group_no}", layout=layout)
                     columns_refs[col_name] = group_no
+                    dset = h5.create_dataset(name=f'/column/{group_no}', dtype=h5py.Empty('f'))
+                    dset.attrs['pages'] = json.dumps([new_page.group])
+                    dset.attrs['length'] = len(new_page)
                 
                 dset = h5.create_dataset(name=f"/table/{table_key}", dtype=h5py.Empty('f'))
                 dset.attrs['columns'] = json.dumps(columns_refs)  
@@ -2074,3 +2158,59 @@ file_readers = {
     'ods': ods_reader
 }
 
+
+def column_sort_task(path, source_key, destination_key, shm_name_for_sort_index, shape, timeout=10):
+    """
+    performs the creation of a column sorted by sort_index (shared memory object).
+    path: memory manager path
+    source_key: column to read
+    destination_key: column to write
+    shm_name_for_sort_index: sort index' shm.name created by main.
+    shape: shm array shape.
+    """
+    existing_shm = shared_memory.SharedMemory(name=shm_name_for_sort_index)  # connect
+    sort_index = np.ndarray(shape, dtype=np.int64, buffer=existing_shm.buf)
+
+    with h5py.File(path, 'r') as h5:  # --- READ!
+        # dset = h5[f'/column/{source_key}']
+        col = Column(key=source_key)
+        data = col[:].tolist()
+        values = [data[ix] for ix in sort_index]
+
+    t = 0.0
+    start = time.process_time()
+    while time.process_time() - start < timeout:
+        try:
+            with h5py.File(path, 'r+') as h5:  # --- WRITE!
+                new_page = Page(values)
+                dset = h5.create_dataset(name=f"/column/{destination_key}", dtype=h5py.Empty('f'))
+                dset.attrs['pages'] = json.dumps([new_page.group])
+                dset.attrs['length'] = len(new_page)
+                existing_shm.close()  # disconnect
+                return
+        except OSError:
+            dt = random.randint(10,20)
+            t+=dt
+            time.sleep(dt/1000)
+
+    raise OSError(f"couldn't write to disk (slept {t} msec")
+
+
+def compress_task(path, source_key, destination_key, shm_index_name, shape):
+    existing_shm = shared_memory.SharedMemory(name=shm_index_name)  # connect
+    mask = np.ndarray(shape, dtype=np.int64, buffer=existing_shm.buf)
+    
+    with h5py.File(path, 'r+') as h5:
+        data = mem.get_data(f'/column/{source_key}')
+        values = np.compress(mask, data)
+        new_page = Page(values)
+        dtype, shape = Page.layout([new_page])
+
+        layout = h5py.VirtualLayout(shape=(shape,), dtype=dtype, maxshape=(None,), filename=path)
+        dset = h5[new_page.group]
+        vsource = h5py.VirtualSource(dset)
+        layout[0:len(dset)] = vsource
+
+        h5.create_virtual_dataset(f"/column/{destination_key}", layout=layout)
+
+    existing_shm.close()  # disconnect
