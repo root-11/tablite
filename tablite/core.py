@@ -1048,36 +1048,25 @@ class Table(object):
 
         self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
 
-        left_join = Table()
+        left_index = self.index(*left_keys)
+        right_index = other.index(*right_keys)
+        LEFT,RIGHT = [],[]
+        for left_key, left_ixs in left_index.items():
+            right_ixs = right_index.get(left_key, (None,))
+            for left_ix in left_ixs:
+                for right_ix in right_ixs:
+                    LEFT.append(left_ix)
+                    RIGHT.append(right_ix)
+
+        result = Table()
         for col_name in left_columns:
-            left_join[col_name] = self[col_name]
-
-        right_join_col_name = {}
+            col_data = self[col_name]
+            result[col_name] = [col_data[k] for k in LEFT]
         for col_name in right_columns:
-            revised_name = unique_name(col_name, left_join.columns)
-            right_join_col_name[revised_name] = col_name
-            left_join.add_column(revised_name)
-
-        left_ixs = range(len(self))
-        right_idx = other.index(*right_keys)
-
-        for left_ix in tqdm(left_ixs, total=len(left_ixs)):
-            key = tuple(self[h][left_ix] for h in left_keys)
-            right_ixs = right_idx.get(key, (None,))
-            for right_ix in right_ixs:
-                for col_name in left_join.columns:
-                    column = left_join[col_name]
-                    if col_name in self.columns:
-                        column.append(self[col_name][left_ix])
-                    elif col_name in right_join_col_name:
-                        original_name = right_join_col_name[col_name]
-                        if right_ix is not None:
-                            column.append(other[original_name][right_ix])
-                        else:
-                            column.append(None)
-                    else:
-                        raise Exception('bad logic')
-        return left_join
+            col_data = other[col_name]
+            revised_name = unique_name(col_name, result.columns)
+            result[revised_name] = [col_data[k] if k is not None else None for k in RIGHT]
+        return result
 
     def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
         """
@@ -1098,34 +1087,27 @@ class Table(object):
 
         self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
 
-        inner_join = Table(use_disk=self._use_disk)
+        left_index = self.index(*left_keys)
+        right_index = other.index(*right_keys)
+        LEFT,RIGHT = [],[]
+        for left_key, left_ixs in left_index.items():
+            right_ixs = right_index.get(left_key, None)
+            if right_ixs is None:
+                continue
+            for left_ix in left_ixs:
+                for right_ix in right_ixs:
+                    LEFT.append(left_ix)
+                    RIGHT.append(right_ix)
+
+        result = Table()
         for col_name in left_columns:
-            col = self.columns[col_name]
-            inner_join.add_column(col_name, col.datatype, allow_empty=True)
-
-        right_join_col_name = {}
+            col_data = self[col_name]
+            result[col_name] = [col_data[k] for k in LEFT]
         for col_name in right_columns:
-            col = other.columns[col_name]
-            revised_name = inner_join.check_for_duplicate_header(col_name)
-            right_join_col_name[revised_name] = col_name
-            inner_join.add_column(revised_name, col.datatype, allow_empty=True)
-
-        key_union = set(self.filter(*left_keys)).intersection(set(other.filter(*right_keys)))
-
-        left_ixs = self.index(*left_keys)
-        right_ixs = other.index(*right_keys)
-
-        for key in tqdm(sorted(key_union), total=len(key_union)):
-            for left_ix in left_ixs.get(key, set()):
-                for right_ix in right_ixs.get(key, set()):
-                    for col_name, column in inner_join.columns.items():
-                        if col_name in self:
-                            column.append(self[col_name][left_ix])
-                        else:  # col_name in right_join_col_name:
-                            original_name = right_join_col_name[col_name]
-                            column.append(other[original_name][right_ix])
-
-        return inner_join
+            col_data = other[col_name]
+            revised_name = unique_name(col_name, result.columns)
+            result[revised_name] = [col_data[k] if k is not None else None for k in RIGHT]
+        return result
 
     def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
         """
@@ -1146,50 +1128,31 @@ class Table(object):
 
         self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
 
-        outer_join = Table(use_disk=self._use_disk)
+        left_index = self.index(*left_keys)
+        right_index = other.index(*right_keys)
+        LEFT,RIGHT,RIGHT_UNUSED = [],[], set(right_index.keys())
+        for left_key, left_ixs in left_index.items():
+            right_ixs = right_index.get(left_key, (None,))
+            for left_ix in left_ixs:
+                for right_ix in right_ixs:
+                    LEFT.append(left_ix)
+                    RIGHT.append(right_ix)
+                    RIGHT_UNUSED.discard(left_key)
+
+        for right_key in RIGHT_UNUSED:
+            for right_ix in right_index[right_key]:
+                LEFT.append(None)
+                RIGHT.append(right_ix)
+
+        result = Table()
         for col_name in left_columns:
-            col = self.columns[col_name]
-            outer_join.add_column(col_name, col.datatype, allow_empty=True)
-
-        right_join_col_name = {}
+            col_data = self[col_name]
+            result[col_name] = [col_data[k] if k is not None else None for k in LEFT]
         for col_name in right_columns:
-            col = other.columns[col_name]
-            revised_name = outer_join.check_for_duplicate_header(col_name)
-            right_join_col_name[revised_name] = col_name
-            outer_join.add_column(revised_name, col.datatype, allow_empty=True)
-
-        left_ixs = range(len(self))
-        right_idx = other.index(*right_keys)
-        right_keyset = set(right_idx)
-
-        for left_ix in tqdm(left_ixs, total=left_ixs.stop, desc="left side outer join"):
-            key = tuple(self[h][left_ix] for h in left_keys)
-            right_ixs = right_idx.get(key, (None,))
-            right_keyset.discard(key)
-            for right_ix in right_ixs:
-                for col_name, column in outer_join.columns.items():
-                    if col_name in self:
-                        column.append(self[col_name][left_ix])
-                    elif col_name in right_join_col_name:
-                        original_name = right_join_col_name[col_name]
-                        if right_ix is not None:
-                            column.append(other[original_name][right_ix])
-                        else:
-                            column.append(None)
-                    else:
-                        raise Exception('bad logic')
-
-        for right_key in tqdm(right_keyset, total=len(right_keyset), desc="right side outer join"):
-            for right_ix in right_idx[right_key]:
-                for col_name, column in outer_join.columns.items():
-                    if col_name in self:
-                        column.append(None)
-                    elif col_name in right_join_col_name:
-                        original_name = right_join_col_name[col_name]
-                        column.append(other[original_name][right_ix])
-                    else:
-                        raise Exception('bad logic')
-        return outer_join
+            col_data = other[col_name]
+            revised_name = unique_name(col_name, result.columns)
+            result[revised_name] = [col_data[k] if k is not None else None for k in RIGHT]
+        return result
 
     def lookup(self, other, *criteria, all=True):  # TODO: This is slow single core code.
         """ function for looking up values in other according to criteria
