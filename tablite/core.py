@@ -807,10 +807,13 @@ class Table(object):
         new_order.clear()
         return sorted_index
 
-    def sort(self, sort_mode='excel', **kwargs):  # TODO: This is slow single core code.
+    def sort(self, sort_mode='excel', **kwargs):  
         """ Perform multi-pass sorting with precedence given order of column names.
-        nan_value: value used to represent non-sortable values such as None and np.nan during sort.
-        kwargs: keys: columns, values: 'reverse' as boolean.
+        sort_mode: str: "alphanumeric", "unix", or, "excel"
+        kwargs: 
+            keys: columns, 
+            values: 'reverse' as boolean.
+            
 
         examples: 
         Table.sort('A'=False)  means sort by 'A' in ascending order.
@@ -1035,10 +1038,10 @@ class Table(object):
         """
         result = Table()
         for col_name in left_columns:
-            col_data = self[col_name]
+            col_data = self[col_name][:]
             result[col_name] = [col_data[k] if k is not None else None for k in LEFT]
         for col_name in right_columns:
-            col_data = other[col_name]
+            col_data = other[col_name][:]
             revised_name = unique_name(col_name, result.columns)
             result[revised_name] = [col_data[k] if k is not None else None for k in RIGHT]
         return result
@@ -1052,7 +1055,7 @@ class Table(object):
         left_index = np.ndarray(left_arr.shape, dtype=left_arr.dtype, buffer=left_shm.buf)
         left_index[:] = LEFT
 
-        right_arr = np.zeros(shape=(len(LEFT)), dtype=np.int64)
+        right_arr = np.zeros(shape=(len(RIGHT)), dtype=np.int64)
         right_shm = shared_memory.SharedMemory(create=True, size=right_arr.nbytes)  # the co_processors will read this.
         right_index = np.ndarray(right_arr.shape, dtype=right_arr.dtype, buffer=right_shm.buf)
         right_index[:] = RIGHT
@@ -1124,7 +1127,7 @@ class Table(object):
         if len(LEFT) * len(left_columns + right_columns) < 1_000_000:
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)
         else:  # use multi processing
-            return self._mp_join(other, LEFT,RIGHT, left_columns, right_columns)
+            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
             
     def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
         """
@@ -1160,7 +1163,7 @@ class Table(object):
         if len(LEFT) * len(left_columns + right_columns) < 1_000_000:
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)       
         else:  # use multi processing
-            return self._mp_join(other, LEFT,RIGHT, left_columns, right_columns)
+            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
 
     def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
         """
@@ -1200,11 +1203,11 @@ class Table(object):
         if len(LEFT) * len(left_columns + right_columns) < 1_000_000:
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)
         else:  # use multi processing
-            return self._mp_join(other, LEFT,RIGHT, left_columns, right_columns)
+            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
 
     def lookup(self, other, *criteria, all=True):  # TODO: This is slow single core code.
-        """ function for looking up values in other according to criteria
-        :param: other: Table
+        """ function for looking up values in `other` according to criteria in ascending order.
+        :param: other: Table sorted in ascending search order.
         :param: criteria: Each criteria must be a tuple with value comparisons in the form:
             (LEFT, OPERATOR, RIGHT)
         :param: all: boolean: True=ALL, False=Any
@@ -1238,16 +1241,11 @@ class Table(object):
             "==": operator.eq,
         }
 
-        table3 = Table()
-        for name  in self.columns + other.columns:
-            new_name = unique_name(name, table3.columns)
-            table3.add_column(new_name)
-
-        functions, left_columns, right_columns = [], set(), set()
+        functions, left_criteria, right_criteria = [], set(), set()
 
         for left, op, right in criteria:
-            left_columns.add(left)
-            right_columns.add(right)
+            left_criteria.add(left)
+            right_criteria.add(right)
             if callable(op):
                 pass  # it's a custom function.
             else:
@@ -1256,46 +1254,99 @@ class Table(object):
                     raise ValueError(f"{op} not a recognised operator for comparison.")
 
             functions.append((op, left, right))
+        left_columns = [n for n in left_criteria if n in self.columns]
+        right_columns = [n for n in right_criteria if n in other.columns]
 
+        results = []
         lru_cache = {}
-        empty_row = tuple(None for _ in other.columns)
+        left = self.__getitem__(*left_columns)
+        if isinstance(left, Column):
+            tmp, left = left, Table()
+            left[left_columns[0]] = tmp
+        right = other.__getitem__(*right_columns)
+        if isinstance(right, Column):
+            tmp, right = right, Table()
+            right[right_columns[0]] = tmp
+        assert isinstance(left, Table)
+        assert isinstance(right, Table)
 
-        for row1 in tqdm(self.rows, total=self.__len__()):
-            row1_tup = tuple(v for v, name in zip(row1, self.columns) if name in left_columns)
-            row1d = {name: value for name, value in zip(self.columns, row1) if name in left_columns}
+        for row1 in tqdm(left.rows, total=self.__len__()):
+            row1_tup = tuple(row1)
+            # xxx = tuple(v for v, name in zip(row1, self.columns) if name in left_criteria)
+            row1d = {name: value for name, value in zip(left_columns, row1)}
+            row1_hash = hash(row1_tup)
 
-            match_found = True if row1_tup in lru_cache else False
+            match_found = True if row1_hash in lru_cache else False
 
             if not match_found:  # search.
-                for row2 in other.rows:
-                    row2d = {name: value for name, value in zip(other.columns, row2) if name in right_columns}
+                for row2ix, row2 in enumerate(right.rows):
+                    row2d = {name: value for name, value in zip(right_columns, row2)}
 
-                    evaluations = [op(row1d.get(left, left), row2d.get(right, right)) for op, left, right in functions]
+                    evaluations = {op(row1d.get(left, left), row2d.get(right, right)) for op, left, right in functions}
                     # The evaluations above does a neat trick:
-                    # as L is a dict, L.get(left, L) will return a value
+                    # as L is a dict, L.get(left, L) will return a value 
                     # from the columns IF left is a column name. If it isn't
                     # the function will treat left as a value.
                     # The same applies to right.
-
-                    if all and not False in evaluations:
+                    A = all and (False not in evaluations)
+                    B = any and True in evaluations
+                    if A or B:
                         match_found = True
-                        lru_cache[row1_tup] = row2
+                        lru_cache[row1_hash] = row2ix
                         break
-                    elif any and True in evaluations:
-                        match_found = True
-                        lru_cache[row1_tup] = row2
-                        break
-                    else:
-                        continue
 
             if not match_found:  # no match found.
-                lru_cache[row1_tup] = empty_row
+                lru_cache[row1_hash] = None
+            
+            results.append(lru_cache[row1_hash])
 
-            new_row = row1 + lru_cache[row1_tup]
+        result = self.copy()
+        if len(self) * len(other.columns) < 1_000_000:
+            for col_name in other.columns:
+                col_data = other[col_name][:]
+                revised_name = unique_name(col_name, result.columns)
+                result[revised_name] = [col_data[k] if k is not None else None for k in results]
+            return result
+        else:
+            # 1. create shared memory array.
+            right_arr = np.zeros(shape=(len(results)), dtype=np.int64)
+            right_shm = shared_memory.SharedMemory(create=True, size=right_arr.nbytes)  # the co_processors will read this.
+            right_index = np.ndarray(right_arr.shape, dtype=right_arr.dtype, buffer=right_shm.buf)
+            right_index[:] = results
+            # 2. create tasks
+            tasks = []
+            columns_refs = {}
 
-            table3.add_row(new_row)
+            for name in other.columns:
+                col = other[name]
+                columns_refs[name] = d_key = mem.new_id('/column')
+                tasks.append(Task(column_sort_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=right_shm.name, shape=right_arr.shape))
 
-        return table3
+            # 3. let task manager handle the tasks
+            with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
+                results = tm.execute(tasks)
+                
+                if any(i is not None for i in results):
+                    for err in results:
+                        if err is not None:
+                            print(err)
+                    raise Exception("multiprocessing error.")
+            
+            # 4. close the share memory and deallocate
+            right_shm.close()
+            right_shm.unlink()
+
+            # 5. update the result table.
+            with h5py.File(mem.path, 'r+') as h5:
+                dset = h5[f"/table/{result.key}"]
+                columns = dset.attrs['columns']
+                columns.update(columns_refs)
+                dset.attrs['columns'] = json.dumps(columns)  
+                dset.attrs['saved'] = False
+            
+            # 6. reload the result table
+            t = Table.load(path=mem.path, key=result.key)
+            return t
     
     def pivot_table(self, *args):
         raise NotImplementedError
