@@ -869,7 +869,7 @@ class Table(object):
 
     def _mp_compress(self, mask):
         """
-        helper for any and all that performs compression of the table self according to mask
+        helper for `any` and `all` that performs compression of the table self according to mask
         using multiprocessing.
         """
         arr = np.zeros(shape=(len(self), ), dtype=bool)
@@ -1029,6 +1029,69 @@ class Table(object):
         f = kinds.get(kind,None)
         return f(self,other,left_keys,right_keys,left_columns,right_columns)
     
+    def _sp_join(self, other, LEFT,RIGHT, left_columns, right_columns):
+        """
+        helper for single processing join
+        """
+        result = Table()
+        for col_name in left_columns:
+            col_data = self[col_name]
+            result[col_name] = [col_data[k] if k is not None else None for k in LEFT]
+        for col_name in right_columns:
+            col_data = other[col_name]
+            revised_name = unique_name(col_name, result.columns)
+            result[revised_name] = [col_data[k] if k is not None else None for k in RIGHT]
+        return result
+
+    def _mp_join(self, other, LEFT,RIGHT, left_columns, right_columns):
+        """ 
+        helper for multiprocessing join
+        """
+        left_arr = np.zeros(shape=(len(LEFT)), dtype=np.int64)
+        left_shm = shared_memory.SharedMemory(create=True, size=left_arr.nbytes)  # the co_processors will read this.
+        left_index = np.ndarray(left_arr.shape, dtype=left_arr.dtype, buffer=left_shm.buf)
+        left_index[:] = LEFT
+
+        right_arr = np.zeros(shape=(len(LEFT)), dtype=np.int64)
+        right_shm = shared_memory.SharedMemory(create=True, size=right_arr.nbytes)  # the co_processors will read this.
+        right_index = np.ndarray(right_arr.shape, dtype=right_arr.dtype, buffer=right_shm.buf)
+        right_index[:] = RIGHT
+
+        tasks = []
+        columns_refs = {}
+        for name in left_columns:
+            col = self[name]
+            columns_refs[name] = d_key = mem.new_id('/column')
+            tasks.append(Task(column_sort_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=left_shm.name, shape=left_arr.shape))
+
+        for name in right_columns:
+            col = other[name]
+            columns_refs[name] = d_key = mem.new_id('/column')
+            tasks.append(Task(column_sort_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=right_shm.name, shape=right_arr.shape))
+
+        with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
+            results = tm.execute(tasks)
+            
+            if any(i is not None for i in results):
+                for err in results:
+                    if err is not None:
+                        print(err)
+                raise Exception("multiprocessing error.")
+            
+        with h5py.File(mem.path, 'r+') as h5:
+            table_key = mem.new_id('/table')
+            dset = h5.create_dataset(name=f"/table/{table_key}", dtype=h5py.Empty('f'))
+            dset.attrs['columns'] = json.dumps(columns_refs)  
+            dset.attrs['saved'] = False
+        
+        left_shm.close()
+        left_shm.unlink()
+        right_shm.close()
+        right_shm.unlink()
+
+        t = Table.load(path=mem.path, key=table_key)
+        return t            
+
     def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
         """
         :param other: self, other = (left, right)
@@ -1058,16 +1121,11 @@ class Table(object):
                     LEFT.append(left_ix)
                     RIGHT.append(right_ix)
 
-        result = Table()
-        for col_name in left_columns:
-            col_data = self[col_name]
-            result[col_name] = [col_data[k] for k in LEFT]
-        for col_name in right_columns:
-            col_data = other[col_name]
-            revised_name = unique_name(col_name, result.columns)
-            result[revised_name] = [col_data[k] if k is not None else None for k in RIGHT]
-        return result
-
+        if len(LEFT) * len(left_columns + right_columns) < 1_000_000:
+            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)
+        else:  # use multi processing
+            return self._mp_join(other, LEFT,RIGHT, left_columns, right_columns)
+            
     def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
         """
         :param other: self, other = (left, right)
@@ -1099,15 +1157,10 @@ class Table(object):
                     LEFT.append(left_ix)
                     RIGHT.append(right_ix)
 
-        result = Table()
-        for col_name in left_columns:
-            col_data = self[col_name]
-            result[col_name] = [col_data[k] for k in LEFT]
-        for col_name in right_columns:
-            col_data = other[col_name]
-            revised_name = unique_name(col_name, result.columns)
-            result[revised_name] = [col_data[k] if k is not None else None for k in RIGHT]
-        return result
+        if len(LEFT) * len(left_columns + right_columns) < 1_000_000:
+            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)       
+        else:  # use multi processing
+            return self._mp_join(other, LEFT,RIGHT, left_columns, right_columns)
 
     def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
         """
@@ -1144,15 +1197,10 @@ class Table(object):
                 LEFT.append(None)
                 RIGHT.append(right_ix)
 
-        result = Table()
-        for col_name in left_columns:
-            col_data = self[col_name]
-            result[col_name] = [col_data[k] if k is not None else None for k in LEFT]
-        for col_name in right_columns:
-            col_data = other[col_name]
-            revised_name = unique_name(col_name, result.columns)
-            result[revised_name] = [col_data[k] if k is not None else None for k in RIGHT]
-        return result
+        if len(LEFT) * len(left_columns + right_columns) < 1_000_000:
+            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)
+        else:  # use multi processing
+            return self._mp_join(other, LEFT,RIGHT, left_columns, right_columns)
 
     def lookup(self, other, *criteria, all=True):  # TODO: This is slow single core code.
         """ function for looking up values in other according to criteria
@@ -2130,12 +2178,13 @@ def column_sort_task(path, source_key, destination_key, shm_name_for_sort_index,
     destination_key: column to write
     shm_name_for_sort_index: sort index' shm.name created by main.
     shape: shm array shape.
+
+    *used by sort and all join functions.
     """
     existing_shm = shared_memory.SharedMemory(name=shm_name_for_sort_index)  # connect
     sort_index = np.ndarray(shape, dtype=np.int64, buffer=existing_shm.buf)
 
     with h5py.File(path, 'r') as h5:  # --- READ!
-        # dset = h5[f'/column/{source_key}']
         col = Column(key=source_key)
         data = col[:].tolist()
         values = [data[ix] for ix in sort_index]
@@ -2177,3 +2226,4 @@ def compress_task(path, source_key, destination_key, shm_index_name, shape):
         h5.create_virtual_dataset(f"/column/{destination_key}", layout=layout)
 
     existing_shm.close()  # disconnect
+
