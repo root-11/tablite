@@ -1,5 +1,7 @@
 import re
 from pathlib import Path
+import pyexcel
+import chardet
 
 
 def split_by_sequence(text, sequence):
@@ -191,3 +193,57 @@ class TextEscape(object):
         if s:
             words.append(s.rstrip(self.qoute).lstrip(self.qoute))
         return words
+
+
+def get_headers(path): 
+    """
+    file format	definition
+    csv	    comma separated values
+    tsv	    tab separated values
+    csvz	a zip file that contains one or many csv files
+    tsvz	a zip file that contains one or many tsv files
+    xls	    a spreadsheet file format created by MS-Excel 97-2003
+    xlsx	MS-Excel Extensions to the Office Open XML SpreadsheetML File Format.
+    xlsm	an MS-Excel Macro-Enabled Workbook file
+    ods	    open document spreadsheet
+    fods	flat open document spreadsheet
+    json	java script object notation
+    html	html table of the data structure
+    simple	simple presentation
+    rst	    rStructured Text presentation of the data
+    mediawiki	media wiki table
+    """
+    if isinstance(path, str):
+        path = Path(path)
+    if not isinstance(path, Path):
+        raise TypeError("expected pathlib path.")
+    if not path.exists():
+        raise FileNotFoundError(str(path))
+
+    d = {}
+    try:
+        book = pyexcel.get_book(file_name=str(path))
+        for sheet_name in book.sheet_names():
+            sheet = book[sheet_name]
+            stop = sheet.number_of_rows()
+            d[sheet_name] = [sheet.row[i] for i in range(0, min(10,stop))]
+        return d
+    except Exception:
+        pass  # it must be a raw text format.
+
+    try:
+        with path.open('rb') as fi:
+            rawdata = fi.read(10000)
+            encoding = chardet.detect(rawdata)['encoding']
+        with path.open('r', encoding=encoding) as fi:
+            lines = []
+            for n, line in enumerate(fi):
+                line = line.rstrip('\n')
+                lines.append(line)
+                if n > 10:
+                    break  # break on first
+            d["0"] = lines
+        return d
+    except Exception:
+        raise ValueError(f"can't read {path.suffix}")
+
