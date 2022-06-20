@@ -1,4 +1,8 @@
+import math
+import time as cputime
 import pytest
+import random
+import tqdm
 import numpy as np
 from datetime import datetime, date, time, timedelta
 from tablite import Table, DataTypes
@@ -231,12 +235,209 @@ def test_filter():
 
     # SORT
     # -----------------------------------------
+def test_sort():
+    table = Table()
+    table.add_column('A', data=[ 1, None, 8, 3, 4, 6,  5,  7,  9])
+    table.add_column('B', data=[10,'100', 1, 1, 1, 1, 10, 10, 10])
+    table.add_column('C', data=[ 0,    1, 0, 1, 0, 1,  0,  1,  0])
+
+    sort_order = {'B': False, 'C': False, 'A': False}
+    assert not table.is_sorted(**sort_order)
+
+    sorted_table = table.sort(**sort_order)
+
+    assert list(sorted_table.rows) == [
+        [4, 1, 0],
+        [8, 1, 0],
+        [3, 1, 1],
+        [6, 1, 1],
+        [1, 10, 0],
+        [5, 10, 0],
+        [9, 10, 0],
+        [7, 10, 1],
+        [None, "100", 1]  # multi type sort "excel style"
+    ]
+
+    assert list(sorted_table['A', 'B', slice(4, 8)].rows) == [[1, 10], [5, 10], [9, 10], [7, 10]]
+
+    assert sorted_table.is_sorted(**sort_order)
+
+def test_sort_parallel():
+    table = Table()
+    n = math.ceil(1_000_000 / (9*3))
+    table.add_column('A', data=[ 1, None, 8,   3, 4, 6,  5,  7,  9]*n)
+    table.add_column('B', data=[10,  100, 1, "1", 1, 1, 10, 10, 10]*n)
+    table.add_column('C', data=[ 0,    1, 0,   1, 0, 1,  0,  1,  0]*n)
+    table.show()
+
+    start = cputime.time()
+    sort_order = {'B': False, 'C': False, 'A': False}
+    sorted_table = table.sort(**sort_order)  # sorts 1M values.
+    print("table sorting took ", round(cputime.time() - start,3), "secs")
+    sorted_table.show()
+    assert set(sorted_table['A']) == set(table['A'])
+    assert set(sorted_table['B']) == set(table['B']) == {1,"1",10,100}
+    assert set(sorted_table['C']) == set(table['C']) == {0,1}
+
+    z1, ts1 = set(),[]
+    for i in table.rows:
+        t = tuple(i)
+        if t in z1:
+            continue
+        else:
+            z1.add(t)
+            ts1.append(t)
+
+    z2,ts2 = set(),[]
+    for i in sorted_table.rows:
+        t = tuple(i)
+        if t in z2:
+            continue
+        else:
+            z2.add(t)
+            ts2.append(t)
+
+    assert z1==z2
+    assert ts1 != ts2
+
+    assert ts2 == [
+        (4, 1, 0), 
+        (8, 1, 0), 
+        (6, 1, 1), 
+        (1, 10, 0), 
+        (5, 10, 0), 
+        (9, 10, 0), 
+        (7, 10, 1), 
+        (None, 100, 1), 
+        (3, '1', 1)
+    ]  # correct "excel"-style sort. Differs from previous test as the last '1' is text!
+
 
     # GROUPBY
     # -----------------------------------------
+def test_group_by_logic():
+    raise NotImplementedError()
 
     # JOIN
     # -----------------------------------------
+def test_join_logic():
+    numbers = Table()
+    numbers.add_column('number', data=[      1,      2,       3,       4,   None])
+    numbers.add_column('colour', data=['black', 'blue', 'white', 'white', 'blue'])
+
+    letters = Table()
+    letters.add_column('letter', data=[  'a',     'b',      'c',     'd',   None])
+    letters.add_column('color', data=['blue', 'white', 'orange', 'white', 'blue'])
+
+    # left join
+    # SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
+    left_join = numbers.left_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])
+    left_join.show()
+    # +======+======+
+    # |number|letter|
+    # | int  | str  |
+    # | True | True |
+    # +------+------+
+    # |     1|None  |
+    # |     2|a     |
+    # |     2|None  |
+    # |     3|b     |
+    # |     3|d     |
+    # |     4|b     |
+    # |     4|d     |
+    # |None  |a     |
+    # |None  |None  |
+    # +======+======+
+    expected = [[1, None], [2, 'a'], [2, None], [None, 'a'], [None, None], [3, 'b'], [3, 'd'], [4, 'b'], [4, 'd']]
+    assert expected == [r for r in left_join.rows]
+
+    # inner join
+    # SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
+    inner_join = numbers.inner_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])
+    inner_join.show()
+    # +======+======+
+    # |number|letter|
+    # | int  | str  |
+    # | True | True |
+    # +------+------+
+    # |     2|a     |
+    # |     2|None  |
+    # |None  |a     |
+    # |None  |None  |
+    # |     3|b     |
+    # |     3|d     |
+    # |     4|b     |
+    # |     4|d     |
+    # +======+======+
+    assert [i for i in inner_join['number']] == [2, 2, None, None, 3, 3, 4, 4]
+    assert [i for i in inner_join['letter']] == ['a', None, 'a', None, 'b', 'd', 'b', 'd']
+
+    # outer join
+    # SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
+    outer_join = numbers.outer_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])
+    outer_join.show()
+    # +======+======+
+    # |number|letter|
+    # | int  | str  |
+    # | True | True |
+    # +------+------+
+    # |     1|None  |
+    # |     2|a     |
+    # |     2|None  |
+    # |     3|b     |
+    # |     3|d     |
+    # |     4|b     |
+    # |     4|d     |
+    # |None  |a     |
+    # |None  |None  |
+    # |None  |c     |
+    # +======+======+
+    expected = [[1, None], [2, 'a'], [2, None], [None, 'a'], [None, None], [3, 'b'], [3, 'd'], [4, 'b'], [4, 'd'], [None, 'c']]
+    assert expected == [r for r in outer_join.rows]
+
+    assert left_join != inner_join
+    assert inner_join != outer_join
+    assert left_join != outer_join
+
+    # LOOKUP
+    # -----------------------------------------
+def test_lookup_logic():
+    friends = Table()
+    friends.add_column("name", data=['Alice', 'Betty', 'Charlie', 'Dorethy', 'Edward', 'Fred'])
+    friends.add_column("stop", data=['Downtown-1', 'Downtown-2', 'Hillside View', 'Hillside Crescent', 'Downtown-2', 'Chicago'])
+    friends.show()
+
+    random.seed(11)
+    table_size = 40
+
+    times = [DataTypes.time(random.randint(21, 23), random.randint(0, 59)) for i in range(table_size)]
+    stops = ['Stadium', 'Hillside', 'Hillside View', 'Hillside Crescent', 'Downtown-1', 'Downtown-2',
+             'Central station'] * 2 + [f'Random Road-{i}' for i in range(table_size)]
+    route = [random.choice([1, 2, 3]) for i in stops]
+
+    bustable = Table()
+    bustable.add_column("time", data=times)
+    bustable.add_column("stop", data=stops[:table_size])
+    bustable.add_column("route", data=route[:table_size])
+
+    bustable.sort(**{'time': False})
+
+    print("Departures from Concert Hall towards ...")
+    bustable.show(slice(0,10))
+
+    lookup_1 = friends.lookup(bustable, (DataTypes.time(21, 10), "<=", 'time'), ('stop', "==", 'stop'))
+    lookup1_sorted = lookup_1.sort(**{'time': True, 'name':False, "sort_mode":'unix'})
+    lookup1_sorted.show()
+
+    expected = [
+        ['Dorethy', 'Hillside Crescent', time(23, 54), 'Hillside Crescent', 1], 
+        ['Alice', 'Downtown-1', time(23, 12), 'Downtown-1', 3], 
+        ['Charlie', 'Hillside View', time(22, 28), 'Hillside View', 1], 
+        ['Betty', 'Downtown-2', time(21, 51), 'Downtown-2', 1], 
+        ['Edward', 'Downtown-2', time(21, 51), 'Downtown-2', 1], 
+        ['Fred', 'Chicago', None, None, None]
+        ]
+    assert expected == [r for r in lookup1_sorted.rows]
 
     # USER DEFINED FUNCTIONS
     # -----------------------------------------
@@ -244,5 +445,3 @@ def test_filter():
     # REPLACE MISSING VALUES
     # -----------------------------------------
 
-    # THE BASICS
-    # -----------------------------------------
