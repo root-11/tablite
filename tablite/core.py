@@ -26,15 +26,11 @@ import psutil
 from mplite import TaskManager, Task
 
 
-# from tablite.datatypes import DataTypes
-# from tablite.file_reader_utils import detect_encoding, detect_seperator, split_by_sequence, text_escape
-# from tablite.groupby_utils import Max, Min, Sum, First, Last, Count, CountUnique, Average, StandardDeviation, Median, Mode, GroupbyFunction
-
-
 from tablite.memory_manager import MemoryManager, Page, Pages
 from tablite.file_reader_utils import TextEscape
 from tablite.utils import summary_statistics, unique_name
 from tablite import sortation
+from tablite.groupby_utils import GroupBy, GroupbyFunction
 
 
 mem = MemoryManager()
@@ -837,7 +833,7 @@ class Table(object):
             for name in self.columns:
                 col = self[name]
                 columns_refs[name] = d_key = mem.new_id('/column')
-                tasks.append(Task(column_sort_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=shm.name, shape=arr.shape))
+                tasks.append(Task(indexing_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=shm.name, shape=arr.shape))
 
             with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
                 results = tm.execute(tasks)
@@ -964,27 +960,122 @@ class Table(object):
         mask =  np.array([i in ixs for i in range(len(self))],dtype=bool)
         return self._mp_compress(mask)
 
-    def groupby(self, keys, functions, pivot_on=None):  # TODO: This is slow single core code.
+    def groupby(self, keys, functions):  # TODO: This is slow single core code.
         """
-        :param keys: headers for grouping
-        :param functions: list of headers and functions.
-        :return: GroupBy class
+        rows: column names for grouping as rows.
+        columns: column names for grouping as columns.
+        functions: list of column names and group functions (See GroupyBy)
+        sum_on_rows: outputs group functions as extra rows if True, else as columns
+        returns: table
+
+        * NB: Column names can only be used once in rows & columns
+
         Example usage:
-            from tablite import Table
+            from tablite import Table, GroupBy
             t = Table()
             t.add_column('date', data=[1,1,1,2,2,2])
-            t.add_column('sku', data=[1,2,3,1,2,3])
-            t.add_column('qty', data=[4,5,4,5,3,7])
-            from tablite import GroupBy, Sum
-            g = t.groupby(keys=['sku'], functions=[('qty', Sum)])
-            g.tablite.show()
+            t.add_column('sku',  data=[1,2,3,1,2,3])
+            t.add_column('qty',  data=[4,5,4,5,3,7])
+            grp = t.groupby(rows=['sku'], functions=[('qty', GroupBy.Sum)])
+            grp.show()
         """
-        g = GroupBy(keys=keys, functions=functions)
-        g += self
-        if pivot_on:
-            g.pivot(pivot_on)
-        return g.table()
-    
+        if len(set(keys)) != len(keys):
+            duplicates = [k for k in keys if keys.count(k) > 1]
+            s = "" if len(duplicates) > 1 else "s"
+            raise ValueError(f"duplicate key{s} found across rows and columns: {duplicates}")
+
+        if not isinstance(functions, list):
+            raise TypeError(f"Expected functions to be a list of tuples. Got {type(functions)}")
+
+        if not all(len(i) == 2 for i in functions):
+            raise ValueError(f"Expected each tuple in functions to be of length 2. \nGot {functions}")
+
+        if not all(isinstance(a, str) for a, b in functions):
+            L = [(a, type(a)) for a, b in functions if not isinstance(a, str)]
+            raise ValueError(f"Expected column names in functions to be strings. Found: {L}")
+
+        if not all(issubclass(b, GroupbyFunction) and b in GroupBy.functions for a, b in functions):
+            L = [b for a, b in functions if b not in GroupBy._functions]
+            if len(L) == 1:
+                singular = f"function {L[0]} is not in GroupBy.functions"
+                raise ValueError(singular)
+            else:
+                plural = f"the functions {L} are not in GroupBy.functions"
+                raise ValueError(plural)
+        
+        # 1. Aggregate data.
+        aggregation_functions = defaultdict(dict)
+        cols = keys + [col_name for col_name,_ in functions]
+        seen,L = set(),[]
+        for c in cols:
+            if c not in seen:
+                seen.add(c)
+                L.append(c)
+        for row in self.__getitem__(*L).rows:
+            d = {col_name: value for col_name,value in zip(L, row)}
+            key = tuple([d[k] for k in keys])
+            agg_functions = aggregation_functions.get(key)
+            if not agg_functions:
+                aggregation_functions[key] = agg_functions =[(col_name, f()) for col_name, f in functions]
+            for col_name, f in agg_functions:
+                f.update(d[col_name])
+                
+        # 2. make dense table.
+        cols = [[] for _ in cols]
+        for key_tuple, funcs in aggregation_functions.items():
+            for ix, key_value in enumerate(key_tuple):
+                cols[ix].append(key_value)
+            for ix, (_, f) in enumerate(funcs,start=len(keys)):
+                cols[ix].append(f.value)
+        
+        new_names = keys + [f"{f.__name__}({col_name})" for col_name,f in functions]
+        result = Table()
+        for ix, (col_name, data) in enumerate(zip(new_names, cols)):
+            revised_name = unique_name(col_name, result.columns)
+            result[revised_name] = data            
+        return result
+
+    def pivot(self, rows, columns, functions, values_as_rows=True):
+        if isinstance(rows, str):
+            rows = [rows]
+        if not all(isinstance(i,str) for i in rows)            :
+            raise TypeError(f"Expected rows as a list of column names, not {[i for i in rows if not isinstance(i,str)]}")
+        
+        if isinstance(columns, str):
+            columns = [columns]
+        if not all(isinstance(i,str) for i in columns):
+            raise TypeError(f"Expected columns as a list of column names, not {[i for i in columns if not isinstance(i, str)]}")
+
+        if not isinstance(sum_on_rows, bool):
+            raise TypeError(f"expected sum_on_rows as boolean, not {type(sum_on_rows)}")
+        
+        keys = rows + columns 
+        assert isinstance(keys, list)
+
+        grpby = self.groupby(keys, functions)
+        # cols = defaultdict(list)
+        
+        # k = len(rows)
+        # for grp_key, funcs in sorted(aggregation_functions.items()):
+        #     row, col = grp_key[:k], grp_key[k:]
+        #     if sum_on_rows:
+        #         for col_name,f in funcs:
+        #             for kname, value in zip(keys,row):
+        #                 cols[kname].append(value)
+        #             cname = "|".join(str(i) for i in col)
+        #             cols[cname].append(f.value)
+
+        #         cols[]
+        #         for col_name, f in funcs:
+        #             grid[(r,c,col_name, f.value)]
+        #         pass  # make more rows
+        #     else:
+        #         pass  # make more columns           
+        pass
+
+    def reverse_pivot(self, rows, columns, values_as_rows=True):
+        raise NotImplemented()
+
     def _join_type_check(self, other, left_keys, right_keys, left_columns, right_columns):
         if not isinstance(other, Table):
             raise TypeError(f"other expected other to be type Table, not {type(other)}")
@@ -1065,12 +1156,12 @@ class Table(object):
         for name in left_columns:
             col = self[name]
             columns_refs[name] = d_key = mem.new_id('/column')
-            tasks.append(Task(column_sort_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=left_shm.name, shape=left_arr.shape))
+            tasks.append(Task(indexing_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=left_shm.name, shape=left_arr.shape))
 
         for name in right_columns:
             col = other[name]
             columns_refs[name] = d_key = mem.new_id('/column')
-            tasks.append(Task(column_sort_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=right_shm.name, shape=right_arr.shape))
+            tasks.append(Task(indexing_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=right_shm.name, shape=right_arr.shape))
 
         with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
             results = tm.execute(tasks)
@@ -1320,7 +1411,7 @@ class Table(object):
             for name in other.columns:
                 col = other[name]
                 columns_refs[name] = d_key = mem.new_id('/column')
-                tasks.append(Task(column_sort_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=right_shm.name, shape=right_arr.shape))
+                tasks.append(Task(indexing_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=right_shm.name, shape=right_arr.shape))
 
             # 3. let task manager handle the tasks
             with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
@@ -2186,7 +2277,7 @@ def text_reader_task(source, destination, table_key, columns,
                 data[header].append(fields[index])
 
     # write out.
-    t = 0.0
+    t = 0
     start = time.process_time()
     while time.process_time() - start < timeout:
         try:    
@@ -2213,15 +2304,23 @@ def text_reader_task(source, destination, table_key, columns,
 
 
 file_readers = {
+    'fods': excel_reader,
+    'json': excel_reader,
+    'html': excel_reader,
+    'simple': excel_reader,
+    'rst': excel_reader,
+    'mediawiki': excel_reader,
     'xlsx': excel_reader,
     'xls': excel_reader,
+    'xlsm': excel_reader,
     'csv': text_reader,
+    'tsv': text_reader,
     'txt': text_reader,
     'ods': ods_reader
 }
 
 
-def column_sort_task(path, source_key, destination_key, shm_name_for_sort_index, shape, timeout=10):
+def indexing_task(path, source_key, destination_key, shm_name_for_sort_index, shape, timeout=10):
     """
     performs the creation of a column sorted by sort_index (shared memory object).
     path: memory manager path
@@ -2240,7 +2339,7 @@ def column_sort_task(path, source_key, destination_key, shm_name_for_sort_index,
         data = col[:].tolist()
         values = [data[ix] for ix in sort_index]
 
-    t = 0.0
+    t = 0
     start = time.process_time()
     while time.process_time() - start < timeout:
         try:
@@ -2277,4 +2376,5 @@ def compress_task(path, source_key, destination_key, shm_index_name, shape):
         h5.create_virtual_dataset(f"/column/{destination_key}", layout=layout)
 
     existing_shm.close()  # disconnect
+
 

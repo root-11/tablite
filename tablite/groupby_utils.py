@@ -1,17 +1,14 @@
 from collections import defaultdict
-
+from datetime import date,time,datetime,timedelta
 from tablite.datatypes import DataTypes
 
 
 class GroupbyFunction(object):
-    def __init__(self, datatype):
-        hasattr(DataTypes, datatype.__name__)
-        self.datatype = datatype
+    pass
 
 
 class Limit(GroupbyFunction):
-    def __init__(self, datatype):
-        super().__init__(datatype)
+    def __init__(self):
         self.value = None
         self.f = None
 
@@ -25,23 +22,24 @@ class Limit(GroupbyFunction):
 
 
 class Max(Limit):
-    def __init__(self, datatype):
-        super().__init__(datatype)
+    def __init__(self):
+        super().__init__()
         self.f = max
 
 
 class Min(Limit):
-    def __init__(self, datatype):
-        super().__init__(datatype)
+    def __init__(self):
+        super().__init__()
         self.f = min
 
 
-class Sum(Limit):
-    def __init__(self, datatype):
-        if datatype in (DataTypes.date, DataTypes.date, DataTypes.time, DataTypes.str):
-            raise ValueError(f"Sum of {datatype} doesn't make sense.")
-        super().__init__(datatype)
-        self.f = sum
+class Sum(GroupbyFunction):
+    def __init__(self):
+        self.value = 0
+    def update(self,value):
+        if isinstance(value, (date,time,datetime,str)):
+            raise ValueError(f"Sum of {type(value)} doesn't make sense.")
+        self.value += value
 
 
 class First(GroupbyFunction):
@@ -50,8 +48,7 @@ class First(GroupbyFunction):
     # value will assure that IF None is the first value, then it can
     # be captured correctly.
 
-    def __init__(self, datatype):
-        super().__init__(datatype)
+    def __init__(self):
         self.value = self.empty
 
     def update(self, value):
@@ -60,8 +57,7 @@ class First(GroupbyFunction):
 
 
 class Last(GroupbyFunction):
-    def __init__(self, datatype):
-        super().__init__(datatype)
+    def __init__(self):
         self.value = None
 
     def update(self, value):
@@ -69,8 +65,7 @@ class Last(GroupbyFunction):
 
 
 class Count(GroupbyFunction):
-    def __init__(self, datatype):
-        super().__init__(datatype=int)  # datatype will be int no matter what type is given.
+    def __init__(self):
         self.value = 0
 
     def update(self, value):
@@ -78,8 +73,7 @@ class Count(GroupbyFunction):
 
 
 class CountUnique(GroupbyFunction):
-    def __init__(self, datatype):
-        super().__init__(datatype=int)  # datatype will be int no matter what type is given.
+    def __init__(self):
         self.items = set()
         self.value = None
 
@@ -89,15 +83,14 @@ class CountUnique(GroupbyFunction):
 
 
 class Average(GroupbyFunction):
-    def __init__(self, datatype):
-        if datatype in (DataTypes.date, DataTypes.date, DataTypes.time, DataTypes.str):
-            raise ValueError(f"Average of {datatype} doesn't make sense.")
-        super().__init__(datatype=float)  # datatype will be float no matter what type is given.
+    def __init__(self):
         self.sum = 0
         self.count = 0
         self.value = 0
 
     def update(self, value):
+        if isinstance(value, (date,time,datetime,str)):
+            raise ValueError(f"Sum of {type(value)} doesn't make sense.")
         if value is not None:
             self.sum += value
             self.count += 1
@@ -109,15 +102,14 @@ class StandardDeviation(GroupbyFunction):
     Uses J.P. Welfords (1962) algorithm.
     For details see https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm
     """
-    def __init__(self, datatype):
-        if datatype in (DataTypes.date, DataTypes.date, DataTypes.time, DataTypes.str):
-            raise ValueError(f"Std.dev. of {datatype} doesn't make sense.")
-        super().__init__(datatype=float)  # datatype will be float no matter what type is given.
+    def __init__(self):
         self.count = 0
         self.mean = 0
         self.c = 0.0
 
     def update(self, value):
+        if isinstance(value, (date,time,datetime,str)):
+            raise ValueError(f"Std.dev. of {type(value)} doesn't make sense.")
         if value is not None:
             self.count += 1
             dt = value - self.mean
@@ -133,8 +125,7 @@ class StandardDeviation(GroupbyFunction):
 
 
 class Histogram(GroupbyFunction):
-    def __init__(self, datatype):
-        super().__init__(datatype)
+    def __init__(self):
         self.hist = defaultdict(int)
 
     def update(self, value):
@@ -142,8 +133,8 @@ class Histogram(GroupbyFunction):
 
 
 class Median(Histogram):
-    def __init__(self, datatype):
-        super().__init__(datatype)
+    def __init__(self):
+        super().__init__()
 
     @property
     def value(self):
@@ -171,8 +162,8 @@ class Median(Histogram):
 
 
 class Mode(Histogram):
-    def __init__(self, datatype):
-        super().__init__(datatype)
+    def __init__(self):
+        super().__init__()
 
     @property
     def value(self):
