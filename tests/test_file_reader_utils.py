@@ -15,7 +15,7 @@ def test2():
     L = text_escape(s)
     assert L == ["this", "is", "a", "","嗨", "(comma,sep'd)", "text"]
 
-def test_pyexcel():
+def test_get_headers():
     import pathlib
     folder = pathlib.Path(__file__).parent / 'data'
     for fname in folder.iterdir():
@@ -23,3 +23,4 @@ def test_pyexcel():
         assert isinstance(d, dict)
         print(fname)
         print(d)
+        
