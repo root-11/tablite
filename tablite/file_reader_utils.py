@@ -17,63 +17,6 @@ def split_by_sequence(text, sequence):
     return chunks
 
 
-encodings = [
-    'utf-32',
-    'utf-16',
-    'ascii',
-    'utf-8',
-    'windows-1252',
-    'utf-7',
-]
-
-
-def detect_encoding(path):
-    """ helper that automatically detects encoding from files. """
-    assert isinstance(path, Path)
-    for encoding in encodings:
-        try:
-            snippet = path.open('r', encoding=encoding).read(100)
-            if snippet.startswith('ï»¿'):
-                return 'utf-8-sig'
-            return encoding
-        except (UnicodeDecodeError, UnicodeError):
-            pass
-    raise UnicodeDecodeError
-
-
-def detect_seperator(path, encoding):
-    """
-    :param path: pathlib.Path objects
-    :param encoding: file encoding.
-    :return: 1 character.
-    """
-    # After reviewing the logic in the CSV sniffer, I concluded that all it
-    # really does is to look for a non-text character. As the separator is
-    # determined by the first line, which almost always is a line of headers,
-    # the text characters will be utf-8,16 or ascii letters plus white space.
-    # This leaves the characters ,;:| and \t as potential separators, with one
-    # exception: files that use whitespace as separator. My logic is therefore
-    # to (1) find the set of characters that intersect with ',;:|\t' which in
-    # practice is a single character, unless (2) it is empty whereby it must
-    # be whitespace.
-    text = ""
-    for line in path.open('r', encoding=encoding):  # pick the first line only.
-        text = line
-        break
-    seps = {',', '\t', ';', ':', '|'}.intersection(text)
-    if not seps:
-        if " " in text:
-            return " "
-        else:
-            raise ValueError("separator not detected")
-    if len(seps) == 1:
-        return seps.pop()
-    else:
-        frq = [(text.count(i), i) for i in seps]
-        frq.sort(reverse=True)  # most frequent first.
-        return frq[0][-1]
-
-
 class TextEscape(object):
     """
     enables parsing of CSV with respecting brackets and text marks.
