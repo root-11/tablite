@@ -178,6 +178,29 @@ class Mode(Histogram):
     def value(self):
         L = [(v, k) for k, v in self.hist.items()]
         L.sort(reverse=True)
-        frequency, most_frequent = L[0]  # top of the list.
+        _, most_frequent = L[0]  # top of the list.
         return most_frequent
+
+
+
+class GroupBy(object):    
+    max = Max  # shortcuts to avoid having to type a long list of imports.
+    min = Min
+    sum = Sum
+    first = First
+    last = Last
+    count = Count
+    count_unique = CountUnique
+    avg = Average
+    stdev = StandardDeviation
+    median = Median
+    mode = Mode
+
+    functions = [
+        Max, Min, Sum, First, Last,
+        Count, CountUnique,
+        Average, StandardDeviation, Median, Mode
+    ]
+
+    function_names = {f.__name__: f for f in functions}
 
