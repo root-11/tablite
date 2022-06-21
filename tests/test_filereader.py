@@ -366,36 +366,6 @@ def test_filereader_exceldatesxlsx():
     assert table['string'].types() == {date:len(table)}
 
 
-# def test_filereader_zipped():
-#     path = Path(__file__).parent / 'data'
-#     assert path.exists()
-#     assert path.is_dir()
-#     zipped = Path(__file__).parent / 'new.zip'
-#     file_count = 0
-#     file_names = []
-#     with zipfile.ZipFile(zipped, 'w') as zipf:
-#         for file in path.iterdir():
-#             zipf.write(file)
-#             file_count += 1
-#             file_names.append(file.name)
-
-#     tables = list(file_reader(zipped))
-#     assert len(tables) >= file_count
-#     a, b = {t.metadata['filename'] for t in tables}, set(file_names)
-#     assert a == b, a.difference(b).union(b.difference(a))
-#     zipped.unlink()
-
-
-# def test_all_on_disk():
-#     Table.new_tables_use_disk = True
-#     for k, v in sorted(globals().items()):
-#         if k == 'test_all_on_disk':
-#             continue
-#         if k.startswith('test') and callable(v):
-#             v()
-#     Table.new_tables_use_disk = False
-
-
 def test_filereader_gdocs1csv_no_header():
     path = Path(__file__).parent / "data" / 'gdocs1.csv'
     assert path.exists()
