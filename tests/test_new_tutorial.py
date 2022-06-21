@@ -5,7 +5,7 @@ import random
 import tqdm
 import numpy as np
 from datetime import datetime, date, time, timedelta
-from tablite import Table, DataTypes
+from tablite import Table, DataTypes, GroupBy
 
 
 @pytest.fixture(autouse=True) # this resets the HDF5 file for every test.
@@ -316,7 +316,16 @@ def test_sort_parallel():
     # GROUPBY
     # -----------------------------------------
 def test_group_by_logic():
-    raise NotImplementedError()
+    table = Table()
+    n = math.ceil(1_000_000 / (9*3))
+    table.add_column('A', data=[ 1, None, 8,   3, 4, 6,  5,  7,  9]*n)
+    table.add_column('B', data=[10,  100, 1, "1", 1, 1, 10, 10, 10]*n)
+    table.add_column('C', data=[ 0,    1, 0,   1, 0, 1,  0,  1,  0]*n)
+    table.show()
+
+    gb = GroupBy
+    grpby = table.groupby(keys=['C', 'B'], functions=[('A', gb.count)])
+    grpby.show()
 
     # JOIN
     # -----------------------------------------
