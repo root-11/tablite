@@ -2284,7 +2284,7 @@ def indexing_task(source_key, destination_key, shm_name_for_sort_index, shape):
     existing_shm = shared_memory.SharedMemory(name=shm_name_for_sort_index)  # connect
     sort_index = np.ndarray(shape, dtype=np.int64, buffer=existing_shm.buf)
 
-    data = mem.get_data(f'/column/{source_key}') # --- READ!
+    data = mem.get_data(f'/column/{source_key}', slice(None)) # --- READ!
     values = [data[ix] for ix in sort_index]
     
     existing_shm.close()  # disconnect
@@ -2303,7 +2303,7 @@ def compress_task(source_key, destination_key, shm_index_name, shape):
     existing_shm = shared_memory.SharedMemory(name=shm_index_name)  # connect
     mask = np.ndarray(shape, dtype=np.int64, buffer=existing_shm.buf)
     
-    data = mem.get_data(f'/column/{source_key}')  # --- READ!
+    data = mem.get_data(f'/column/{source_key}', slice(None))  # --- READ!
     values = np.compress(mask, data)
     
     existing_shm.close()  # disconnect
