@@ -2135,33 +2135,35 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
 
         parts = []
         assert header_line != ""
+        with tqdm(desc=f"splitting {path.name} for multiprocessing", total=newlines, unit="lines") as pbar:
+            for ix, line in enumerate(fi, start=(-1 if first_row_has_headers else 0) ):
+                if ix < start:
+                    # ix is -1 if the first row has headers, but header_line already has the first line.
+                    # ix is 0 if there are no headers, and if start is 0, the first row is added to parts.
+                    continue
+                if ix >= start + limit:
+                    break
 
-        for ix, line in enumerate(fi, start=(-1 if first_row_has_headers else 0) ):
-            if ix < start:
-                # ix is -1 if the first row has headers, but header_line already has the first line.
-                # ix is 0 if there are no headers, and if start is 0, the first row is added to parts.
-                continue
-            if ix >= start + limit:
-                break
+                parts.append(line)
+                if ix!=0 and ix % lines_per_task == 0:
+                    p = path.parent / (path.stem + f'{ix}' + path.suffix)
+                    with p.open('w', encoding='utf-8') as fo:
+                        parts.insert(0, header_line)
+                        fo.write("".join(parts))
+                    pbar.update(len(parts))
+                    parts.clear()
+                    tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ))
 
-            parts.append(line)
-            if ix!=0 and ix % lines_per_task == 0:
+            if parts:  # any remaining parts at the end of the loop.
                 p = path.parent / (path.stem + f'{ix}' + path.suffix)
                 with p.open('w', encoding='utf-8') as fo:
                     parts.insert(0, header_line)
                     fo.write("".join(parts))
+                pbar.update(len(parts))
                 parts.clear()
+                config.update({"source":str(p), "table_key":mem.new_id('/table')})
                 tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ))
-
-        if parts:  # any remaining parts at the end of the loop.
-            p = path.parent / (path.stem + f'{ix}' + path.suffix)
-            with p.open('w', encoding='utf-8') as fo:
-                parts.insert(0, header_line)
-                fo.write("".join(parts))
-            parts.clear()
-            config.update({"source":str(p), "table_key":mem.new_id('/table')})
-            tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ))
-    
+           
     # execute the tasks
     with TaskManager(cpu_count=min(psutil.cpu_count(), n_tasks)) as tm:
         errors = tm.execute(tasks)   # I expects a list of None's if everything is ok.
