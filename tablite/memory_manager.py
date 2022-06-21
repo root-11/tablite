@@ -5,6 +5,7 @@ import h5py  #https://stackoverflow.com/questions/27710245/is-there-an-analysis-
 import numpy as np
 import json
 from string import digits
+import functools
 
 DIGITS = set(digits)
 
@@ -18,6 +19,22 @@ TRUNCATE = 'w'   # w  Create file, truncate if exists
 #                x    Create file, fail if exists
 #                a    Read/write if exists, create otherwise
 TIMEOUT = 10  # maximum seconds tolerance waiting for OS to release hdf5 write lock
+
+
+def timeout(func):
+    @functools.wraps(func)
+    def wrapper(*args,**kwargs):
+        t = 0
+        start = time.time()
+        while time.time() - start < TIMEOUT:
+            try:
+                return func(*args,**kwargs)
+            except OSError:
+                dt = random.randint(10,20)
+                t+=dt
+                time.sleep(dt/1000)
+        raise OSError(f"couldn't write to disk (slept {t} msec")
+    return wrapper
 
 
 class MemoryManager(object):
@@ -39,14 +56,21 @@ class MemoryManager(object):
             dset.attrs['pid'] = pid = dset.attrs.get('pid', 0) + 1
             return str(pid)
 
-    def create_table(self, key, save, config=None):  # /table/{key}
+    def create_table(self, key=None, save=False, config=None, columns=None):
         with h5py.File(self.path, READWRITE) as h5:
-            dset = h5.create_dataset(name=key, dtype=h5py.Empty('f'))
-            dset.attrs['columns'] = json.dumps({})
+            if key is None:
+                key = self.new_id('/table')
+            dset = h5.create_dataset(name=f"/table/{key}", dtype=h5py.Empty('f'))
             assert isinstance(save, bool)
             dset.attrs['saved'] = save
             if config is not None:
                 dset.attrs['config'] = config
+            if columns is None:
+                columns = {}
+            elif not isinstance(columns, dict):
+                raise TypeError()
+            dset.attrs['columns'] = json.dumps(columns)  
+            return key
 
     def set_config(self, group, config):
         """ 
@@ -144,6 +168,7 @@ class MemoryManager(object):
             dset.attrs['length'] = shape = pages_after.length()
             return shape
 
+    @timeout
     def load_column_attrs(self, group):
         with h5py.File(self.path, READONLY) as h5:
             dset = h5[group]
@@ -186,7 +211,8 @@ class MemoryManager(object):
     def reset_storage(self):
         with h5py.File(self.path, TRUNCATE) as h5:
             assert list(h5.keys()) == []
-        
+    
+    @timeout
     def get_data(self, group, item):
         if not group.startswith('/column'):
             raise ValueError("get data should be called by columns only.")
@@ -217,56 +243,39 @@ class MemoryManager(object):
             dtype, _ = Page.layout(pages)
             return np.concatenate(arrays, dtype=dtype)
     
+    @timeout
     def mp_write_column(self, values, column_key=None):  # for column
         """
         multi processing helper for writing column data.
         """
-        t = 0
-        start = time.process_time()
-        while time.process_time() - start < TIMEOUT:
-            try:    
-                with h5py.File(self.path, READWRITE) as h5:
-                    new_page = Page(values)
-                    if not column_key:
-                        column_key = self.new_id('/column')
-                    dset = h5.create_dataset(name=f'/column/{column_key}', dtype=h5py.Empty('f'))
-                    dset.attrs['pages'] = json.dumps([new_page.group])
-                    dset.attrs['length'] = len(new_page)
-                    return column_key
-            except OSError:
-                dt = random.randint(10,20)
-                t+=dt
-                time.sleep(dt/1000)
-            
-        raise OSError(f"couldn't write to disk (slept {t} msec")
+        with h5py.File(self.path, READWRITE) as h5:
+            new_page = Page(values)
+            if not column_key:
+                column_key = self.new_id('/column')
+            dset = h5.create_dataset(name=f'/column/{column_key}', dtype=h5py.Empty('f'))
+            dset.attrs['pages'] = json.dumps([new_page.group])
+            dset.attrs['length'] = len(new_page)
+            return column_key
 
+    @timeout
     def mp_write_table(self, table_key, columns):
         """
         multi processing helper for writing table data.
         """
         assert isinstance(columns, dict)
-        t = 0
-        start = time.process_time()
-        while time.process_time() - start < TIMEOUT:
-            try:    
-                with h5py.File(self.path, 'r+') as h5:
-                    dset = h5.create_dataset(name=f"/table/{table_key}", dtype=h5py.Empty('f'))
-                    dset.attrs['columns'] = json.dumps(columns)  
-                    dset.attrs['saved'] = True  # delete control resides with __main__
-                return
-            except OSError:
-                dt = random.randint(10,20)
-                t+=dt
-                time.sleep(dt/1000)
-                
-        raise OSError(f"couldn't write to disk (slept {t} msec")
+        with h5py.File(self.path, 'r+') as h5:
+            dset = h5.create_dataset(name=f"/table/{table_key}", dtype=h5py.Empty('f'))
+            dset.attrs['columns'] = json.dumps(columns)  
+            dset.attrs['saved'] = True  # delete control resides with __main__
 
+    @timeout
     def mp_get_columns(self, table_key):
         """
         multi processing helper for getting column names and keys from an existing table.
         """
-        with h5py.File(self.path, 'r') as h5:
-            dset = h5[f'/table/{table_key}']
+        with h5py.File(self.path, READONLY) as h5:
+            group = f"/table/{table_key}"
+            dset = h5[group]
             columns = json.loads(dset.attrs['columns'])
             assert isinstance(columns, dict)
             return columns
