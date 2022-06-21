@@ -1,10 +1,9 @@
-from tablite.groupby_utils import *
-
+from tablite.groupby_utils import GroupBy as gb
+import statistics
 
 def test_median():
     def median(values):
-        dtype = float if isinstance(values[0], float) else int
-        m = Median(dtype)
+        m = gb.median()
         for v in values:
             m.update(v)
         return m.value
@@ -23,19 +22,84 @@ def test_median():
     assert median([i/10 for i in range(1,10)]) == 0.5
 
 
-def test_more():
-    GroupbyFunction()
-    Limit()
-    Max()
-    Min()
-    Sum()
-    First()
-    Last()
-    Count()
-    CountUnique()
-    Average()
-    StandardDeviation()
-    Histogram()
-    Median()
-    Mode()
-    raise NotImplementedError("the functions above need verification")
+def test_max():
+    m = gb.max()
+    for i in [-2,-1,0,1,2,3]:
+        m.update(i)
+    assert m.value == 3
+
+def test_min():
+    m = gb.min()
+    for i in [-2,-1,0,1,2,3]:
+        m.update(i)
+    assert m.value == -2
+
+def test_sum():
+    m = gb.sum()
+    L = [-2,-1,0,1,2,3]
+    for i in L:
+        m.update(i)
+    assert sum(L) == m.value
+
+def test_first_last():
+    a = gb.first()
+    b = gb.last()
+    L = [-2,-1,0,1,2,3]
+    for i in L:
+        a.update(i)
+        b.update(i)
+    assert a.value == -2
+    assert b.value == 3
+
+def test_count():
+    c = gb.count()
+    cu = gb.count_unique()
+    for i in [1,1,2,2]:
+        c.update(i)
+        cu.update(i)
+    assert c.value == 4
+    assert cu.value == 2
+
+def test_average():
+    avg = gb.avg()
+    L = [-2,-1,0,1,2,3]
+    for i in L:
+        avg.update(i)
+    assert avg.value == sum(L) / len(L)
+
+def test_average2():
+    avg = gb.avg()
+    L = [0]
+    for i in L:
+        avg.update(i)
+    assert avg.value == sum(L) / len(L)
+
+
+def test_stdev():
+    m = gb.stdev()
+    L = [1,1]
+    for i in L:
+        m.update(i)
+    assert m.value == 0
+
+    m = gb.stdev()
+    L = [1,1,2,2]
+    for i in L:
+        m.update(i)
+    assert m.value == statistics.stdev(L)
+    
+
+def test_mode():
+
+    def mode(values):
+        m = gb.mode()
+        for i in values:
+            m.update(i)
+        return m.value
+
+    assert mode([1]) == 1
+    assert mode([1,1,2]) == 1
+    assert mode([1,1,2,3,3]) == 3
+    assert mode([1,1,2,2,3,3]) == 3
+
+    # raise NotImplementedError("the functions above need verification")
