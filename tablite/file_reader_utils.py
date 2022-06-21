@@ -138,6 +138,36 @@ class TextEscape(object):
         return words
 
 
+
+def detect_seperator(text):
+    """
+    :param path: pathlib.Path objects
+    :param encoding: file encoding.
+    :return: 1 character.
+    """
+    # After reviewing the logic in the CSV sniffer, I concluded that all it
+    # really does is to look for a non-text character. As the separator is
+    # determined by the first line, which almost always is a line of headers,
+    # the text characters will be utf-8,16 or ascii letters plus white space.
+    # This leaves the characters ,;:| and \t as potential separators, with one
+    # exception: files that use whitespace as separator. My logic is therefore
+    # to (1) find the set of characters that intersect with ',;:|\t' which in
+    # practice is a single character, unless (2) it is empty whereby it must
+    # be whitespace.
+    seps = {',', '\t', ';', ':', '|'}.intersection(text)
+    if not seps:
+        if " " in text:
+            return " "
+        else:
+            raise ValueError("separator not detected")
+    if len(seps) == 1:
+        return seps.pop()
+    else:
+        frq = [(text.count(i), i) for i in seps]
+        frq.sort(reverse=True)  # most frequent first.
+        return frq[0][-1]
+
+
 def get_headers(path): 
     """
     file format	definition
@@ -163,16 +193,24 @@ def get_headers(path):
     if not path.exists():
         raise FileNotFoundError(str(path))
 
+    delimiters = {
+        '.csv': ',',
+        '.tsv': '\t',
+        '.txt': None,
+    }
+
     d = {}
-    try:
-        book = pyexcel.get_book(file_name=str(path))
-        for sheet_name in book.sheet_names():
-            sheet = book[sheet_name]
-            stop = sheet.number_of_rows()
-            d[sheet_name] = [sheet.row[i] for i in range(0, min(10,stop))]
-        return d
-    except Exception:
-        pass  # it must be a raw text format.
+    if path.suffix not in delimiters:
+        try:
+            book = pyexcel.get_book(file_name=str(path))
+            for sheet_name in book.sheet_names():
+                sheet = book[sheet_name]
+                stop = sheet.number_of_rows()
+                d[sheet_name] = [sheet.row[i] for i in range(0, min(10,stop))]
+                d['delimiter'] = None
+            return d
+        except Exception:
+            pass  # it must be a raw text format.
 
     try:
         with path.open('rb') as fi:
@@ -185,7 +223,8 @@ def get_headers(path):
                 lines.append(line)
                 if n > 10:
                     break  # break on first
-            d["0"] = lines
+            d['delimiter'] = delimiter = detect_seperator('\n'.join(lines))
+            d[path.name] = [line.split(delimiter) for line in lines]
         return d
     except Exception:
         raise ValueError(f"can't read {path.suffix}")
