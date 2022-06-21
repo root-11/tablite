@@ -50,7 +50,7 @@ class Table(object):
             if config is not None:
                 if not isinstance(config, str):
                     raise TypeError("expected config as utf-8 encoded json")
-            mem.create_table(key=self.group, save=save, config=config)  # attrs. 'columns'
+            mem.create_table(key=key, save=save, config=config)  # attrs. 'columns'
         self._saved = save
     
     @property
@@ -291,7 +291,6 @@ class Table(object):
                 col_dset = h5[f"/column/{column_key}"]
                 c._len = col_dset.attrs['length'] 
                 t[col_name] = c
-                
             return t
 
     @classmethod
@@ -453,7 +452,6 @@ class Table(object):
         """
         accepted args:
           - slice
-
         """ 
         if not self.columns:
             print("Empty Table")
@@ -697,11 +695,11 @@ class Table(object):
             if v1 is not None and c1 is not None:
                 raise ValueError("filter can only take 1 left expr element. Got 2.")
 
-            c2 = expression.get('column1',None) 
+            c2 = expression.get('column2',None) 
             if c2 is not None and c2 not in self.columns: 
                 raise ValueError(f"no such column: {c2}")
-            v2 = expression.get('value2',None)
-            if v2 is not None and c1 is not None:
+            v2 = expression.get('value2', None)
+            if v2 is not None and c2 is not None:
                 raise ValueError("filter can only take 1 right expression element. Got 2.")
                
         if not isinstance(filter_type, str):
@@ -711,40 +709,37 @@ class Table(object):
 
         # the results are to be gathered here:
         arr = np.zeros(shape=(len(expressions), len(self)), dtype=bool)
-        shm = shared_memory(create=True, size=arr.nbytes)
+        shm = shared_memory.SharedMemory(create=True, size=arr.nbytes)
         _ = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
         
         # the task manager enables evaluation of a column per core,
         # which is assembled in the shared array.
-
-        max_task_size = 1_000_000  # 1 million rows per column per core (best guess!)
-        n_tasks = expressions * math.ceil( len(self) / max_task_size )  
-        n_cpus = min(n_tasks, psutil.cpu_count())
+        max_task_size = math.floor(1_000_000 / len(self.columns))  # 1 million fields per core (best guess!)
         
         filter_tasks = []
         for ix, expression in enumerate(expressions):
-            blocksize = math.ceil(len(self) / max_task_size)
-            for block in range(0, len(self), blocksize):
+            # blocksize = math.ceil(len(self) / max_task_size)
+            for step in range(0, len(self), max_task_size):
                 config = {'table_key':self.key, 'expression':expression, 
                           'shm_name':shm.name, 'shm_index':ix, 'shm_shape': arr.shape, 
-                          'slice_':slice(block, block+blocksize)}
-                task = Task(f=filter_task, **config)
+                          'slice_':slice(step, min(step+max_task_size, len(self)))}
+                task = Task(f=filter_evaluation_task, **config)
                 filter_tasks.append(task)
 
         merge_tasks = []
-        blocksize = math.ceil(len(self) / max_task_size)
-        for block in range(0, len(self), blocksize):
+        for step in range(0, len(self), max_task_size):
             config = {
                 'table_key': self.key,
                 'true_key': mem.new_id('/table'),
                 'false_key': mem.new_id('/table'),
                 'shm_name': shm.name, 'shm_shape': arr.shape,
-                'slice_': slice(block, block+blocksize,1),
+                'slice_': slice(step, min(step+max_task_size,len(self)),1),
                 'filter_type': filter_type
             }
-            task = Task(f=merge_task, **config)
+            task = Task(f=filter_merge_task, **config)
             merge_tasks.append(task)
 
+        n_cpus = min(max(len(filter_tasks),len(merge_tasks)), psutil.cpu_count())
         with TaskManager(n_cpus) as tm: 
             # EVALUATE 
             errs = tm.execute(filter_tasks)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
@@ -758,14 +753,20 @@ class Table(object):
         table_true, table_false = None, None
         for task in merge_tasks:
             tmp_true = Table.load(mem.path, key=task.kwargs['true_key'])
-            tmp_false = Table.load(mem.path, key=task.kwargs['false_key'])
             if table_true is None:
                 table_true = tmp_true
-                table_false = tmp_false
-            else:
+            elif len(tmp_true):
                 table_true += tmp_true
+            else:
+                pass
+                
+            tmp_false = Table.load(mem.path, key=task.kwargs['false_key'])
+            if table_false is None:
+                table_false = tmp_false
+            elif len(tmp_false):
                 table_false += tmp_false
-            
+            else:
+                pass
         return table_true, table_false
     
     def sort_index(self, sort_mode='excel', **kwargs):  # TODO: This is slow single core code.
@@ -811,7 +812,6 @@ class Table(object):
             keys: columns, 
             values: 'reverse' as boolean.
             
-
         examples: 
         Table.sort('A'=False)  means sort by 'A' in ascending order.
         Table.sort('A'=True, 'B'=False) means sort 'A' in descending order, then (2nd priority) sort B in ascending order.
@@ -837,19 +837,13 @@ class Table(object):
                 tasks.append(Task(indexing_task, source_key=col.key, destination_key=d_key, shm_name_for_sort_index=shm.name, shape=arr.shape))
 
             with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
-                results = tm.execute(tasks)
-                
-                if any(i is not None for i in results):
-                    for err in results:
-                        if err is not None:
-                            print(err)
-                    raise Exception("multiprocessing error.")
-                
-            with h5py.File(mem.path, 'r+') as h5:
-                table_key = mem.new_id('/table')
-                dset = h5.create_dataset(name=f"/table/{table_key}", dtype=h5py.Empty('f'))
-                dset.attrs['columns'] = json.dumps(columns_refs)  
-                dset.attrs['saved'] = False
+                errs = tm.execute(tasks)
+                if any(errs):
+                    msg = '\n'.join(errs)
+                    raise Exception(f"multiprocessing error:{msg}")
+
+            table_key = mem.new_id('/table')
+            mem.create_table(key=table_key, columns=columns_refs)
             
             shm.close()
             shm.unlink()
@@ -873,7 +867,7 @@ class Table(object):
         using multiprocessing.
         """
         arr = np.zeros(shape=(len(self), ), dtype=bool)
-        shm = shared_memory(create=True, size=arr.nbytes)  # the co_processors will read this.
+        shm = shared_memory.SharedMemory(create=True, size=arr.nbytes)  # the co_processors will read this.
         compresssion_mask = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
         compresssion_mask[:] = mask
 
@@ -1881,7 +1875,7 @@ filter_ops_from_text = {
     "in": _in
 }
 
-def filter_task(table_key, expression, shm_name, shm_index, shm_shape, slice_):
+def filter_evaluation_task(table_key, expression, shm_name, shm_index, shm_shape, slice_):
     """
     multiprocessing tasks for evaluating Table.filter
     """
@@ -1904,57 +1898,55 @@ def filter_task(table_key, expression, shm_name, shm_index, shm_shape, slice_):
     columns = mem.mp_get_columns(table_key)
     if c1 is not None:
         column_key = columns[c1]
-        dset_A = mem.get_data(f'/column/{column_key}', slice)
+        dset_A = mem.get_data(f'/column/{column_key}', slice_)
     else:  # v1 is active:
-        dset_A = np.array([v1] * (slice.stop-slice.start))
+        dset_A = np.array([v1] * (slice_.stop-slice_.start))
     
     if c2 is not None:
         column_key = columns[c2]
-        dset_B = mem.get_data(f'/column/{column_key}', slice)
+        dset_B = mem.get_data(f'/column/{column_key}', slice_)
     else:  # v2 is active:
-        dset_B = np.array([v2] * (slice.stop-slice.start))
+        dset_B = np.array([v2] * (slice_.stop-slice_.start))
 
     existing_shm = shared_memory.SharedMemory(name=shm_name)  # connect
     result_array = np.ndarray(shm_shape, dtype=np.bool, buffer=existing_shm.buf)
-    result_array[shm_index] = f(dset_A,dset_B)  # Evaluate
+    result_array[shm_index][slice_] = f(dset_A,dset_B)  # Evaluate
     existing_shm.close()  # disconnect
 
 
-def merge_task(table_key, true_key, false_key, shm_name, shm_shape, slice_, filter_type):
+def filter_merge_task(table_key, true_key, false_key, shm_name, shm_shape, slice_, filter_type):
     """ 
     multiprocessing task for merging data after the filter task has been completed.
     """
     existing_shm = shared_memory.SharedMemory(name=shm_name)  # connect
     result_array = np.ndarray(shm_shape, dtype=np.bool, buffer=existing_shm.buf)
-    mask_source = result_array[slice_]
+    mask_source = result_array
 
     if filter_type == 'any':
         true_mask = np.any(mask_source, axis=0)
     else:
         true_mask = np.all(mask_source, axis=0)
-    false_mask = np.invert(true_mask)
-
-    existing_shm.close()  # disconnect
+    true_mask = true_mask[slice_]
+    false_mask = np.invert(true_mask)    
     
-    # 2. load Table.from_shm(source)
-    # source_table = Table.load(table_key) 
-    true_columns,false_columns = {},{}
-    with h5py.File(mem.path, 'r') as h5:
-        group = f"/table/{table_key}"
-        dset = h5[group]
-        columns = json.loads(dset.attrs['columns'])
-        for col_name, column_key in columns.items():
-            col = Column(key=column_key)
-            slize = col[slice_]  # maybe use .tolist() ?
-            true_values = slize[true_mask]
-            if true_values:
-                true_columns[col_name] = mem.mp_write_column(true_values)
-            false_values = slize[false_mask]
-            if false_values:
-                false_columns[col_name] = mem.mp_write_column(false_values) 
+    # 2. load source
+    columns = mem.mp_get_columns(table_key)
+
+    true_columns, false_columns = {}, {}
+    for col_name, column_key in columns.items():
+        col = Column(key=column_key)
+        slize = col[slice_]  # maybe use .tolist() ?
+        true_values = slize[true_mask]
+        if np.any(true_mask):
+            true_columns[col_name] = mem.mp_write_column(true_values)
+        false_values = slize[false_mask]
+        if np.any(false_mask):
+            false_columns[col_name] = mem.mp_write_column(false_values) 
         
-        mem.mp_write_table(true_key, true_columns)
-        mem.mp_write_table(false_key, false_columns)
+    mem.mp_write_table(true_key, true_columns)
+    mem.mp_write_table(false_key, false_columns)
+    
+    existing_shm.close()  # disconnect
 
 
 def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
