@@ -288,8 +288,8 @@ class Table(object):
             columns = json.loads(dset.attrs['columns'])
             for col_name, column_key in columns.items():
                 c = Column.load(key=column_key)
-                ds2 = h5[f"/column/{column_key}"]
-                c._len = ds2.attrs['length'] 
+                col_dset = h5[f"/column/{column_key}"]
+                c._len = col_dset.attrs['length'] 
                 t[col_name] = c
                 
             return t
@@ -739,7 +739,8 @@ class Table(object):
                 'true_key': mem.new_id('/table'),
                 'false_key': mem.new_id('/table'),
                 'shm_name': shm.name, 'shm_shape': arr.shape,
-                'slice_': slice(block, block+blocksize,1)
+                'slice_': slice(block, block+blocksize,1),
+                'filter_type': filter_type
             }
             task = Task(f=merge_task, **config)
             merge_tasks.append(task)
@@ -747,11 +748,11 @@ class Table(object):
         with TaskManager(n_cpus) as tm: 
             # EVALUATE 
             errs = tm.execute(filter_tasks)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
-            if any(i is not None for i in errs):
+            if any(errs):
                 raise Exception(errs)
             # MERGE RESULTS
             errs = tm.execute(merge_tasks)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
-            if any(i is not None for i in errs):
+            if any(errs):
                 raise Exception(errs)
 
         table_true, table_false = None, None
@@ -833,7 +834,7 @@ class Table(object):
             for name in self.columns:
                 col = self[name]
                 columns_refs[name] = d_key = mem.new_id('/column')
-                tasks.append(Task(indexing_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=shm.name, shape=arr.shape))
+                tasks.append(Task(indexing_task, source_key=col.key, destination_key=d_key, shm_name_for_sort_index=shm.name, shape=arr.shape))
 
             with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
                 results = tm.execute(tasks)
@@ -883,7 +884,7 @@ class Table(object):
             col = self[name]
             d_key = mem.new_id('/column')
             columns_refs[name] = d_key
-            t = Task(compress_task, path=mem.path, source_key=col.key, destination_key=d_key, shm_index_name=shm.name, shape=arr.shape)
+            t = Task(compress_task, source_key=col.key, destination_key=d_key, shm_index_name=shm.name, shape=arr.shape)
             tasks.append(t)
 
         with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
@@ -1156,12 +1157,12 @@ class Table(object):
         for name in left_columns:
             col = self[name]
             columns_refs[name] = d_key = mem.new_id('/column')
-            tasks.append(Task(indexing_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=left_shm.name, shape=left_arr.shape))
+            tasks.append(Task(indexing_task, source_key=col.key, destination_key=d_key, shm_name_for_sort_index=left_shm.name, shape=left_arr.shape))
 
         for name in right_columns:
             col = other[name]
             columns_refs[name] = d_key = mem.new_id('/column')
-            tasks.append(Task(indexing_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=right_shm.name, shape=right_arr.shape))
+            tasks.append(Task(indexing_task, source_key=col.key, destination_key=d_key, shm_name_for_sort_index=right_shm.name, shape=right_arr.shape))
 
         with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
             results = tm.execute(tasks)
@@ -1411,17 +1412,13 @@ class Table(object):
             for name in other.columns:
                 col = other[name]
                 columns_refs[name] = d_key = mem.new_id('/column')
-                tasks.append(Task(indexing_task, source_key=col.key, path=mem.path, destination_key=d_key, shm_name_for_sort_index=right_shm.name, shape=right_arr.shape))
+                tasks.append(Task(indexing_task, source_key=col.key, destination_key=d_key, shm_name_for_sort_index=right_shm.name, shape=right_arr.shape))
 
             # 3. let task manager handle the tasks
             with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
-                results = tm.execute(tasks)
-                
-                if any(i is not None for i in results):
-                    for err in results:
-                        if err is not None:
-                            print(err)
-                    raise Exception("multiprocessing error.")
+                errs = tm.execute(tasks)
+                if any(errs):
+                    raise Exception(f"multiprocessing error. {[e for e in errs if e]}")
             
             # 4. close the share memory and deallocate
             right_shm.close()
@@ -1885,6 +1882,9 @@ filter_ops_from_text = {
 }
 
 def filter_task(table_key, expression, shm_name, shm_index, shm_shape, slice_):
+    """
+    multiprocessing tasks for evaluating Table.filter
+    """
     assert isinstance(table_key, str)  # 10 --> group = '/table/10'
     assert isinstance(expression, dict)
     assert len(expression)==3
@@ -1901,76 +1901,60 @@ def filter_task(table_key, expression, shm_name, shm_index, shm_shape, slice_):
     v1 = expression.get('value1',None)
     v2 = expression.get('value2',None)
 
-    with h5py.File(mem.path, 'r') as h5:
-        dset = h5[f'/table/{table_key}']
-        columns = json.loads(dset.attrs['columns'])
-        if c1 is not None:
-            column_key = columns[c1]
-            pages = mem.get_pages(f'/column/{column_key}')
-            dset_A = pages.getslice(slice.start,slice.stop)
-        else:  # v1 is active:
-            dset_A = np.array([v1] * (slice.stop-slice.start))
-        
-        if c2 is not None:
-            column_key = columns[c2]
-            pages = mem.get_pages(f'/column/{column_key}')
-            dset_B = pages.getslice(slice.start, slice.stop)
-        else:  # v2 is active:
-            dset_B = np.array([v2] * (slice.stop-slice.start))
-
-        existing_shm = shared_memory.SharedMemory(name=shm_name)  # connect
-        ra = np.ndarray(shm_shape, dtype=np.int64, buffer=existing_shm.buf)
-        ra[shm_index] = f(dset_A,dset_B)
-        existing_shm.close()  # disconnect
-    return None
-
-
-def merge_task(table_key, true_key, false_key, shm_name, shm_shape, slice_):
-    raise NotImplementedError("wip")
-
-def merge(source, mask, filter_type, slice_):
-    """ PARALLEL TASK FUNCTION
-    creates new tables from combining source and mask.
-    """
-    if not isinstance(source, dict):
-        raise TypeError
-    for L in source.values():
-        if not isinstance(L, list):
-            raise TypeError
-        if not all(isinstance(sma, SharedMemoryAddress) for sma in L):
-            raise TypeError
-
-    if not isinstance(mask, SharedMemoryAddress):
-        raise TypeError
-    if not isinstance(filter_type, str) and filter_type in {'any', 'all'}:
-        raise TypeError
-    if not isinstance(slice_, slice):
-        raise TypeError
+    columns = mem.mp_get_columns(table_key)
+    if c1 is not None:
+        column_key = columns[c1]
+        dset_A = mem.get_data(f'/column/{column_key}', slice)
+    else:  # v1 is active:
+        dset_A = np.array([v1] * (slice.stop-slice.start))
     
-    # 1. determine length of Falses and Trues
-    f = any if filter_type == 'any' else all
-    handle, mask = mask.to_shm() 
-    if len(mask) == 1:
-        true_mask = mask[0][slice_]
+    if c2 is not None:
+        column_key = columns[c2]
+        dset_B = mem.get_data(f'/column/{column_key}', slice)
+    else:  # v2 is active:
+        dset_B = np.array([v2] * (slice.stop-slice.start))
+
+    existing_shm = shared_memory.SharedMemory(name=shm_name)  # connect
+    result_array = np.ndarray(shm_shape, dtype=np.bool, buffer=existing_shm.buf)
+    result_array[shm_index] = f(dset_A,dset_B)  # Evaluate
+    existing_shm.close()  # disconnect
+
+
+def merge_task(table_key, true_key, false_key, shm_name, shm_shape, slice_, filter_type):
+    """ 
+    multiprocessing task for merging data after the filter task has been completed.
+    """
+    existing_shm = shared_memory.SharedMemory(name=shm_name)  # connect
+    result_array = np.ndarray(shm_shape, dtype=np.bool, buffer=existing_shm.buf)
+    mask_source = result_array[slice_]
+
+    if filter_type == 'any':
+        true_mask = np.any(mask_source, axis=0)
     else:
-        true_mask = [f(c[i] for c in mask) for i in range(slice_.start, slice_.stop)]
+        true_mask = np.all(mask_source, axis=0)
     false_mask = np.invert(true_mask)
 
-    t1 = Table.from_address(source)  # 2. load Table.from_shm(source)
-    # 3. populate the tables
+    existing_shm.close()  # disconnect
     
-    true, false = Table(), Table()
-    for name, mc in t1.columns.items():
-        mc_unfiltered = np.array(mc[slice_])
-        if any(true_mask):
-            data = mc_unfiltered[true_mask]
-            true.add_column(name, data)  # data = mc_unfiltered[new_mask]
-        if any(false_mask):
-            data = mc_unfiltered[false_mask]
-            false.add_column(name, data)
-
-    # 4. return table.to_shm()
-    return true.address, false.address   
+    # 2. load Table.from_shm(source)
+    # source_table = Table.load(table_key) 
+    true_columns,false_columns = {},{}
+    with h5py.File(mem.path, 'r') as h5:
+        group = f"/table/{table_key}"
+        dset = h5[group]
+        columns = json.loads(dset.attrs['columns'])
+        for col_name, column_key in columns.items():
+            col = Column(key=column_key)
+            slize = col[slice_]  # maybe use .tolist() ?
+            true_values = slize[true_mask]
+            if true_values:
+                true_columns[col_name] = mem.mp_write_column(true_values)
+            false_values = slize[false_mask]
+            if false_values:
+                false_columns[col_name] = mem.mp_write_column(false_values) 
+        
+        mem.mp_write_table(true_key, true_columns)
+        mem.mp_write_table(false_key, false_columns)
 
 
 def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
@@ -2090,7 +2074,6 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
 
     config = {
             "source":None,
-            "destination":mem.path, 
             "table_key":None, 
             "columns":columns,
             "newline":newline, 
@@ -2104,7 +2087,7 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
 
     tasks = []
     with path.open('r', encoding=encoding) as fi:
-        # task find chunk ...
+        # task: find chunk ...
         # Here is the problem in a nutshell:
         # --------------------------------------------------------
         # bs = "this is my \n text".encode('utf-16')
@@ -2189,18 +2172,11 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
     
     # execute the tasks
     with TaskManager(cpu_count=min(psutil.cpu_count(), n_tasks)) as tm:
-        print("sorting ...")
         errors = tm.execute(tasks)   # I expects a list of None's if everything is ok.
         if any(errors):
-            e = []
-            for ix, err in enumerate(errors):
-                if err is not None:
-                    e.append("-" * 19)
-                    e.append(f"Error in task {ix}:")
-                    e.append(err)
-            raise Exception("\n".join(e))
+            raise Exception("\n".join(e for e in errors if e))
     
-    # clean up the files
+    # clean up the tmp source files
     for task in tasks:
         tmp = pathlib.Path(task.kwargs['source'])
         tmp.unlink()
@@ -2210,16 +2186,17 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
     for task in tasks:
         tmp = Table.load(path=mem.path, key=task.kwargs["table_key"])
         if t is None:
-            t = tmp
+            t = tmp.copy()
         else:
             t += tmp
+        tmp.save = False  # allow deletion of subproc tables.
     t.save = True
     return t
 
 
-def text_reader_task(source, destination, table_key, columns, 
+def text_reader_task(source, table_key, columns, 
     newline, delimiter=',', qoute='"', text_escape_openings='', text_escape_closures='', 
-    strip_leading_and_tailing_whitespace=True, encoding='utf-8', timeout=10.0):
+    strip_leading_and_tailing_whitespace=True, encoding='utf-8'):
     """ PARALLEL TASK FUNCTION
     reads columnsname + path[start:limit] into hdf5.
 
@@ -2244,11 +2221,6 @@ def text_reader_task(source, destination, table_key, columns,
     if not source.exists():
         raise FileNotFoundError(f"File not found: {source}")
 
-    if isinstance(destination, str):
-        destination = pathlib.Path(destination)
-    if not isinstance(destination, pathlib.Path):
-        raise TypeError()
-
     if not isinstance(table_key, str):
         raise TypeError()
 
@@ -2261,7 +2233,7 @@ def text_reader_task(source, destination, table_key, columns,
     text_escape = TextEscape(text_escape_openings, text_escape_closures, qoute=qoute, delimiter=delimiter, 
                              strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace)
 
-    with source.open('r', encoding=encoding) as fi:
+    with source.open('r', encoding=encoding) as fi:  # --READ
         for line in fi:
             line = line.rstrip(newline)
             break  # break on first
@@ -2275,32 +2247,11 @@ def text_reader_task(source, destination, table_key, columns,
                 break
             for header,index in indices.items():
                 data[header].append(fields[index])
-
-    # write out.
-    t = 0
-    start = time.process_time()
-    while time.process_time() - start < timeout:
-        try:    
-            columns_refs = {}
-            with h5py.File(destination, 'r+') as h5:
-                for col_name, values in data.items():
-                    new_page = Page(values)
-                    group_no = mem.new_id('/column')
-                    columns_refs[col_name] = group_no
-                    dset = h5.create_dataset(name=f'/column/{group_no}', dtype=h5py.Empty('f'))
-                    dset.attrs['pages'] = json.dumps([new_page.group])
-                    dset.attrs['length'] = len(new_page)
-                
-                dset = h5.create_dataset(name=f"/table/{table_key}", dtype=h5py.Empty('f'))
-                dset.attrs['columns'] = json.dumps(columns_refs)  
-                dset.attrs['saved'] = True
-            return
-        except OSError:
-            dt = random.randint(10,20)
-            t+=dt
-            time.sleep(dt/1000)
-            
-    raise OSError(f"couldn't write to disk (slept {t} msec")
+    # -- WRITE
+    columns_refs = {}
+    for col_name, values in data.items():
+        columns_refs[col_name] = mem.mp_write_column(values)
+    mem.mp_write_table(table_key, columns=columns_refs)
 
 
 file_readers = {
@@ -2320,10 +2271,9 @@ file_readers = {
 }
 
 
-def indexing_task(path, source_key, destination_key, shm_name_for_sort_index, shape, timeout=10):
+def indexing_task(source_key, destination_key, shm_name_for_sort_index, shape):
     """
     performs the creation of a column sorted by sort_index (shared memory object).
-    path: memory manager path
     source_key: column to read
     destination_key: column to write
     shm_name_for_sort_index: sort index' shm.name created by main.
@@ -2334,47 +2284,29 @@ def indexing_task(path, source_key, destination_key, shm_name_for_sort_index, sh
     existing_shm = shared_memory.SharedMemory(name=shm_name_for_sort_index)  # connect
     sort_index = np.ndarray(shape, dtype=np.int64, buffer=existing_shm.buf)
 
-    with h5py.File(path, 'r') as h5:  # --- READ!
-        col = Column(key=source_key)
-        data = col[:].tolist()
-        values = [data[ix] for ix in sort_index]
-
-    t = 0
-    start = time.process_time()
-    while time.process_time() - start < timeout:
-        try:
-            with h5py.File(path, 'r+') as h5:  # --- WRITE!
-                new_page = Page(values)
-                dset = h5.create_dataset(name=f"/column/{destination_key}", dtype=h5py.Empty('f'))
-                dset.attrs['pages'] = json.dumps([new_page.group])
-                dset.attrs['length'] = len(new_page)
-                existing_shm.close()  # disconnect
-                return
-        except OSError:
-            dt = random.randint(10,20)
-            t+=dt
-            time.sleep(dt/1000)
-
-    raise OSError(f"couldn't write to disk (slept {t} msec")
+    data = mem.get_data(f'/column/{source_key}') # --- READ!
+    values = [data[ix] for ix in sort_index]
+    
+    existing_shm.close()  # disconnect
+    mem.mp_write_column(values, column_key=destination_key)  # --- WRITE!
 
 
-def compress_task(path, source_key, destination_key, shm_index_name, shape):
+def compress_task(source_key, destination_key, shm_index_name, shape):
+    """
+    compresses the source using boolean mask from shared memory
+
+    source_key: column to read
+    destination_key: column to write
+    shm_name_for_sort_index: sort index' shm.name created by main.
+    shape: shm array shape.
+    """
     existing_shm = shared_memory.SharedMemory(name=shm_index_name)  # connect
     mask = np.ndarray(shape, dtype=np.int64, buffer=existing_shm.buf)
     
-    with h5py.File(path, 'r+') as h5:
-        data = mem.get_data(f'/column/{source_key}')
-        values = np.compress(mask, data)
-        new_page = Page(values)
-        dtype, shape = Page.layout([new_page])
-
-        layout = h5py.VirtualLayout(shape=(shape,), dtype=dtype, maxshape=(None,), filename=path)
-        dset = h5[new_page.group]
-        vsource = h5py.VirtualSource(dset)
-        layout[0:len(dset)] = vsource
-
-        h5.create_virtual_dataset(f"/column/{destination_key}", layout=layout)
-
+    data = mem.get_data(f'/column/{source_key}')  # --- READ!
+    values = np.compress(mask, data)
+    
     existing_shm.close()  # disconnect
+    mem.mp_write_column(values, column_key=destination_key)  # --- WRITE!
 
 
