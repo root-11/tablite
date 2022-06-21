@@ -9,3 +9,4 @@ pyexcel-odsr
 pyperclip
 pyexcel-xlsx
 pyuca>=1.2
+mplite
