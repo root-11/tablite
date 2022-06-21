@@ -37,7 +37,7 @@ class Sum(GroupbyFunction):
     def __init__(self):
         self.value = 0
     def update(self,value):
-        if isinstance(value, (date,time,datetime,str)):
+        if isinstance(value, (type(None), date, time, datetime, str)):
             raise ValueError(f"Sum of {type(value)} doesn't make sense.")
         self.value += value
 
