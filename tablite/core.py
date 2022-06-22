@@ -2167,13 +2167,14 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
     # execute the tasks
     with TaskManager(cpu_count=min(psutil.cpu_count(), n_tasks)) as tm:
         errors = tm.execute(tasks)   # I expects a list of None's if everything is ok.
+        
+        # clean up the tmp source files, before raising any exception.
+        for task in tasks:
+            tmp = pathlib.Path(task.kwargs['source'])
+            tmp.unlink()
+
         if any(errors):
             raise Exception("\n".join(e for e in errors if e))
-    
-    # clean up the tmp source files
-    for task in tasks:
-        tmp = pathlib.Path(task.kwargs['source'])
-        tmp.unlink()
 
     # consolidate the task results
     t = None
