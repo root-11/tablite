@@ -55,12 +55,12 @@ def test01():
     start = time.time()
     t1 = Table.import_file(BIG_PATH, **config)
     end = time.time()
-    print(f"import took {round(end-start, 4)} secs.")
+    print(f"import took {round(end-start, 4)} secs.")   #  import took 335.1049 secs.
     
     start = time.time()
     t2 = Table.import_file(BIG_PATH, **config)
     end = time.time()
-    print(f"reloading an imported table took {round(end-start, 4)} secs.")
+    print(f"reloading an imported table took {round(end-start, 4)} secs.")  # reloading an imported table took 0.177 secs.
     t1.show()
     print("-"*120)
     t2.show()
@@ -69,7 +69,7 @@ def test01():
     start = time.time()
     t3 = Table.import_file(BIG_PATH, **config)
     end = time.time()
-    print(f"reloading an already imported table took {round(end-start, 4)} secs.")
+    print(f"reloading an already imported table took {round(end-start, 4)} secs.")  #reloading an already imported table took 0.179 secs.
     t3.show(slice(3,100,17))
 
 
