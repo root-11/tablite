@@ -1,10 +1,12 @@
 from collections import defaultdict
+
 import time
 import random
 import h5py  #https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr?rq=1  
 import numpy as np
 import json
 from string import digits
+from os import getpid
 import functools
 
 DIGITS = set(digits)
@@ -18,22 +20,32 @@ READWRITE = 'r+' # r+ Read/write, file must exist
 TRUNCATE = 'w'   # w  Create file, truncate if exists
 #                x    Create file, fail if exists
 #                a    Read/write if exists, create otherwise
-TIMEOUT = 10  # maximum seconds tolerance waiting for OS to release hdf5 write lock
+TIMEOUT = 10*60 * 1000  # maximum msec tolerance waiting for OS to release hdf5 write lock
 
 
 def timeout(func):
     @functools.wraps(func)
     def wrapper(*args,**kwargs):
-        t = 0
-        start = time.time()
-        while time.time() - start < TIMEOUT:
+        waited = 0.0
+        planned= 0.0
+        while waited < TIMEOUT:
             try:
-                return func(*args,**kwargs)
+                begin = time.perf_counter()
+                result = func(*args,**kwargs)
+                end = time.perf_counter()
+                print(f"{getpid()} waited {int(waited)} msec (planned {planned}) to exec. {func.__name__} for {round(1000*(end-begin))} msec")
+                return result
             except OSError:
-                dt = random.randint(10,20)
-                t+=dt
-                time.sleep(dt/1000)
-        raise OSError(f"couldn't write to disk (slept {t} msec")
+                wait = round(random.randint(20, int(max(50, 500 - (0.0075 * waited)))),-1) 
+                # a linear reduction in waiting time depending on how long the caller already waited
+                # rounded to nearest 10 ms, as the kernel scheduler only handles sleep in 10 ms intervals.
+                planned += wait
+                t1 = time.perf_counter()
+                time.sleep(wait / 1000)
+                t2 = time.perf_counter()
+                waited += (t2-t1) * 1000
+
+        raise OSError(f"couldn't write to disk (slept {waited} msec")
     return wrapper
 
 
