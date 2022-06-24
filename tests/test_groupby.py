@@ -57,7 +57,7 @@ def test_groupby():
     ]
   
 
-def test_groupby_02():
+def test_groupby_w_pivot():
     t = Table()
     t.add_column('A', int, data=[1, 1, 2, 2, 3, 3] * 2)
     t.add_column('B', int, data=[1, 2, 3, 4, 5, 6] * 2)
@@ -104,7 +104,7 @@ def test_groupby_02():
     assert len(t2) == 6 and len(t2.columns) == 4
 
 
-def test_ttopi():
+def test_reverse_pivot():
     """ example code from the readme as "reversing a pivot tablite". """
     from random import seed, choice
     seed(11)
