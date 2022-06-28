@@ -26,21 +26,23 @@ def test_left_join():
 def test_left_join2():
     """ joining a table on itself. Wierd but possible. """
     numbers = Table()
-    numbers.add_column('number', int, allow_empty=True, data=[1, 2, 3, 4, None])
-    numbers.add_column('colour', str, data=['black', 'blue', 'white', 'white', 'blue'])
+    numbers.add_column('number', data=[1, 2, 3, 4, None])
+    numbers.add_column('colour', data=['black', 'blue', 'white', 'white', 'blue'])
 
     left_join = numbers.left_join(numbers, left_keys=['colour'], right_keys=['colour'], left_columns=['colour', 'number'], right_columns=['number', 'colour'])
+    left_join.show()
 
-    assert list(left_join.rows) == [('black', 1, 1, 'black'),
-                                    ('blue', 2, 2, 'blue'),
-                                    ('blue', 2, None, 'blue'),
-                                    ('white', 3, 3, 'white'),
-                                    ('white', 3, 4, 'white'),
-                                    ('white', 4, 3, 'white'),
-                                    ('white', 4, 4, 'white'),
-                                    ('blue', None, 2, 'blue'),
-                                    ('blue', None, None, 'blue')]
-
+    assert list(left_join.rows) == [
+        ['black', 1, 1, 'black'],
+        ['blue', 2, 2, 'blue'],
+        ['blue', 2, None, 'blue'],
+        ['blue', None, 2, 'blue'],
+        ['blue', None, None, 'blue'],
+        ['white', 3, 3, 'white'],
+        ['white', 3, 4, 'white'],
+        ['white', 4, 3, 'white'],
+        ['white', 4, 4, 'white'],
+    ]
 
 def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2):
     """
