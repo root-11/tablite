@@ -1,5 +1,6 @@
 
 from tablite.memory_manager import timeout
+import time
 
 
 @timeout
