@@ -1,4 +1,11 @@
 from tablite import Table
+import pytest
+
+
+@pytest.fixture(autouse=True) # this resets the HDF5 file for every test.
+def refresh():
+    Table.reset_storage()
+    yield
 
 
 def test_left_join():
@@ -52,22 +59,18 @@ def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2):
         ON tbl1.color = tbl2.color;
     """
     numbers_1 = Table()
-    numbers_1.add_column('number', int, allow_empty=True)
-    numbers_1.add_column('colour', str)
-    for row in pairs_1:
-        numbers_1.add_row(row)
-
+    numbers_1.add_column('number', data=[p[0] for p in pairs_1])
+    numbers_1.add_column('colour', data=[p[1] for p in pairs_1])
+    
     numbers_2 = Table()
-    numbers_2.add_column('number', int, allow_empty=True)
-    numbers_2.add_column('colour', str)
-    for row in pairs_2:
-        numbers_2.add_row(row)
+    numbers_2.add_column('number', data=[p[0] for p in pairs_2])
+    numbers_2.add_column('colour', data=[p[1] for p in pairs_2])
 
     left_join = numbers_1.left_join(numbers_2, left_keys=[column_1], right_keys=[column_2], left_columns=['number','colour'], right_columns=['number','colour'])
 
     assert len(pairs_ans) == len(left_join)
     for a, b in zip(sorted(pairs_ans, key=lambda x: str(x)), sorted(list(left_join.rows), key=lambda x: str(x))):
-        assert a == b
+        assert a == tuple(b)
 
 
 def test_same_join_1():
