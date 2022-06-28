@@ -5,11 +5,12 @@ import random
 import h5py  #https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr?rq=1  
 import numpy as np
 import json
-from string import digits
 from os import getpid
 import functools
 
+from string import digits
 DIGITS = set(digits)
+
 
 from tablite.config import HDF5_Config
 from tablite.utils import intercept
