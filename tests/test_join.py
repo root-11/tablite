@@ -4,20 +4,23 @@ from tablite import Table
 def test_left_join():
     """ joining a table on itself. Wierd but possible. """
     numbers = Table()
-    numbers.add_column('number', int, allow_empty=True, data=[1, 2, 3, 4, None])
-    numbers.add_column('colour', str, data=['black', 'blue', 'white', 'white', 'blue'])
+    numbers.add_column('number', data=[1, 2, 3, 4, None])
+    numbers.add_column('colour', data=['black', 'blue', 'white', 'white', 'blue'])
 
     left_join = numbers.left_join(numbers, left_keys=['colour'], right_keys=['colour'])
+    left_join.show()
 
-    assert list(left_join.rows) == [(1, 'black', 1, 'black'),
-                                    (2, 'blue', 2, 'blue'),
-                                    (2, 'blue', None, 'blue'),
-                                    (3, 'white', 3, 'white'),
-                                    (3, 'white', 4, 'white'),
-                                    (4, 'white', 3, 'white'),
-                                    (4, 'white', 4, 'white'),
-                                    (None, 'blue', 2, 'blue'),
-                                    (None, 'blue', None, 'blue')]
+    assert list(left_join.rows) == [
+        [1, 'black', 1, 'black'],
+        [2, 'blue', 2, 'blue'],
+        [2, 'blue', None, 'blue'],
+        [None, 'blue', 2, 'blue'],
+        [None, 'blue', None, 'blue'],
+        [3, 'white', 3, 'white'],
+        [3, 'white', 4, 'white'],
+        [4, 'white', 3, 'white'],
+        [4, 'white', 4, 'white'],
+    ]
 
 
 def test_left_join2():
