@@ -1,8 +1,6 @@
 import math
 import pathlib
-import random
 import json
-import time
 import sys
 import itertools
 import operator
@@ -24,6 +22,16 @@ import numpy as np
 import h5py
 import psutil
 from mplite import TaskManager, Task
+
+# exit handler so that Table.__del__ doesn't run into import error during exit.
+PYTHON_EXIT = False
+
+def exiting():
+    global PYTHON_EXIT
+    PYTHON_EXIT = True
+
+import atexit
+atexit.register(exiting)
 
 
 from tablite.memory_manager import MemoryManager, Page, Pages
@@ -66,10 +74,13 @@ class Table(object):
             mem.set_saved_flag(self.group, value)
 
     def __del__(self):
+        if PYTHON_EXIT:
+            return 
+
         for key in list(self._columns):
             del self[key]
         mem.delete_table(self.group)
-
+        
     def __str__(self):
         return f"Table({len(self._columns):,} columns, {len(self):,} rows)"
 
