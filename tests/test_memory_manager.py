@@ -1,6 +1,5 @@
 
-from tablite.memory_manager import timeout, TIMEOUT
-import time
+from tablite.memory_manager import timeout
 
 
 @timeout
@@ -18,11 +17,3 @@ def test_timeout_result():
         x = sleepy(i)
         assert x == i
 
-def test_timeout():
-    start = time.time()
-    try:
-        blowup()
-    except OSError:
-        pass
-    end = time.time()
-    assert end-start >= TIMEOUT
