@@ -396,8 +396,13 @@ class Pages(list):
 
 class GenericPage(object):
     _page_ids = 0  # when loading from disk increment this to max id.
+    _page_type = 'page_type'
+    _length = 'length'  # used by sparse matrix.
     _type_array = 'typearray'
     _type_array_postfix = "_types"
+    _index_array_postfix = "_index"
+    _default_value = "default_sparse_matrix_value"
+    _default_value_type_code = "default_value_type_code"
     _str = str.__name__
     _datatype = 'datatype'
     _encoding = 'encoding'
@@ -474,29 +479,29 @@ class GenericPage(object):
         """
         with h5py.File(HDF5_Config.H5_STORAGE, READONLY) as h5:
             dset = h5[group]
-            datatype = dset.attrs[cls._datatype]
+            page_type = dset.attrs[cls._page_type]
             
-            if not isinstance(datatype,str):
+            if not isinstance(page_type,str):
                 raise TypeError
-        
-            if datatype == cls._type_array:
-                pg_class = MixedType
-            elif datatype == cls._str:
-                pg_class = StringType
-            else:
-                pg_class = SimpleType
+
+            pg_class = page_types.get(page_type,None)
+            if pg_class is None:
+                raise TypeError(f"page type not recognised: {page_type}")
       
             page = pg_class(group)
             page.stored_datatype = dset.dtype
-            page.original_datatype = datatype
-            page._len = dset.len()
-
+            page.original_datatype = dset.attrs[cls._datatype]
+            page._len = dset.attrs.get(cls._length, dset.len())
+            
             return page
 
     @classmethod
     def create(cls, data):
         if not isinstance(data, np.ndarray):
-            types = {type(v) for v in data}
+            types = defaultdict(int)
+            for v in data:
+                types[type(v)] += 1
+
             if len(types)>1:
                 data = np.array(data, dtype='O')
             else:
@@ -504,8 +509,12 @@ class GenericPage(object):
 
         if not isinstance(data, np.ndarray):
             raise TypeError
+            
         if data.dtype.char in cls._MixedTypes:
-            pg_cls = MixedType
+            if max(types, key=types.get) == type(None):
+                pg_cls = SparseType
+            else:
+                pg_cls = MixedType
         elif data.dtype.char in cls._StringTypes:
             pg_cls = StringType
         elif data.dtype.char in cls._SimpleTypes:  # check if a new int8 is not included in an int32.
@@ -570,6 +579,9 @@ class GenericPage(object):
 
     def pop(self, index):   # called by Column.pop if ref count <=1 
         raise NotImplementedError("subclasses must implement this method.")
+    
+    def datatypes(self):
+        raise NotImplementedError("subclasses must implement this method.")
 
 
 class SimpleType(GenericPage):
@@ -596,6 +608,7 @@ class SimpleType(GenericPage):
                                      maxshape=(None,),  # the stored data is now extendible / resizeable.
                                      chunks=HDF5_Config.H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
             dset.attrs[self._datatype] = self.original_datatype
+            dset.attrs[self._page_type] = self.__class__.__name__
             dset.attrs[self._encoding] = self.encoding
 
     def __getitem__(self, item):
@@ -741,6 +754,7 @@ class StringType(GenericPage):
                                      maxshape=(None,),  # the stored data is now extendible / resizeable.
                                      chunks=HDF5_Config.H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
             dset.attrs[self._datatype] = self.original_datatype
+            dset.attrs[self._page_type] = self.__class__.__name__
             dset.attrs[self._encoding] = self.encoding
 
     def __getitem__(self, item):
@@ -873,19 +887,19 @@ class MixedType(GenericPage):
     def create(self, data):
         self._len = len(data)
 
+        # get typecode for encoding.
+        type_code = DataTypes.type_code
+        type_array = np.array( [ type_code(v) for v in data.tolist() ] )
+                    
+        byte_function = DataTypes.to_bytes
+        data = np.array( [byte_function(v) for v in data.tolist()] )
+        
+        self.stored_datatype = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)  # type 'O'
+
         with h5py.File(self.path, READWRITE) as h5:
             if self.group in h5:
                 raise ValueError("page already exists")
             
-            # get typecode for encoding.
-            type_code = DataTypes.type_code
-            type_array = np.array( [ type_code(v) for v in data.tolist() ] )
-                        
-            byte_function = DataTypes.to_bytes
-            data = np.array( [byte_function(v) for v in data.tolist()] )
-            
-            self.stored_datatype = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)  # type 'O'
-
             # dataset
             dset = h5.create_dataset(name=self.group, 
                                      data=data,  # data is now HDF5 compatible.
@@ -893,6 +907,7 @@ class MixedType(GenericPage):
                                      maxshape=(None,),  # the stored data is now extendible / resizeable.
                                      chunks=HDF5_Config.H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
             dset.attrs[self._datatype] = self._type_array
+            dset.attrs[self._page_type] = self.__class__.__name__
             dset.attrs[self._encoding] = self.encoding
             
             # typearray 
@@ -1079,7 +1094,136 @@ class MixedType(GenericPage):
             dset = h5[self.type_group]
             uarray, carray = np.unique(dset, return_counts=True)
             tc = DataTypes.pytype_from_type_code
-            return {tc[u]:c for u,c in zip(uarray,carray)}
+            types = {self._default_value_type_code: self._len - len(uarray)}
+            return types.update({tc[u]:c for u,c in zip(uarray,carray)})
+
+
+class SparseType(GenericPage):
+    def __init__(self, group, data=None):
+        super().__init__(group)
+        self.type_group = f"{self.group}{self._type_array_postfix}"
+        self.index_group = f"{self.group}{self._index_array_postfix}"
+        if data is not None:
+            self.create(data)
+    
+    def create(self,data):
+        self._len = len(data)
+
+        d = defaultdict(int)
+        for v in data:
+            d[v]+=1
+
+        default_value = max(d, key=d.get)  # get the most frequent value. Probably None.
+
+        type_code = DataTypes.type_code
+        type_array = np.array( [ type_code(v) for v in d if v != default_value] )  # d, not data.
+
+        byte_function = DataTypes.to_bytes
+        byte_data = np.array( [ byte_function(v)  for v in d if v != default_value] )  # d, not data.
+
+        index_array = ( [ix for ix,v in enumerate(data) if v!= default_value])  # unique ix not data.
+
+        self.stored_datatype = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)  # type 'O'
+
+        with h5py.File(self.path, READWRITE) as h5:
+            if self.group in h5:
+                raise ValueError("page already exists")
+
+            # create dataset
+            dset = h5.create_dataset(name=self.group, 
+                                     data=byte_data, 
+                                     dtype=self.stored_datatype, 
+                                     maxshape=(None, ), 
+                                     chunks=HDF5_Config.H5_PAGE_SIZE)
+            
+            dset.attrs[self._datatype] = self._type_array
+            dset.attrs[self._page_type] = self.__class__.__name__
+            dset.attrs[self._encoding] = self.encoding
+            dset.attrs[self._length] = self._len
+
+            # typearray 
+            h5.create_dataset(name=self.type_group, 
+                              data=type_array, 
+                              dtype=int, 
+                              maxshape=(None,), 
+                              chunks=HDF5_Config.H5_PAGE_SIZE)
+
+            # indices
+            dset = h5.create_dataset(name=self.index_group, 
+                                     data=index_array, 
+                                     dtype=int, 
+                                     maxshape=(None,), 
+                                     chunks=HDF5_Config.H5_PAGE_SIZE)
+            # default value
+            dset.attrs[self._default_value] = byte_function(default_value)
+            dset.attrs[self._default_value_type_code] = type_code(default_value)
+            
+
+    def __getitem__(self, item):
+        if item is None:
+            item = slice(0,None,1)
+        if not isinstance(item, slice):
+            raise TypeError
+
+        type_functions = DataTypes.from_type_code
+        match_range = range(*item.indices(self._len))
+
+        with h5py.File(self.path, READONLY) as h5:
+
+            default_value_group = h5[self.index_group]
+            default_value = default_value_group.attrs[self._default_value]
+            default_value_type_code = default_value_group.attrs[self._default_value_type_code]
+            default_value = type_functions(default_value, default_value_type_code)
+
+            d = {}
+            for index, value, type_code in zip(h5[self.index_group], h5[self.group], h5[self.type_group]):
+                if index < match_range.start:
+                    continue
+
+                d[index] = type_functions(value,type_code)
+
+                if index > match_range.stop:
+                    break
+
+        match = np.array( [d.get(ix, default_value) for ix in match_range], dtype='O')
+        return match
+            
+    def __setitem__(self, index, value):
+        TODO
+
+    def __delitem__(self, key):
+        TODO
+
+    def append(self,value):
+        TODO
+
+    def insert(self,value):
+        TODO
+    
+    def extend(self, values):
+        TODO
+    
+    def remove(self, value):
+        TODO
+    
+    def remove_all(self, value):
+        TODO
+
+    def pop(self,index):
+        TODO
+
+    def datatypes(self):
+        with h5py.File(self.path, READONLY) as h5:
+            dset = h5[self.type_group]
+            uarray, carray = np.unique(dset, return_counts=True)
+            tc = DataTypes.pytype_from_type_code
+            types = {tc[u]:c for u,c in zip(uarray,carray)}
+
+            default_value_group = h5[self.index_group]
+            default_value_type_code = default_value_group.attrs[self._default_value_type_code]
+            types[tc[default_value_type_code]] = self._len - sum(carray)
+
+            return types
 
 
 class Page(object):
@@ -1090,17 +1234,17 @@ class Page(object):
 
     The class inheritance uses a map-reduce type layout:
 
-                    GenericPage  -- common skeleton and helper methods for all 3 page types.
-                        |
-                        V
-        +---------------+-----------+
-        |               |           |
-    SimpleType     StringType    MixedType  -- type specific implementation.
-        |               |           |
-        +---------------+-----------+
-                        |
-                        V
-                       Page   -- consumer api.
+                        GenericPage  -- common skeleton and helper methods for all 3 page types.
+                            |
+                            V
+        +---------------+-----------+------------+
+        |               |           |            |
+    SimpleType     StringType    MixedType   SparseType   -- type specific implementation.
+        |               |           |            |
+        +---------------+-----------+------------+
+                            |
+                            V
+                           Page   -- consumer api.
     """
     @classmethod
     def load(cls, group):
@@ -1192,4 +1336,8 @@ class Page(object):
         return self._page.datatypes()
 
 
-    
+
+page_types = {clss.__name__: clss for clss in [MixedType, StringType, SparseType, SimpleType]}
+
+
+
