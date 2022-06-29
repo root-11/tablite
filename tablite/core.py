@@ -431,7 +431,7 @@ class Table(object):
             if name == row_counts:
                 column_types[name] = 'row'
             elif len(types) == 1:
-                dt,n = types.popitem()
+                dt, _ = types.popitem()
                 column_types[name] = dt.__name__
             else:
                 column_types[name] = 'mixed'
@@ -996,12 +996,12 @@ class Table(object):
         if not all(len(i) == 2 for i in functions):
             raise ValueError(f"Expected each tuple in functions to be of length 2. \nGot {functions}")
 
-        if not all(isinstance(a, str) for a, b in functions):
-            L = [(a, type(a)) for a, b in functions if not isinstance(a, str)]
+        if not all(isinstance(a, str) for a, _ in functions):
+            L = [(a, type(a)) for a, _ in functions if not isinstance(a, str)]
             raise ValueError(f"Expected column names in functions to be strings. Found: {L}")
 
-        if not all(issubclass(b, GroupbyFunction) and b in GroupBy.functions for a, b in functions):
-            L = [b for a, b in functions if b not in GroupBy._functions]
+        if not all(issubclass(b, GroupbyFunction) and b in GroupBy.functions for _, b in functions):
+            L = [b for _, b in functions if b not in GroupBy._functions]
             if len(L) == 1:
                 singular = f"function {L[0]} is not in GroupBy.functions"
                 raise ValueError(singular)
@@ -1025,7 +1025,7 @@ class Table(object):
                 aggregation_functions[key] = agg_functions =[(col_name, f()) for col_name, f in functions]
             for col_name, f in agg_functions:
                 f.update(d[col_name])
-                
+        
         # 2. make dense table.
         cols = [[] for _ in cols]
         for key_tuple, funcs in aggregation_functions.items():
@@ -1052,32 +1052,101 @@ class Table(object):
         if not all(isinstance(i,str) for i in columns):
             raise TypeError(f"Expected columns as a list of column names, not {[i for i in columns if not isinstance(i, str)]}")
 
-        if not isinstance(sum_on_rows, bool):
-            raise TypeError(f"expected sum_on_rows as boolean, not {type(sum_on_rows)}")
+        if not isinstance(values_as_rows, bool):
+            raise TypeError(f"expected sum_on_rows as boolean, not {type(values_as_rows)}")
         
         keys = rows + columns 
         assert isinstance(keys, list)
 
         grpby = self.groupby(keys, functions)
-        # cols = defaultdict(list)
-        
-        # k = len(rows)
-        # for grp_key, funcs in sorted(aggregation_functions.items()):
-        #     row, col = grp_key[:k], grp_key[k:]
-        #     if sum_on_rows:
-        #         for col_name,f in funcs:
-        #             for kname, value in zip(keys,row):
-        #                 cols[kname].append(value)
-        #             cname = "|".join(str(i) for i in col)
-        #             cols[cname].append(f.value)
 
-        #         cols[]
-        #         for col_name, f in funcs:
-        #             grid[(r,c,col_name, f.value)]
-        #         pass  # make more rows
-        #     else:
-        #         pass  # make more columns           
-        pass
+        if len(grpby) == 0:  # return empty table. This must be a test?
+            return Table()
+        
+        # split keys to determine grid dimensions
+        row_key_index = {}  
+        col_key_index = {}
+        # columns = {}
+
+        r = len(rows)
+        c = len(columns)
+        
+        records = defaultdict(dict)
+
+        for row in grpby.rows:
+            row_key = tuple(row[:r])
+            col_key = tuple(row[r:r+c])
+            func_key = tuple(row[r+c:])
+            
+            if row_key not in row_key_index:
+                row_key_index[row_key] = len(row_key_index)  # Y
+
+            if col_key not in col_key_index:
+                col_key_index[col_key] = len(col_key_index)  # X
+
+            rix = row_key_index[row_key]
+            cix = col_key_index[col_key]
+            if cix in records:
+                if rix in records[c]:
+                    raise ValueError("this should be empty.")
+            records[cix][rix] = func_key
+        
+        result = Table()
+        
+        if values_as_rows:  # ---> leads to more rows.
+            # first create all columns left to right
+
+            n = r + 1  # rows keys + 1 col for function values.
+            cols = [[] for _ in range(n)]
+            for row, ix in row_key_index.items():
+                for (col_name, f)  in functions:
+                    cols[-1].append(f"{f.__name__}({col_name})")
+                    for col_ix, v in enumerate(row):
+                        cols[col_ix].append(v)
+
+            for col_name, values in zip(rows + ["function"], cols):
+                col_name = unique_name(col_name, result.columns)
+                result[col_name] = values
+            col_length = len(cols[0])
+            cols.clear()
+            
+            # then populate the sparse matrix.
+            for col_key, c in col_key_index.items():
+                col_name = "(" + ",".join([f"{col_name}={value}" for col_name, value in zip(columns, col_key)]) + ")"
+                col_name = unique_name(col_name, result.columns)
+                L = [None for _ in range(col_length)]
+                for r, funcs in records[c].items():
+                    for ix, f in enumerate(funcs):
+                        L[r+ix] = f
+                result[col_name] = L
+                
+        else:  # ---> leads to more columns.
+            n = r
+            cols = [[] for _ in range(n)]
+            for row in row_key_index:
+                for col_ix, v in enumerate(row):
+                    cols[col_ix].append(v)  # write key columns.
+            
+            for col_name, values in zip(columns, cols):
+                result[col_name] = values
+            
+            col_length = len(row_key_index)
+
+            # now populate the sparse matrix.
+            
+            for col_key, c in col_key_index.items():
+                names, cols = [], []
+                for r, func in records[c].items():
+                    col_name = f"{func.__name__}(" + ",".join([f"{col_name}={value}" for col_name, value in zip(columns, col_key)]) + ")"
+                    names.append(col_name)
+                    cols.append( [None for _ in range(col_length)] )
+                for r, funcs in records[c].items():
+                    for ix, f in enumerate(funcs):
+                        cols[ix][r] = f
+                for name,col in zip(names,cols):
+                    result[name] = col
+
+        return result
 
     def reverse_pivot(self, rows, columns, values_as_rows=True):
         raise NotImplemented()
@@ -1440,10 +1509,6 @@ class Table(object):
             # 6. reload the result table
             t = Table.load(path=mem.path, key=result.key)
             return t
-    
-    def pivot_table(self, *args):
-        raise NotImplementedError
-
 
 
 class Column(object):
