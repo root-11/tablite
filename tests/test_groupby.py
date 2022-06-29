@@ -59,15 +59,14 @@ def test_groupby():
 
 def test_groupby_w_pivot():
     t = Table()
-    t.add_column('A', int, data=[1, 1, 2, 2, 3, 3] * 2)
-    t.add_column('B', int, data=[1, 2, 3, 4, 5, 6] * 2)
-    t.add_column('C', int, data=[6, 5, 4, 3, 2, 1] * 2)
+    t.add_column('A', data=[1, 1, 2, 2, 3, 3] * 2)
+    t.add_column('B', data=[1, 2, 3, 4, 5, 6] * 2)
+    t.add_column('C', data=[6, 5, 4, 3, 2, 1] * 2)
 
     t.show()
     # +=====+=====+=====+
     # |  A  |  B  |  C  |
     # | int | int | int |
-    # |False|False|False|
     # +-----+-----+-----+
     # |    1|    1|    6|
     # |    1|    2|    5|
@@ -85,23 +84,43 @@ def test_groupby_w_pivot():
 
     g = t.groupby(keys=['A', 'C'], functions=[('B', gb.sum)])
     g.show()
-    t2 = g.pivot('A')
+    # +===+===+===+======+
+    # | # | A | C |Sum(B)|
+    # |row|int|int| int  |
+    # +---+---+---+------+
+    # |0  |  1|  6|     2|
+    # |1  |  1|  5|     4|
+    # |2  |  2|  4|     6|
+    # |3  |  2|  3|     8|
+    # |4  |  3|  2|    10|
+    # |5  |  3|  1|    12|
+    # +===+===+===+======+
 
+    t2 = t.pivot(rows=['C'], columns=['A'], functions=[('B', gb.sum)])
+    for row in t2.rows:
+        print(row)
     t2.show()
-    # +=====+==========+==========+==========+
-    # |  C  |Sum(B,A=1)|Sum(B,A=2)|Sum(B,A=3)|
-    # | int |   int    |   int    |   int    |
-    # |False|   True   |   True   |   True   |
-    # +-----+----------+----------+----------+
-    # |    5|         4|      None|      None|
-    # |    6|         2|      None|      None|
-    # |    3|      None|         8|      None|
-    # |    4|      None|         6|      None|
-    # |    1|      None|      None|        12|
-    # |    2|      None|      None|        10|
-    # +=====+==========+==========+==========+
+    # +===+===+========+=====+=====+=====+
+    # | # | C |function|(A=1)|(A=2)|(A=3)|
+    # |row|int|  str   |mixed|mixed|mixed|
+    # +---+---+--------+-----+-----+-----+
+    # |0  |  6|Sum(B)  |    2|None |None |
+    # |1  |  5|Sum(B)  |    4|None |None |
+    # |2  |  4|Sum(B)  |None |    6|None |
+    # |3  |  3|Sum(B)  |None |    8|None |
+    # |4  |  2|Sum(B)  |None |None |   10|
+    # |5  |  1|Sum(B)  |None |None |   12|
+    # +===+===+========+=====+=====+=====+
+    assert len(t2) == 6 and len(t2.columns) == 4+1
 
-    assert len(t2) == 6 and len(t2.columns) == 4
+    t3 = t.pivot(rows=['C'], columns=['A'], functions=[('B', gb.sum)], values_as_rows=False)
+    t3.show()
+
+    t4 = t.pivot(rows=['A'], columns=['C'], functions=[('B', gb.sum)])
+    t4.show()
+
+    t5 = t.pivot(rows=['C'], columns=['A'], functions=[('B', gb.sum), ('B', gb.count)])
+    t5.show()
 
 
 def test_reverse_pivot():
