@@ -65,4 +65,7 @@ To learn more see [tutorial.ipynb](https://github.com/root-11/tablite/blob/maste
 
 To read the detailed documentation see [tablite](https://root-11.github.io/tablite/index.html)
 
+# Credits
 
+- Martynas Kaunas - GroupBy functionality.
+- Audrius Kulikajevas - Edge case testing / various bugs.
