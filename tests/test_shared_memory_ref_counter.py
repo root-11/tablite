@@ -39,8 +39,8 @@ def test2():  # <--- The better way to solve pooled tasks.
         with Manager() as mgr:
             d = mgr.dict()
             tasks = [(d,x) for x in range(4000)]
-            pool.starmap(f2, tasks)
-            print(d)
+            result = pool.starmap(f2, tasks)
+    assert len(result)
 
 
 if __name__ == '__main__':
