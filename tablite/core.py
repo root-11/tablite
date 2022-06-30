@@ -136,7 +136,7 @@ class Table(object):
             for key, value in zip(keys,values):
                 self.__setitem__(key,value)
         else:
-            raise NotImplemented()
+            raise NotImplementedError()
     
     def __getitem__(self, *keys):
         """
