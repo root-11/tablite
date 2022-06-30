@@ -502,16 +502,18 @@ class GenericPage(object):
             for v in data:
                 types[type(v)] += 1
 
-            if len(types)>1:
+            if len(types)>1 or type(None) in types:
                 data = np.array(data, dtype='O')
             else:
                 data = np.array(data)  # str, int, float
+        else:
+            types = None
 
         if not isinstance(data, np.ndarray):
             raise TypeError
             
         if data.dtype.char in cls._MixedTypes:
-            if max(types, key=types.get) == type(None):
+            if types is not None and max(types, key=types.get) == type(None) and len(types)>1:
                 pg_cls = SparseType
             else:
                 pg_cls = MixedType
@@ -1031,18 +1033,21 @@ class MixedType(GenericPage):
         if not isinstance(values, np.ndarray):
             values = np.array(values, dtype='O')
 
-        dt = DataTypes
-        g1 = [self.group, self.type_group]
-        g2 = [dt.bytes_functions, dt.type_code]
-
         with h5py.File(self.path, READWRITE) as h5:
-            for grp,f in zip(g1,g2):
-                dset = h5[grp]
-                data = np.array( [ f(v) for v in values ] )
+            f = DataTypes.to_bytes
+            dset = h5[self.group]
+            data = np.array( [ f(v) for v in values ] )
+            dset.resize(dset.len() + len(values), axis=0)
+            dset[-len(values):] = data
+            self._len = len(dset)
 
-                dset.resize(dset.len() + len(values), axis=0)
-                dset[-len(values):] = data
-                self._len = len(dset)
+            tc = DataTypes.type_code
+            dset = h5[self.type_group]
+            data = np.array( [ tc(v) for v in values ] )
+            dset.resize(dset.len() + len(values), axis=0)
+            dset[-len(values):] = data
+            self._len = len(dset)
+
 
     def remove(self, value):
         with h5py.File(self.path, READWRITE) as h5:
@@ -1094,8 +1099,7 @@ class MixedType(GenericPage):
             dset = h5[self.type_group]
             uarray, carray = np.unique(dset, return_counts=True)
             tc = DataTypes.pytype_from_type_code
-            types = {self._default_value_type_code: self._len - len(uarray)}
-            return types.update({tc[u]:c for u,c in zip(uarray,carray)})
+            return {tc[u]:c for u,c in zip(uarray,carray)}
 
 
 class SparseType(GenericPage):
