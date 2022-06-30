@@ -1116,12 +1116,12 @@ class SparseType(GenericPage):
         default_value = max(d, key=d.get)  # get the most frequent value. Probably None.
 
         type_code = DataTypes.type_code
-        type_array = np.array( [ type_code(v) for v in d if v != default_value] )  # d, not data.
+        type_array = np.array( [ type_code(v) for v in data if v != default_value] )  
 
         byte_function = DataTypes.to_bytes
-        byte_data = np.array( [ byte_function(v)  for v in d if v != default_value] )  # d, not data.
+        byte_data = np.array( [ byte_function(v)  for v in data if v != default_value] )  
 
-        index_array = ( [ix for ix,v in enumerate(data) if v!= default_value])  # unique ix not data.
+        index_array = ( [ix for ix,v in enumerate(data) if v!= default_value])  
 
         self.stored_datatype = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)  # type 'O'
 
