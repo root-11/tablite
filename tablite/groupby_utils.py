@@ -42,6 +42,13 @@ class Sum(GroupbyFunction):
         self.value += value
 
 
+class Product(GroupbyFunction):
+    def __init__(self) -> None:
+        self.value = 1
+    def update(self,value):
+        self.value *= value
+
+
 class First(GroupbyFunction):
     empty = (None, )
     # we will never receive a tuple, so using (None,) as the initial
@@ -178,6 +185,7 @@ class GroupBy(object):
     max = Max  # shortcuts to avoid having to type a long list of imports.
     min = Min
     sum = Sum
+    product = Product
     first = First
     last = Last
     count = Count
@@ -188,7 +196,7 @@ class GroupBy(object):
     mode = Mode
 
     functions = [
-        Max, Min, Sum, First, Last,
+        Max, Min, Sum, First, Last, Product,
         Count, CountUnique,
         Average, StandardDeviation, Median, Mode
     ]
