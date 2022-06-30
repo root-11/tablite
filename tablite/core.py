@@ -653,11 +653,6 @@ class Table(object):
         """ 
         Returns index on *keys columns as d[(key tuple, )] = {index1, index2, ...} 
         """
-        # keys = keys[0] if len(keys)==1 else keys
-        # if len(keys) == 1 and keys[0] in self._columns:
-        #     col = self._columns[keys[0]]
-        #     idx = {(k,):set(v) for k,v in col.index().items()}
-        # else:
         idx = defaultdict(set)
         tbl = self.__getitem__(*keys)
         g = tbl.rows if isinstance(tbl, Table) else iter(tbl)
@@ -1066,10 +1061,10 @@ class Table(object):
         # split keys to determine grid dimensions
         row_key_index = {}  
         col_key_index = {}
-        # columns = {}
 
         r = len(rows)
         c = len(columns)
+        g = len(functions)
         
         records = defaultdict(dict)
 
@@ -1087,7 +1082,7 @@ class Table(object):
             rix = row_key_index[row_key]
             cix = col_key_index[col_key]
             if cix in records:
-                if rix in records[c]:
+                if rix in records[cix]:
                     raise ValueError("this should be empty.")
             records[cix][rix] = func_key
         
@@ -1117,7 +1112,7 @@ class Table(object):
                 L = [None for _ in range(col_length)]
                 for r, funcs in records[c].items():
                     for ix, f in enumerate(funcs):
-                        L[r+ix] = f
+                        L[g*r+ix] = f
                 result[col_name] = L
                 
         else:  # ---> leads to more columns.
@@ -1127,17 +1122,19 @@ class Table(object):
                 for col_ix, v in enumerate(row):
                     cols[col_ix].append(v)  # write key columns.
             
-            for col_name, values in zip(columns, cols):
+            for col_name, values in zip(rows, cols):
                 result[col_name] = values
             
             col_length = len(row_key_index)
 
             # now populate the sparse matrix.
-            
-            for col_key, c in col_key_index.items():
-                names, cols = [], []
-                for r, func in records[c].items():
-                    col_name = f"{func.__name__}(" + ",".join([f"{col_name}={value}" for col_name, value in zip(columns, col_key)]) + ")"
+            for col_key, c in col_key_index.items():  # select column.
+                cols, names = [],[]
+                
+                for f,v in zip(functions, func_key):
+                    agg_col, func = f
+                    col_name = f"{func.__name__}(" + ",".join([agg_col] + [f"{col_name}={value}" for col_name, value in zip(columns, col_key)]) + ")"
+                    col_name = unique_name(col_name, result.columns)
                     names.append(col_name)
                     cols.append( [None for _ in range(col_length)] )
                 for r, funcs in records[c].items():
