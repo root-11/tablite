@@ -41,6 +41,16 @@ def test_sum():
         m.update(i)
     assert sum(L) == m.value
 
+def test_product():
+    m = gb.product()
+    L = [1,2,3,4,5]
+    x = 1
+    for i in L:
+        m.update(i)
+        x *= i
+    assert x == m.value
+
+
 def test_first_last():
     a = gb.first()
     b = gb.last()
