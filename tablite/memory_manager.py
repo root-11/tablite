@@ -1,18 +1,20 @@
-from collections import defaultdict
-
 import time
 import random
-import h5py  #https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr?rq=1  
-import numpy as np
 import json
-from os import getpid
 import functools
+import logging
 
+log = logging.getLogger(__name__)
+
+from os import getpid
+from collections import defaultdict
 from string import digits
 DIGITS = set(digits)
 
+import h5py  #https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr?rq=1  
+import numpy as np
 
-from tablite.config import HDF5_Config
+from tablite.config import H5_STORAGE, H5_PAGE_SIZE, H5_ENCODING
 from tablite.utils import intercept
 from tablite.datatypes import DataTypes,numpy_types
 
@@ -34,7 +36,7 @@ def timeout(func):
                 begin = time.perf_counter()
                 result = func(*args,**kwargs)
                 end = time.perf_counter()
-                print(f"{getpid()} waited {int(waited)} msec (planned {planned}) to exec. {func.__name__} for {round(1000*(end-begin))} msec")
+                log.debug(f"{getpid()} waited {int(waited)} msec (planned {planned}) to exec. {func.__name__} for {round(1000*(end-begin))} msec")
                 return result
             except OSError:
                 wait = round(random.randint(20, int(max(50, 500 - (0.0075 * waited)))),-1) 
@@ -54,7 +56,7 @@ class MemoryManager(object):
     def __init__(self) -> None:
         self.ref_counts = defaultdict(int)
         
-        self.path = HDF5_Config.H5_STORAGE
+        self.path = H5_STORAGE
         if not self.path.exists():
             self.path.touch()  
 
@@ -62,7 +64,7 @@ class MemoryManager(object):
         if group not in {'/page', '/column', '/table'}:
             raise ValueError(f"expected group to be /page, /column or /table. Not {group}")
 
-        with h5py.File(HDF5_Config.H5_STORAGE, READWRITE) as h5:
+        with h5py.File(H5_STORAGE, READWRITE) as h5:
             if group not in h5.keys():
                 h5.create_group(group)
             dset = h5[group]
@@ -434,7 +436,7 @@ class GenericPage(object):
    
     @classmethod
     def new_id(cls):
-        with h5py.File(HDF5_Config.H5_STORAGE, READWRITE) as h5:
+        with h5py.File(H5_STORAGE, READWRITE) as h5:
             if '/page' not in h5.keys():
                 h5.create_group('/page')
             dset = h5['/page']
@@ -464,11 +466,11 @@ class GenericPage(object):
         if len(dtypes) == 1:
             dtype = dtypes.pop()
             if dtype in {cls._type_array, cls._str}:
-                dtype = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)
+                dtype = h5py.string_dtype(encoding=H5_ENCODING)
             else:
                 dtype = np.dtype(dtype)
         else:  # there are multiple datatypes.
-            dtype = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)
+            dtype = h5py.string_dtype(encoding=H5_ENCODING)
         
         return dtype, shape
 
@@ -477,7 +479,7 @@ class GenericPage(object):
         """
         loads an existing group.
         """
-        with h5py.File(HDF5_Config.H5_STORAGE, READONLY) as h5:
+        with h5py.File(H5_STORAGE, READONLY) as h5:
             dset = h5[group]
             page_type = dset.attrs[cls._page_type]
             
@@ -532,8 +534,8 @@ class GenericPage(object):
         if not group.startswith('/page'):
             raise ValueError
         
-        self.encoding = HDF5_Config.H5_ENCODING
-        self.path = HDF5_Config.H5_STORAGE
+        self.encoding = H5_ENCODING
+        self.path = H5_STORAGE
         self.group = group
 
         self.stored_datatype = None  # stored type
@@ -608,7 +610,7 @@ class SimpleType(GenericPage):
                                      data=data,  
                                      dtype=data.dtype,  
                                      maxshape=(None,),  # the stored data is now extendible / resizeable.
-                                     chunks=HDF5_Config.H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
+                                     chunks=H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
             dset.attrs[self._datatype] = self.original_datatype
             dset.attrs[self._page_type] = self.__class__.__name__
             dset.attrs[self._encoding] = self.encoding
@@ -742,7 +744,7 @@ class StringType(GenericPage):
 
     def create(self, data):
         self.original_datatype = self._str
-        self.stored_datatype = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)  # 'U'
+        self.stored_datatype = h5py.string_dtype(encoding=H5_ENCODING)  # 'U'
         data = np.char.encode(data, encoding='utf-8')  
         self._len = len(data)
 
@@ -754,7 +756,7 @@ class StringType(GenericPage):
                                      data=data,  # data is now HDF5 compatible.
                                      dtype=self.stored_datatype,  # the HDF5 stored dtype may require unpacking using dtypes if they are different.
                                      maxshape=(None,),  # the stored data is now extendible / resizeable.
-                                     chunks=HDF5_Config.H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
+                                     chunks=H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
             dset.attrs[self._datatype] = self.original_datatype
             dset.attrs[self._page_type] = self.__class__.__name__
             dset.attrs[self._encoding] = self.encoding
@@ -896,7 +898,7 @@ class MixedType(GenericPage):
         byte_function = DataTypes.to_bytes
         data = np.array( [byte_function(v) for v in data.tolist()] )
         
-        self.stored_datatype = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)  # type 'O'
+        self.stored_datatype = h5py.string_dtype(encoding=H5_ENCODING)  # type 'O'
 
         with h5py.File(self.path, READWRITE) as h5:
             if self.group in h5:
@@ -907,7 +909,7 @@ class MixedType(GenericPage):
                                      data=data,  # data is now HDF5 compatible.
                                      dtype=self.stored_datatype,  # the HDF5 stored dtype may require unpacking using dtypes if they are different.
                                      maxshape=(None,),  # the stored data is now extendible / resizeable.
-                                     chunks=HDF5_Config.H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
+                                     chunks=H5_PAGE_SIZE)  # pages are chunked, so that IO block will be limited.
             dset.attrs[self._datatype] = self._type_array
             dset.attrs[self._page_type] = self.__class__.__name__
             dset.attrs[self._encoding] = self.encoding
@@ -917,7 +919,7 @@ class MixedType(GenericPage):
                               data=type_array, 
                               dtype=int, 
                               maxshape=(None,), 
-                              chunks=HDF5_Config.H5_PAGE_SIZE)
+                              chunks=H5_PAGE_SIZE)
 
     def __getitem__(self, item):
         if item is None:
@@ -1127,7 +1129,7 @@ class SparseType(GenericPage):
 
         index_array = ( [ix for ix,v in enumerate(data) if v!= default_value])  
 
-        self.stored_datatype = h5py.string_dtype(encoding=HDF5_Config.H5_ENCODING)  # type 'O'
+        self.stored_datatype = h5py.string_dtype(encoding=H5_ENCODING)  # type 'O'
 
         with h5py.File(self.path, READWRITE) as h5:
             if self.group in h5:
@@ -1138,7 +1140,7 @@ class SparseType(GenericPage):
                                      data=byte_data, 
                                      dtype=self.stored_datatype, 
                                      maxshape=(None, ), 
-                                     chunks=HDF5_Config.H5_PAGE_SIZE)
+                                     chunks=H5_PAGE_SIZE)
             
             dset.attrs[self._datatype] = self._type_array
             dset.attrs[self._page_type] = self.__class__.__name__
@@ -1150,14 +1152,14 @@ class SparseType(GenericPage):
                               data=type_array, 
                               dtype=int, 
                               maxshape=(None,), 
-                              chunks=HDF5_Config.H5_PAGE_SIZE)
+                              chunks=H5_PAGE_SIZE)
 
             # indices
             dset = h5.create_dataset(name=self.index_group, 
                                      data=index_array, 
                                      dtype=int, 
                                      maxshape=(None,), 
-                                     chunks=HDF5_Config.H5_PAGE_SIZE)
+                                     chunks=H5_PAGE_SIZE)
             # default value
             dset.attrs[self._default_value] = byte_function(default_value)
             dset.attrs[self._default_value_type_code] = type_code(default_value)
