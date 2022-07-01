@@ -4,7 +4,6 @@ from tablite.datatypes import DataTypes
 from time import process_time_ns
 from datetime import date, datetime
 from pathlib import Path
-import zipfile
 import pytest
 
 
