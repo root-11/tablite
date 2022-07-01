@@ -7,12 +7,15 @@ import operator
 import warnings
 import logging
 
+
 from collections import defaultdict
 from multiprocessing import shared_memory
 
 logging.getLogger('lml').propagate = False
 logging.getLogger('pyexcel_io').propagate = False
 logging.getLogger('pyexcel').propagate = False
+
+log = logging.getLogger(__name__)
 
 import chardet
 import pyexcel
@@ -39,6 +42,7 @@ from tablite.file_reader_utils import TextEscape
 from tablite.utils import summary_statistics, unique_name
 from tablite import sortation
 from tablite.groupby_utils import GroupBy, GroupbyFunction
+from tablite.config import SINGLE_PROCESSING_LIMIT, TEMPDIR, H5_ENCODING
 
 
 mem = MemoryManager()
@@ -580,7 +584,7 @@ class Table(object):
     @classmethod
     def import_file(cls, path,  import_as, 
         newline='\n', text_qualifier=None,  delimiter=',', first_row_has_headers=True, columns=None, sheet=None, 
-        start=0, limit=sys.maxsize, strip_leading_and_tailing_whitespace=True):
+        start=0, limit=sys.maxsize, strip_leading_and_tailing_whitespace=True, encoding=None):
         """
         reads path and imports 1 or more tables as hdf5
 
@@ -601,6 +605,7 @@ class Table(object):
         start: the first line to be read.
         limit: the number of lines to be read from start
         strip_leading_and_tailing_whitespace: bool: default True. 
+        encoding: str. Defaults to None (autodetect)
 
         (*) required, (+) optional, (1) csv, (2) xlsx, (3) txt, (4) h5
 
@@ -636,7 +641,8 @@ class Table(object):
             'sheet': sheet,
             'start': start,
             'limit': limit,
-            'strip_leading_and_tailing_whitespace': strip_leading_and_tailing_whitespace
+            'strip_leading_and_tailing_whitespace': strip_leading_and_tailing_whitespace,
+            'encoding': encoding
         }
         jsn_str = json.dumps(config)
         for table_key, jsnb in mem.get_imported_tables().items():
@@ -720,7 +726,7 @@ class Table(object):
         
         # the task manager enables evaluation of a column per core,
         # which is assembled in the shared array.
-        max_task_size = math.floor(1_000_000 / len(self.columns))  # 1 million fields per core (best guess!)
+        max_task_size = math.floor(SINGLE_PROCESSING_LIMIT / len(self.columns))  # 1 million fields per core (best guess!)
         
         filter_tasks = []
         for ix, expression in enumerate(expressions):
@@ -822,7 +828,7 @@ class Table(object):
         Table.sort('A'=False)  means sort by 'A' in ascending order.
         Table.sort('A'=True, 'B'=False) means sort 'A' in descending order, then (2nd priority) sort B in ascending order.
         """
-        if len(self) * len(self.columns) < 1_000_000 :  # the task is so small that multiprocessing doesn't make sense.
+        if len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT :  # the task is so small that multiprocessing doesn't make sense.
             sorted_index = self.sort_index(sort_mode=sort_mode, **kwargs)
             t = Table()
             for col_name, col in self._columns.items():  # this LOOP can be done with TaskManager
@@ -1287,7 +1293,7 @@ class Table(object):
                     LEFT.append(left_ix)
                     RIGHT.append(right_ix)
 
-        if len(LEFT) * len(left_columns + right_columns) < 1_000_000:
+        if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
@@ -1323,7 +1329,7 @@ class Table(object):
                     LEFT.append(left_ix)
                     RIGHT.append(right_ix)
 
-        if len(LEFT) * len(left_columns + right_columns) < 1_000_000:
+        if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)       
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
@@ -1363,7 +1369,7 @@ class Table(object):
                 LEFT.append(None)
                 RIGHT.append(right_ix)
 
-        if len(LEFT) * len(left_columns + right_columns) < 1_000_000:
+        if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
@@ -1464,7 +1470,7 @@ class Table(object):
             results.append(lru_cache[row1_hash])
 
         result = self.copy()
-        if len(self) * len(other.columns) < 1_000_000:
+        if len(self) * len(other.columns) < SINGLE_PROCESSING_LIMIT:
             for col_name in other.columns:
                 col_data = other[col_name][:]
                 revised_name = unique_name(col_name, result.columns)
@@ -2111,7 +2117,7 @@ def ods_reader(path, first_row_has_headers=True, sheet=None, columns=None, start
 
 def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_row_has_headers=True, 
                 columns=None, start=0, limit=sys.maxsize, 
-                strip_leading_and_tailing_whitespace=True, **kwargs):
+                strip_leading_and_tailing_whitespace=True, encoding=None, **kwargs):
     """
     **kwargs are excess arguments that are ignored.
     """
@@ -2131,10 +2137,11 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
     mem_per_task = max(10_000_000, mem_per_cpu // working_overhead)  # min 10Mb, or 1 Gb / 10x = 100Mb
     n_tasks = math.ceil(file_length / mem_per_task)
 
-    with path.open('rb') as fi:
-        rawdata = fi.read(10000)
-        encoding = chardet.detect(rawdata)['encoding']
-    
+    if encoding is None:
+        with path.open('rb') as fi:
+            rawdata = fi.read(10000)
+            encoding = chardet.detect(rawdata)['encoding']       
+
     text_escape = TextEscape(delimiter=delimiter, qoute=text_qualifier, strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace)  # configure t.e.
 
     config = {
@@ -2195,6 +2202,12 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
         if not (isinstance(limit, int) and limit > 0):
             raise ValueError("expected limit as integer > 0")
 
+        try:
+            newlines = sum(1 for _ in fi)
+            fi.seek(0)
+        except Exception as e:
+            raise ValueError(f"file could not be read with encoding={encoding}\n{str(e)}")
+
         newlines = sum(1 for _ in fi)
         fi.seek(0)
         bytes_per_line = file_length / newlines
@@ -2207,6 +2220,7 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
             return t
 
         parts = []
+        
         assert header_line != ""
         with tqdm(desc=f"splitting {path.name} for multiprocessing", total=newlines, unit="lines") as pbar:
             for ix, line in enumerate(fi, start=(-1 if first_row_has_headers else 0) ):
@@ -2219,8 +2233,8 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
 
                 parts.append(line)
                 if ix!=0 and ix % lines_per_task == 0:
-                    p = path.parent / (path.stem + f'{ix}' + path.suffix)
-                    with p.open('w', encoding='utf-8') as fo:
+                    p = TEMPDIR / (path.stem + f'{ix}' + path.suffix)
+                    with p.open('w', encoding=H5_ENCODING) as fo:
                         parts.insert(0, header_line)
                         fo.write("".join(parts))
                     pbar.update(len(parts))
@@ -2228,15 +2242,15 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
                     tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ))
 
             if parts:  # any remaining parts at the end of the loop.
-                p = path.parent / (path.stem + f'{ix}' + path.suffix)
-                with p.open('w', encoding='utf-8') as fo:
+                p = TEMPDIR / (path.stem + f'{ix}' + path.suffix)
+                with p.open('w', encoding=H5_ENCODING) as fo:
                     parts.insert(0, header_line)
                     fo.write("".join(parts))
                 pbar.update(len(parts))
                 parts.clear()
                 config.update({"source":str(p), "table_key":mem.new_id('/table')})
                 tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ))
-           
+    
     # execute the tasks
     with TaskManager(cpu_count=min(psutil.cpu_count(), n_tasks)) as tm:
         errors = tm.execute(tasks)   # I expects a list of None's if everything is ok.
