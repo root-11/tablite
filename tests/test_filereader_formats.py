@@ -244,7 +244,8 @@ def test_filereader_utf8csv():
 
     for name in table.columns:
         table[name] = DataTypes.guess(table[name])
-        assert table[name].types() == {types[name]: 99}
+        tt = table[name].types()
+        assert max(tt,key=tt.get) == types[name]
 
     assert len(table) == 99, len(table)
 
