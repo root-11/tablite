@@ -7,7 +7,6 @@ import operator
 import warnings
 import logging
 
-
 from collections import defaultdict
 from multiprocessing import shared_memory
 
@@ -16,6 +15,7 @@ logging.getLogger('pyexcel_io').propagate = False
 logging.getLogger('pyexcel').propagate = False
 
 log = logging.getLogger(__name__)
+
 
 import chardet
 import pyexcel
@@ -26,8 +26,8 @@ import h5py
 import psutil
 from mplite import TaskManager, Task
 
-# exit handler so that Table.__del__ doesn't run into import error during exit.
-PYTHON_EXIT = False
+
+PYTHON_EXIT = False  # exit handler so that Table.__del__ doesn't run into import error during exit.
 
 def exiting():
     global PYTHON_EXIT
@@ -43,6 +43,7 @@ from tablite.utils import summary_statistics, unique_name
 from tablite import sortation
 from tablite.groupby_utils import GroupBy, GroupbyFunction
 from tablite.config import SINGLE_PROCESSING_LIMIT, TEMPDIR, H5_ENCODING
+from tablite.datatypes import DataTypes
 
 
 mem = MemoryManager()
@@ -564,7 +565,6 @@ class Table(object):
     def to_hdf5(self, path):
         """
         creates a copy of the table as hdf5
-        the hdf5 layout can be viewed using Table.inspect_h5_file(path/to.hdf5)
         """
         if isinstance(path, str):
             path = pathlib.Path(path)
@@ -580,6 +580,20 @@ class Table(object):
                     n += 1
                     pbar.update(n)
         print(f"writing {path} to HDF5 done")
+
+    def from_hdf5(self, path):
+        """
+        imports an exported hdf5 table.
+        """
+        if isinstance(path, str):
+            path = pathlib.Path(path)
+        
+        t = Table()
+        with h5py.File(path, 'r') as h5:
+            for col_name in h5.keys():
+                dset = h5[col_name]
+                t[col_name] = dset[:]
+        return t
 
     @classmethod
     def import_file(cls, path,  import_as, 
@@ -730,7 +744,6 @@ class Table(object):
         
         filter_tasks = []
         for ix, expression in enumerate(expressions):
-            # blocksize = math.ceil(len(self) / max_task_size)
             for step in range(0, len(self), max_task_size):
                 config = {'table_key':self.key, 'expression':expression, 
                           'shm_name':shm.name, 'shm_index':ix, 'shm_shape': arr.shape, 
@@ -781,12 +794,14 @@ class Table(object):
                 pass
         return table_true, table_false
     
-    def sort_index(self, sort_mode='excel', **kwargs):  # TODO: This is slow single core code.
+    def sort_index(self, sort_mode='excel', **kwargs):  
         """ 
         helper for methods `sort` and `is_sorted` 
         sort_mode: str: "alphanumeric", "unix", or, "excel"
         kwargs: sort criteria. See Table.sort()
         """
+        logging.info(f"Table.sort_index running 1 core")  # TODO: This is single core code.
+
         if not isinstance(kwargs, dict):
             raise ValueError("Expected keyword arguments, did you forget the ** in front of your dict?")
         if not kwargs:
@@ -862,12 +877,13 @@ class Table(object):
             t = Table.load(path=mem.path, key=table_key)
             return t            
 
-    def is_sorted(self, **kwargs):  # TODO: This is slow single core code.
+    def is_sorted(self, **kwargs):  
         """ Performs multi-pass sorting check with precedence given order of column names.
         nan_value: value used to represent non-sortable values such as None and np.nan during sort.
         **kwargs: sort criteria. See Table.sort()
         :return bool
         """
+        logging.info(f"Table.is_sorted running 1 core")  # TODO: This is single core code.
         sorted_index = self.sort_index(**kwargs)
         if any(ix != i for ix, i in enumerate(sorted_index)):
             return False
@@ -1151,9 +1167,6 @@ class Table(object):
 
         return result
 
-    def reverse_pivot(self, rows, columns, values_as_rows=True):
-        raise NotImplemented()
-
     def _join_type_check(self, other, left_keys, right_keys, left_columns, right_columns):
         if not isinstance(other, Table):
             raise TypeError(f"other expected other to be type Table, not {type(other)}")
@@ -1190,6 +1203,7 @@ class Table(object):
     def join(self, other, left_keys, right_keys, left_columns, right_columns, kind='inner'):
         """
         short-cut for all join functions.
+        kind: 'inner', 'left' or 'outer'
         """
         kinds = {
             'inner':self.inner_join,
@@ -1441,7 +1455,6 @@ class Table(object):
 
         for row1 in tqdm(left.rows, total=self.__len__()):
             row1_tup = tuple(row1)
-            # xxx = tuple(v for v, name in zip(row1, self.columns) if name in left_criteria)
             row1d = {name: value for name, value in zip(left_columns, row1)}
             row1_hash = hash(row1_tup)
 
@@ -1821,7 +1834,6 @@ class Column(object):
         elif isinstance(other, np.ndarray): 
             return (self[:]==other).all()
         else:
-
             raise TypeError
         
     def copy(self):
@@ -1931,7 +1943,7 @@ def _in(a,b):
     """
     enables filter function 'in'
     """
-    return a.decode('utf-8') in b.decode('utf-8')
+    return a.decode('utf-8') in b.decode('utf-8')  # TODO tested?
 
 
 filter_ops = {
@@ -2122,21 +2134,12 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
     **kwargs are excess arguments that are ignored.
     """
     # define and specify tasks.
-    path = pathlib.Path(path)
-    file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
-    working_overhead = 5  # random guess. Calibrate as required.
-    working_memory_required = file_length * working_overhead
     memory_usage_ceiling = 0.9
-    if working_memory_required < psutil.virtual_memory().free:
-        mem_per_cpu = math.ceil(working_memory_required / psutil.cpu_count())
-    else:
-        memory_ceiling = int(psutil.virtual_memory().total * memory_usage_ceiling)
-        memory_used = psutil.virtual_memory().used
-        available = memory_ceiling - memory_used  # 6,321,123,321 = 6 Gb
-        mem_per_cpu = int(available / psutil.cpu_count())  # 790,140,415 = 0.8Gb/cpu
-    mem_per_task = max(10_000_000, mem_per_cpu // working_overhead)  # min 10Mb, or 1 Gb / 10x = 100Mb
-    n_tasks = math.ceil(file_length / mem_per_task)
-
+    free_memory = psutil.virtual_memory().free * memory_usage_ceiling
+    free_memory_per_vcpu = free_memory / psutil.cpu_count()
+    
+    path = pathlib.Path(path)
+       
     if encoding is None:
         with path.open('rb') as fi:
             rawdata = fi.read(10000)
@@ -2203,16 +2206,33 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
             raise ValueError("expected limit as integer > 0")
 
         try:
-            newlines = sum(1 for _ in fi)
+            newlines = sum(1 for _ in fi)  # log.info(f"{newlines} lines found.")
             fi.seek(0)
         except Exception as e:
             raise ValueError(f"file could not be read with encoding={encoding}\n{str(e)}")
 
-        newlines = sum(1 for _ in fi)
-        fi.seek(0)
-        bytes_per_line = file_length / newlines
-        lines_per_task = math.ceil(mem_per_task / bytes_per_line)
-
+        file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
+        bytes_per_line = math.ceil(file_length / newlines)
+        working_overhead = 40  # MemoryError will occur if you get this wrong.
+        
+        total_workload = working_overhead * file_length
+        cpu_count = psutil.cpu_count(logical=False) - 1
+        memory_usage_ceiling = 0.9
+        
+        free_memory = int(psutil.virtual_memory().free * memory_usage_ceiling) - cpu_count * 20e6  # 20Mb per subproc.
+        free_memory_per_vcpu = int(free_memory / cpu_count)  # 8 gb/ 16vCPU = 500Mb/vCPU
+        
+        if total_workload < free_memory_per_vcpu and total_workload < 10_000_000:  # < 1Mb --> use 1 vCPU
+            lines_per_task = newlines
+        else:  # total_workload > free_memory or total_workload > 10_000_000
+            use_all_memory = free_memory_per_vcpu / (bytes_per_line * working_overhead)  # 500Mb/vCPU / (10 * 109 bytes / line ) = 458715 lines per task
+            use_all_cores = newlines / (cpu_count)  # 8,000,000 lines / 16 vCPU = 500,000 lines per task
+            lines_per_task = int(min(use_all_memory, use_all_cores))
+        
+        if not cpu_count * lines_per_task * bytes_per_line * working_overhead < free_memory:
+            raise ValueError(f"{[cpu_count, lines_per_task , bytes_per_line , working_overhead , free_memory]}")
+        assert newlines / lines_per_task >= 1
+        
         if newlines <= start + (1 if first_row_has_headers else 0):  # Then start > end.
             t = Table()
             t.add_columns(*list(columns.keys()))
@@ -2239,8 +2259,8 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
                         fo.write("".join(parts))
                     pbar.update(len(parts))
                     parts.clear()
-                    tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ))
-
+                    tasks.append( Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ) )
+                    
             if parts:  # any remaining parts at the end of the loop.
                 p = TEMPDIR / (path.stem + f'{ix}' + path.suffix)
                 with p.open('w', encoding=H5_ENCODING) as fo:
@@ -2249,10 +2269,11 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
                 pbar.update(len(parts))
                 parts.clear()
                 config.update({"source":str(p), "table_key":mem.new_id('/table')})
-                tasks.append(Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ))
-    
-    # execute the tasks
-    with TaskManager(cpu_count=min(psutil.cpu_count(), n_tasks)) as tm:
+                tasks.append( Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ) )
+        
+        # execute the tasks
+    # with TaskManager(cpu_count=min(cpu_count, len(tasks))) as tm:
+    with TaskManager(cpu_count) as tm:
         errors = tm.execute(tasks)   # I expects a list of None's if everything is ok.
         
         # clean up the tmp source files, before raising any exception.
@@ -2322,9 +2343,8 @@ def text_reader_task(source, table_key, columns,
         headers = text_escape(line)
         indices = {name: headers.index(name) for name in columns}        
         data = {h: [] for h in indices}
-        text = fi.read()  # 1 IOP --> RAM.
-        for line in text.split(newline):
-            fields = text_escape(line)
+        for line in fi:  # 1 IOP --> RAM.
+            fields = text_escape(line.rstrip('\n'))
             if fields == [""] or fields == []:
                 break
             for header,index in indices.items():
@@ -2332,6 +2352,7 @@ def text_reader_task(source, table_key, columns,
     # -- WRITE
     columns_refs = {}
     for col_name, values in data.items():
+        values = DataTypes.guess(values)
         columns_refs[col_name] = mem.mp_write_column(values)
     mem.mp_write_table(table_key, columns=columns_refs)
 
