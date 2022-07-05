@@ -36,7 +36,7 @@ def timeout(func):
                 begin = time.perf_counter()
                 result = func(*args,**kwargs)
                 end = time.perf_counter()
-                log.debug(f"{getpid()} waited {int(waited)} msec (planned {planned}) to exec. {func.__name__} for {round(1000*(end-begin))} msec")
+                logging.info(f"{getpid()} waited {int(waited)} msec (planned {planned}) to exec. {func.__name__} for {round(1000*(end-begin))} msec")
                 return result
             except OSError:
                 wait = round(random.randint(20, int(max(50, 500 - (0.0075 * waited)))),-1) 
@@ -60,6 +60,7 @@ class MemoryManager(object):
         if not self.path.exists():
             self.path.touch()  
 
+    @timeout
     def new_id(self, group):
         if group not in {'/page', '/column', '/table'}:
             raise ValueError(f"expected group to be /page, /column or /table. Not {group}")
