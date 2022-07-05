@@ -19,6 +19,8 @@ SINGLE_PROCESSING_LIMIT = 1_000_000
 # exceed this value, multiprocessing is used.
 
 TEMPDIR = pathlib.Path(tempfile.gettempdir()) / 'tablite-tmp'
+if not TEMPDIR.exists:
+    TEMPDIR.mkdir()
 # tempdir for file_reader and other temporary files.
 
 
