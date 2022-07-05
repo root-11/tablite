@@ -70,34 +70,6 @@ def test01_confirm_storage_reset():
     assert tables == []
 
 
-def test01_test_numpy_64datetime_and_timedelta():
-    # Help on class datetime64 in module numpy:
-
-    # class datetime64(generic)
-    #  |  If created from a 64-bit integer, it represents an offset from
-    #  |  ``1970-01-01T00:00:00``.
-    #  |  If created from string, the string can be in ISO 8601 date
-    #  |  or datetime format.
-    #  |  
-    #  |  >>> np.datetime64(10, 'Y')
-    #  |  numpy.datetime64('1980')
-    #  |  >>> np.datetime64('1980', 'Y')
-    #  |  numpy.datetime64('1980')
-    #  |  >>> np.datetime64(10, 'D')
-    #  |  numpy.datetime64('1970-01-11')
-
-
-    raise NotImplementedError
-    a = np.datetime64(b'2014-12-12')   # Y-M-D
-    b = np.datetime64(b'2014-12-12T12:23:34')   # Y-M-DTh:m:s
-    c = np.datetime64(b'2014-12-12T12:23:34.123456')   # Y-M-DTh:m:s.u
-    d = np.datetime64('2014-12-12T12:23:34.123456')   # Y-M-DTh:m:s.u
-    e = np.timedelta64(dts, 'ms')  # h:m:s
-    
-    # https://stackoverflow.com/questions/52982056/how-to-convert-numpy-datetime64-ns-to-python-datetime
-
-
-
 def test02_verify_garbage_collection():
     # check that the pages are not deleted prematurely.
     table4 = Table()
@@ -522,34 +494,3 @@ def test06_verify_multi_key_indexing_for_tables():
     table6.copy_to_clipboard()
     t = Table.copy_from_clipboard()
     t.show()
-
-def test07_verify_import_into_table():
-    pass  # import data
-
-def test08_verify_filter_table():
-    pass  # filter
-
-    t3 = Table.load_file(BIG_HDF5)
-    t3_true, t3_false = t3.filter(columns=[('vendor case weight', ">", 2.0)])
-    assert t3.columns == t3_true.columns == t3_false.columns
-    assert len(t3_true) != 0
-    assert len(t3_false) != 0
-    assert len(t3_true) + len(t3_false) == len(t3)
-
-def test09_verify_sort():
-    pass  # sort  - sort as it appears as string
-
-def test10_verify_join():
-    pass  # join + explain join matrix.
-    
-
-def test11_verify_loopup_functionality():
-    pass  # lookup
-
-def test12_verify_groupby_functionality():
-    pass  # groupby
-
-def test13_verify_pivot_table_functionality():
-    pass  # pivot table.
-              #tabs
-              #spaces
