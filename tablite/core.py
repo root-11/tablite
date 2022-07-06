@@ -38,7 +38,7 @@ atexit.register(exiting)
 
 
 from tablite.memory_manager import MemoryManager, Page, Pages
-from tablite.file_reader_utils import TextEscape
+from tablite.file_reader_utils import TextEscape, get_headers
 from tablite.utils import summary_statistics, unique_name
 from tablite import sortation
 from tablite.groupby_utils import GroupBy, GroupbyFunction
@@ -641,6 +641,15 @@ class Table(object):
         if not isinstance(strip_leading_and_tailing_whitespace, bool):
             raise TypeError()
         
+        if columns is None:
+            sample = get_headers(path)
+            if import_as in {'csv', 'txt'}:
+                columns = sample[path.name][0]
+            elif sheet is not None:
+                columns = sample[sheet][0]
+            else:
+                pass  # let it fail later.
+
         # At this point the import seems valid.
         # Now we check if the file already has been imported.
         config = {
