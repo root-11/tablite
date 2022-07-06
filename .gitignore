@@ -12,6 +12,7 @@ VDS.h5
 
 # Notebook checkpoints
 .ipynb_checkpoints/
+*.egg-info
 
 # Packages
 dist/
