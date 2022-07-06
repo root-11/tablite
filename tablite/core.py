@@ -644,7 +644,7 @@ class Table(object):
         if columns is None:
             sample = get_headers(path)
             if import_as in {'csv', 'txt'}:
-                columns = sample[path.name][0]
+                columns = {k:'f' for k in sample[path.name][0]}
             elif sheet is not None:
                 columns = sample[sheet][0]
             else:
