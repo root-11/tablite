@@ -1,5 +1,5 @@
 from tablite import Table
-from tablite.file_reader_utils import TextEscape
+from tablite.file_reader_utils import TextEscape, get_headers
 from tablite.datatypes import DataTypes
 from time import process_time_ns
 from datetime import date, datetime
@@ -339,7 +339,19 @@ def test_filereader_book1xlsx():
 def test_filereader_exceldatesxlsx():
     path = Path(__file__).parent / "data" / 'excel_dates.xlsx'
     assert path.exists()
-    table = Table.import_file(path, import_as='xls', sheet='Sheet1', columns={k:'f' for k in ['Date', 'numeric value', 'string', 'bool']})
+    try:
+        _ = Table.import_file(path, import_as='xls', sheet=None, columns=None) 
+        assert False
+    except ValueError as e:
+        assert "available sheets" in str(e)
+
+    table2 = Table.import_file(path, import_as='xls', sheet='Sheet1', columns=None) 
+    sample = get_headers(path)
+    columns = {k:'f' for k in sample['Sheet1'][0]}
+
+    table = Table.import_file(path, import_as='xls', sheet='Sheet1', columns=columns)
+    assert table == table2
+    
     table.show()
     # +===+===================+=============+==========+=====+
     # | # |        Date       |numeric value|  string  | bool|
