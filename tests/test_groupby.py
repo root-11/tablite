@@ -1,7 +1,6 @@
 from tablite.core import Table
 from tablite.core import GroupBy as gb
 from random import seed, choice
-seed(11)
 import pytest
 
 
@@ -229,7 +228,7 @@ def test_groupby_w_pivot():
 
 def test_reverse_pivot():
     """ example code from the readme as "reversing a pivot tablite". """
-    
+    seed(11)
 
     records = 9
     t = Table()
