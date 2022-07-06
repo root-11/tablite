@@ -4,8 +4,14 @@ tablite
 from setuptools import setup
 from pathlib import Path
 
+from tablite import __version__
+
 
 folder = Path(__file__).parent
+for file in (folder / 'dist').iterdir():
+    if __version__ in file.name:
+        raise ValueError(f"{__version__} already in dist")
+
 file = "README.md"
 readme = folder / file
 assert isinstance(readme, Path)
@@ -29,7 +35,7 @@ with open('requirements.txt', 'r') as fi:
 
 setup(
     name="tablite",
-    version="2022.07dev0",  # <----------- double check!
+    version=__version__,  
     url="https://github.com/root-11/tablite",
     license="MIT",
     author="Bjorn Madsen",
