@@ -634,6 +634,8 @@ class Table(object):
             raise FileNotFoundError(f"file not found: {path}")
         if not isinstance(import_as, str):
             raise TypeError(f"import_as is expected to be str, not {type(import_as)}: {import_as}")
+        if import_as.startswith("."):
+            import_as = import_as[1:]
         reader = file_readers.get(import_as,None)
         if reader is None:
             raise ValueError(f"{import_as} is not in list of supported reader:\n{list(file_readers.keys())}")
