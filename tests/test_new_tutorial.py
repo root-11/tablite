@@ -2,10 +2,10 @@ import math
 import time as cputime
 import pytest
 import random
-import tqdm
+import pathlib
 import numpy as np
 from datetime import datetime, date, time, timedelta
-from tablite import Table, DataTypes, GroupBy
+from tablite import Table, DataTypes, GroupBy, get_headers
 
 
 @pytest.fixture(autouse=True) # this resets the HDF5 file for every test.
@@ -32,8 +32,8 @@ def test_the_basics():
     assert t==t2
 
     # load data:
-    dtype = 'f' # float
-    t3 = Table.import_file('tests/data/book1.csv', import_as='csv', columns={k:dtype for k in 'abcdef'})
+    path = pathlib.Path('tests/data/book1.csv')
+    t3 = Table.import_file(path, import_as='csv', columns=None)
     
     # to view any table use .show(). Note that show gives either first and last 7 rows or the whole table if it is less than 20 rows.
     t3.show()
@@ -57,6 +57,12 @@ def test_the_basics():
     # |43 |44 |5.33097E+11|1.06619E+12|2.13239E+12|4.26477E+12|8.52954E+12|
     # |44 |45 |1.06619E+12|2.13239E+12|4.26477E+12|8.52954E+12|1.70591E+13|
     # +===+===+===========+===========+===========+===========+===========+
+
+    # should you however want to select the headers instead of importing everything
+    # (which maybe timeconsuming), simply use get_headers(path)
+    sample = get_headers(path)
+    headers = sample.get(path.name)[0]
+    print(headers)
 
     # to extend a table by adding columns, use t[new] = [new values]
     t['C'] = [4,5,6]
