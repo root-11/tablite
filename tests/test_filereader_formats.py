@@ -381,12 +381,12 @@ def test_filereader_exceldatesxlsx():
 def test_filereader_gdocs1csv_no_header():
     path = Path(__file__).parent / "data" / 'gdocs1.csv'
     assert path.exists()
-    try:
-        table = Table.import_file(path, import_as='csv', first_row_has_headers=False)
-        assert False, "headers missing"
-    except ValueError:
-        assert True
+    table = Table.import_file(path, import_as='csv', first_row_has_headers=False)
+    assert table.columns == ['0', '1', '2', '3', '4', '5']
+
     table = Table.import_file(path, import_as='csv', first_row_has_headers=False, columns={str(n):'f' for n in [0, 1, 2, 3, 4, 5]})
+    # ^--- this uses the import_file shortcut as it has the same config as the previous import.
+
     table.show(slice(0, 10))
     # +===+===+=============+=============+============+============+============+
     # | # | 0 |      1      |      2      |     3      |     4      |     5      |
