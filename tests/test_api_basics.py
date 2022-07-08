@@ -2,6 +2,7 @@ from tablite import Table
 import numpy as np
 from datetime import datetime, timedelta
 import pytest
+import gc
 
 # DESCRIPTION
 # The basic tests seeks to cover list like functionality:
@@ -501,11 +502,13 @@ def test07_verify_gc():
     t['a'] = [1,2,3,4]
 
     Table.reset_storage()
-
-    t = Table()
-    t['a'] = ['a','b','c']
-    # READ THE TRACEBACK AFTER THIS TEST FINISHES. GC is not right.
     
+    t2 = Table()
+    t2['a'] = ['a','b','c']  # breaks here.
+
+    gc.collect()
+    print("ok")
+
 
 
 
