@@ -651,6 +651,8 @@ class Table(object):
                 columns = sample[sheet][0]
             else:
                 pass  # let it fail later.
+        if not first_row_has_headers:
+            columns = {str(i):'f' for i in range(len(columns))}
 
         # At this point the import seems valid.
         # Now we check if the file already has been imported.
