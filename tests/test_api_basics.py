@@ -494,3 +494,17 @@ def test06_verify_multi_key_indexing_for_tables():
     table6.copy_to_clipboard()
     t = Table.copy_from_clipboard()
     t.show()
+
+
+def test07_verify_gc():
+    t = Table()
+    t['a'] = [1,2,3,4]
+
+    Table.reset_storage()
+
+    t = Table()
+    t['a'] = ['a','b','c']
+    
+
+
+
