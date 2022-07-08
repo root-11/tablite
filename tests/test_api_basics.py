@@ -1,6 +1,7 @@
 from tablite import Table
 import numpy as np
 from datetime import datetime, timedelta
+import pyperclip
 import pytest
 import gc
 
@@ -492,9 +493,12 @@ def test06_verify_multi_key_indexing_for_tables():
     index2 = table6.index('A', 'B')  # multiple keys.
     assert index2[('Bob', 'Dylan')] == {2}
 
-    table6.copy_to_clipboard()
-    t = Table.copy_from_clipboard()
-    t.show()
+    try:
+        table6.copy_to_clipboard()
+        t = Table.copy_from_clipboard()
+        t.show()
+    except pyperclip.PyperclipException:
+        pass  # the test runner doesn't have a clipboard installed.
 
 
 def test07_verify_gc():
