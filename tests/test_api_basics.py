@@ -504,6 +504,7 @@ def test07_verify_gc():
 
     t = Table()
     t['a'] = ['a','b','c']
+    # READ THE TRACEBACK AFTER THIS TEST FINISHES. GC is not right.
     
 
 
