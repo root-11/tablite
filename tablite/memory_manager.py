@@ -996,7 +996,7 @@ class MixedType(GenericPage):
         type_array = np.array( [ type_code(v) for v in value.tolist() ] )
 
         byte_function = DataTypes.to_bytes
-        data = np.array( [byte_function(v) for v in data.tolist()] )
+        data = np.array( [byte_function(v) for v in value.tolist()] )
         
         with h5py.File(self.path, READWRITE) as h5:
             # update dataset
