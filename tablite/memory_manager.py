@@ -122,7 +122,7 @@ class MemoryManager(object):
             if saved_flag:
                 return
             del h5[table_key]
-
+            
     def delete_column_reference(self, table_key, column_name, column_key):
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[table_key]
@@ -225,9 +225,11 @@ class MemoryManager(object):
         return self.ref_counts[page.group]
 
     def reset_storage(self):
+        log.info(f"{getpid()} resetting storage.")
         with h5py.File(self.path, TRUNCATE) as h5:
             assert list(h5.keys()) == []
-    
+        time.sleep(1)  # let the OS flush the write outbuffer.
+        
     @timeout
     def get_data(self, group, item):
         if not group.startswith('/column'):

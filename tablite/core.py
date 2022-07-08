@@ -80,11 +80,14 @@ class Table(object):
 
     def __del__(self):
         if PYTHON_EXIT:
-            return 
+            return
 
-        for key in list(self._columns):
-            del self[key]
-        mem.delete_table(self.group)
+        try:
+            for key in list(self._columns):
+                del self[key]
+            mem.delete_table(self.group)
+        except KeyError:
+            log.info("Table.__del__ suppressed.")
         
     def __str__(self):
         return f"Table({len(self._columns):,} columns, {len(self):,} rows)"
