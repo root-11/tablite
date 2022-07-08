@@ -1196,28 +1196,28 @@ class SparseType(GenericPage):
         return match
             
     def __setitem__(self, index, value):
-        TODO
+        raise NotImplementedError()  # TODO
 
     def __delitem__(self, key):
-        TODO
+        raise NotImplementedError()  # TODO
 
     def append(self,value):
-        TODO
+        raise NotImplementedError()  # TODO
 
     def insert(self,value):
-        TODO
+        raise NotImplementedError()  # TODO
     
     def extend(self, values):
-        TODO
+        raise NotImplementedError()  # TODO
     
     def remove(self, value):
-        TODO
+        raise NotImplementedError()  # TODO
     
     def remove_all(self, value):
-        TODO
+        raise NotImplementedError()  # TODO
 
     def pop(self,index):
-        TODO
+        raise NotImplementedError()  # TODO
 
     def datatypes(self):
         with h5py.File(self.path, READONLY) as h5:
