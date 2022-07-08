@@ -3,5 +3,5 @@
 ------------------------------------------
 run: 
 
-  `python sdist setup.py`
+  `python setup.py sdist`
   `twine upload sdist/<latest version> `
