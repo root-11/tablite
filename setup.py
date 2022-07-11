@@ -20,12 +20,13 @@ with open(str(readme), encoding='utf-8') as f:
     long_description = f.read()
 
 keywords = list({
-    'tablite', 'tables', 'csv', 'txt', 'excel', 'xlsx', 'ods', 'zip', 'log',
+    'tablite', 'table', 'tables', 'csv', 'txt', 'excel', 'xlsx', 'ods', 'zip', 'log',
     'any', 'all', 'filter', 'column', 'columns', 'rows', 'from', 'json', 'to',
-    'inner join', 'outer join', 'left join', 'groupby', 'pivot', 'pivot tablite',
+    'inner join', 'outer join', 'left join', 'groupby', 'pivot', 'pivot table',
     'sort', 'is sorted', 'show', 'use disk', 'out-of-memory', 'list on disk',
     'stored list', 'min', 'max', 'sum', 'first', 'last', 'count', 'unique',
-    'average', 'standard deviation', 'median', 'mode', 'in-memory', 'index'
+    'average', 'standard deviation', 'median', 'mode', 'in-memory', 'index',
+    'indexing', 'product'
 })
 
 keywords.sort(key=lambda x: x.lower())
