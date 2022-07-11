@@ -72,6 +72,32 @@ def test_filter_any_3():
     assert len(false)==2, false.show()
 
 
+def test_any():
+    t = Table()
+    t['a'] = [1,2,3,4]
+    t['b'] = [10,20,30,40]
+
+    def f(x):
+        return x == 4 
+    def g(x):
+        return x < 20
+
+    t2 = t.any( **{"a":f, "b":g})
+    assert [r for r in t2.rows] == [[1, 10], [4, 40]]
+    
+    t2 = t.any(a=f,b=g)
+    assert [r for r in t2.rows] == [[1, 10], [4, 40]]
+
+    def h(x):
+        return x>=2
+    
+    def i(x):
+        return x<=30
+
+    t2 = t.all(a=h,b=i)
+    assert [r for r in t2.rows] == [[2,20], [3, 30]]
+
+
 def test_filter():
     t = Table()
     rows = 100_000 
