@@ -955,7 +955,7 @@ class Table(object):
 
         ixs = None
         for k, v in kwargs.items():
-            col = self.columns[k]
+            col = self._columns[k]
             if ixs is None:  # first header generates base set.
                 if callable(v):
                     ix2 = {ix for ix, i in enumerate(col) if v(i)}
@@ -976,8 +976,15 @@ class Table(object):
             if not ixs:  # There are no matches.
                 break
 
-        mask =  np.array([True if i in ixs else False for i in range(len(self))],dtype=bool)
-        return self._mp_compress(mask)
+        if len(self)*len(self.columns) < SINGLE_PROCESSING_LIMIT:
+            t = Table()
+            for col_name in self.columns:
+                data = self[col_name]
+                t[col_name] = [data[i] for i in ixs]
+            return t
+        else:
+            mask =  np.array([True if i in ixs else False for i in range(len(self))],dtype=bool)
+            return self._mp_compress(mask)
 
     def any(self, **kwargs):  
         """
@@ -989,15 +996,22 @@ class Table(object):
 
         ixs = set()
         for k, v in kwargs.items():
-            col = self.columns[k]
+            col = self._columns[k]
             if callable(v):
                 ix2 = {ix for ix, r in enumerate(col) if v(r)}
             else:
                 ix2 = {ix for ix, r in enumerate(col) if v == r}
             ixs.update(ix2)
 
-        mask =  np.array([i in ixs for i in range(len(self))],dtype=bool)
-        return self._mp_compress(mask)
+        if len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT:
+            t = Table()
+            for col_name in self.columns:
+                data = self[col_name]
+                t[col_name] = [data[i] for i in ixs]
+            return t
+        else:
+            mask =  np.array([i in ixs for i in range(len(self))],dtype=bool)
+            return self._mp_compress(mask)
 
     def groupby(self, keys, functions):  # TODO: This is slow single core code.
         """
