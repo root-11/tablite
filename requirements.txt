@@ -3,7 +3,7 @@ graph-theory>=2022.3.9.54615
 numpy>=1.22.3
 h5py>=3.6.0
 psutil>=5.9.0
-chardet
+chardet==5.0.0
 pyexcel
 pyexcel-odsr
 pyperclip
