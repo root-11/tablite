@@ -4,10 +4,10 @@ numpy>=1.22.3
 h5py>=3.6.0
 psutil>=5.9.0
 chardet==5.0.0
-pyexcel
-pyexcel-odsr
-pyperclip
-pyexcel-xlsx
-pyexcel-xls
+pyexcel==0.7.0
+pyexcel-odsr==0.6.0
+pyperclip==1.8.2
+pyexcel-xlsx==0.6.0
+pyexcel-xls==0.7.0
 pyuca>=1.2
-mplite
+mplite==1.1.0
