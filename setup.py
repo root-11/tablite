@@ -6,12 +6,12 @@ from pathlib import Path
 
 # from tablite import __version__
 
-folder = Path(__file__).parent
-version = folder / "tablite" / "version.py"
-exec(version.read_text())
+__version__ = None
+version_file = Path(__file__).parent / "tablite" / "version.py"
+exec(version_file.read_text())
+assert isinstance(__version__,str)
 
-file = "README.md"
-readme = folder / file
+readme = Path(__file__).parent / "README.md"
 assert isinstance(readme, Path)
 assert readme.exists(), readme
 with open(str(readme), encoding='utf-8') as f:
