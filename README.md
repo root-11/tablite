@@ -41,7 +41,7 @@ An instance of a table allows you to:
 - get rows across all columns as `mytable[4:8]`
 - slice as `mytable['A', 'B', slice(4,8) ]`.
 - update individual values with `mytable['A'][2] = new value`
-- update many values even faster with list comprehensions such as: `mytable['A'] = [ f(x) for x in mytable['A'] if x % 2 != 0 ]`
+- update many values even faster with list comprehensions such as: <nobr>`mytable['A'] = [ f(x) for x in mytable['A'] if x % 2 != 0 ]`</nobr>
 
 You can:
 
@@ -64,27 +64,24 @@ You can store or send data using json, by:
 
 **One-liners**
 
-- loop over rows: `[ row for row in table.rows ]`
-- loop over columns: `[ table[col_name] for col_name in table.columns ]`
-- slice: myslice = `table['A', 'B', slice(0,None,15)]` 
-- join: `left_join = numbers.left_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])` 
-- lookup: `travel_plan = friends.lookup(bustable, (DataTypes.time(21, 10), "<=", 'time'), ('stop', "==", 'stop'))`
-- groupby: `group_by = table.groupby(keys=['C', 'B'], functions=[('A', gb.count)])` 
-- pivot table `my_pivot = t.pivot(rows=['C'], columns=['A'], functions=[('B', gb.sum), ('B', gb.count)], values_as_rows=False)`
-- index: `indices = old_table.index(*old_table.columns)` 
-- sort: `lookup1_sorted = lookup_1.sort(**{'time': True, 'name':False, "sort_mode":'unix'})`
-- filter: `true,false = unfiltered.filter( [{"column1": 'a', "criteria":">=", 'value2':3}, ... more criteria ... ], filter_type='all' )`
-- any: `even = mytable.any('A': lambda x : x%2==0, 'B': lambda x > 0)`
-- all: `even = mytable.all('A': lambda x : x%2==0, 'B': lambda x > 0)`
+- <nobr>loop over rows: `[ row for row in table.rows ]`</nobr>
+- <nobr>loop over columns: `[ table[col_name] for col_name in table.columns ]`</nobr>
+- <nobr>slice: myslice = `table['A', 'B', slice(0,None,15)]` </nobr>
+- <nobr>join: `left_join = numbers.left_join(letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter'])` </nobr>
+- <nobr>lookup: `travel_plan = friends.lookup(bustable, (DataTypes.time(21, 10), "<=", 'time'), ('stop', "==", 'stop'))`</nobr>
+- <nobr>groupby: `group_by = table.groupby(keys=['C', 'B'], functions=[('A', gb.count)])` </nobr>
+- <nobr>pivot table `my_pivot = t.pivot(rows=['C'], columns=['A'], functions=[('B', gb.sum), ('B', gb.count)], values_as_rows=False)`</nobr>
+- <nobr>index: `indices = old_table.index(*old_table.columns)` </nobr>
+- <nobr>sort: `lookup1_sorted = lookup_1.sort(**{'time': True, 'name':False, "sort_mode":'unix'})`</nobr>
+- <nobr>filter: `true,false = unfiltered.filter( [{"column1": 'a', "criteria":">=", 'value2':3}, ... more criteria ... ], filter_type='all' )`</nobr>
+- <nobr>any: `even = mytable.any('A': lambda x : x%2==0, 'B': lambda x > 0)`</nobr>
+- <nobr>all: `even = mytable.all('A': lambda x : x%2==0, 'B': lambda x > 0)`</nobr>
 
 
 # Tutorial
 
-To learn more see [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/tutorial.ipynb)
+To learn more see the [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/tutorial.ipynb)
 
-# API 
-
-To read the detailed documentation see [tablite](https://root-11.github.io/tablite/index.html)
 
 # Credits
 
