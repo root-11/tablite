@@ -4,13 +4,11 @@ tablite
 from setuptools import setup
 from pathlib import Path
 
-from tablite import __version__
-
+# from tablite import __version__
 
 folder = Path(__file__).parent
-for file in (folder / 'dist').iterdir():
-    if __version__ in file.name:
-        raise ValueError(f"{__version__} already in dist")
+version = folder / "tablite" / "version.py"
+exec(version.read_text())
 
 file = "README.md"
 readme = folder / file
@@ -39,13 +37,13 @@ setup(
     version=__version__,  
     url="https://github.com/root-11/tablite",
     license="MIT",
-    author="Bjorn Madsen",
-    author_email="bjorn.madsen@operationsresearchgroup.com",
-    description="A library for cleaning tabular data.",
+    author="https://github.com/root-11",
+    description="multiprocessing enabled out-of-memory data analysis library for tabular data.",
     long_description=long_description,
     long_description_content_type='text/markdown',
     keywords=keywords,
     packages=["tablite"],
+    python_requires=">=3.7, <4",
     include_package_data=True,
     data_files=[(".", ["LICENSE", "README.md", "requirements.txt"])],
     platforms="any",
