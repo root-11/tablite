@@ -16,6 +16,7 @@ VDS.h5
 
 # Packages
 dist/
+build/
 
 # WIP
 .old
