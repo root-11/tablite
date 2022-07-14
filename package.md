@@ -1,9 +1,9 @@
 # Packaging instructions for tablite for pypi
 
 ------------------------------------------
-run: 
+run:
 
-```
+```cmd
 python -m build --wheel
 twine check dist\*
 twine upload sdist\*
