@@ -9,6 +9,10 @@
 
 # Overview
 
+**NEWS: Tablite 2022.7 has breaking changes: Even smaller memory requirements. Multiprocessing enabled by default. Faster than ever before. See the [tutorial for details](https://github.com/root-11/tablite/blob/master/tutorial.ipynb).**
+
+-------------
+
 
 We're all tired of reinventing the wheel when we need to process a bit of data.
 
