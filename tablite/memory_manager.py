@@ -58,7 +58,7 @@ class MemoryManager(object):
         
         self.path = H5_STORAGE
         if not self.path.exists():
-            self.path.touch()  
+            h5py.File(self.path, TRUNCATE).close()
 
     @timeout
     def new_id(self, group):
