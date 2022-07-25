@@ -281,6 +281,9 @@ class DataTypes(object):
 
     @staticmethod
     def to_json(v):
+        if hasattr(v, 'dtype'):
+            pytype = numpy_types[v.dtype.name]
+            v = pytype(v)
         if v is None:
             return v
         elif v is False:  # using isinstance(v, bool): won't work as False also is int of zero.

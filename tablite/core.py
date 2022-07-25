@@ -548,16 +548,53 @@ class Table(object):
             t.add_rows(data)    
         return t
 
-    def to_json(self):
-        d = {}
-        for name, col in self._columns.items():
-            d[name] = col[:].tolist()
-        return json.dumps(d)
+    def to_dict(self, row_count="row id", columns=None, slice_=None, start_on=1):
+        """
+        row_count: name of row counts. Default "row id". Use None to leave it out.
+        columns: list of column names. Default is None == all columns.
+        slice_: slice. Default is None == all rows.
+        start_on: integer: first row (typically 0 or 1)
+        """
+        if slice_ is None:
+            slice_  = slice(0, len(self))      
+        assert isinstance(slice_, slice)
+        
+        if columns is None:
+            columns = self.columns 
+        if not isinstance(columns, list):
+            raise TypeError("expected columns as list of strings")
+        
+        column_selection, own_cols = [], set(self.columns)
+        for name in columns:
+            if name in own_cols:
+                column_selection.append(name)
+            else:
+                raise ValueError(f"column({name}) not found")
+        
+        cols = {}
+
+        if row_count is not None:
+            cols[row_count] = [i + start_on for i in range(*slice_.indices(len(self)))]
+
+        for name in column_selection:
+            new_name = unique_name(name, list_of_names=list(cols.keys()))
+            col = self._columns[name]
+            cols[new_name] = col[:].tolist()  # pure python objects. No numpy.
+        d = {"columns": cols, "total_rows": len(self)}
+        return d
+
+    def to_json(self, row_count="row id", columns=None, slice_=None):
+        args = row_count, columns, slice_
+        d = self.to_dict(*args)
+        for k,data in d['columns'].items():
+            d['columns'][k] = [DataTypes.to_json(v) for v in data]  # deal with non-json datatypes.
+        return json.dumps(d)  
 
     @classmethod
     def from_json(cls, jsn):
+        d = json.loads(jsn)
         t = Table()
-        for name, data in json.loads(jsn).items():
+        for name, data in d['columns'].items():
             if not isinstance(name, str):
                 raise TypeError(f"expect {name} as a string")
             if not isinstance(data, list):
