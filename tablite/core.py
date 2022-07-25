@@ -583,12 +583,15 @@ class Table(object):
         d = {"columns": cols, "total_rows": len(self)}
         return d
 
-    def to_json(self, row_count="row id", columns=None, slice_=None):
+    def as_json_serializable(self, row_count="row id", columns=None, slice_=None):
         args = row_count, columns, slice_
         d = self.to_dict(*args)
         for k,data in d['columns'].items():
             d['columns'][k] = [DataTypes.to_json(v) for v in data]  # deal with non-json datatypes.
-        return json.dumps(d)  
+        return d
+
+    def to_json(self, *args, **kwargs):
+        return json.dumps(self.as_json_serializable(*args, **kwargs))
 
     @classmethod
     def from_json(cls, jsn):
