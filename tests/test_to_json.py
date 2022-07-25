@@ -32,7 +32,7 @@ def test_limited_columns_and_slice():
     d = tbl.to_dict(columns=columns, slice_=slcs, row_count='rid')
     
     assert len(d['columns']) == len(columns) + 1  # 1 for row id.
-    assert d['columns']['rid'] == list(range(*slcs.indices(len(tbl))))
+    assert d['columns']['rid'] == [1 + i for i in list(range(*slcs.indices(len(tbl))))]  # start_on = 1
     assert d['total_rows'] == len(tbl)
 
 
