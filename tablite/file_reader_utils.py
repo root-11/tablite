@@ -168,7 +168,7 @@ def detect_seperator(text):
         return frq[0][-1]
 
 
-def get_headers(path): 
+def get_headers(path, linecount=10): 
     """
     file format	definition
     csv	    comma separated values
@@ -206,7 +206,7 @@ def get_headers(path):
             for sheet_name in book.sheet_names():
                 sheet = book[sheet_name]
                 stop = sheet.number_of_rows()
-                d[sheet_name] = [sheet.row[i] for i in range(0, min(10,stop))]
+                d[sheet_name] = [sheet.row[i] for i in range(0, min(linecount,stop))]
                 d['delimiter'] = None
             return d
         except Exception:
@@ -221,7 +221,7 @@ def get_headers(path):
             for n, line in enumerate(fi):
                 line = line.rstrip('\n')
                 lines.append(line)
-                if n > 10:
+                if n > linecount:
                     break  # break on first
             d['delimiter'] = delimiter = detect_seperator('\n'.join(lines))
             d[path.name] = [line.split(delimiter) for line in lines]
