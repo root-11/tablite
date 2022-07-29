@@ -38,7 +38,7 @@ Usage:  `>>> from tablite import Table`
 - handles all python datatypes natively: `str`, `float`, `bool`, `int`, `date`, `datetime`, `time`, `timedelta` and `None`
 - uses HDF5 as storage which is faster than mmap'ed files for the average case. 10,000,000 integers python will use < 1 Mb RAM instead of 133.7 Mb (1M lists with 10 integers). The example below shows data from `tests/test_filereader_time.py` with 1 terabyte of data:
 
-![/images/1Tb.1TB_test.png](/images/1Tb.1TB_test.png)
+![result from one terabyte test](images/1Tb.1TB_test.png)
 
 An instance of a table allows you to:
 
