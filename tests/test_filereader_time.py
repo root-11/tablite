@@ -1,4 +1,5 @@
 import time
+import math
 import pathlib
 import pytest
 import tempfile
@@ -156,7 +157,16 @@ def test01():
     print(f"reloading an already imported table took {round(end-start, 4)} secs.")  #reloading an already imported table took 0.179 secs.
     t3.show(slice(3,100,17))
 
-    
+    # 1 TB file test
+    file_size = path.stat().st_size
+    one_tb = 1e12
+    repetitions = math.ceil(one_tb / file_size)
+    start = time.perf_counter()
+    t4 = t1 * repetitions
+    end = time.perf_counter()
+    assert len(t4) == repetitions * len(t1)
+    print(f"1 TB of data == {len(t4)} rows ({round(end-start,4)} secs)")
+    t4.show()
 
 
 
