@@ -501,6 +501,17 @@ def test06_verify_multi_key_indexing_for_tables():
         pass  # the test runner doesn't have a clipboard installed.
 
 
+def test06_verify_multikey_index_for_duplicates():
+    table7 = Table()
+    table7['A'] = [1,1,2,2]
+    table7['B'] = [1,1,2,2]
+    index = table7.index('A', 'B')
+    assert index == {
+        (1,1): {0,1}, 
+        (2,2): {2,3}
+    }
+    
+
 def test07_verify_gc():
     t = Table()
     t['a'] = [1,2,3,4]
