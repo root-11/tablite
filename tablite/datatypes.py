@@ -302,6 +302,8 @@ class DataTypes(object):
             return v.isoformat()
         elif isinstance(v, date):
             return v.isoformat()
+        elif isinstance(v, timedelta):
+            return f"{v.days} days, {v.seconds + (v.microseconds / 1e6)} seconds"
         else:
             raise TypeError(f"The datatype {type(v)} is not supported.")
 
@@ -331,6 +333,10 @@ class DataTypes(object):
             return datetime.fromisoformat(v)
         elif dtype is time:
             return time.fromisoformat(v)
+        elif dtype is timedelta:
+            L = v.split(' ')
+            days, seconds = int(L[0]), float(L[2])
+            return timedelta(days, seconds)
         else:
             raise TypeError(f"The datatype {str(dtype)} is not supported.")
 
