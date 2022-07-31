@@ -153,3 +153,118 @@ def test_left_join_2():
         (None, 'blue', None, 'blue'),
     ]
     _join_left(pairs_1, pairs_1, pairs_ans, 'colour', 'colour')
+
+
+
+# https://en.wikipedia.org/wiki/Join_(SQL)#Inner_join
+def test_wiki_joins():
+    employees = Table()
+    employees['last name'] = ["Rafferty", "Jones", "Heisenberg", "Robinson", "Smith", "Williams"]
+    employees['department'] = [31,33,33,34,34,None]
+    employees.show()
+
+    departments = Table()
+    departments['id'] = [31,33,34,35]
+    departments['name'] = ['Sales', 'Engineering', 'Clerical', 'Marketing']
+    departments.show()
+
+    import sqlite3
+    con = sqlite3.connect(':memory:')
+    cur = con.cursor()
+    cur.execute("""
+        CREATE TABLE department(
+        DepartmentID INT PRIMARY KEY NOT NULL,
+        DepartmentName VARCHAR(20));
+        """)
+    cur.execute("""
+        CREATE TABLE employee (
+            LastName VARCHAR(20),
+            DepartmentID INT REFERENCES department(DepartmentID)
+        );
+        """)
+
+    cur.execute("""
+    INSERT INTO department
+    VALUES (31, 'Sales'),
+        (33, 'Engineering'),
+        (34, 'Clerical'),
+        (35, 'Marketing');
+    """)
+
+    cur.execute("""
+    INSERT INTO employee
+    VALUES ('Rafferty', 31),
+        ('Jones', 33),
+        ('Heisenberg', 33),
+        ('Robinson', 34),
+        ('Smith', 34),
+        ('Williams', NULL);
+    """)
+
+    sql_result = cur.execute("""SELECT * FROM employee CROSS JOIN department;""").fetchall()
+    # [('Rafferty', 31, 31, 'Sales'), ('Rafferty', 31, 33, 'Engineering'), ('Rafferty', 31, 34, 'Clerical'), ('Rafferty', 31, 35, 'Marketing'), ('Jones', 33, 31, 'Sales'), ('Jones', 33, 33, 'Engineering'), ('Jones', 33, 34, 'Clerical'), ('Jones', 33, 35, 'Marketing'), ('Heisenberg', 33, 31, 'Sales'), ('Heisenberg', 33, 33, 'Engineering'), ('Heisenberg', 33, 34, 'Clerical'), ('Heisenberg', 33, 35, 'Marketing'), ('Robinson', 34, 31, 'Sales'), ('Robinson', 34, 33, 'Engineering'), ('Robinson', 34, 34, 'Clerical'), ('Robinson', 34, 35, 'Marketing'), ('Smith', 34, 31, 'Sales'), ('Smith', 34, 33, 'Engineering'), ('Smith', 34, 34, 'Clerical'), ('Smith', 34, 35, 'Marketing'), ('Williams', None, 31, 'Sales'), ('Williams', None, 33, 'Engineering'), ('Williams', None, 34, 'Clerical'), ('Williams', None, 35, 'Marketing')]
+    tbl_result = [tuple(row) for row in employees.cross_join(departments, left_keys=['department'], right_keys=['id']).rows]
+    
+    # Definition: A cross join produces a cartesian product between the two tables, returning all possible combinations of all rows. It has no on clause because you're just joining everything to everything.
+    assert sql_result == tbl_result
+
+    # inner join
+    sql_result = cur.execute("""
+    SELECT employee.LastName, employee.DepartmentID, department.DepartmentName 
+    FROM employee 
+    INNER JOIN department ON
+    employee.DepartmentID = department.DepartmentID;
+    """).fetchall()
+    # [('Rafferty', 31, 'Sales'), ('Jones', 33, 'Engineering'), ('Heisenberg', 33, 'Engineering'), ('Robinson', 34, 'Clerical'), ('Smith', 34, 'Clerical')]
+    tbl_result = [tuple(row) for row in employees.inner_join(departments, ['department'], ['id'], left_columns=['last name'], right_columns=['id', 'name']).rows]
+
+    assert sql_result == tbl_result
+
+    # left outer join
+    sql_result = cur.execute("""
+    SELECT *
+    FROM employee 
+    LEFT OUTER JOIN department ON employee.DepartmentID = department.DepartmentID;
+    """).fetchall()
+    # [('Rafferty', 31, 31, 'Sales'), ('Jones', 33, 33, 'Engineering'), ('Heisenberg', 33, 33, 'Engineering'), ('Robinson', 34, 34, 'Clerical'), ('Smith', 34, 34, 'Clerical'), ('Williams', None, None, None)]
+    tbl_result = [tuple(row) for row in employees.left_join(departments, ['department'], ['id']).rows]
+
+    assert sql_result == tbl_result
+
+    # Right outer join
+    try:
+        sql_result = cur.execute("""
+        SELECT *
+        FROM employee RIGHT OUTER JOIN department
+        ON employee.DepartmentID = department.DepartmentID;
+        """).fetchall()
+
+    except sqlite3.OperationalError:
+        sql_result = None  # sqlite3.OperationalError: RIGHT and FULL OUTER JOINs are not currently supported
+
+    # left join where L and R are swopped.
+    tbl_result = [tuple(row) for row in departments.left_join(employees, ['id'], ['department']).rows]
+    assert tbl_result == [(31, 'Sales', 'Rafferty', 31), (33, 'Engineering', 'Jones', 33), (33, 'Engineering', 'Heisenberg', 33), (34, 'Clerical', 'Robinson', 34), (34, 'Clerical', 'Smith', 34), (35, 'Marketing', None, None)]
+    # ^-- this result is from here:  https://en.wikipedia.org/wiki/Join_(SQL)#Right_outer_join
+
+    # Full outer join
+    try:
+        sql_result = cur.execute("""
+        SELECT *
+        FROM employee FULL OUTER JOIN department
+        ON employee.DepartmentID = department.DepartmentID;
+        """).fetchall()
+
+    except sqlite3.OperationalError:
+        sql_result = None  # sqlite3.OperationalError: RIGHT and FULL OUTER JOINs are not currently supported
+
+    tbl_result = [tuple(row) for row in employees.outer_join(departments, left_keys=['department'], right_keys=['id']).rows]
+    assert tbl_result == [
+        ('Rafferty', 31, 31, 'Sales'), 
+        ('Jones', 33, 33, 'Engineering'), 
+        ('Heisenberg', 33, 33, 'Engineering'),
+        ('Robinson', 34, 34, 'Clerical'),
+        ('Smith', 34, 34, 'Clerical'), 
+        ('Williams', None, None, None),
+        (None, None, 35, 'Marketing')
+    ]  # <-- result from https://en.wikipedia.org/wiki/Join_(SQL)#Full_outer_join
