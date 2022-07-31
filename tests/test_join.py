@@ -1,3 +1,4 @@
+import sqlite3
 from tablite import Table
 import pytest
 
@@ -163,12 +164,19 @@ def test_wiki_joins():
     employees['department'] = [31,33,33,34,34,None]
     employees.show()
 
+    sql = employees.to_sql()
+
+    con = sqlite3.connect(':memory:')
+    cur = con.cursor()
+    cur.executescript(sql)
+    result = cur.execute(f"select * from Table{employees.key};").fetchall()
+    assert len(result) == 6
+    
     departments = Table()
     departments['id'] = [31,33,34,35]
     departments['name'] = ['Sales', 'Engineering', 'Clerical', 'Marketing']
     departments.show()
 
-    import sqlite3
     con = sqlite3.connect(':memory:')
     cur = con.cursor()
     cur.execute("""
