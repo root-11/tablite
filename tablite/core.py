@@ -1273,12 +1273,13 @@ class Table(object):
     def join(self, other, left_keys, right_keys, left_columns, right_columns, kind='inner'):
         """
         short-cut for all join functions.
-        kind: 'inner', 'left' or 'outer'
+        kind: 'inner', 'left', 'outer', 'cross'
         """
         kinds = {
             'inner':self.inner_join,
             'left':self.left_join,
-            'outer':self.outer_join
+            'outer':self.outer_join,
+            'cross': self.cross_join,
         }
         if kind not in kinds:
             raise ValueError(f"join type unknown: {kind}")
