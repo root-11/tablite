@@ -510,6 +510,61 @@ class Table(object):
 
         print(t.to_ascii(blanks=blanks,row_counts=tag, split_after=split_after))
 
+    def _repr_html_(self):
+        """ Ipython display compatible format
+        https://ipython.readthedocs.io/en/stable/api/generated/IPython.display.html#IPython.display.display
+        """
+        start, end = "<div><table border=1>", "</table></div>"
+
+        if not self.columns:
+            return f"{start}<tr>Empty Table</tr>{end}"
+
+        row_count_tags = ['#', '~', '*'] 
+        cols = set(self.columns)
+        for n,tag in itertools.product(range(1,6), row_count_tags):
+            if n*tag not in cols:
+                tag = n*tag
+                break
+
+        html = ["<tr>" + f"<th>{tag}</th>" +"".join( f"<th>{cn}</th>" for cn in self.columns) + "</tr>"]
+        
+        column_types = {}
+        for name,col in self._columns.items():
+            types = col.types()
+            if len(types) == 1:
+                dt, _ = types.popitem()
+                column_types[name] = dt.__name__
+            else:
+                column_types[name] = 'mixed'
+
+        html.append("<tr>" + f"<th>row</th>" +"".join( f"<th>{column_types[name]}</th>" for name in self.columns) + "</tr>")
+
+        if len(self)<20:
+            for ix, row in enumerate(self.rows):
+                html.append( "<tr>" + f"<td>{ix}</td>" + "".join(f"<td>{v}</td>" for v in row) + "</tr>")
+        else:
+            t = Table()
+            for name,col in self._columns.items():
+                t[name] = [i for i in col[:7]] + [i for i in col[-7:]] 
+            
+            c = len(self)-7
+            for ix, row in enumerate(t.rows):
+                if ix < 7:
+                    html.append( "<tr>" + f"<td>{ix}</td>" + "".join(f"<td>{v}</td>" for v in row) + "</tr>")
+                if ix == 7: 
+                    html.append( "<tr>" + f"<td>...</td>" + "".join(f"<td>...</td>" for _ in self._columns) + "</tr>")
+                if ix >= 7:
+                    html.append( "<tr>" + f"<td>{c}</td>" + "".join(f"<td>{v}</td>" for v in row) + "</tr>")
+                    c += 1
+
+        return start + ''.join(html) + end
+
+    def _repr_json_(self):
+        """ Ipython display compatible format
+        https://ipython.readthedocs.io/en/stable/api/generated/IPython.display.html#IPython.display.display
+        """
+        return self.as_json_serializable()
+
     def index(self, *args):
         cols = []
         for arg in args:
@@ -637,6 +692,37 @@ class Table(object):
                 dset = h5[col_name]
                 t[col_name] = dset[:]
         return t
+
+    def to_sql(self):
+        """
+        generates ANSI-92 compliant SQL.
+        """
+        prefix = "Table"
+        create_table = """CREATE TABLE {}{} ({})"""
+        columns = []
+        for name,col in self._columns.items():
+            dtype = col.types()
+            if len(dtype) == 1:
+                dtype,_ = dtype.popitem()
+                if dtype is int:
+                    dtype = "INTEGER"
+                elif dtype is float:
+                    dtype = "REAL"
+                else:
+                    dtype = "TEXT"
+            else:
+                dtype = "TEXT"
+            definition = f"{name} {dtype}"
+            columns.append(definition)
+
+        create_table = create_table.format(prefix, self.key, ", ".join(columns))
+        
+        # return create_table
+        row_inserts = []
+        for row in self.rows:
+            row_inserts.append(str(tuple([i if i is not None else 'NULL' for i in row])))
+        row_inserts = f"INSERT INTO {prefix}{self.key} VALUES " + ",".join(row_inserts) 
+        return "begin; {}; {}; commit;".format(create_table, row_inserts)
 
     @classmethod
     def import_file(cls, path,  import_as, 
