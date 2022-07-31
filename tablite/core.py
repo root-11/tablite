@@ -1418,7 +1418,7 @@ class Table(object):
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
 
-    def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
+    def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -1458,6 +1458,25 @@ class Table(object):
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
 
+    def cross_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
+        """
+        CROSS JOIN returns the Cartesian product of rows from tables in the join. 
+        In other words, it will produce rows which combine each row from the first table 
+        with each row from the second table
+        """
+        if left_columns is None:
+            left_columns = list(self.columns)
+        if right_columns is None:
+            right_columns = list(other.columns)
+
+        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+
+        LEFT, RIGHT = zip(*itertools.product(range(len(self)), range(len(other))))
+        if len(LEFT) < SINGLE_PROCESSING_LIMIT:
+            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)
+        else:  # use multi processing
+            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
+        
     def lookup(self, other, *criteria, all=True):  # TODO: This is slow single core code.
         """ function for looking up values in `other` according to criteria in ascending order.
         :param: other: Table sorted in ascending search order.
