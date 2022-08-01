@@ -559,12 +559,6 @@ class Table(object):
 
         return start + ''.join(html) + end
 
-    def _repr_json_(self):
-        """ Ipython display compatible format
-        https://ipython.readthedocs.io/en/stable/api/generated/IPython.display.html#IPython.display.display
-        """
-        return self.as_json_serializable()
-
     def index(self, *args):
         cols = []
         for arg in args:
