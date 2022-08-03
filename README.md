@@ -13,7 +13,7 @@
 
 **Even smaller memory footprint.**<br>Tablite uses HDF5 as a backend with strong abstraction, so that copy/append/repetition of data is handled in pages. This is super convenient for incremental data processing such as shown below where 43M rows are processed in 208 steps.
 
-![incremental dataprocessing](../../images/incremental%20dataprocessing.jpg)
+![incremental dataprocessing](../../blob/master/incremental_dataprocessing.png?raw=true)
 
 Tablite stores all data in /tmp/tablite.hdf5 so if your OS sits on SSD it will benefit from high IOPS, and permit slices of 9,000,000,000 rows in less than a second.
 ![1bn rows](../../blob/master/images/1TB_test.png?raw=true)
@@ -92,5 +92,3 @@ To learn more see the [tutorial.ipynb](https://github.com/root-11/tablite/blob/m
 
 - Martynas Kaunas - GroupBy functionality.
 - Audrius Kulikajevas - Edge case testing / various bugs.
-
-
