@@ -9,22 +9,9 @@
 
 ## Overview
 
-**NEWS: Tablite 2022.7 is a major update with:
-
-**Even smaller memory footprint.**<br>Tablite uses HDF5 as a backend with strong abstraction, so that copy/append/repetition of data is handled in pages. This is super convenient for incremental data processing such as shown below where 43M rows are processed in 208 steps.
-
-![incremental dataprocessing](../../blob/master/incremental_dataprocessing.png?raw=true)
-
-Tablite stores all data in /tmp/tablite.hdf5 so if your OS sits on SSD it will benefit from high IOPS, and permit slices of 9,000,000,000 rows in less than a second.
-![1bn rows](../../blob/master/images/1TB_test.png?raw=true)
-
-**Multiprocessing enabled by default**<br>Tablite has multiprocessing is implemented for bypassing the python GIL on all major operations. CSV import has a test with 96M fields imported and type mapped to native python types in 120 secs.
-
-**All algorithms have been reworked to respect memory limits**<br>Tablite respects the limits of free memory by tagging the free memory and defining task size before each memory intensive task is initiated (join, groupby, data import, etc)
-
-**100% support for all python datatypes**<br>Tablite uses datatype mapping to HDF5 native types where possible and uses type mapping for non-native types such as timedelta, None, date, time… e.g. what you put in, is what you get out. 
-
-**Light weight**<br>Tablite is ~200 kB.
+|Tablite 2022.7 features |  |
+|---|---|
+|**Even smaller memory footprint.**<br>Tablite uses HDF5 as a backend with strong abstraction, so that copy/append/repetition of data is handled in pages. This is imperative for incremental data processing such as in the image on the right, where 43M rows are processed in 208 steps.<br>Tablite achieves this by storing all data in `/tmp/tablite.hdf5` so if your OS sits on SSD it will benefit from high IOPS, and permit slices of 9,000,000,000 rows in less than a second.<br>**Multiprocessing enabled by default**<br>Tablite has multiprocessing is implemented for bypassing the GIL on all major operations. <br>CSV import is tested with 96M fields that are imported and type-mapped to native python types in 120 secs.<br>**All algorithms have been reworked to respect memory limits**<br>Tablite respects the limits of free memory by tagging the free memory and defining task size before each memory intensive task is initiated (join, groupby, data import, etc)<br>**100% support for all python datatypes**<br>Tablite uses datatype mapping to HDF5 native types where possible and uses type mapping for non-native types such as timedelta, None, date, time… e.g. what you put in, is what you get out.<br>**Light weight** - Tablite is ~200 kB.|![incremental dataprocessing](../../blob/master/images/incremental_dataprocessing.png?raw=true) <br> ![1bn rows](../../blob/master/images/1TB_test.png?raw=true)|
 
 
 ## Installation
@@ -53,7 +40,6 @@ An instance of a table allows you to:
 You can:
 
 - Use `Table.import_file` to import csv*, tsv, txt, xls, xlsx, xlsm, ods, zip and logs. There is automatic type detection (see [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/tutorial.ipynb))
-
 - To peek into any supported file use `get_headers` which shows the first 10 rows.
 - Use `mytable.rows` and `mytable.columns` to iterate over rows or columns.
 - Create multi-key `.index` for quick lookups.
