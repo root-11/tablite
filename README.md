@@ -9,36 +9,38 @@
 
 ## Overview
 
-**NEWS: Tablite 2022.7 has breaking changes: Even smaller memory requirements. Multiprocessing enabled by default. Faster than ever before. See the [tutorial for details](https://github.com/root-11/tablite/blob/master/tutorial.ipynb).**
+**NEWS: Tablite 2022.7 is a major update with:
 
-## Introduction
+**Even smaller memory footprint.**<br>Tablite uses HDF5 as a backend with strong abstraction, so that copy/append/repetition of data is handled in pages. This is super convenient for incremental data processing such as shown below where 43M rows are processed in 208 steps.
 
-We're all tired of reinventing the wheel when we need to process a bit of data.
+![incremental dataprocessing](../../images/incremental%20dataprocessing.jpg?raw=True)
 
-- Pandas has a huge memory overhead when the datatypes are messy (hint: They are!).
-- Numpy has become a language of it's own. It just doesn't seem pythonic anymore.
-- Arrows [isn't ready](https://arrow.apache.org/docs/python/dataset.html).
-- SQLite is great but just too slow, particularly on disk.
-- Protobuffer is just overkill for storing data when I still need to implement all the analytics after that.
+Tablite stores all data in /tmp/tablite.hdf5 so if your OS sits on SSD it will benefit from high IOPS, and permit slices of 9,000,000,000 rows in less than a second.
+![1bn rows](../../blob/master/images/1TB_test.png?raw=true)
 
-So what do we do? We write a custom built class for the problem at hand and
-discover that we've just spent 3 hours doing something that should have taken
-20 minutes. No more please!
+**Multiprocessing enabled by default**<br>Tablite has multiprocessing is implemented for bypassing the python GIL on all major operations. CSV import has a test with 96M fields imported and type mapped to native python types in 120 secs.
 
-## Solution: [Tablite](https://pypi.org/project/tablite/)
+**All algorithms have been reworked to respect memory limits**<br>Tablite respects the limits of free memory by tagging the free memory and defining task size before each memory intensive task is initiated (join, groupby, data import, etc)
 
-A python library for tables that does everything you need in < 200 kB.
+**100% support for all python datatypes**<br>Tablite uses datatype mapping to HDF5 native types where possible and uses type mapping for non-native types such as timedelta, None, date, time… e.g. what you put in, is what you get out. 
+
+**Light weight**<br>Tablite is ~200 kB.
+
+
+## Installation
+
+[Tablite](https://pypi.org/project/tablite/)
 
 Install: `pip install tablite`  
 Usage:  `>>> from tablite import Table`  
 
-`Table` is multiprocessing enabled by default and ...
+## General overview
+
+A tablite `Table` is multiprocessing enabled by default and ...
 
 - behaves like a dict with lists: `my_table[column name] = [... data ...]`
 - handles all python datatypes natively: `str`, `float`, `bool`, `int`, `date`, `datetime`, `time`, `timedelta` and `None`
 - uses HDF5 as storage which is faster than mmap'ed files for the average case. 10,000,000 integers python will use < 1 Mb RAM instead of 133.7 Mb (1M lists with 10 integers). The example below shows data from `tests/test_filereader_time.py` with 1 terabyte of data:
-
-![result from one terabyte test](../../blob/master/images/1TB_test.png?raw=true)
 
 An instance of a table allows you to:
 
@@ -84,9 +86,11 @@ One-liners
 
 ## Tutorial
 
-To learn more see the [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/tutorial.ipynb)
+To learn more see the [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/tutorial.ipynb) (Jupyter notebook)
 
 ## Credits
 
 - Martynas Kaunas - GroupBy functionality.
 - Audrius Kulikajevas - Edge case testing / various bugs.
+
+
