@@ -4,7 +4,6 @@ import json
 import sys
 import itertools
 import operator
-from time import sleep
 import warnings
 import logging
 
@@ -2421,7 +2420,6 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
         assert header_line != ""
         with tqdm(desc=f"splitting {path.name} for multiprocessing", total=newlines, unit="lines") as pbar:
             for ix, line in enumerate(fi, start=(-1 if first_row_has_headers else 0) ):
-                sleep(0.1)
                 if ix < start:
                     # ix is -1 if the first row has headers, but header_line already has the first line.
                     # ix is 0 if there are no headers, and if start is 0, the first row is added to parts.
