@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 import chardet
 import pyexcel
 import pyperclip
-from tqdm import tqdm
+from tqdm import tqdm as _tqdm
 import numpy as np
 import h5py
 import psutil
@@ -665,7 +665,7 @@ class Table(object):
         print(f"writing {total} records to {path}")
 
         with h5py.File(path, 'a') as f:
-            with tqdm(total=len(self.columns), unit='columns') as pbar:
+            with _tqdm(total=len(self.columns), unit='columns') as pbar:
                 n = 0
                 for name, mc in self.columns.values():
                     f.create_dataset(name, data=mc[:])  # stored in hdf5 as '/name'
@@ -721,7 +721,7 @@ class Table(object):
     @classmethod
     def import_file(cls, path,  import_as, 
         newline='\n', text_qualifier=None,  delimiter=',', first_row_has_headers=True, columns=None, sheet=None, 
-        start=0, limit=sys.maxsize, strip_leading_and_tailing_whitespace=True, encoding=None):
+        start=0, limit=sys.maxsize, strip_leading_and_tailing_whitespace=True, encoding=None, tqdm=_tqdm):
         """
         reads path and imports 1 or more tables as hdf5
 
@@ -762,7 +762,13 @@ class Table(object):
         reader = file_readers.get(import_as,None)
         if reader is None:
             raise ValueError(f"{import_as} is not in list of supported reader:\n{list(file_readers.keys())}")
-        
+
+        additional_configs = {}
+
+        if reader is text_reader:
+            # here we inject tqdm, if tqdm is not provided, use generic iterator
+            additional_configs["tqdm"] = tqdm if tqdm is not None else iter
+
         if not isinstance(strip_leading_and_tailing_whitespace, bool):
             raise TypeError()
         
@@ -799,7 +805,7 @@ class Table(object):
             if jsn_str == jsnb:
                 return Table.load(mem.path, table_key)  # table already imported.
         # not returned yet? Then it's an import job:
-        t = reader(**config)
+        t = reader(**config, **additional_configs)
         mem.set_config(t.group, jsn_str)
         if t.save is False:
             raise AttributeError("filereader should set table.save = True to avoid repeated imports")
@@ -953,7 +959,7 @@ class Table(object):
             raise ValueError(f"{sort_mode} not in list of sort_modes: {list(sortation.Sortable.modes.modes)}")
 
         rank = {i: tuple() for i in range(len(self))}  # create index and empty tuple for sortation.
-        for key, reverse in tqdm(kwargs.items(), desc='creating sort index'):
+        for key, reverse in _tqdm(kwargs.items(), desc='creating sort index'):
             col = self._columns[key]
             assert isinstance(col, Column)
             ranks = sortation.rank(values=set(col[:].tolist()), reverse=reverse, mode=sort_mode)
@@ -1623,7 +1629,7 @@ class Table(object):
         assert isinstance(left, Table)
         assert isinstance(right, Table)
 
-        for row1 in tqdm(left.rows, total=self.__len__()):
+        for row1 in _tqdm(left.rows, total=self.__len__()):
             row1_tup = tuple(row1)
             row1d = {name: value for name, value in zip(left_columns, row1)}
             row1_hash = hash(row1_tup)
@@ -2299,7 +2305,7 @@ def ods_reader(path, first_row_has_headers=True, sheet=None, columns=None, start
 
 def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_row_has_headers=True, 
                 columns=None, start=0, limit=sys.maxsize, 
-                strip_leading_and_tailing_whitespace=True, encoding=None, **kwargs):
+                strip_leading_and_tailing_whitespace=True, encoding=None, tqdm=_tqdm, **kwargs):
     """
     **kwargs are excess arguments that are ignored.
     """
