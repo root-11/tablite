@@ -48,7 +48,6 @@ def test_filereader_123csv():
     csv_file = Path(__file__).parent / "data" / "123.csv"
 
     table7 = Table()
-    # table7.metadata['filename'] = '123.csv'
     table7.add_column('A', data=[1, None, 8, 3, 4, 6, 5, 7, 9])
     table7.add_column('B', data=[10, 100, 1, 1, 1, 1, 10, 10, 10])
     table7.add_column('C', data=[0, 1, 0, 1, 0, 1, 0, 1, 0])
