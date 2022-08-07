@@ -1,3 +1,4 @@
+import os
 import math
 import pathlib
 import json
@@ -717,6 +718,22 @@ class Table(object):
             row_inserts.append(str(tuple([i if i is not None else 'NULL' for i in row])))
         row_inserts = f"INSERT INTO {prefix}{self.key} VALUES " + ",".join(row_inserts) 
         return "begin; {}; {}; commit;".format(create_table, row_inserts)
+
+    def export(self, path):
+        if isinstance(path,str):
+            path = pathlib.Path(path)
+        if not isinstance(path, pathlib.Path):
+            raise TypeError(f"expected pathlib.Path, not {type(path)}")
+        
+        ext = path.suffix[1:]  # .xlsx --> xlsx
+
+        if ext not in exporters:
+            raise TypeError(f"{ext} not in list of supported formats\n{list(file_readers.keys())}")
+
+        handler = exporters.get(ext)
+        handler(table=self, path=path)
+
+        log.info(f"exported {self.key} to {path}")
 
     @classmethod
     def import_file(cls, path,  import_as, 
@@ -2547,6 +2564,104 @@ file_readers = {
     'tsv': text_reader,
     'txt': text_reader,
     'ods': ods_reader
+}
+
+def _check_input(table, path):
+    if not isinstance(table, Table): 
+        raise TypeError
+    if not isinstance(path, pathlib.Path):
+        raise TypeError
+
+
+def excel_writer(table, path):
+    """ 
+    writer for excel files. 
+    
+    This can create xlsx files beyond Excels.
+    If you're using pyexcel to read the data, you'll see the data is there.
+    If you're using Excel, Excel will stop loading after 1,048,576 rows.
+    
+    See pyexcel for more details:
+    http://docs.pyexcel.org/
+    """
+    _check_input(table,path)
+        
+    def gen(table):  # local helper 
+        yield table.columns
+        for row in table.rows:
+            yield row
+    data = list(gen(table))
+    if path.suffix in ['.xls', '.ods']:
+        data = [[str(v) if (isinstance(v, (int,float)) and abs(v) > 2**32-1) else DataTypes.to_json(v) for v in row] for row in data]
+    
+    pyexcel.save_as(array=data, dest_file_name=str(path))
+
+
+def text_writer(table, path):
+    """ exports table to csv, tsv or txt dependening on path suffix.
+    follows the JSON norm. text escape is ON for all strings.
+    
+    """
+    _check_input(table,path)
+
+    def txt(value):  # helper for text writer
+        if isinstance(value, str):
+            if not (value.startswith('"') and value.endswith('"')):
+                return f'"{value}"'  # this must be escape: "the quick fox, jumped over the comma"
+            else:
+                return value  # this would for example be an empty string: ""
+        else:
+            return str(DataTypes.to_json(value))  # this handles datetimes, timedelta, etc.
+
+    delimiters = {
+        ".csv": ',',
+        ".tsv": '\t',
+        ".txt": '|'
+    }
+    delimiter = delimiters.get(path.suffix)
+
+    with path.open('w', encoding='utf-8') as fo:
+        fo.write(delimiter.join(f'"{c}"' for c in table.columns)+'\n')
+        for row in _tqdm(table.rows, total=len(table)):
+            fo.write(delimiter.join(txt(c) for c in row)+'\n')
+
+def sql_writer(table, path):
+    _check_input(table,path)
+    with path.open('w', encoding='utf-8') as fo:
+        fo.write(table.to_sql())
+
+def json_writer(table, path):
+    _check_input(table,path)
+    with path.open('w') as fo:
+        fo.write(table.to_json())
+
+def h5_writer(table, path):
+    _check_input(table,path)
+    table.to_hdf5(path)
+
+def html_writer(table, path):
+    _check_input(table,path)
+    with path.open('w', encoding='utf-8') as fo:
+        fo.write(table._repr_html_())
+
+
+exporters = {  # the commented formats are not yet supported by the pyexcel plugins:
+    # 'fods': excel_writer,
+    'json': json_writer,
+    'html': html_writer,
+    # 'simple': excel_writer,
+    # 'rst': excel_writer,
+    # 'mediawiki': excel_writer,
+    'xlsx': excel_writer,
+    'xls': excel_writer,
+    # 'xlsm': excel_writer,
+    'csv': text_writer,
+    'tsv': text_writer,
+    'txt': text_writer,
+    'ods': excel_writer,
+    'sql': sql_writer,
+    # 'hdf5': h5_writer,
+    # 'h5': h5_writer
 }
 
 
