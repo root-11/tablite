@@ -22,7 +22,7 @@ Tablite achieves this by using `HDF5` as storage which is faster than mmap'ed fi
 
 ### Multiprocessing enabled by default
 
-Tablite has multiprocessing is implemented for bypassing the GIL on all major operations. CSV import is [tested with 96M fields](https://github.com/root-11/tablite/blob/master/tests/test_filereader_time.py) that are imported and type-mapped to native python types in 120 secs.
+Tablite uses multiprocessing for bypassing the GIL on all major operations. CSV import is [tested with 96M fields](https://github.com/root-11/tablite/blob/master/tests/test_filereader_time.py) that are imported and type-mapped to native python types in 120 secs.
 
 ### All algorithms have been reworked to respect memory limits
 
