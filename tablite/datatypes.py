@@ -1,7 +1,8 @@
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from collections import defaultdict
 import numpy as np
 import pickle
+
 
 class DataTypes(object):
     # supported datatypes.
@@ -12,9 +13,11 @@ class DataTypes(object):
     date = date
     datetime = datetime
     time = time
-    # timedelta = timedelta  # TODO ?
+    timedelta = timedelta  
 
     numeric_types = {int, float, date, time, datetime}
+    epoch = datetime(2000,1,1,0,0,0,0,timezone.utc)
+    epoch_no_tz = datetime(2000,1,1,0,0,0,0)
     digits = '1234567890'
     decimals = set('1234567890-+eE.')
     integers = set('1234567890-+')
@@ -285,6 +288,47 @@ class DataTypes(object):
         if T:
             iso_string = iso_string.replace(T, "T")
         return datetime.fromisoformat(iso_string)
+
+    @staticmethod
+    def round(value, multiple, up=None):
+        """ a nicer way to round numbers.
+
+        :param value: float/integer
+        :param multiple: base of the rounding.
+        :param up: None (default) or boolean rounds half, up or down.
+            round(1.6, 1) rounds to 2.
+            round(1.4, 1) rounds to 1.
+            round(1.5, 1, up=True) rounds to 2.
+            round(1.5, 1, up=False) rounds to 1.
+        :return: value
+
+        Examples:
+            multiple = 1 is the same as rounding to whole integers.
+            multiple = 0.001 is the same as rounding to 3 digits precision.
+            mulitple = 3.1415 is rounding to nearest multiplier of 3.1415
+
+            dt = datetime(2022,8,18,11,14,53,440)
+            td = timedelta(hours=0.5)
+            round(dt,td) is datetime(2022,8,18,11,0)
+        """
+        epoch = 0
+        if isinstance(value, (datetime)) and isinstance(multiple, timedelta):
+            if value.tzinfo is None:
+                epoch = DataTypes.epoch_no_tz
+            else:
+                epoch = DataTypes.epoch
+        
+        low = ((value - epoch) // multiple) * multiple
+        high = low + multiple
+        if up is True:
+            return high + epoch
+        elif up is False:
+            return low + epoch
+        else:
+            if abs((high + epoch) - value) < abs(value-(low + epoch)):
+                return high + epoch
+            else:
+                return low + epoch
 
     @staticmethod
     def to_json(v):
@@ -674,9 +718,5 @@ class Rank(object):
     
     def __iter__(self):
         return iter(self.items_list)
-
-
-
-
 
 
