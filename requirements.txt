@@ -5,6 +5,7 @@ psutil>=5.9.0
 chardet==5.0.0
 pyexcel==0.7.0
 pyexcel-odsr==0.6.0
+pyexcel-ods==0.6.0
 pyperclip==1.8.2
 pyexcel-xlsx==0.6.0
 pyexcel-xls==0.7.0

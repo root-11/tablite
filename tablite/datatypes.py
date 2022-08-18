@@ -1,7 +1,7 @@
 from datetime import date, datetime, time, timedelta
 from collections import defaultdict
 import numpy as np
-
+import pickle
 
 class DataTypes(object):
     # supported datatypes.
@@ -31,7 +31,8 @@ class DataTypes(object):
         datetime: 7,
         date: 8,
         time: 9,
-        timedelta: 10
+        timedelta: 10,
+        'pickle': 11
     }
 
     @classmethod
@@ -42,7 +43,7 @@ class DataTypes(object):
             dtype = numpy_types.get(np.dtype(value).name)
             return cls._type_codes[dtype]
         else:
-            raise TypeError(f"No handler for {type(value)}")
+            return cls._type_codes['pickle']
     
     def b_none(v):
         return b"None"
@@ -64,6 +65,8 @@ class DataTypes(object):
         return bytes(v.isoformat(), encoding='utf-8')
     def b_timedelta(v):
         return bytes(str(float(v.days + (v.seconds / (24*60*60)))), 'utf-8')
+    def b_pickle(v):
+        return pickle.dumps(v, protocol=0)
         
     bytes_functions = {
         type(None): b_none,
@@ -86,7 +89,7 @@ class DataTypes(object):
             dtype = numpy_types.get(np.dtype(v).name)
             f = cls.bytes_functions[dtype]
         else:
-            raise TypeError(f"No handler for {type(v)}")
+            f = cls.b_pickle
         return f(v)
 
     def _none(v):
@@ -111,6 +114,8 @@ class DataTypes(object):
         days = float(v)
         seconds = 24 * 60 * 60 * ( float(v) - int( float(v) ) )
         return timedelta(int(days), seconds)
+    def _unpickle(v):
+        return pickle.loads(v)
     
     type_code_functions = {
         1: _none,
@@ -122,7 +127,8 @@ class DataTypes(object):
         7: _datetime,
         8: _date,
         9: _time,
-        10: _timedelta
+        10: _timedelta,
+        11: _unpickle
     }
 
     pytype_from_type_code = {
@@ -136,6 +142,7 @@ class DataTypes(object):
         8: date,
         9: time,
         10: timedelta,
+        11: 'pickled object'
     }
 
     @classmethod
@@ -303,7 +310,7 @@ class DataTypes(object):
         elif isinstance(v, date):
             return v.isoformat()
         elif isinstance(v, timedelta):
-            return f"{v.days} days, {v.seconds + (v.microseconds / 1e6)} seconds"
+            return f"P{v.days}DT{v.seconds + (v.microseconds / 1e6)}S"
         else:
             raise TypeError(f"The datatype {type(v)} is not supported.")
 
@@ -334,8 +341,9 @@ class DataTypes(object):
         elif dtype is time:
             return time.fromisoformat(v)
         elif dtype is timedelta:
-            L = v.split(' ')
-            days, seconds = int(L[0]), float(L[2])
+            L = v.split('DT')
+            days = int(L[0].lstrip('P'))
+            seconds = float(L[1].rstrip("S"))
             return timedelta(days, seconds)
         else:
             raise TypeError(f"The datatype {str(dtype)} is not supported.")
