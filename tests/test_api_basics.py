@@ -94,6 +94,27 @@ def test02_verify_garbage_collection():
     tables = Table.reload_saved_tables()
     assert tables == []
 
+class Quarternion(object):  # I'm pretty sure these are not in the standard library...
+    def __init__(self,a,b,c,d) -> None:
+        self.a = a
+        self.b = b
+        self.c = c
+        self.d = d
+    def __tuple__(self):
+        return self.a,self.b,self.c,self.d
+    def __eq__(self,other):
+        if not isinstance(other, Quarternion):
+            return False
+        return self.__tuple__() == other.__tuple__()
+
+def test_unknown_datatype():
+    t = Table()
+    q = Quarternion(1,2.2,-3,4)
+    t['Q'] = [q]
+    L = list(t['Q'])
+    assert L == [q]
+
+
 
 def test03_verify_list_like_operations():
     table4 = Table()
@@ -152,6 +173,30 @@ def test03_verify_multi_page_updates():
     L[0:2] = [20]  # reduce
     L[0:1] = [-3,-2]  # expand
     L[4:8] = [11,12,13,14]  # replace
+
+
+def test03_add_table_to_length_of_zero():
+    table1 = Table()
+    table1.add_columns('a', 'b')
+
+    table2 = Table()
+    table2['b'] = [1,2]
+    table2['c'] = [10,20]
+
+    table3 = table1.stack(table2)
+    assert table3['a'] == [None,None]
+    assert table3['b'] == [1,2]
+    assert table3['c'] == [10,20]
+
+
+def test03_unequal_column_lengths():
+    table1 = Table()
+    table1['a'] = [1,2]
+    table1['b'] = [10]
+    table1.show()
+    assert list(table1['b']) == [10]  # we have not inserted Nones by accident.
+    for row in table1.rows:
+        print(row)
 
 
 def test03_verify_slice_operator_for_uniform_datatype():    
@@ -523,6 +568,7 @@ def test07_verify_gc():
 
     gc.collect()
     print("ok")
+
 
 
 
