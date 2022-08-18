@@ -1,7 +1,7 @@
 from tablite.datatypes import DataTypes, Rank
-from datetime import date, time, datetime
+from datetime import date, time, datetime, timedelta
 import numpy as np
-
+import math
 
 def test_np_types():
     for name in dir(np):
@@ -193,3 +193,72 @@ def test_datatype_inference():
     # ("July 4, 1976 12:01:02 am", datetime(1976, 7, 4, 0, 1, 2), "random format"),
     # ("Mon Jan  2 04:24:27 1995", datetime(1995, 1, 2, 4, 24, 27), "random format"),
     # ("Jan 1 1999 11:23:34.578", datetime(1999, 1, 1, 11, 23, 34, 578000), "random format"),
+
+
+
+def test_round():
+    xround = DataTypes.round
+    # round up
+    assert xround(1.6, 1, True) == 2
+    assert xround(1.4, 1, True) == 2
+    # round down
+    assert xround(1.6, 1, False) == 1
+    assert xround(1.4, 1, False) == 1
+    # round half
+    assert xround(1.6, 1) == 2
+    assert xround(1.4, 1) == 1
+
+    # round half
+    assert xround(16, 10) == 20
+    assert xround(14, 10) == 10
+
+    # round half
+    assert xround(-16, 10) == -20
+    assert xround(-14, 10) == -10
+
+    # round to odd multiples
+    assert xround(6, 3.1415, 1) == 2 * 3.1415
+
+    assert xround(1.2345, 0.001, True) == 1.2349999999999999 and math.isclose(1.2349999999999999, 1.235)
+    assert xround(1.2345, 0.001, False) == 1.234
+
+    assert xround(123, 100, False) == 100
+    assert xround(123, 100, True) == 200
+
+    assert xround(123, 5.07, False) == 24 * 5.07
+
+    dt = datetime(2022,8,18,11,14,53,440)
+
+    td = timedelta(hours=0.5)    
+    assert xround(dt,td, up=False) == datetime(2022,8,18,11,0)
+    assert xround(dt,td, up=None) == datetime(2022,8,18,11,0)
+    assert xround(dt,td, up=True) == datetime(2022,8,18,11,30)
+
+    td = timedelta(hours=24)
+    assert xround(dt,td, up=False) == datetime(2022,8,18)
+    assert xround(dt,td, up=None) == datetime(2022,8,18)
+    assert xround(dt,td, up=True) == datetime(2022,8,19)
+
+
+    td = timedelta(days=0.5)
+    assert xround(dt,td, up=False) == datetime(2022,8,18)
+    assert xround(dt,td, up=None) == datetime(2022,8,18,12)
+    assert xround(dt,td, up=True) == datetime(2022,8,18,12)
+
+    td = timedelta(days=1.5)
+    assert xround(dt,td, up=False) == datetime(2022,8,18)
+    assert xround(dt,td, up=None) == datetime(2022,8,18)
+    assert xround(dt,td, up=True) == datetime(2022,8,19,12)
+
+    td = timedelta(seconds=0.5)
+    assert xround(dt,td, up=False) == datetime(2022,8,18,11,14,53,0)
+    assert xround(dt,td, up=None) == datetime(2022,8,18,11,14,53,0)
+    assert xround(dt,td, up=True) == datetime(2022,8,18,11,14,53,500000)
+
+    td = timedelta(seconds=40000)
+    assert xround(dt,td, up=False) == datetime(2022,8,18,6,40)
+    assert xround(dt,td, up=None) == datetime(2022,8,18,6,40)
+    assert xround(dt,td, up=True) == datetime(2022,8,18,17,46,40)
+
+    
+
