@@ -2438,7 +2438,7 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
         working_overhead = 40  # MemoryError will occur if you get this wrong.
         
         total_workload = working_overhead * file_length
-        cpu_count = psutil.cpu_count(logical=False) - 1
+        cpu_count = max(psutil.cpu_count(logical=False) - 1, 1) # there's always at least one core!
         memory_usage_ceiling = 0.9
         
         free_memory = int(psutil.virtual_memory().free * memory_usage_ceiling) - cpu_count * 20e6  # 20Mb per subproc.
