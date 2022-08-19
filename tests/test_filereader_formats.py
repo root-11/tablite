@@ -12,6 +12,16 @@ def refresh():
     Table.reset_storage()
     yield
 
+def test_empty():
+    table = Table.import_file(Path(__file__).parent / "data" / "empty.csv", import_as='csv')
+
+    assert len(table.columns) == 0
+    assert len(list(table.rows)) == 0
+
+    table = Table.import_file(Path(__file__).parent / "data" / "empty_newline.csv", import_as='csv')
+
+    assert len(table.columns) == 0
+    assert len(list(table.rows)) == 0
 
 def test_text_escape():
     text_escape = TextEscape(delimiter=';',openings=None,closures=None)
