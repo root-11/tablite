@@ -154,7 +154,8 @@ def detect_seperator(text):
     # to (1) find the set of characters that intersect with ',;:|\t' which in
     # practice is a single character, unless (2) it is empty whereby it must
     # be whitespace.
-    seps = {',', '\t', ';', ':', '|'}.intersection(text)
+    if len(text) == 0: return None
+    seps = {',', '\t', ';', ':', '|', ''}.intersection(text)
     if not seps:
         if " " in text:
             return " "
@@ -223,7 +224,12 @@ def get_headers(path, linecount=10):
                 lines.append(line)
                 if n > linecount:
                     break  # break on first
-            d['delimiter'] = delimiter = detect_seperator('\n'.join(lines))
+            delimiter = detect_seperator('\n'.join(lines))
+
+            if delimiter is None:
+                d['delimiter'] = delimiters[path.suffix] # pickup the default one
+                d['is_empty'] = True # mark as empty to return an empty table instead of throwing
+
             d[path.name] = [line.split(delimiter) for line in lines]
         return d
     except Exception:

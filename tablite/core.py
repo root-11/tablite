@@ -108,14 +108,7 @@ class Table(object):
         for row in Table.rows:
             print(row)
         """
-        
-        n_max = len(self)
-        generators = []
-        for name, mc in self._columns.items():
-            if len(mc) < n_max:
-                warnings.warn(f"Column {name} has length {len(mc)} / {n_max}. None will appear as fill value.")
-            generators.append(itertools.chain(iter(mc), itertools.repeat(None, times=n_max-len(mc))))
-        
+        generators = [iter(mc) for mc in self._columns.values()]
         for _ in range(len(self)):
             yield [next(i) for i in generators]
     
@@ -133,8 +126,6 @@ class Table(object):
     def __setitem__(self, keys, values):
         if isinstance(keys, str): 
             if isinstance(values, (tuple,list,np.ndarray)):
-                if len(values) == 0:
-                    raise ValueError(f"Column has zero values?, {values}")
                 self._columns[keys] = column = Column(values)  # overwrite if exists.
                 mem.create_column_reference(self.key, column_name=keys, column_key=column.key)
             elif isinstance(values, Column):
@@ -409,23 +400,17 @@ class Table(object):
         """
         if not isinstance(other, Table):
             raise TypeError(f"stack only works for Table, not {type(other)}")
-        
+
         t = self.copy()
         for name , col2 in other._columns.items():
-            if name in t.columns:
-                t[name].extend(col2)
-            elif len(self) > 0:
+            if name not in t.columns:  # fill with blanks
                 t[name] = [None] * len(self)
-            else:
-                t[name] = col2
+            col1 = t[name]
+            col1.extend(col2)
 
         for name, col in t._columns.items():
             if name not in other.columns:
-                if len(other) > 0:
-                    if len(self) > 0:
-                        col.extend([None]*len(other))
-                    else:
-                        t[name] = [None]*len(other)
+                col.extend([None]*len(other))
         return t
 
     def types(self):
@@ -449,8 +434,8 @@ class Table(object):
         names = list(self.columns)
         if not names:
             return "Empty table"
-        column_lengths = set()
         for name,col in self._columns.items():
+            
             types = col.types()
             if name == row_counts:
                 column_types[name] = 'row'
@@ -460,12 +445,7 @@ class Table(object):
             else:
                 column_types[name] = 'mixed'
             dots = len("...") if split_after is not None else 0
-            widths[name] = max(
-                [len(column_types[name]), len(name), dots] +\
-                [len(str(v)) if not isinstance(v,str) else len(str(v)) for v in col] +\
-                [len(str(None)) if len(col)!= len(self) else 0]
-            )
-            column_lengths.add(len(col))
+            widths[name] = max([len(column_types[name]), len(name), dots] + [len(str(v)) if not isinstance(v,str) else len(str(v)) for v in col])
 
         def adjust(v, length):
             if v is None:
@@ -486,10 +466,6 @@ class Table(object):
                 s.append("|" + "|".join([adjust("...", widths[n]) for _, n in zip(row, names)]) + "|")
                 
         s.append("+" + "+".join(["=" * widths[h] for h in names]) + "+")
-
-        if len(column_lengths)!=1:
-            s.append("Warning: Columns have different lengths. None is used as fill value.")
-        
         return "\n".join(s)
 
     def show(self, *args, blanks=None):
@@ -522,15 +498,14 @@ class Table(object):
                         t.add_columns(*[tag] + self.columns)
 
         elif len(self) < 20:
-            t[tag] = [f"{i:,}".rjust(2) for i in range(len(self))]  # add rowcounts to copy 
+            t[tag] = [f"{i:,}" for i in range(len(self))]  # add rowcounts to copy 
             for name,col in self._columns.items():
                 t[name] = col
 
         else:  # take first and last 7 rows.
             n = len(self)
-            j = int(math.ceil(math.log10(n))/3) + len(str(n))
             split_after = 6
-            t[tag] = [f"{i:,}".rjust(j) for i in range(7)] + [f"{i:,}".rjust(j) for i in range(n-7, n)]
+            t[tag] = [f"{i:,}" for i in range(7)] + [f"{i:,}" for i in range(n-7, n)]
             for name, col in self._columns.items():
                 t[name] = [i for i in col[:7]] + [i for i in col[-7:]] 
 
@@ -555,7 +530,6 @@ class Table(object):
         html = ["<tr>" + f"<th>{tag}</th>" +"".join( f"<th>{cn}</th>" for cn in self.columns) + "</tr>"]
         
         column_types = {}
-        column_lengths = set()
         for name,col in self._columns.items():
             types = col.types()
             if len(types) == 1:
@@ -563,7 +537,6 @@ class Table(object):
                 column_types[name] = dt.__name__
             else:
                 column_types[name] = 'mixed'
-            column_lengths.add(len(col))
 
         html.append("<tr>" + f"<th>row</th>" +"".join( f"<th>{column_types[name]}</th>" for name in self.columns) + "</tr>")
 
@@ -585,9 +558,7 @@ class Table(object):
                     html.append( "<tr>" + f"<td>{c}</td>" + "".join(f"<td>{v}</td>" for v in row) + "</tr>")
                     c += 1
 
-        warning = "Warning: Columns have different lengths. None is used as fill value." if len(column_lengths)!=1 else ""
-
-        return start + ''.join(html) + end + warning  
+        return start + ''.join(html) + end
 
     def index(self, *args):
         cols = []
@@ -817,9 +788,13 @@ class Table(object):
 
         if not isinstance(strip_leading_and_tailing_whitespace, bool):
             raise TypeError()
-        
+
         if columns is None:
             sample = get_headers(path)
+
+            if "is_empty" in sample:
+                return Table()
+
             if import_as in {'csv', 'txt'}:
                 columns = {k:'f' for k in sample[path.name][0]}
             elif sheet is not None:
@@ -2438,7 +2413,7 @@ def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_ro
         working_overhead = 40  # MemoryError will occur if you get this wrong.
         
         total_workload = working_overhead * file_length
-        cpu_count = max(psutil.cpu_count(logical=False) - 1, 1) # there's always at least one core!
+        cpu_count = max(1, psutil.cpu_count(logical=False) - 1)
         memory_usage_ceiling = 0.9
         
         free_memory = int(psutil.virtual_memory().free * memory_usage_ceiling) - cpu_count * 20e6  # 20Mb per subproc.
