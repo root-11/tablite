@@ -820,6 +820,10 @@ class Table(object):
         
         if columns is None:
             sample = get_headers(path)
+            
+            if "is_empty" in sample:
+                return Table()
+
             if import_as in {'csv', 'txt'}:
                 columns = {k:'f' for k in sample[path.name][0]}
             elif sheet is not None:
