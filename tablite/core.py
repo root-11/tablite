@@ -2650,7 +2650,7 @@ def text_writer(table, path):
     delimiter = delimiters.get(path.suffix)
 
     with path.open('w', encoding='utf-8') as fo:
-        fo.write(delimiter.join(f'"{c}"' for c in table.columns)+'\n')
+        fo.write(delimiter.join(c for c in table.columns)+'\n')
         for row in _tqdm(table.rows, total=len(table)):
             fo.write(delimiter.join(txt(c) for c in row)+'\n')
 
