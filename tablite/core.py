@@ -1093,7 +1093,7 @@ class Table(object):
             arr = np.zeros(shape=(len(self), ), dtype=np.int64)
             shm = shared_memory.SharedMemory(create=True, size=arr.nbytes)  # the co_processors will read this.
             sort_index = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
-            sort_index[:] = self.sort_index(sort_mode=sort_mode, **kwargs) if index is None else index
+            sort_index[:] = self.sort_index(sort_mode=sort_mode, **kwargs) 
 
             tasks = []
             columns_refs = {}
