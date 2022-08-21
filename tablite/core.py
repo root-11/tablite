@@ -1024,17 +1024,9 @@ class Table(object):
         new_order.clear()
         return sorted_index
 
-    def sort(self, sort_mode='excel', index=None, **kwargs):  
-        """ Perform multi-pass sorting with precedence given order of column names.
-        sort_mode: str: "alphanumeric", "unix", or, "excel"
-        index: default None: optional list of integers to declare sort order.
-        kwargs: 
-            keys: columns, 
-            values: 'reverse' as boolean.
-        
-        examples: 
-        Table.sort('A'=False) means sort by 'A' in ascending order.
-        Table.sort('A'=True, 'B'=False) means sort 'A' in descending order, then (2nd priority) sort B in ascending order.
+    def reindex(self, index):
+        """
+        index: list of integers to declare sort order.
         """
         if index is not None:
             if not isinstance(index, list):
@@ -1045,7 +1037,52 @@ class Table(object):
                 raise TypeError
 
         if len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT :  # the task is so small that multiprocessing doesn't make sense.
-            sorted_index = self.sort_index(sort_mode=sort_mode, **kwargs) if index is None else index
+            t = Table()
+            for col_name, col in self._columns.items():  # this LOOP can be done with TaskManager
+                data = list(col[:])
+                t.add_column(col_name, data=[data[ix] for ix in index])
+            return t
+        
+        else:
+            arr = np.zeros(shape=(len(self), ), dtype=np.int64)
+            shm = shared_memory.SharedMemory(create=True, size=arr.nbytes)  # the co_processors will read this.
+            sort_index = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
+            sort_index[:] = index
+
+            tasks = []
+            columns_refs = {}
+            for name in self.columns:
+                col = self[name]
+                columns_refs[name] = d_key = mem.new_id('/column')
+                tasks.append(Task(indexing_task, source_key=col.key, destination_key=d_key, shm_name_for_sort_index=shm.name, shape=arr.shape))
+
+            with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
+                errs = tm.execute(tasks)
+                if any(errs):
+                    msg = '\n'.join(errs)
+                    raise Exception(f"multiprocessing error:{msg}")
+
+            table_key = mem.new_id('/table')
+            mem.create_table(key=table_key, columns=columns_refs)
+            
+            shm.close()
+            shm.unlink()
+            t = Table.load(path=mem.path, key=table_key)
+            return t            
+
+    def sort(self, sort_mode='excel', **kwargs):  
+        """ Perform multi-pass sorting with precedence given order of column names.
+        sort_mode: str: "alphanumeric", "unix", or, "excel"
+        kwargs: 
+            keys: columns, 
+            values: 'reverse' as boolean.
+        
+        examples: 
+        Table.sort('A'=False) means sort by 'A' in ascending order.
+        Table.sort('A'=True, 'B'=False) means sort 'A' in descending order, then (2nd priority) sort B in ascending order.
+        """
+        if len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT :  # the task is so small that multiprocessing doesn't make sense.
+            sorted_index = self.sort_index(sort_mode=sort_mode, **kwargs) 
             
             t = Table()
             for col_name, col in self._columns.items():  # this LOOP can be done with TaskManager
@@ -1079,23 +1116,13 @@ class Table(object):
             t = Table.load(path=mem.path, key=table_key)
             return t            
 
-    def is_sorted(self, index=None, **kwargs):  
+    def is_sorted(self, **kwargs):  
         """ Performs multi-pass sorting check with precedence given order of column names.
-        index: default None, optional list of integers for custom sort order.
         **kwargs: optional: sort criteria. See Table.sort()
         :return bool
         """
-        if index is not None:
-            if not isinstance(index, list):
-                raise TypeError
-            if len(index)!=len(self):
-                raise ValueError
-            if not all(isinstance(i,int) for i in index):
-                raise TypeError
-
         logging.info(f"Table.is_sorted running 1 core")  # TODO: This is single core code.
-
-        sorted_index = self.sort_index(**kwargs) if index is None else index
+        sorted_index = self.sort_index(**kwargs) 
         if any(ix != i for ix, i in enumerate(sorted_index)):
             return False
         return True
