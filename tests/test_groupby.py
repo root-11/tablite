@@ -337,9 +337,9 @@ def test_reverse_pivot():
     assert t2['Count(ahe,ahe=e)'][0] == None
 
 
-def test_sort_by_index():
+def test_reindex():
     t = Table()
     t['#'] = ['c','b','a']
     t['n'] = [3,2,1]
-    t_sorted = t.sort(index=[2,1,0])
+    t_sorted = t.reindex(index=[2,1,0])
     assert list(t_sorted['n']) == [1,2,3]
