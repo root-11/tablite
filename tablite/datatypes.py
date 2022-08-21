@@ -98,7 +98,7 @@ class DataTypes(object):
     def _none(v):
         return None
     def _bool(v):
-        return bool(v.decode('utf-8'))
+        return bool(v.decode('utf-8')=='True')
     def _int(v):
         return int(v.decode('utf-8'))
     def _float(v):
