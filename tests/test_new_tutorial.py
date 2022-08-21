@@ -81,10 +81,10 @@ def test_the_basics():
     # should you want to mix datatypes, tablite will not complain:
     # What you put in ...
     t4 = Table()
-    t4['mixed'] = [
+    L = [
         -1,0,1,  # regular integers
         -12345678909876543211234567890987654321,  # very very large integer
-        None,np.nan,  # null values 
+        None,  # null values 
         "one", "",  # strings
         True,False,  # booleans
         float('inf'), 0.01,  # floats
@@ -93,11 +93,13 @@ def test_the_basics():
         time(12,12,12),  # time
         timedelta(days=3, seconds=5678)  # timedelta
     ]
+
+    t4['mixed'] = L
     # ... is exactly what you get out:
-    print(list(t4['mixed']))
+    assert t4['mixed'] == L
     # [-1, 0, 1, 
     # -12345678909876543211234567890987654321, 
-    # None, nan, 
+    # None, 
     # 'one', '', 
     # True, True, 
     # inf, 0.01, 
