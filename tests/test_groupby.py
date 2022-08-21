@@ -335,3 +335,11 @@ def test_reverse_pivot():
     # +===+=====+===================+================+================+================+
     assert len(t2)==5 and len(t2.columns)==5
     assert t2['Count(ahe,ahe=e)'][0] == None
+
+
+def test_sort_by_index():
+    t = Table()
+    t['#'] = ['c','b','a']
+    t['n'] = [3,2,1]
+    t_sorted = t.sort(index=[2,1,0])
+    assert list(t_sorted['n']) == [1,2,3]
