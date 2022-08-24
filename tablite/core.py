@@ -662,11 +662,31 @@ class Table(object):
         d = {"columns": cols, "total_rows": len(self)}
         return d
 
-    def as_json_serializable(self, row_count="row id", columns=None, slice_=None):
+    @classmethod
+    def get_column_descriptors(cls, type_dict: dict, supports_mixed=True):
+        """
+            retrieves column descriptors as a dictionary
+            supports_mixed: if 'True'
+        """
+        return dict([
+            (name, ( # name of the column
+                [_cls.__name__ for _cls in cls] if supports_mixed # if mixed type is supported, returns ["type1", "type2"]
+                else 'mixed'                                    # if mixed type is not supported return "mixed"
+            ) if len(cls) > 1                                   # check if more than one data type
+                else next(iter(cls)).__name__                   # only one data type return it's name
+            ) for name, cls in type_dict.items()
+        ])
+
+
+    def as_json_serializable(self, row_count="row id", columns=None, slice_=None, get_column_types=False, supports_mixed=True):
         args = row_count, columns, slice_
         d = self.to_dict(*args)
         for k,data in d['columns'].items():
             d['columns'][k] = [DataTypes.to_json(v) for v in data]  # deal with non-json datatypes.
+
+        if get_column_types:
+            d['datatypes'] = self.get_column_descriptors(self.types())
+
         return d
 
     def to_json(self, *args, **kwargs):
