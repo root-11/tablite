@@ -685,7 +685,7 @@ class Table(object):
             d['columns'][k] = [DataTypes.to_json(v) for v in data]  # deal with non-json datatypes.
 
         if get_column_types:
-            d['datatypes'] = self.get_column_descriptors(self.types())
+            d['datatypes'] = self.get_column_descriptors(self.types(), supports_mixed)
 
         return d
 
