@@ -1466,7 +1466,7 @@ class Table(object):
         if kind not in kinds:
             raise ValueError(f"join type unknown: {kind}")
         f = kinds.get(kind,None)
-        return f(self,other,left_keys,right_keys,left_columns,right_columns)
+        return f(other,left_keys,right_keys,left_columns,right_columns)
     
     def _sp_join(self, other, LEFT,RIGHT, left_columns, right_columns):
         """
