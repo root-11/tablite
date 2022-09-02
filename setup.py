@@ -4,8 +4,6 @@ tablite
 from setuptools import setup
 from pathlib import Path
 
-# from tablite import __version__
-
 __version__ = None
 version_file = Path(__file__).parent / "tablite" / "version.py"
 exec(version_file.read_text())
