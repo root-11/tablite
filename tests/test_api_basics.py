@@ -571,6 +571,11 @@ def test07_verify_gc():
     print("ok")
 
 
-
-
-
+def test_summary_statistics():
+    t = Table()
+    t['a'] = [1,2,3]
+    x = t['a'].statistics()
+    expected = {'min': 1, 'max': 3, 'mean': 2.0, 'median': 2, 'stdev': 1.0, 'mode': 1, 
+    'iqr_low': 1, 'iqr_high': 3, 'iqr': 2, 'sum': 6, 'distinct': 3, 'summary type': 'int', 
+    'histogram': [[1, 2, 3], [1, 1, 1]]}
+    assert x == expected
