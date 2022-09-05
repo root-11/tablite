@@ -101,4 +101,4 @@ To learn more see the [tutorial.ipynb](https://github.com/root-11/tablite/blob/m
 - Audrius Kulikajevas - Edge case testing / various bugs.
 - realratchet - Jupyter notebook integration.
 - Sergej Sinkarenko - various bugs.
-
+- Ovidijus Grigas - various bugs.
