@@ -2137,6 +2137,7 @@ class Column(object):
         """
         try:
             uarray, carray = np.unique(self.__getitem__(), return_counts=True)
+            uarray, carray = uarray.tolist(), carray.tolist()
         except TypeError:  # np arrays can't handle dtype='O':
             d = defaultdict(int)
             for i in self.__getitem__():
