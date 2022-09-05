@@ -2160,7 +2160,7 @@ class Column(object):
         - sum (int/float, length of str, date)
         - histogram
         """
-        return summary_statistics(self.histogram())
+        return summary_statistics(*self.histogram())
 
     def __add__(self, other):
         c = self.copy()
