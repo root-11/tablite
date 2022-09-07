@@ -134,7 +134,7 @@ class Table(object):
         if isinstance(keys, str): 
             if isinstance(values, (tuple,list,np.ndarray)):
                 if len(values) == 0:
-                    raise ValueError(f"Column has zero values?, {values}")
+                    values = None
                 self._columns[keys] = column = Column(values)  # overwrite if exists.
                 mem.create_column_reference(self.key, column_name=keys, column_key=column.key)
             elif isinstance(values, Column):
@@ -173,10 +173,19 @@ class Table(object):
         if len(keys)==1 and all(isinstance(i,tuple) for i in keys):
             keys = keys[0]           
         
-        cols = [c for c in keys if isinstance(c,str) and c in self._columns]
-        cols = self.columns if not cols else cols
         slices = [i for i in keys if isinstance(i, slice)]
-        if len(cols)==1:
+        if len(slices)>1:
+            raise KeyError(f"multiple slices is not accepted: {slices}")
+
+        cols = [i for i in keys if not isinstance(i,slice)]
+        if cols:
+            key_errors = [cname not in self.columns for cname in cols]
+            if any(key_errors):
+                raise KeyError(f"keys not found: {key_errors}")
+        else:  # e.g. tbl[:10]
+            cols = self.columns
+                
+        if len(cols)==1:  # e.g. tbl['a'] or tbl['a'][:10]
             col = self._columns[cols[0]]
             if slices:
                 return col[slices[0]]
@@ -226,6 +235,8 @@ class Table(object):
             return True
         if len(self) != len(__o):
             return False
+        if len(self) == len(__o) == 0:
+            return True
         if self.columns != __o.columns:
             return False
         for name, col in self._columns.items():
@@ -1879,7 +1890,11 @@ class Column(object):
         self.__setitem__(slice(self._len,None,None), values)  #  self._extend_from_column(values)
         
     def remove(self, value):
-        """ see also remove_all """
+        """ 
+        removes a single value.
+        
+        see also remove_all
+        """
         pages = mem.get_pages(self.group)
         for ix, page in enumerate(pages):
             if value not in page[:]:
@@ -1899,7 +1914,11 @@ class Column(object):
         raise ValueError(f"value not found: {value}")
 
     def remove_all(self, value):
-        """ see also remove """
+        """ 
+        removes all values of `value`
+        
+        see also remove 
+        """
         pages = mem.get_pages(self.group)
         new_pages = pages[:]
         for ix, page in enumerate(pages):
@@ -1911,6 +1930,9 @@ class Column(object):
         self._len = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=new_pages)
         
     def pop(self, index):
+        """
+        removes value at index.
+        """
         index = self._len + index if index < 0 else index
         if index > self._len:
             raise IndexError(f"can't reach index {index} when length is {self._len}")
@@ -2200,16 +2222,16 @@ class Column(object):
         return (self.__getitem__()!=other).any()  # speedy np c level comparison.
     
     def __le__(self,other):
-        raise NotImplemented()
+        raise NotImplemented("vectorised operation A <= B is not type-unambiguous")
     
     def __lt__(self,other):
-        raise NotImplemented()
+        raise NotImplemented("vectorised operation A < B is not type-unambiguous")
     
     def __ge__(self,other):
-        raise NotImplemented()
+        raise NotImplemented("vectorised operation A >= B is not type-unambiguous")
 
     def __gt__(self,other):
-        raise NotImplemented()
+        raise NotImplemented("vectorised operation A > B is not type-unambiguous")
 
 
 def _in(a,b):
