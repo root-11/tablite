@@ -116,6 +116,32 @@ def test_unknown_datatype():
     assert L == [q]
 
 
+def test_empty_table_setitem():
+    t = Table()
+    try:
+        t['a']  # key error
+        assert False
+    except KeyError:
+        assert True
+    t['a'] = []  # call to t.add_columns('a')
+    t.add_columns('a')  # duplicate call.
+    t['a'] = [1,2]  # set with values
+    t['a'] = []  # reset 
+
+    # check that copy, eq, neq works.
+    cp = t.copy()  # p['a'] == []
+    assert cp == t
+    assert cp['a'] == t['a']
+    cp['a'] = [1]  # change p
+    assert cp['a'] != t['a']
+    
+def test_iterate_with_empty_column():
+    t = Table()
+    t.add_columns('a','b')
+    t['a'] = [1,2,3]
+    rr = [row for row in t.rows]
+    assert rr == [[1,None], [2,None], [3,None]]
+
 
 def test03_verify_list_like_operations():
     table4 = Table()
