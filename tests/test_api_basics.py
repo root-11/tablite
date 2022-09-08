@@ -143,6 +143,12 @@ def test_iterate_with_empty_column():
     assert rr == [[1,None], [2,None], [3,None]]
 
 
+def test_stats_on_empty_column():
+    t = Table()
+    t['a'] = []
+    assert t['a'].statistics() == {}
+
+
 def test03_verify_list_like_operations():
     table4 = Table()
     table4['A'] = [0,1,2,3]  # create page1
