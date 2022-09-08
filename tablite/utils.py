@@ -99,6 +99,9 @@ def summary_statistics(values,counts):
         if total > most_frequent:
             most_frequent_dtype = dtype
             most_frequent = total
+
+    if most_frequent == 0:
+        return {}
     
     most_frequent_dtype = max(dtypes, key=dtypes.get)
     mask = [type(v)==most_frequent_dtype for v in values]
