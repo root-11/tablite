@@ -258,8 +258,11 @@ class MemoryManager(object):
                     match = page[search_slice]  # page.__getitem__ handles type conversion for Mixed and Str types.
                     arrays.append(match)
             
-            dtype, _ = Page.layout(pages)
-            return np.concatenate(arrays, dtype=dtype)
+            if arrays:
+                dtype, _ = Page.layout(pages)
+                return np.concatenate(arrays, dtype=dtype)
+            else:
+                return []
     
     @timeout
     def mp_write_column(self, values, column_key=None):  # for column
