@@ -9,7 +9,7 @@
 
 ## Overview 
 
-`Tablite` seeks to be the go-to library for tabular data with an api that is as close in synxtax to pure python as possible. 
+`Tablite` seeks to be the go-to library for tabular data with an api that is as close in syntax to pure python as possible. 
 
 
 ### Even smaller memory footprint
@@ -102,3 +102,4 @@ To learn more see the [tutorial.ipynb](https://github.com/root-11/tablite/blob/m
 - realratchet - Jupyter notebook integration.
 - Sergej Sinkarenko - various bugs.
 - Ovidijus Grigas - various bugs.
+- Lori Cooper - spell checking.
