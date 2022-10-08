@@ -475,3 +475,25 @@ def test_keep():
     assert len(table) == 45
 
 
+def test_long_texts():
+    path = Path(__file__).parent / "data" / 'long_text_test.csv'
+    assert path.exists()
+
+    columns = [
+        "sharepointid","Rank","ITEMID","docname","doctype","application","APPNO",
+        "ARTICLES","violation","nonviolation","CONCLUSION","importance","ORIGINATING BODY ID",
+        "typedescription","kpdate","kpdateAsText","documentcollectionid","documentcollectionid2",
+        "languageisocode","extractedappno","isplaceholder","doctypebranch","RESPONDENT",
+        "respondentOrderEng","scl","ECLI","ORIGINATING BODY","YEAR","FULLTEXT","judges", "courts"]
+
+    try:
+        t = Table.import_file(path, import_as='csv', columns={c:'f' for c in columns}, text_qualifier='"')
+    except Exception:
+        assert True
+
+    t = Table.import_file(path, import_as='csv', columns={c:'f' for c in columns[:-1]}, text_qualifier='"')
+    selection = columns[:5]
+    t.__getitem__(*selection).show()
+
+
+
