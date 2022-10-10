@@ -95,6 +95,12 @@ Usage:  `>>> from tablite import Table`
 
 To learn more see the [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/tutorial.ipynb) (Jupyter notebook)
 
+
+## Latest updates
+
+See [changelog.md](https://github.com/root-11/tablite/blob/master/changelog.md)
+
+
 ## Credits
 
 - Martynas Kaunas - GroupBy functionality.
