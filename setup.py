@@ -41,7 +41,7 @@ setup(
     long_description_content_type='text/markdown',
     keywords=keywords,
     packages=["tablite"],
-    python_requires=">=3.7, <4",
+    python_requires=">=3.7",
     include_package_data=True,
     data_files=[(".", ["LICENSE", "README.md", "requirements.txt"])],
     platforms="any",
