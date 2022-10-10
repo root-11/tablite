@@ -74,7 +74,34 @@ def test_groupby():
         [4, 4, 13, 13, 26, 169, 13, 13, 2, 1, 13.0, 0.0, 0.0, 13, 13, 64]
     ]
 
+def test_groupby_missing_args():
+    t = Table()
+    t.add_column('A', data=[1, 1, 2, 2, 3, 3] * 2)
+    t.add_column('B', data=[1, 2, 3, 4, 5, 6] * 2)
+    try:
+        _ = t.groupby(keys=[], functions=[])  # value error. DONE.
+        assert False, 'the line above should raise ValueError'
+    except ValueError:
+        assert True
+
+    try:
+        _ = t.groupby(keys=[], functions=[('A', gb.count)])  # value error
+        assert False, 'the line above should raise ValueError'
+    except ValueError:
+        assert True
+
+    g1 = t.groupby(keys=['A'], functions=[])  # list of unique values
+    assert g1['A'] == [1,2,3]
+    
+    g2 = t.groupby(keys=['A', 'B'], functions=[])  # list of unique values, grouped by longest combination.
+    assert g2['A'] == [1,1,2,2,3,3]
+    assert g2['B'] == [1,2,3,4,5,6]
+
+    g3 = t.groupby(keys=['A'], functions=[('A', gb.count)])  # A key (unique values) and count hereof.
+    assert g3['A'] == [1,2,3]
+    assert g3['Count(A)'] == [4,4,4]
   
+
 
 def test_groupby_w_pivot():
     t = Table()

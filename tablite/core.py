@@ -131,7 +131,7 @@ class Table(object):
         return 0  # if there are no columns.
 
     def __setitem__(self, keys, values):
-        if isinstance(keys, str): 
+        if isinstance(keys, str):
             if isinstance(values, (tuple,list,np.ndarray)):
                 if len(values) == 0:
                     values = None
@@ -144,7 +144,7 @@ class Table(object):
                     mem.create_column_reference(self.key, column_name=keys, column_key=column.key)
                 elif values.key == col.key:  # it's update from += or similar
                     self._columns[keys] = values
-                else:                    
+                else:               
                     raise NotImplemented()
             elif values is None:
                 self._columns[keys] = Column(values)
@@ -182,9 +182,11 @@ class Table(object):
             key_errors = [cname not in self.columns for cname in cols]
             if any(key_errors):
                 raise KeyError(f"keys not found: {key_errors}")
+            if len(set(cols)) != len(cols):
+                raise KeyError(f"duplicated keys in {cols}")
         else:  # e.g. tbl[:10]
             cols = self.columns
-                
+        
         if len(cols)==1:  # e.g. tbl['a'] or tbl['a'][:10]
             col = self._columns[cols[0]]
             if slices:
@@ -1246,21 +1248,36 @@ class Table(object):
             mask =  np.array([i in ixs for i in range(len(self))],dtype=bool)
             return self._mp_compress(mask)
 
-    def groupby(self, keys, functions):  # TODO: This is slow single core code.
+    def groupby(self, keys, functions):  # TODO: This is single core code.
         """
         keys: column names for grouping.
-        functions: list of column names and group functions (See GroupyBy)
+        functions: [optional] list of column names and group functions (See GroupyBy)
         returns: table
 
-        Example usage:
-            from tablite import Table, GroupBy
-            t = Table()
-            t.add_column('date', data=[1,1,1,2,2,2])
-            t.add_column('sku',  data=[1,2,3,1,2,3])
-            t.add_column('qty',  data=[4,5,4,5,3,7])
-            grp = t.groupby(rows=['sku'], functions=[('qty', GroupBy.Sum)])
-            grp.show()
+        Example:
+
+        t = Table()
+        t.add_column('A', data=[1, 1, 2, 2, 3, 3] * 2)
+        t.add_column('B', data=[1, 2, 3, 4, 5, 6] * 2)
+
+        g1 = t.groupby(keys=['A'], functions=[])  # list of unique values
+        assert g1['A'] == [1,2,3]
+
+        g2 = t.groupby(keys=['A', 'B'], functions=[])  # list of unique values, grouped by longest combination.
+        assert g2['A'] == [1,1,2,2,3,3]
+        assert g2['B'] == [1,2,3,4,5,6]
+
+        g3 = t.groupby(keys=['A'], functions=[('A', gb.count)])  # A key (unique values) and count hereof.
+        assert g3['A'] == [1,2,3]
+        assert g3['Count(A)'] == [4,4,4]
+
         """
+        if not isinstance(keys, list):
+            raise TypeError("expected keys as a list of column names")
+
+        if not keys:
+            raise ValueError("Keys missing.")
+
         if len(set(keys)) != len(keys):
             duplicates = [k for k in keys if keys.count(k) > 1]
             s = "" if len(duplicates) > 1 else "s"
@@ -1268,6 +1285,9 @@ class Table(object):
 
         if not isinstance(functions, list):
             raise TypeError(f"Expected functions to be a list of tuples. Got {type(functions)}")
+
+        if not keys + functions:
+            raise ValueError("No keys or functions?")
 
         if not all(len(i) == 2 for i in functions):
             raise ValueError(f"Expected each tuple in functions to be of length 2. \nGot {functions}")
@@ -1285,15 +1305,33 @@ class Table(object):
                 plural = f"the functions {L} are not in GroupBy.functions"
                 raise ValueError(plural)
         
+        # only keys will produce unique values for each key group.
+        if keys and not functions: 
+            cols = list(zip(*self.index(*keys)))
+            result = Table()
+            for col_name, col in zip(keys,cols):
+                result[col_name] = col
+            return result
+
+        # grouping is required...
         # 1. Aggregate data.
         aggregation_functions = defaultdict(dict)
         cols = keys + [col_name for col_name,_ in functions]
         seen,L = set(),[]
-        for c in cols:
+        for c in cols:  # maintains order of appearance.
             if c not in seen:
                 seen.add(c)
                 L.append(c)
-        for row in self.__getitem__(*L).rows:
+        
+        # there's a table of values.
+        data = self.__getitem__(*L)
+        if isinstance(data, Column):
+            tbl = Table()
+            tbl[L[0]] = data
+        else:
+            tbl = data
+
+        for row in tbl.rows:
             d = {col_name: value for col_name,value in zip(L, row)}
             key = tuple([d[k] for k in keys])
             agg_functions = aggregation_functions.get(key)
@@ -1538,7 +1576,7 @@ class Table(object):
         t = Table.load(path=mem.path, key=table_key)
         return t            
 
-    def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
+    def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -1572,7 +1610,7 @@ class Table(object):
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
             
-    def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is slow single core code.
+    def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -1667,7 +1705,7 @@ class Table(object):
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
         
-    def lookup(self, other, *criteria, all=True):  # TODO: This is slow single core code.
+    def lookup(self, other, *criteria, all=True):  # TODO: This is single core code.
         """ function for looking up values in `other` according to criteria in ascending order.
         :param: other: Table sorted in ascending search order.
         :param: criteria: Each criteria must be a tuple with value comparisons in the form:
