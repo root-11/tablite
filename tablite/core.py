@@ -1248,13 +1248,9 @@ class Table(object):
 
     def groupby(self, keys, functions):  # TODO: This is slow single core code.
         """
-        rows: column names for grouping as rows.
-        columns: column names for grouping as columns.
+        keys: column names for grouping.
         functions: list of column names and group functions (See GroupyBy)
-        sum_on_rows: outputs group functions as extra rows if True, else as columns
         returns: table
-
-        * NB: Column names can only be used once in rows & columns
 
         Example usage:
             from tablite import Table, GroupBy
