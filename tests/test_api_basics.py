@@ -611,3 +611,11 @@ def test_summary_statistics():
     'iqr_low': 1, 'iqr_high': 3, 'iqr': 2, 'sum': 6, 'distinct': 3, 'summary type': 'int', 
     'histogram': [[1, 2, 3], [1, 1, 1]]}
     assert x == expected
+
+
+def test_from_dict():
+    t = Table.from_dict(d={'a':[1,2,3], 'b':[4,5,6]})
+    assert t['a'] == [1,2,3]
+    assert t['b'] == [4,5,6]
+
+
