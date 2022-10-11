@@ -640,6 +640,17 @@ class Table(object):
             t.add_rows(data)    
         return t
 
+    @classmethod
+    def from_dict(self, d):
+        t = Table()
+        for k,v in d.items():
+            if not isinstance(k,str):
+                raise TypeError("expected keys as str")
+            if not isinstance(v, (list,tuple)):
+                raise TypeError("expected values as list or tuple")
+            t[k] = v
+        return t
+
     def to_dict(self, row_count="row id", columns=None, slice_=None, start_on=1):
         """
         row_count: name of row counts. Default "row id". Use None to leave it out.
