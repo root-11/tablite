@@ -697,7 +697,7 @@ class Table(object):
             t[name] = data
         return t
 
-    def to_hdf5(self, path):
+    def to_hdf5(self, path, tqdm=_tqdm):
         """
         creates a copy of the table as hdf5
         """
@@ -708,7 +708,7 @@ class Table(object):
         print(f"writing {total} records to {path}")
 
         with h5py.File(path, 'a') as f:
-            with _tqdm(total=len(self.columns), unit='columns') as pbar:
+            with tqdm(total=len(self.columns), unit='columns') as pbar:
                 n = 0
                 for name, mc in self.columns.values():
                     f.create_dataset(name, data=mc[:])  # stored in hdf5 as '/name'
@@ -889,7 +889,7 @@ class Table(object):
             idx[key].add(ix)
         return idx
 
-    def filter(self, expressions, filter_type='all'):
+    def filter(self, expressions, filter_type='all', tqdm=_tqdm):
         """
         enables filtering across columns for multiple criteria.
         
@@ -970,15 +970,17 @@ class Table(object):
             merge_tasks.append(task)
 
         n_cpus = min(max(len(filter_tasks),len(merge_tasks)), psutil.cpu_count())
-        with TaskManager(n_cpus) as tm: 
-            # EVALUATE 
-            errs = tm.execute(filter_tasks)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
-            if any(errs):
-                raise Exception(errs)
-            # MERGE RESULTS
-            errs = tm.execute(merge_tasks)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
-            if any(errs):
-                raise Exception(errs)
+        
+        with tqdm(total=len(filter_tasks)+len(merge_tasks), desc="filter") as pbar:
+            with TaskManager(n_cpus) as tm: 
+                # EVALUATE 
+                errs = tm.execute(filter_tasks, pbar=pbar)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
+                if any(errs):
+                    raise Exception(errs)
+                # MERGE RESULTS
+                errs = tm.execute(merge_tasks, pbar=pbar)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
+                if any(errs):
+                    raise Exception(errs)
 
         table_true, table_false = None, None
         for task in merge_tasks:
@@ -999,7 +1001,7 @@ class Table(object):
                 pass
         return table_true, table_false
     
-    def sort_index(self, sort_mode='excel', **kwargs):  
+    def sort_index(self, sort_mode='excel', tqdm=_tqdm, **kwargs):  
         """ 
         helper for methods `sort` and `is_sorted` 
         sort_mode: str: "alphanumeric", "unix", or, "excel"
@@ -1022,7 +1024,7 @@ class Table(object):
             raise ValueError(f"{sort_mode} not in list of sort_modes: {list(sortation.Sortable.modes.modes)}")
 
         rank = {i: tuple() for i in range(len(self))}  # create index and empty tuple for sortation.
-        for key, reverse in _tqdm(kwargs.items(), desc='creating sort index'):
+        for key, reverse in tqdm(kwargs.items(), desc='creating sort index'):
             col = self._columns[key]
             assert isinstance(col, Column)
             ranks = sortation.rank(values=set(col[:].tolist()), reverse=reverse, mode=sort_mode)
@@ -1248,7 +1250,7 @@ class Table(object):
             mask =  np.array([i in ixs for i in range(len(self))],dtype=bool)
             return self._mp_compress(mask)
 
-    def groupby(self, keys, functions):  # TODO: This is single core code.
+    def groupby(self, keys, functions, tqdm=_tqdm):  # TODO: This is single core code.
         """
         keys: column names for grouping.
         functions: [optional] list of column names and group functions (See GroupyBy)
@@ -1309,7 +1311,7 @@ class Table(object):
         if keys and not functions: 
             cols = list(zip(*self.index(*keys)))
             result = Table()
-            for col_name, col in zip(keys,cols):
+            for col_name, col in tqdm(zip(keys,cols), total=len(keys), desc="groupby"):
                 result[col_name] = col
             return result
 
@@ -1331,7 +1333,7 @@ class Table(object):
         else:
             tbl = data
 
-        for row in tbl.rows:
+        for row in tqdm(tbl.rows, desc="groupby", total=len(tbl)):
             d = {col_name: value for col_name,value in zip(L, row)}
             key = tuple([d[k] for k in keys])
             agg_functions = aggregation_functions.get(key)
@@ -1705,7 +1707,7 @@ class Table(object):
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
         
-    def lookup(self, other, *criteria, all=True):  # TODO: This is single core code.
+    def lookup(self, other, *criteria, all=True, tqdm=_tqdm):  # TODO: This is single core code.
         """ function for looking up values in `other` according to criteria in ascending order.
         :param: other: Table sorted in ascending search order.
         :param: criteria: Each criteria must be a tuple with value comparisons in the form:
@@ -1770,7 +1772,7 @@ class Table(object):
         assert isinstance(left, Table)
         assert isinstance(right, Table)
 
-        for row1 in _tqdm(left.rows, total=self.__len__()):
+        for row1 in tqdm(left.rows, total=self.__len__()):
             row1_tup = tuple(row1)
             row1d = {name: value for name, value in zip(left_columns, row1)}
             row1_hash = hash(row1_tup)
@@ -2742,7 +2744,7 @@ def excel_writer(table, path):
     pyexcel.save_as(array=data, dest_file_name=str(path))
 
 
-def text_writer(table, path):
+def text_writer(table, path, tqdm=_tqdm):
     """ exports table to csv, tsv or txt dependening on path suffix.
     follows the JSON norm. text escape is ON for all strings.
     
@@ -2767,7 +2769,7 @@ def text_writer(table, path):
 
     with path.open('w', encoding='utf-8') as fo:
         fo.write(delimiter.join(c for c in table.columns)+'\n')
-        for row in _tqdm(table.rows, total=len(table)):
+        for row in tqdm(table.rows, total=len(table)):
             fo.write(delimiter.join(txt(c) for c in row)+'\n')
 
 def sql_writer(table, path):
