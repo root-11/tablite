@@ -1,14 +1,10 @@
 name: pages-build-deployment
-    
-    on: 
-      release:
-        types: [created]
-    
+
     jobs:
       deploy:
-    
+
         runs-on: ubuntu-latest
-    
+
         steps:
         - uses: actions/checkout@v2
         - name: Set up Python
