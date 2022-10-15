@@ -2676,28 +2676,28 @@ def text_reader_task(source, table_key, columns,
     text_escape = TextEscape(text_escape_openings, text_escape_closures, qoute=qoute, delimiter=delimiter, 
                              strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace)
 
-  
+    index_error_found = False
     with source.open('r', encoding=encoding) as fi:  # --READ
-        try:
-            for line in fi:
-                line = line.rstrip(newline)
-                break  # break on first
-            headers = text_escape(line)
-            indices = {name: headers.index(name) for name in columns}        
-            data = {h: [] for h in indices}
-            for line in fi:  # 1 IOP --> RAM.
-                fields = text_escape(line.rstrip('\n'))
-                if fields == [""] or fields == []:
-                    break
-                for header,index in indices.items():
+        for line in fi:
+            line = line.rstrip(newline)
+            break  # break on first
+        headers = text_escape(line)
+        indices = {name: headers.index(name) for name in columns}
+        data = {h: [] for h in indices}
+        for line in fi:  # 1 IOP --> RAM.
+            fields = text_escape(line.rstrip('\n'))
+            if fields == [""] or fields == []:
+                break
+            for header,index in indices.items():
+                try:
                     data[header].append(fields[index])
-        except IndexError:
-            err = [
-                f"could not get index {index} for header {header} in line:",
-                line,
-                f"There was {len(headers)} headers but {len(fields)} individual fields"
-            ]
-            raise IndexError("\n".join(err))
+                except IndexError:
+                    data[header].append(None)
+
+                    if index_error_found is False:  # only show the error once.
+                        warnings.warn(f"Column {header} was not found. None will appear as fill value.")
+                        index_error_found = True
+
     # -- WRITE
     columns_refs = {}
     for col_name, values in data.items():
