@@ -486,11 +486,10 @@ def test_long_texts():
         "languageisocode","extractedappno","isplaceholder","doctypebranch","RESPONDENT",
         "respondentOrderEng","scl","ECLI","ORIGINATING BODY","YEAR","FULLTEXT","judges", "courts"]
 
-    try:
-        t = Table.import_file(path, import_as='csv', columns={c:'f' for c in columns}, text_qualifier='"')
-    except Exception:
-        assert True
-
+    
+    t = Table.import_file(path, import_as='csv', text_qualifier='"')
+    t.__getitem__(t.columns[0], t.columns[-1]).show()
+    
     t = Table.import_file(path, import_as='csv', columns={c:'f' for c in columns[:-1]}, text_qualifier='"')
     selection = columns[:5]
     t.__getitem__(*selection).show()
