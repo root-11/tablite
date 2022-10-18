@@ -1,6 +1,6 @@
 from collections import defaultdict
 import math
-from datetime import datetime,date,time,timedelta
+from datetime import datetime,date,time,timedelta, timezone
 from itertools import compress
 from statistics import StatisticsError
 
@@ -275,4 +275,65 @@ summary_methods = {
         timedelta: _timedelta_statistics_summary,
         type(None): _none_type_summary,
     }
+
+
+def date_range(start,stop,step):
+    if not isinstance(start, datetime):
+        raise TypeError("start is not datetime")
+    if not isinstance(stop, datetime):
+        raise TypeError("stop is not datetime")
+    if not isinstance(step, timedelta):
+        raise TypeError("step is not timedelta")
+    n = (stop-start)//step
+    return [start+step*i for i in range(n)]
+
+
+epoch = datetime(2000,1,1,0,0,0,0,timezone.utc)
+epoch_no_tz = datetime(2000,1,1,0,0,0,0)
+  
+
+def xround(value, multiple, up=None):
+    """ a nicer way to round numbers.
+
+    :param value: float, integer or datetime to be rounded.
+    :param multiple: float, integer or timedelta to be used as the base of the rounding.
+    :param up: None (default) or boolean rounds half, up or down.
+        round(1.6, 1) rounds to 2.
+        round(1.4, 1) rounds to 1.
+        round(1.5, 1, up=True) rounds to 2.
+        round(1.5, 1, up=False) rounds to 1.
+    :return: rounded value
+
+    Examples:
+
+    [1] multiple = 1 is the same as rounding to whole integers.
+    [2] multiple = 0.001 is the same as rounding to 3 digits precision.
+    [3] mulitple = 3.1415 is rounding to nearest multiplier of 3.1415
+    [4] value = datetime(2022,8,18,11,14,53,440)
+    [5] multiple = timedelta(hours=0.5)
+    [6] xround(value,multiple) is datetime(2022,8,18,11,0)
+    """
+    epoch = 0
+    if isinstance(value, (datetime)) and isinstance(multiple, timedelta):
+        if value.tzinfo is None:
+            epoch = epoch_no_tz
+        else:
+            epoch = epoch
+    
+    value2 = value-epoch
+    if value2 == 0:
+        return value2
+        
+    low = (value2 // multiple) * multiple
+    high = low + multiple
+    if up is True:
+        return high + epoch
+    elif up is False:
+        return low + epoch
+    else:
+        if abs((high + epoch) - value) < abs(value-(low + epoch)):
+            return high + epoch
+        else:
+            return low + epoch
+
 

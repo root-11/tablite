@@ -1,7 +1,7 @@
-from tablite.utils import intercept, summary_statistics
+from tablite.utils import intercept, summary_statistics, date_range, xround
 import statistics
 from random import randint
-from datetime import date,time,datetime
+from datetime import date, time, datetime, timedelta
 from itertools import chain
 
 def test_range_intercept():
@@ -210,3 +210,88 @@ def test_summary_statistics_mixed_types():
     assert d['distinct'] == len(V)
     assert d['iqr'] == 0  # iqr high = True , iqr low = True, so True-True becomes 1-1 = 0.
     assert d['sum'] == 5
+
+
+def test_date_range():
+    start,stop = datetime(2022,1,1), datetime(2023,1,1)
+    step = timedelta(days=1)
+    dr = date_range(start,stop,step)
+    assert min(dr) == start
+    assert max(dr) == stop-step
+    assert dr == [start+step*i for i in range(365)]
+
+    start,stop=datetime(2022,12,31), datetime(2021,12,31)
+    step = timedelta(days=-1)
+    dr = date_range(start,stop,step)
+    assert min(dr) == datetime(2022,1,1)
+    assert max(dr) == start
+    assert dr == [start+step*i for i in range(365)]
+
+
+def test_xround():
+    import math
+    # round up
+    assert xround(0,1,True) == 0
+    assert xround(1.6, 1, True) == 2
+    assert xround(1.4, 1, True) == 2
+    # round down
+    assert xround(0,1,False) == 0
+    assert xround(1.6, 1, False) == 1
+    assert xround(1.4, 1, False) == 1
+    # round half
+    assert xround(0,1) == 0
+    assert xround(1.6, 1) == 2
+    assert xround(1.4, 1) == 1
+
+    # round half
+    assert xround(16, 10) == 20
+    assert xround(14, 10) == 10
+
+    # round half
+    assert xround(-16, 10) == -20
+    assert xround(-14, 10) == -10
+
+    # round to odd multiples
+    assert xround(6, 3.1415, 1) == 2 * 3.1415
+
+    assert xround(1.2345, 0.001, True) == 1.2349999999999999 and math.isclose(1.2349999999999999, 1.235)
+    assert xround(1.2345, 0.001, False) == 1.234
+
+    assert xround(123, 100, False) == 100
+    assert xround(123, 100, True) == 200
+
+    assert xround(123, 5.07, False) == 24 * 5.07
+
+    dt = datetime(2022,8,18,11,14,53,440)
+
+    td = timedelta(hours=0.5)    
+    assert xround(dt,td, up=False) == datetime(2022,8,18,11,0)
+    assert xround(dt,td, up=None) == datetime(2022,8,18,11,0)
+    assert xround(dt,td, up=True) == datetime(2022,8,18,11,30)
+
+    td = timedelta(hours=24)
+    assert xround(dt,td, up=False) == datetime(2022,8,18)
+    assert xround(dt,td, up=None) == datetime(2022,8,18)
+    assert xround(dt,td, up=True) == datetime(2022,8,19)
+
+
+    td = timedelta(days=0.5)
+    assert xround(dt,td, up=False) == datetime(2022,8,18)
+    assert xround(dt,td, up=None) == datetime(2022,8,18,12)
+    assert xround(dt,td, up=True) == datetime(2022,8,18,12)
+
+    td = timedelta(days=1.5)
+    assert xround(dt,td, up=False) == datetime(2022,8,18)
+    assert xround(dt,td, up=None) == datetime(2022,8,18)
+    assert xround(dt,td, up=True) == datetime(2022,8,19,12)
+
+    td = timedelta(seconds=0.5)
+    assert xround(dt,td, up=False) == datetime(2022,8,18,11,14,53,0)
+    assert xround(dt,td, up=None) == datetime(2022,8,18,11,14,53,0)
+    assert xround(dt,td, up=True) == datetime(2022,8,18,11,14,53,500000)
+
+    td = timedelta(seconds=40000)
+    assert xround(dt,td, up=False) == datetime(2022,8,18,6,40)
+    assert xround(dt,td, up=None) == datetime(2022,8,18,6,40)
+    assert xround(dt,td, up=True) == datetime(2022,8,18,17,46,40)
+
