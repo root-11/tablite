@@ -2,6 +2,7 @@
 
 | Version    | Change                                              |
 |:-----------|-----------------------------------------------------|
+| 2022.10.9 | Bugfix for `Table.import_file`: <br>files with duplicate header names would only have last duplicate name imported.<br>Now the headers are made unique using `name_x` where x is a number.|
 | 2022.10.8 | Bugfix for groupby: <br>Where keys are empty error should have been raised.<br>Where there are no functions, unique keypairs are returned.|
 | 2022.10.7 | Bugfix for Column.statistics() for an empty column |
 | 2022.10.6 | Bugfix for `__setitem__`: tbl['a'] = [] is now seen as `tbl.add_column('a')`<br>Bugfix for `__getitem__`: calling a missing key raises keyerror. |
