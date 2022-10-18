@@ -231,7 +231,7 @@ def test_filter():
     # FILTER
     # -----------------------------------------
     # in this example we will reload book1.csv:
-    t = Table.import_file('tests/data/book1.csv', import_as='csv', columns={k:'f' for k in 'abcdef'})
+    t = Table.import_file('tests/data/book1.csv', import_as='csv', columns=[k for k in 'abcdef'])
     # i can now perform a number of actions:
 
     # filter Col A > value
