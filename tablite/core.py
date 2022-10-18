@@ -268,6 +268,8 @@ def text_reader(path, import_as, columns, header_line, first_row_has_headers, en
         memory_usage_ceiling = 0.9
         
         free_memory = int(psutil.virtual_memory().free * memory_usage_ceiling) - cpu_count * 20e6  # 20Mb per subproc.
+        if free_memory < 0:
+            raise MemoryError("You have insufficient free memory for this task.")
         free_memory_per_vcpu = int(free_memory / cpu_count)  # 8 gb/ 16vCPU = 500Mb/vCPU
         
         if total_workload < free_memory_per_vcpu and total_workload < 10_000_000:  # < 1Mb --> use 1 vCPU
