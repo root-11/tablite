@@ -143,6 +143,18 @@ def test_iterate_with_empty_column():
     assert rr == [[1,None], [2,None], [3,None]]
 
 
+def test_table_add_rows_heterogenuous_datatypes():
+    t = Table()
+    t['a'] = [1, 2, 3]
+    t['b'] = [True, 2, None]
+    t2 = Table()
+    t2.add_columns(*t.columns),
+    trows = [row for row in t.rows]
+    t2.add_rows(*trows)
+    t2rows = [row for row in t2.rows]
+    assert trows == t2rows, [[t.show() for t in [t, t2]]]
+
+
 def test_stats_on_empty_column():
     t = Table()
     t['a'] = []
