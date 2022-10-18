@@ -11,18 +11,18 @@ from collections import defaultdict
 from string import digits
 DIGITS = set(digits)
 
-import h5py  #https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr?rq=1  
+import h5py  # https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr?rq=1  
 import numpy as np
 
 from tablite.config import H5_STORAGE, H5_PAGE_SIZE, H5_ENCODING
 from tablite.utils import intercept
 from tablite.datatypes import DataTypes,numpy_types
 
-READONLY = 'r'   # r  Readonly, file must exist (default)
+READONLY  = 'r'  # r  Readonly, file must exist (default)
 READWRITE = 'r+' # r+ Read/write, file must exist
-TRUNCATE = 'w'   # w  Create file, truncate if exists
-#                x    Create file, fail if exists
-#                a    Read/write if exists, create otherwise
+TRUNCATE  = 'w'  # w  Create file, truncate if exists
+#                  x    Create file, fail if exists
+#                  a    Read/write if exists, create otherwise
 TIMEOUT = 10*60 * 1000  # maximum msec tolerance waiting for OS to release hdf5 write lock
 
 
@@ -694,7 +694,10 @@ class SimpleType(GenericPage):
             dset = h5[self.group]
 
             if not isinstance(values, np.ndarray):
-                values = np.array(values, dtype=dset.dtype)
+                values = np.array(values)
+            if not values.dtype == dset.dtype:
+                raise TypeError
+
             dset.resize(dset.len() + len(values), axis=0)
             dset[-len(values):] = values
             self._len = len(dset)
