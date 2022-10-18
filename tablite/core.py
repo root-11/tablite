@@ -1,4 +1,3 @@
-import os
 import math
 import pathlib
 import json
@@ -18,7 +17,6 @@ logging.getLogger('pyexcel').propagate = False
 log = logging.getLogger(__name__)
 
 
-import chardet
 import pyexcel
 import pyperclip
 from tqdm import tqdm as _tqdm
@@ -39,7 +37,7 @@ atexit.register(exiting)
 
 
 from tablite.memory_manager import MemoryManager, Page, Pages
-from tablite.file_reader_utils import TextEscape, get_headers
+from tablite.file_reader_utils import TextEscape, get_headers, get_encoding, get_delimiter
 from tablite.utils import summary_statistics, unique_name
 from tablite import sortation
 from tablite.groupby_utils import GroupBy, GroupbyFunction
@@ -48,6 +46,357 @@ from tablite.datatypes import DataTypes
 
 
 mem = MemoryManager()
+
+
+def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
+    """
+    returns Table from excel 
+
+    **kwargs are excess arguments that are ignored.
+    """
+    book = pyexcel.get_book(file_name=str(path))
+
+    if sheet is None:  # help the user.
+        raise ValueError(f"No sheet_name declared: \navailable sheets:\n{[s.name for s in book]}")
+    elif sheet not in {ws.name for ws in book}:
+        raise ValueError(f"sheet not found: {sheet}")
+    
+    if not (isinstance(start, int) and start >= 0):
+        raise ValueError("expected start as an integer >=0")
+    if not (isinstance(limit, int) and limit > 0):
+        raise ValueError("expected limit as integer > 0")
+
+    # import a sheets
+    for ws in book:
+        if ws.name != sheet:
+            continue
+        else:
+            break
+    if ws.name != sheet:
+        raise ValueError(f"sheet \"{sheet}\" not found:\n\tSheets: {[str(ws.name) for ws in book]}")
+
+    if columns is None:
+        if first_row_has_headers:
+            columns = [i[0] for i in ws.columns()]
+        else:
+            columns = [str(i) for i in range(len(ws.columns()))]
+    
+    used_columns_names = set()
+    t = Table(save=True)
+    for idx, column in enumerate(ws.columns()):
+        
+        if first_row_has_headers:
+            header, start_row_pos = str(column[0]), max(1, start)
+        else:
+            header, start_row_pos = str(idx), max(0,start)
+
+        if header not in columns:
+            continue
+
+        unique_column_name = unique_name(str(header), used_columns_names)
+        used_columns_names.add(unique_column_name)
+
+        t[unique_column_name] = [v for v in column[start_row_pos:start_row_pos+limit]]
+    return t
+
+
+def ods_reader(path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
+    """
+    returns Table from .ODS
+    """
+    sheets = pyexcel.get_book_dict(file_name=str(path))
+
+    if sheet is None or sheet not in sheets:
+        raise ValueError(f"No sheet_name declared: \navailable sheets:\n{[s.name for s in sheets]}")
+            
+    data = sheets[sheet]
+    for _ in range(len(data)):  # remove empty lines at the end of the data.
+        if "" == "".join(str(i) for i in data[-1]):
+            data = data[:-1]
+        else:
+            break
+    
+    if not (isinstance(start, int) and start >= 0):
+        raise ValueError("expected start as an integer >=0")
+    if not (isinstance(limit, int) and limit > 0):
+        raise ValueError("expected limit as integer > 0")
+
+    t = Table(save=True)
+
+    used_columns_names = set()
+    for ix, value in enumerate(data[0]):
+        if first_row_has_headers:
+            header, start_row_pos = str(value), 1
+        else:
+            header, start_row_pos = f"_{ix + 1}", 0
+
+        if columns is not None:
+            if header not in columns:
+                continue
+        
+        unique_column_name = unique_name(str(header), used_columns_names)
+        used_columns_names.add(unique_column_name)
+
+        t[unique_column_name] = [row[ix] for row in data[start_row_pos:start_row_pos+limit] if len(row) > ix]
+    return t
+
+
+def text_reader_task(source, table_key, columns, 
+    newline, delimiter, text_qualifier, text_escape_openings, text_escape_closures, 
+    strip_leading_and_tailing_whitespace, encoding):
+    """ PARALLEL TASK FUNCTION
+    reads columnsname + path[start:limit] into hdf5.
+
+    source: csv or txt file
+    destination: available filename
+    
+    columns: column names or indices to import
+
+    newline: '\r\n' or '\n'
+    delimiter: ',' ';' or '|'
+    text_escape_openings: str: default: "({[ 
+    text_escape_closures: str: default: ]})" 
+    strip_leading_and_tailing_whitespace: bool
+
+    encoding: chardet encoding ('utf-8, 'ascii', ..., 'ISO-22022-CN')
+    root: hdf5 root, cannot be the same as a column name.
+    """
+    if isinstance(source, str):
+        source = pathlib.Path(source)
+    if not isinstance(source, pathlib.Path):
+        raise TypeError()
+    if not source.exists():
+        raise FileNotFoundError(f"File not found: {source}")
+
+    if not isinstance(table_key, str):
+        raise TypeError()
+
+    if not isinstance(columns, list):
+        raise TypeError
+    if not all(isinstance(name,str) for name in columns):
+        raise TypeError("All column names were not str")
+
+    # declare CSV dialect.
+    text_escape = TextEscape(text_escape_openings, text_escape_closures, 
+                             text_qualifier=text_qualifier, delimiter=delimiter, 
+                             strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace)
+
+    _index_error_found = False
+    with source.open('r', encoding=encoding) as fi:  # --READ
+        for line in fi:
+            line = line.rstrip(newline)
+            break  # break on first
+        headers = text_escape(line)
+        indices = {name: headers.index(name) for name in columns}
+        data = {h: [] for h in indices}
+        for line in fi:  # 1 IOP --> RAM.
+            fields = text_escape(line.rstrip('\n'))
+            if fields == [""] or fields == []:
+                break
+            for header, index in indices.items():
+                try:
+                    data[header].append(fields[index])
+                except IndexError:
+                    data[header].append(None)
+
+                    if _index_error_found is False:  # only show the error once.
+                        warnings.warn(f"Column {header} was not found. None will appear as fill value.")
+                        _index_error_found = True
+
+    # -- WRITE
+    columns_refs = {}
+    for col_name, values in data.items():
+        values = DataTypes.guess(values)
+        columns_refs[col_name] = mem.mp_write_column(values)
+    mem.mp_write_table(table_key, columns=columns_refs)
+
+
+def text_reader(path, import_as, columns, header_line, first_row_has_headers, encoding, start, limit, newline,
+                text_qualifier, strip_leading_and_tailing_whitespace,delimiter, 
+                text_escape_openings, text_escape_closures, 
+                tqdm=_tqdm, **kwargs):
+    """
+    reads any text file
+    
+    excess kwargs are ignored.
+    """
+    # define and specify tasks.
+    memory_usage_ceiling = 0.9
+    free_memory = psutil.virtual_memory().free * memory_usage_ceiling
+    free_memory_per_vcpu = free_memory / psutil.cpu_count()
+    
+    if not isinstance(path, pathlib.Path):
+        path = pathlib.Path(path)
+    
+    tasks = []
+    with path.open('r', encoding=encoding) as fi:
+        # task: find chunk ...
+        # Here is the problem in a nutshell:
+        # --------------------------------------------------------
+        # text = "this is my \n text".encode('utf-16')
+        # >>> text
+        # b'\xff\xfet\x00h\x00i\x00s\x00 \x00i\x00s\x00 \x00m\x00y\x00 \x00\n\x00 \x00t\x00e\x00x\x00t\x00'
+        # >>> newline = "\n".encode('utf-16')
+        # >>> newline in text
+        # False
+        # >>> newline.decode('utf-16') in text.decode('utf-16')
+        # True
+        # --------------------------------------------------------
+        # This means we can't read the encoded stream to check if in contains a particular character.
+        # We will need to decode it.
+        # furthermore fi.tell() will not tell us which character we a looking at.
+        # so the only option left is to read the file and split it in workable chunks.
+        if not (isinstance(start, int) and start >= 0):
+            raise ValueError("expected start as an integer >= 0")
+        if not (isinstance(limit, int) and limit > 0):
+            raise ValueError("expected limit as an integer > 0")
+
+        try:
+            newlines = sum(1 for _ in _tqdm(fi, desc=f"reading {path.name}"))
+            fi.seek(0)
+        except Exception as e:
+            raise ValueError(f"file could not be read with encoding={encoding}\n{str(e)}")
+        if newlines < 1:
+            raise ValueError(f"Using {newline} to split file, revealed {newlines} lines in the file.")
+
+        file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
+        bytes_per_line = math.ceil(file_length / newlines)
+        working_overhead = 40  # MemoryError will occur if you get this wrong.
+        
+        total_workload = working_overhead * file_length
+        cpu_count = max(psutil.cpu_count(logical=False) - 1, 1) # there's always at least one core!
+        memory_usage_ceiling = 0.9
+        
+        free_memory = int(psutil.virtual_memory().free * memory_usage_ceiling) - cpu_count * 20e6  # 20Mb per subproc.
+        free_memory_per_vcpu = int(free_memory / cpu_count)  # 8 gb/ 16vCPU = 500Mb/vCPU
+        
+        if total_workload < free_memory_per_vcpu and total_workload < 10_000_000:  # < 1Mb --> use 1 vCPU
+            lines_per_task = newlines
+        else:  # total_workload > free_memory or total_workload > 10_000_000
+            use_all_memory = free_memory_per_vcpu / (bytes_per_line * working_overhead)  # 500Mb/vCPU / (10 * 109 bytes / line ) = 458715 lines per task
+            use_all_cores = newlines / (cpu_count)  # 8,000,000 lines / 16 vCPU = 500,000 lines per task
+            lines_per_task = int(min(use_all_memory, use_all_cores))
+        if lines_per_task < 1:
+            raise ValueError("Number of tasks could not be determined for import.")
+        
+        if not cpu_count * lines_per_task * bytes_per_line * working_overhead < free_memory:
+            raise ValueError(f"{[cpu_count, lines_per_task , bytes_per_line , working_overhead , free_memory]}")
+        if not (newlines / lines_per_task >= 1):
+            raise ValueError("Bad import config.")
+        
+        if newlines <= start + (1 if first_row_has_headers else 0):  # Then start > end: Return EMPTY TABLE.
+            t = Table()
+            t.add_columns(*columns)
+            t.save = True
+            return t
+                
+        task_config = {
+            "source":None,  # populated during task creation
+            "table_key":None,  # populated during task creation
+            "columns":columns,
+            "newline":newline, 
+            "delimiter":delimiter, 
+            "text_qualifier":text_qualifier,
+            "text_escape_openings":text_escape_openings, 
+            "text_escape_closures":text_escape_closures,
+            "encoding":encoding,
+            "strip_leading_and_tailing_whitespace":strip_leading_and_tailing_whitespace
+        }
+
+        checks = [
+            True,
+            True,
+            isinstance(columns, list),
+            isinstance(newline, str),
+            isinstance(delimiter, str),
+            isinstance(text_qualifier, (str, type(None))),
+            isinstance(text_escape_openings, str),
+            isinstance(text_escape_closures, str),
+            isinstance(encoding, str),
+            isinstance(strip_leading_and_tailing_whitespace, bool),
+            ]
+        if not all(checks):
+            L = []
+            for cfg,chk in zip(task_config,checks):
+                if not chk:
+                    L.append( f"{cfg}:{task_config[cfg]}" )
+            L = "\n\t".join(L)
+            raise ValueError("error in import config:\n{}")
+
+        parts = []
+        assert header_line != "" and header_line.endswith(newline)
+        with tqdm(desc=f"splitting {path.name} for multiprocessing", total=newlines, unit="lines") as pbar:
+            for ix, line in enumerate(fi, start=(-1 if first_row_has_headers else 0) ):
+                if ix < start:
+                    # ix is -1 if the first row has headers, but header_line already has the first line.
+                    # ix is 0 if there are no headers, and if start is 0, the first row is added to parts.
+                    continue
+                if ix >= start + limit:
+                    break
+
+                parts.append(line)
+                if ix!=0 and ix % lines_per_task == 0:
+                    p = TEMPDIR / (path.stem + f'{ix}' + path.suffix)
+                    with p.open('w', encoding=H5_ENCODING) as fo:
+                        parts.insert(0, header_line)
+                        fo.write("".join(parts))
+                    pbar.update(len(parts))
+                    parts.clear()
+                    tasks.append( Task( text_reader_task, **{**task_config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ) )
+                    
+            if parts:  # any remaining parts at the end of the loop.
+                p = TEMPDIR / (path.stem + f'{ix}' + path.suffix)
+                with p.open('w', encoding=H5_ENCODING) as fo:
+                    parts.insert(0, header_line)
+                    fo.write("".join(parts))
+                pbar.update(len(parts))
+                parts.clear()
+                task_config.update({"source":str(p), "table_key":mem.new_id('/table')})
+                tasks.append( Task( text_reader_task, **{**task_config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ) )
+    
+    # execute the tasks
+    with TaskManager(cpu_count) as tm:
+        errors = tm.execute(tasks)   # I expects a list of None's if everything is ok.
+        
+        # clean up the tmp source files, before raising any exception.
+        for task in tasks:
+            tmp = pathlib.Path(task.kwargs['source'])
+            tmp.unlink()
+
+        if any(errors):
+            raise Exception("\n".join(e for e in errors if e))
+
+    # consolidate the task results
+    t = None
+    for task in tasks:
+        tmp = Table.load(path=mem.path, key=task.kwargs["table_key"])
+        if t is None:
+            t = tmp.copy()
+        else:
+            t += tmp
+        tmp.save = False  # allow deletion of subproc tables.
+    t.save = True
+
+    
+    return t
+
+
+file_readers = {
+    'fods': excel_reader,
+    'json': excel_reader,
+    'html': excel_reader,
+    'simple': excel_reader,
+    'rst': excel_reader,
+    'mediawiki': excel_reader,
+    'xlsx': excel_reader,
+    'xls': excel_reader,
+    'xlsm': excel_reader,
+    'csv': text_reader,
+    'tsv': text_reader,
+    'txt': text_reader,
+    'ods': ods_reader
+}
+
 
 class Table(object):
     
@@ -62,6 +411,9 @@ class Table(object):
         self._columns = {}  # references for virtual datasets that behave like lists.
         if _create:
             if config is not None:
+                if isinstance(config, dict):
+                    logging.info(f"import config for {config['path']}:\n" + "\n".join(f"{k}:{v}" for k,v in config.items()))
+                    config = json.dumps(config)
                 if not isinstance(config, str):
                     raise TypeError("expected config as utf-8 encoded json")
             mem.create_table(key=key, save=save, config=config)  # attrs. 'columns'
@@ -365,24 +717,32 @@ class Table(object):
         if both args and kwargs, then args are added first, followed by kwargs.
         """
         if args:
-            if all(isinstance(i, (list, tuple, dict)) for i in args):
-                if all(len(i) == len(self._columns) for i in args):
-                    for arg in args:
-                        if isinstance(arg, (list,tuple)):  # 2,3,5,6
-                            for col,value in zip(self._columns.values(), arg):
-                                col.append(value)
-                        elif isinstance(arg, dict):  # 7,8
-                            for k,v in arg.items():
-                                col = self._columns[k]
-                                col.append(v)
-                        else:
-                            raise TypeError(f"{arg}?")
-            elif len(args) == len(self._columns):  # 1,4
-                for col, value in zip(self._columns.values(), args):
-                    col.append(value)
-            else:
-                raise ValueError(f"format not recognised: {args}")
+            if not all(isinstance(i, (list, tuple, dict)) for i in args): # 1,4
+                args = [args]
 
+            if all(isinstance(i, (list, tuple, dict)) for i in args): # 2,3,7,8
+                # 1. turn the data into columns:
+                names = self.columns
+                d = {n: [] for n in self.columns}
+                for arg in args:
+                    if len(arg) != len(names):
+                        raise ValueError(f"len({arg})== {len(arg)}, but there are {len(self.columns)} columns")
+                    
+                    if isinstance(arg, dict):
+                        for k,v in arg.items():  # 7,8
+                            d[k].append(v)
+                    
+                    elif isinstance(arg, (list,tuple)):  # 2,3
+                        for n, v in zip(names, arg):
+                            d[n].append(v)
+                    
+                    else:
+                        raise TypeError(f"{arg}?")
+                # 2. extend the columns
+                for n, values in d.items():
+                    col = self.__getitem__(n)
+                    col.extend(values)                   
+            
         if kwargs:
             if isinstance(kwargs, dict):
                 if all(isinstance(v, (list, tuple)) for v in kwargs.values()):
@@ -392,17 +752,25 @@ class Table(object):
                 else:
                     for k,v in kwargs.items():
                         col = self._columns[k]
-                        col.append(v)
+                        col.extend([v])
             else:
                 raise ValueError(f"format not recognised: {kwargs}")
         
         return
 
     def add_columns(self, *names):
+        """ 
+        same as:
+        for name in names:
+            table[name] = None
+        """
         for name in names:
             self.__setitem__(name,None)
 
     def add_column(self,name, data=None):
+        """
+        alias for table[name] = data
+        """
         if not isinstance(name, str):
             raise TypeError()
         if name in self.columns:
@@ -789,35 +1157,93 @@ class Table(object):
         log.info(f"exported {self.key} to {path}")
 
     @classmethod
-    def import_file(cls, path,  import_as, 
-        newline='\n', text_qualifier=None,  delimiter=',', first_row_has_headers=True, columns=None, sheet=None, 
-        start=0, limit=sys.maxsize, strip_leading_and_tailing_whitespace=True, encoding=None, tqdm=_tqdm):
+    def head(cls, path, linecount=5, delimiter=None):
+        """
+        Gets the head of any supported file format.
+        """
+        return get_headers(path, linecount=linecount, delimiter=delimiter)
+
+    @classmethod
+    def import_file(cls, path, import_as=None, columns=None, first_row_has_headers=True, 
+        encoding=None, start=0, limit=sys.maxsize, 
+        sheet=None, 
+        newline='\n', text_qualifier=None, delimiter=None, strip_leading_and_tailing_whitespace=True, 
+        text_escape_openings='', text_escape_closures='',
+        tqdm=_tqdm):
         """
         reads path and imports 1 or more tables as hdf5
 
-        path: pathlib.Path or str
-        import_as: 'csv','xlsx','txt'                               *123
-        newline: newline character '\n', '\r\n' or b'\n', b'\r\n'   *13
-        text_qualifier: character: " or '                           +13
-        delimiter: character: typically ",", ";" or "|"             *1+3
-        first_row_has_headers: boolean                              *123
-        columns: dict with column names or indices and datatypes    *123
-            {'A': int, 'B': str, 'C': float, D: datetime}
+        REQUIRED
+        --------
+        path: pathlib.Path or str 
+
+        OPTIONAL
+        --------
+        import_as: 'csv', 'xlsx', 'txt'  
+            None: will use file suffix to determine filereader function.
+            str: used for selection of filereader instead of file suffix. 
+            See `filereaders`.
+        
+        columns: 
+            None: (default) All columns will be imported.
+            List: only column names from list will be imported (if present in file)
+                  e.g. ['A', 'B', 'C', 'D']
+                  
+                  datatype is detected using Datatypes.guess(...)
+                  You can try it out with:
+                  >> from tablite.datatypes import DataTypes
+                  >> DataTypes.guess(['001','100'])
+                  [1,100]
+                  
+                  if the format cannot be achieved the read type is kept.
             Excess column names are ignored.
 
-        sheet: sheet name to import (e.g. 'sheet_1')                 *2
-            sheets not found excess names are ignored.
-            filenames will be {path}+{sheet}.h5
-        
-        start: the first line to be read.
-        limit: the number of lines to be read from start
-        strip_leading_and_tailing_whitespace: bool: default True. 
+            HINT: To the head of file use: Table.head(path)
+
+        first_row_has_headers: boolean
+            True: (default) first row is used as column names.
+            False: integers are used as column names.
+
         encoding: str. Defaults to None (autodetect)
 
-        (*) required, (+) optional, (1) csv, (2) xlsx, (3) txt, (4) h5
+        start: the first line to be read (default: 0)
 
-        TABLES FROM IMPORTED FILES ARE IMMUTABLE.
-        OTHER TABLES EXIST IN MEMORY MANAGERs CACHE IF USE DISK == True
+        limit: the number of lines to be read from start (default sys.maxint ~ 2**63)       
+
+        OPTIONAL FOR EXCEL AND ODS READERS
+        ----------------------------------
+
+        sheet: sheet name to import  (applicable to excel- and ods-reader only)
+            e.g. 'sheet_1'
+            sheets not found excess names are ignored.
+
+        OPTIONAL FOR TEXT READERS
+        -------------------------
+        newline: newline character (applicable to text_reader only)
+            str: '\n' (default) or '\r\n'
+        
+        text_qualifier: character (applicable to text_reader only)
+            None: No text qualifier is used.
+            str: " or '
+
+        delimiter: character (applicable to text_reader only)
+            None: file suffix is used to determine field delimiter:
+                .txt: "|"
+                .csv: ",", 
+                .ssv: ";" 
+                .tsv: "\t" (tab)
+        
+        strip_leading_and_tailing_whitespace: bool: 
+            True: default
+
+        text_escape_openings: (applicable to text_reader only)
+            None: default
+            str: list of characters such as ([{
+
+        text_escape_closures: (applicable to text_reader only)
+            None: default
+            str: list of characters such as }])
+        
         """
         if isinstance(path, str):
             path = pathlib.Path(path)
@@ -825,55 +1251,141 @@ class Table(object):
             raise TypeError(f"expected pathlib.Path, got {type(path)}")
         if not path.exists():
             raise FileNotFoundError(f"file not found: {path}")
+
+        if not isinstance(start,int) or not 0 <= start <= sys.maxsize:
+            raise ValueError(f"start {start} not in range(0,{sys.maxsize})")
+
+        if not isinstance(limit, int) or not 0 < limit <= sys.maxsize:
+            raise ValueError(f"limit {limit} not in range(0,{sys.maxsize})")
+
         if not isinstance(import_as, str):
-            raise TypeError(f"import_as is expected to be str, not {type(import_as)}: {import_as}")
+            import_as = path.suffix
         if import_as.startswith("."):
             import_as = import_as[1:]
+
         reader = file_readers.get(import_as,None)
         if reader is None:
-            raise ValueError(f"{import_as} is not in list of supported reader:\n{list(file_readers.keys())}")
+            L = "\n\t".join(list(file_readers.keys()))
+            raise ValueError(f"{import_as} is not in list of supported reader. Here is the list of supported formats:{L}")
 
-        additional_configs = {}
+        if not isinstance(first_row_has_headers, bool):
+            raise TypeError(f"first_row_has_headers is not bool")
 
-        if reader is text_reader:
+        additional_configs = {}  
+        if reader == text_reader:
             # here we inject tqdm, if tqdm is not provided, use generic iterator
             additional_configs["tqdm"] = tqdm if tqdm is not None else iter
 
-        if not isinstance(strip_leading_and_tailing_whitespace, bool):
-            raise TypeError()
-        
-        if columns is None:
-            sample = get_headers(path)
-            
-            if "is_empty" in sample:
-                return Table()
+            if path.stat().st_size == 0:
+                return Table()  # NO DATA: EMPTY TABLE.
 
-            if import_as in {'csv', 'txt'}:
-                columns = {k:'f' for k in sample[path.name][0]}
-            elif sheet is not None:
-                columns = sample[sheet][0]
+            if encoding is None:
+                encoding = get_encoding(path)
+
+            if delimiter is None:
+                try:
+                    delimiter = get_delimiter(path, encoding)
+                except ValueError:
+                    return Table()  # NO DELIMITER: EMPTY TABLE.
+            
+            line_reader = TextEscape(openings=text_escape_openings, closures=text_escape_closures, text_qualifier=text_qualifier, delimiter=delimiter, strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace)
+
+            if not isinstance(newline,str):
+                raise TypeError("newline must be str")
+
+            with path.open('r', encoding=encoding) as fi:
+                for line in fi:
+                    if line == "":  # skip any empty line.
+                        continue
+                    else:
+                        header_line = line
+                        line = line.rstrip(newline)
+                        break
+
+                fields = line_reader(line)
+                if not fields:
+                    warnings.warn("file was empty: {path}")
+                    return Table()  # returning an empty table as there was no data.
+                
+                if len(set(fields)) != len(fields):  # then there's duplicate names.
+                    new_fields = []
+                    for name in fields:
+                        new_fields.append(unique_name(name, new_fields))
+                    header_line = delimiter.join(new_fields) + newline
+                    fields = new_fields
+
+            if first_row_has_headers:
+                if columns is None or columns == []:
+                    columns = fields[:]
+                elif isinstance(columns, list):
+                    for name in columns:
+                        if name not in fields:
+                            raise ValueError(f"column not found: {name}")
+                else:
+                    raise TypeError(f"The available columns are {fields}.\na list of strings was expected but {type(columns)} was received.")        
             else:
-                pass  # let it fail later.
-        if not first_row_has_headers:
-            columns = {str(i):'f' for i in range(len(columns))}
+                if columns is None:
+                    columns = [str(i) for i in range(len(fields))]
+                elif isinstance(columns, list):
+                    valids = [str(i) for i in range(len(fields))]
+                    for index in columns:
+                        if str(index) not in valids:
+                            raise ValueError(f"index {index} not in range({len(fields)})")
+                else:
+                    raise TypeError(f"The available columns are {fields}.\na list of strings was expected but {type(columns)} was received.")
+
+                header_line = delimiter.join(columns) + newline
+  
+            if not isinstance(strip_leading_and_tailing_whitespace, bool):
+                raise TypeError("expected strip_leading_and_tailing_whitespace as boolean")
+            
+            config = {
+                'path': str(path),
+                'import_as': import_as,
+                'columns': columns, 
+                'header_line': header_line,
+                'first_row_has_headers': first_row_has_headers,
+                'encoding': encoding,
+                'start': start,
+                'limit': limit,
+                'newline': newline,
+                'text_qualifier': text_qualifier,
+                'strip_leading_and_tailing_whitespace': strip_leading_and_tailing_whitespace,
+                'delimiter': delimiter,
+                'text_escape_openings': text_escape_openings,
+                'text_escape_closures': text_escape_closures,
+                'filesize': path.stat().st_size,  # if file length changes - re-import.
+            }
+
+        if reader == excel_reader:
+            # config = path, first_row_has_headers, sheet, columns, start, limit
+            config = {
+                'path': str(path),
+                'first_row_has_headers': first_row_has_headers,
+                'sheet': sheet,
+                'columns': columns,
+                'start': start,
+                'limit': limit,
+                'filesize': path.stat().st_size,  # if file length changes - re-import.
+            }
+
+        if reader == ods_reader:
+            # path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize,
+            config = {
+                'path': str(path),
+                'first_row_has_headers': first_row_has_headers,
+                'sheet': sheet,
+                'columns': columns,
+                'start': start,
+                'limit': limit,
+                'filesize': path.stat().st_size,  # if file length changes - re-import.
+            }
 
         # At this point the import seems valid.
         # Now we check if the file already has been imported.
-        config = {
-            'import_as': import_as,
-            'path': str(path),
-            'filesize': path.stat().st_size,  # if file length changes - re-import.
-            'delimiter': delimiter,
-            'columns': columns, 
-            'newline': newline,
-            'first_row_has_headers': first_row_has_headers,
-            'text_qualifier': text_qualifier,
-            'sheet': sheet,
-            'start': start,
-            'limit': limit,
-            'strip_leading_and_tailing_whitespace': strip_leading_and_tailing_whitespace,
-            'encoding': encoding
-        }
+
+        # publish the settings
+        logging.info("import config:\n" + "\n".join(f"{k}:{v}" for k,v in config.items()))
         jsn_str = json.dumps(config)
         for table_key, jsnb in mem.get_imported_tables().items():
             if jsn_str == jsnb:
@@ -1865,8 +2377,8 @@ class Column(object):
         self.group = f"/column/{self.key}"
         if key is None:
             self._len = 0
-            if data is not None:
-                self.extend(data)
+            self.extend(data)
+
         else:
             length, pages = mem.load_column_attrs(self.group)
             self._len = length
@@ -2039,8 +2551,9 @@ class Column(object):
                 # example: L[0:] = [1,2,3]
                 before = mem.get_pages(self.group) 
                 before_slice = before.getslice(0,start)
-
-                if isinstance(value, Column):
+                if value is None:  # path used by add_columns and t['c'] = None e.g. reset to empty table.
+                    after = Pages()
+                elif isinstance(value, Column):
                     after = before_slice + mem.get_pages(value.group)
                 elif isinstance(value, (list, tuple, np.ndarray)):
                     if not before_slice:
@@ -2267,16 +2780,16 @@ class Column(object):
         return (self.__getitem__()!=other).any()  # speedy np c level comparison.
     
     def __le__(self,other):
-        raise NotImplemented("vectorised operation A <= B is not type-unambiguous")
+        raise NotImplemented("vectorised operation A <= B is type-ambiguous")
     
     def __lt__(self,other):
-        raise NotImplemented("vectorised operation A < B is not type-unambiguous")
+        raise NotImplemented("vectorised operation A < B is type-ambiguous")
     
     def __ge__(self,other):
-        raise NotImplemented("vectorised operation A >= B is not type-unambiguous")
+        raise NotImplemented("vectorised operation A >= B is type-ambiguous")
 
     def __gt__(self,other):
-        raise NotImplemented("vectorised operation A > B is not type-unambiguous")
+        raise NotImplemented("vectorised operation A > B is type-ambiguous")
 
 
 def _in(a,b):
@@ -2380,347 +2893,8 @@ def filter_merge_task(table_key, true_key, false_key, shm_name, shm_shape, slice
     existing_shm.close()  # disconnect
 
 
-def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
-    """
-    returns Table(s) from excel path
-
-    **kwargs are excess arguments that are ignored.
-    """
-    book = pyexcel.get_book(file_name=str(path))
-
-    if sheet is None:  # help the user.
-        raise ValueError(f"No sheet_name declared: \navailable sheets:\n{[s.name for s in book]}")
-    elif sheet not in {ws.name for ws in book}:
-        raise ValueError(f"sheet not found: {sheet}")
-    
-    if not (isinstance(start, int) and start >= 0):
-        raise ValueError("expected start as an integer >=0")
-    if not (isinstance(limit, int) and limit > 0):
-        raise ValueError("expected limit as integer > 0")
-
-    # import all sheets or a subset
-    for ws in book:
-        if ws.name != sheet:
-            continue
-        else:
-            break
-    assert ws.name == sheet, "sheet not found."
-
-    if columns is None:
-        if first_row_has_headers:
-            raise ValueError(f"no columns declared: \navailable columns: {[i[0] for i in ws.columns()]}")
-        else:
-            raise ValueError(f"no columns declared: \navailable columns: {[str(i) for i in range(len(ws.columns()))]}")
-
-    config = {**kwargs, **{"first_row_has_headers":first_row_has_headers, "sheet":sheet, "columns":columns, 'start':start, 'limit':limit}}
-    t = Table(save=True, config=json.dumps(config))
-    for idx, column in enumerate(ws.columns()):
-        
-        if first_row_has_headers:
-            header, start_row_pos = str(column[0]), max(1, start)
-        else:
-            header, start_row_pos = str(idx), max(0,start)
-
-        if header not in columns:
-            continue
-
-        t[header] = [v for v in column[start_row_pos:start_row_pos+limit]]
-    return t
 
 
-def ods_reader(path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
-    """
-    returns Table from .ODS
-
-    **kwargs are excess arguments that are ignored.
-    """
-    sheets = pyexcel.get_book_dict(file_name=str(path))
-
-    if sheet is None or sheet not in sheets:
-        raise ValueError(f"No sheet_name declared: \navailable sheets:\n{[s.name for s in sheets]}")
-            
-    data = sheets[sheet]
-    for _ in range(len(data)):  # remove empty lines at the end of the data.
-        if "" == "".join(str(i) for i in data[-1]):
-            data = data[:-1]
-        else:
-            break
-    
-    if not (isinstance(start, int) and start >= 0):
-        raise ValueError("expected start as an integer >=0")
-    if not (isinstance(limit, int) and limit > 0):
-        raise ValueError("expected limit as integer > 0")
-
-    config = {**kwargs, **{"first_row_has_headers":first_row_has_headers, "sheet":sheet, "columns":columns, 'start':start, 'limit':limit}}
-    t = Table(save=True, config=json.dumps(config))
-    for ix, value in enumerate(data[0]):
-        if first_row_has_headers:
-            header, start_row_pos = str(value), 1
-        else:
-            header, start_row_pos = f"_{ix + 1}", 0
-
-        if columns is not None:
-            if header not in columns:
-                continue    
-
-        t[header] = [row[ix] for row in data[start_row_pos:start_row_pos+limit] if len(row) > ix]
-    return t
-
-
-def text_reader(path, newline='\n', text_qualifier=None, delimiter=',', first_row_has_headers=True, 
-                columns=None, start=0, limit=sys.maxsize, 
-                strip_leading_and_tailing_whitespace=True, encoding=None, tqdm=_tqdm, **kwargs):
-    """
-    **kwargs are excess arguments that are ignored.
-    """
-    # define and specify tasks.
-    memory_usage_ceiling = 0.9
-    free_memory = psutil.virtual_memory().free * memory_usage_ceiling
-    free_memory_per_vcpu = free_memory / psutil.cpu_count()
-    
-    path = pathlib.Path(path)
-       
-    if encoding is None:
-        with path.open('rb') as fi:
-            rawdata = fi.read(10000)
-            encoding = chardet.detect(rawdata)['encoding']       
-
-    text_escape = TextEscape(delimiter=delimiter, qoute=text_qualifier, strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace)  # configure t.e.
-
-    config = {
-            "source":None,
-            "table_key":None, 
-            "columns":columns,
-            "newline":newline, 
-            "delimiter":delimiter, 
-            "qoute":text_qualifier,
-            "text_escape_openings":'', 
-            "text_escape_closures":'',
-            "encoding":encoding,
-            "strip_leading_and_tailing_whitespace":strip_leading_and_tailing_whitespace
-        }
-
-    tasks = []
-    with path.open('r', encoding=encoding) as fi:
-        # task: find chunk ...
-        # Here is the problem in a nutshell:
-        # --------------------------------------------------------
-        # bs = "this is my \n text".encode('utf-16')
-        # >>> bs
-        # b'\xff\xfet\x00h\x00i\x00s\x00 \x00i\x00s\x00 \x00m\x00y\x00 \x00\n\x00 \x00t\x00e\x00x\x00t\x00'
-        # >>> nl = "\n".encode('utf-16')
-        # >>> nl in bs
-        # False
-        # >>> nl.decode('utf-16') in bs.decode('utf-16')
-        # True
-        # --------------------------------------------------------
-        # This means we can't read the encoded stream to check if in contains a particular character.
-        # We will need to decode it.
-        # furthermore fi.tell() will not tell us which character we a looking at.
-        # so the only option left is to read the file and split it in workable chunks.
-        for line in fi:
-            header_line = line
-            line = line.rstrip('\n')
-            break  # break on first
-        fi.seek(0)
-        headers = text_escape(line) # use t.e.
-
-        if first_row_has_headers:
-            if not columns:
-                raise ValueError(f"No columns selected:\nAvailable columns: {headers}")
-            for name in columns:
-                if name not in headers:
-                    raise ValueError(f"column not found: {name}")
-        else: # no headers.
-            valid_indices = [str(i) for i in range(len(headers))]
-            if not columns:
-                raise ValueError(f"No column index selected:\nAvailable columns: {valid_indices}")
-            for index in columns:
-                if index not in valid_indices:
-                    raise IndexError(f"{index} not in valid range: {valid_indices}")
-            header_line = delimiter.join(valid_indices) + '\n'
-
-        if not (isinstance(start, int) and start >= 0):
-            raise ValueError("expected start as an integer >= 0")
-        if not (isinstance(limit, int) and limit > 0):
-            raise ValueError("expected limit as integer > 0")
-
-        try:
-            newlines = sum(1 for _ in fi)  # log.info(f"{newlines} lines found.")
-            fi.seek(0)
-        except Exception as e:
-            raise ValueError(f"file could not be read with encoding={encoding}\n{str(e)}")
-
-        file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
-        bytes_per_line = math.ceil(file_length / newlines)
-        working_overhead = 40  # MemoryError will occur if you get this wrong.
-        
-        total_workload = working_overhead * file_length
-        cpu_count = max(psutil.cpu_count(logical=False) - 1, 1) # there's always at least one core!
-        memory_usage_ceiling = 0.9
-        
-        free_memory = int(psutil.virtual_memory().free * memory_usage_ceiling) - cpu_count * 20e6  # 20Mb per subproc.
-        free_memory_per_vcpu = int(free_memory / cpu_count)  # 8 gb/ 16vCPU = 500Mb/vCPU
-        
-        if total_workload < free_memory_per_vcpu and total_workload < 10_000_000:  # < 1Mb --> use 1 vCPU
-            lines_per_task = newlines
-        else:  # total_workload > free_memory or total_workload > 10_000_000
-            use_all_memory = free_memory_per_vcpu / (bytes_per_line * working_overhead)  # 500Mb/vCPU / (10 * 109 bytes / line ) = 458715 lines per task
-            use_all_cores = newlines / (cpu_count)  # 8,000,000 lines / 16 vCPU = 500,000 lines per task
-            lines_per_task = int(min(use_all_memory, use_all_cores))
-        
-        if not cpu_count * lines_per_task * bytes_per_line * working_overhead < free_memory:
-            raise ValueError(f"{[cpu_count, lines_per_task , bytes_per_line , working_overhead , free_memory]}")
-        assert newlines / lines_per_task >= 1
-        
-        if newlines <= start + (1 if first_row_has_headers else 0):  # Then start > end.
-            t = Table()
-            t.add_columns(*list(columns.keys()))
-            t.save = True
-            return t
-
-        parts = []
-        
-        assert header_line != ""
-        with tqdm(desc=f"splitting {path.name} for multiprocessing", total=newlines, unit="lines") as pbar:
-            for ix, line in enumerate(fi, start=(-1 if first_row_has_headers else 0) ):
-                if ix < start:
-                    # ix is -1 if the first row has headers, but header_line already has the first line.
-                    # ix is 0 if there are no headers, and if start is 0, the first row is added to parts.
-                    continue
-                if ix >= start + limit:
-                    break
-
-                parts.append(line)
-                if ix!=0 and ix % lines_per_task == 0:
-                    p = TEMPDIR / (path.stem + f'{ix}' + path.suffix)
-                    with p.open('w', encoding=H5_ENCODING) as fo:
-                        parts.insert(0, header_line)
-                        fo.write("".join(parts))
-                    pbar.update(len(parts))
-                    parts.clear()
-                    tasks.append( Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ) )
-                    
-            if parts:  # any remaining parts at the end of the loop.
-                p = TEMPDIR / (path.stem + f'{ix}' + path.suffix)
-                with p.open('w', encoding=H5_ENCODING) as fo:
-                    parts.insert(0, header_line)
-                    fo.write("".join(parts))
-                pbar.update(len(parts))
-                parts.clear()
-                config.update({"source":str(p), "table_key":mem.new_id('/table')})
-                tasks.append( Task( text_reader_task, **{**config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ) )
-        
-        # execute the tasks
-    # with TaskManager(cpu_count=min(cpu_count, len(tasks))) as tm:
-    with TaskManager(cpu_count) as tm:
-        errors = tm.execute(tasks)   # I expects a list of None's if everything is ok.
-        
-        # clean up the tmp source files, before raising any exception.
-        for task in tasks:
-            tmp = pathlib.Path(task.kwargs['source'])
-            tmp.unlink()
-
-        if any(errors):
-            raise Exception("\n".join(e for e in errors if e))
-
-    # consolidate the task results
-    t = None
-    for task in tasks:
-        tmp = Table.load(path=mem.path, key=task.kwargs["table_key"])
-        if t is None:
-            t = tmp.copy()
-        else:
-            t += tmp
-        tmp.save = False  # allow deletion of subproc tables.
-    t.save = True
-    return t
-
-
-def text_reader_task(source, table_key, columns, 
-    newline, delimiter=',', qoute='"', text_escape_openings='', text_escape_closures='', 
-    strip_leading_and_tailing_whitespace=True, encoding='utf-8'):
-    """ PARALLEL TASK FUNCTION
-    reads columnsname + path[start:limit] into hdf5.
-
-    source: csv or txt file
-    destination: available filename
-    
-    columns: column names or indices to import
-
-    newline: '\r\n' or '\n'
-    delimiter: ',' ';' or '|'
-    text_escape_openings: str: default: "({[ 
-    text_escape_closures: str: default: ]})" 
-    strip_leading_and_tailing_whitespace: bool
-
-    encoding: chardet encoding ('utf-8, 'ascii', ..., 'ISO-22022-CN')
-    root: hdf5 root, cannot be the same as a column name.
-    """
-    if isinstance(source, str):
-        source = pathlib.Path(source)
-    if not isinstance(source, pathlib.Path):
-        raise TypeError()
-    if not source.exists():
-        raise FileNotFoundError(f"File not found: {source}")
-
-    if not isinstance(table_key, str):
-        raise TypeError()
-
-    if not isinstance(columns, dict):
-        raise TypeError
-    if not all(isinstance(name,str) for name in columns):
-        raise ValueError()
-
-    # declare CSV dialect.
-    text_escape = TextEscape(text_escape_openings, text_escape_closures, qoute=qoute, delimiter=delimiter, 
-                             strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace)
-
-    index_error_found = False
-    with source.open('r', encoding=encoding) as fi:  # --READ
-        for line in fi:
-            line = line.rstrip(newline)
-            break  # break on first
-        headers = text_escape(line)
-        indices = {name: headers.index(name) for name in columns}
-        data = {h: [] for h in indices}
-        for line in fi:  # 1 IOP --> RAM.
-            fields = text_escape(line.rstrip('\n'))
-            if fields == [""] or fields == []:
-                break
-            for header,index in indices.items():
-                try:
-                    data[header].append(fields[index])
-                except IndexError:
-                    data[header].append(None)
-
-                    if index_error_found is False:  # only show the error once.
-                        warnings.warn(f"Column {header} was not found. None will appear as fill value.")
-                        index_error_found = True
-
-    # -- WRITE
-    columns_refs = {}
-    for col_name, values in data.items():
-        values = DataTypes.guess(values)
-        columns_refs[col_name] = mem.mp_write_column(values)
-    mem.mp_write_table(table_key, columns=columns_refs)
-
-
-file_readers = {
-    'fods': excel_reader,
-    'json': excel_reader,
-    'html': excel_reader,
-    'simple': excel_reader,
-    'rst': excel_reader,
-    'mediawiki': excel_reader,
-    'xlsx': excel_reader,
-    'xls': excel_reader,
-    'xlsm': excel_reader,
-    'csv': text_reader,
-    'tsv': text_reader,
-    'txt': text_reader,
-    'ods': ods_reader
-}
 
 def _check_input(table, path):
     if not isinstance(table, Table): 
