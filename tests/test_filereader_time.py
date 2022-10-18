@@ -106,7 +106,7 @@ def test01():
         raise FileNotFoundError(path)
     
     headers = get_headers(path)
-    columns = {h:'f' for h in headers[path.name][0]}
+    columns = headers[path.name][0]
 
     config = {
         "import_as":'csv', 
