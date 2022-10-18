@@ -490,7 +490,7 @@ def test_long_texts():
     t = Table.import_file(path, import_as='csv', text_qualifier='"')
     t.__getitem__(t.columns[0], t.columns[-1]).show()
     
-    t = Table.import_file(path, import_as='csv', columns={c:'f' for c in columns[:-1]}, text_qualifier='"')
+    t = Table.import_file(path, import_as='csv', columns=columns[:-1], text_qualifier='"')
     selection = columns[:5]
     t.__getitem__(*selection).show()
 
