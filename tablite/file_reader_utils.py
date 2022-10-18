@@ -27,7 +27,7 @@ class TextEscape(object):
         list_of_words = text_escape(line)  # use the instance.
         ...
     """
-    def __init__(self, openings='({[', closures=']})', qoute='"', delimiter=',', strip_leading_and_tailing_whitespace=False):
+    def __init__(self, openings='({[', closures=']})', text_qualifier='"', delimiter=',', strip_leading_and_tailing_whitespace=False):
         """
         As an example, the Danes and Germans use " for inches and ' for feet, 
         so we will see data that contains nail (75 x 4 mm, 3" x 3/12"), so 
@@ -54,14 +54,14 @@ class TextEscape(object):
         self._delimiter_length = len(delimiter)
         self.strip_leading_and_tailing_whitespace= strip_leading_and_tailing_whitespace
         
-        if qoute is None:
+        if text_qualifier is None:
             pass
-        elif qoute in openings + closures:
+        elif text_qualifier in openings + closures:
             raise ValueError("It's a bad idea to have qoute character appears in openings or closures.")
         else:
-            self.qoute = qoute
+            self.qoute = text_qualifier
         
-        if not qoute:
+        if not text_qualifier:
             self.c = self._call1
         elif not any(openings + closures):
             self.c = self._call2
@@ -169,7 +169,7 @@ def detect_seperator(text):
         return frq[0][-1]
 
 
-def get_headers(path, linecount=10): 
+def get_headers(path, linecount=10, delimiter=None): 
     """
     file format	definition
     csv	    comma separated values
@@ -224,7 +224,8 @@ def get_headers(path, linecount=10):
                 lines.append(line)
                 if n > linecount:
                     break  # break on first
-            d['delimiter'] = delimiter = detect_seperator('\n'.join(lines))
+            if delimiter is None:
+                d['delimiter'] = delimiter = detect_seperator('\n'.join(lines))
 
             if delimiter is None:
                 d['delimiter'] = delimiters[path.suffix] # pickup the default one
@@ -234,4 +235,24 @@ def get_headers(path, linecount=10):
         return d
     except Exception:
         raise ValueError(f"can't read {path.suffix}")
+
+
+def get_encoding(path):
+    with path.open('rb') as fi:
+        rawdata = fi.read(10000)
+        encoding = chardet.detect(rawdata)['encoding']
+        return encoding
+
+def get_delimiter(path, encoding):
+    with path.open('r', encoding=encoding) as fi:
+        lines = []
+        for n, line in enumerate(fi):
+            line = line.rstrip('\n')
+            lines.append(line)
+            if n > 10:
+                break  # break on first
+        delimiter = detect_seperator('\n'.join(lines))
+        if delimiter is None:
+            raise ValueError("Delimiter could not be determined")
+        return delimiter
 
