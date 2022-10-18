@@ -153,3 +153,25 @@ def test_filter():
     
     assert len(a) + len(b) == len(t)
 
+
+def test_drop_na():
+    t = Table()
+    t['a'] = [1,2,3,None]
+    t['b'] = [1,2,None,None]
+    t['c'] = [1,2,3,4]
+    t['d'] = [10,20,30,40]
+    t2 = t.drop(None)
+    assert len(t2)==2
+    t3 = t.drop(30,40)
+    assert len(t3) == 2
+    assert t2==t3
+
+
+    try:
+        t.drop()
+        assert False, "this should raise as it is unknown what to drop."
+    except ValueError:
+        assert True
+    
+    t4 = t.drop(None,None,None)
+    assert t4 == t2

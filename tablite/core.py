@@ -2366,6 +2366,14 @@ class Table(object):
             t = Table.load(path=mem.path, key=result.key)
             return t
 
+    def drop(self, *args):
+        """
+        args are treated as 'na's
+        """
+        if not args:
+            raise ValueError("What to drop? None? np.nan? ")
+        d = {n: lambda x: x not in set(args) for n in self.columns}
+        return self.all(**d)
 
 class Column(object):
     def __init__(self, data=None, key=None) -> None:
