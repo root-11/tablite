@@ -5,13 +5,15 @@ from itertools import compress
 from statistics import StatisticsError
 
 
-def unique_name(wanted_name, list_of_names):
+def unique_name(wanted_name, set_of_names):
     """
     returns a wanted_name as wanted_name_i given a list of names
     which guarantees unique naming.
-    """
+    """        
+    if not isinstance(set_of_names, set):
+        set_of_names = set(set_of_names)
     name,i = wanted_name,1
-    while name in list_of_names:
+    while name in set_of_names:
         name = f"{wanted_name}_{i}"
         i+=1
     return name
@@ -65,7 +67,7 @@ def intercept(A,B):
     return range(start, end, step)
 
 
-# This list is the contact:
+# This list is the contract:
 required_keys = {
     'min','max','mean','median','stdev','mode',
     'distinct', 'iqr_low','iqr_high','iqr','sum',
@@ -156,7 +158,6 @@ def _numeric_statistics_summary(v,c):
             iqr_high = (vx_0 * (4-delta) + vx * delta) / 4
         
         # stdev calulations
-        # cnt = cnt_n  # self.count += 1
         dt = cx * (vx-mn) # dt = value - self.mean
         mn += dt / cnt_n  # self.mean += dt / self.count
         cstd += dt * (vx-mn)  #self.c += dt * (value - self.mean)
