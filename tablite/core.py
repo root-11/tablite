@@ -142,7 +142,7 @@ def ods_reader(path, first_row_has_headers=True, sheet=None, columns=None, start
 
 
 def text_reader_task(source, table_key, columns, 
-    newline, delimiter, text_qualifier, text_escape_openings, text_escape_closures, 
+    newline, guess_datatypes, delimiter, text_qualifier, text_escape_openings, text_escape_closures, 
     strip_leading_and_tailing_whitespace, encoding):
     """ PARALLEL TASK FUNCTION
     reads columnsname + path[start:limit] into hdf5.
@@ -206,12 +206,61 @@ def text_reader_task(source, table_key, columns,
     # -- WRITE
     columns_refs = {}
     for col_name, values in data.items():
-        values = DataTypes.guess(values)
+        if guess_datatypes:
+            values = DataTypes.guess(values)
         columns_refs[col_name] = mem.mp_write_column(values)
     mem.mp_write_table(table_key, columns=columns_refs)
 
 
-def text_reader(path, import_as, columns, header_line, first_row_has_headers, encoding, start, limit, newline,
+def _text_reader_task_size(newlines, filesize, cpu_count, free_virtual_memory, working_overhead=25, memory_usage_ceiling=0.9, python_mem_w_imports=40e6):
+    """
+    This function seeks to find the optimal allocation of RAM and CPU as
+    CSV reading with type detection is CPU intensive.
+
+    newlines: int: number of lines in the file
+    filesize: int: size of file in bytes
+    cpu_count: int: number of logical cpus
+    free_virtual_memory: int: free ram available in bytes.
+    working_overhead: int: number of bytes required per processed charater.
+    memory_usage_ceiling: float: percentage of memory allowed to be occupied during task execution.
+    python_mem_w_imports: int: memory required to launch python in a subprocess and load all imports.
+    
+    returns: 
+        lines per task: int
+        cpu_count: int >= 0. If cpu_count returned is zero it means that there 
+                             isn't enough memory to launch a subprocess.
+
+    """
+    bytes_per_line = math.ceil(filesize / newlines)
+    total_workload = working_overhead * filesize
+
+    reserved_memory = int(free_virtual_memory * memory_usage_ceiling)
+
+    if total_workload < reserved_memory and total_workload < 10_000_000:  # < 10 Mb:  It's a small task: use current process.
+        lines_per_task, cpu_count = newlines + 1, 0   
+    
+    multicore = False
+    if cpu_count >= 2:  # there are multiple vPUs
+
+        for n_cpus in range(cpu_count,1,-1):  # count down from max to min number of cpus until the task fits into RAM.
+            free_memory = reserved_memory - (n_cpus * python_mem_w_imports)  
+            free_memory_per_vcpu = int(free_memory / cpu_count)  # 8 gb/ 16vCPU = 500Mb/vCPU
+            lines_per_task = free_memory_per_vcpu // (bytes_per_line * working_overhead)  # 500Mb/vCPU / (10 * 109 bytes / line ) = 458715 lines per task
+
+            cpu_count = n_cpus
+            if free_memory_per_vcpu > 10_000_000:  # 10Mb as minimum task size
+                multicore = True
+                break
+
+    if not multicore:  # it's a large task and there is no memory for another python subprocess. 
+        # Use current process and divide the total workload to fit into free memory.
+        lines_per_task = max(1,total_workload // reserved_memory)
+        cpu_count = 0
+
+    return lines_per_task, cpu_count
+
+
+def text_reader(path, columns, header_line, first_row_has_headers, encoding, start, limit, newline, guess_datatypes,
                 text_qualifier, strip_leading_and_tailing_whitespace,delimiter, 
                 text_escape_openings, text_escape_closures, 
                 tqdm=_tqdm, **kwargs):
@@ -220,15 +269,10 @@ def text_reader(path, import_as, columns, header_line, first_row_has_headers, en
     
     excess kwargs are ignored.
     """
-    # define and specify tasks.
-    memory_usage_ceiling = 0.9
-    free_memory = psutil.virtual_memory().free * memory_usage_ceiling
-    free_memory_per_vcpu = free_memory / psutil.cpu_count()
     
     if not isinstance(path, pathlib.Path):
         path = pathlib.Path(path)
     
-    tasks = []
     with path.open('r', encoding=encoding) as fi:
         # task: find chunk ...
         # Here is the problem in a nutshell:
@@ -259,72 +303,54 @@ def text_reader(path, import_as, columns, header_line, first_row_has_headers, en
         if newlines < 1:
             raise ValueError(f"Using {newline} to split file, revealed {newlines} lines in the file.")
 
-        file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
-        bytes_per_line = math.ceil(file_length / newlines)
-        working_overhead = 40  # MemoryError will occur if you get this wrong.
-        
-        total_workload = working_overhead * file_length
-        cpu_count = max(psutil.cpu_count(logical=False) - 1, 1) # there's always at least one core!
-        memory_usage_ceiling = 0.9
-        
-        free_memory = int(psutil.virtual_memory().free * memory_usage_ceiling) - cpu_count * 20e6  # 20Mb per subproc.
-        if free_memory < 0:
-            raise MemoryError("You have insufficient free memory for this task.")
-        free_memory_per_vcpu = int(free_memory / cpu_count)  # 8 gb/ 16vCPU = 500Mb/vCPU
-        
-        if total_workload < free_memory_per_vcpu and total_workload < 10_000_000:  # < 1Mb --> use 1 vCPU
-            lines_per_task = newlines
-        else:  # total_workload > free_memory or total_workload > 10_000_000
-            use_all_memory = free_memory_per_vcpu / (bytes_per_line * working_overhead)  # 500Mb/vCPU / (10 * 109 bytes / line ) = 458715 lines per task
-            use_all_cores = newlines / (cpu_count)  # 8,000,000 lines / 16 vCPU = 500,000 lines per task
-            lines_per_task = int(min(use_all_memory, use_all_cores))
-        if lines_per_task < 1:
-            raise ValueError("Number of tasks could not be determined for import.")
-        
-        if not cpu_count * lines_per_task * bytes_per_line * working_overhead < free_memory:
-            raise ValueError(f"{[cpu_count, lines_per_task , bytes_per_line , working_overhead , free_memory]}")
-        if not (newlines / lines_per_task >= 1):
-            raise ValueError("Bad import config.")
-        
         if newlines <= start + (1 if first_row_has_headers else 0):  # Then start > end: Return EMPTY TABLE.
             t = Table()
             t.add_columns(*columns)
             t.save = True
             return t
-                
-        task_config = {
-            "source":None,  # populated during task creation
-            "table_key":None,  # populated during task creation
-            "columns":columns,
-            "newline":newline, 
-            "delimiter":delimiter, 
-            "text_qualifier":text_qualifier,
-            "text_escape_openings":text_escape_openings, 
-            "text_escape_closures":text_escape_closures,
-            "encoding":encoding,
-            "strip_leading_and_tailing_whitespace":strip_leading_and_tailing_whitespace
-        }
 
-        checks = [
-            True,
-            True,
-            isinstance(columns, list),
-            isinstance(newline, str),
-            isinstance(delimiter, str),
-            isinstance(text_qualifier, (str, type(None))),
-            isinstance(text_escape_openings, str),
-            isinstance(text_escape_closures, str),
-            isinstance(encoding, str),
-            isinstance(strip_leading_and_tailing_whitespace, bool),
-            ]
-        if not all(checks):
-            L = []
-            for cfg,chk in zip(task_config,checks):
-                if not chk:
-                    L.append( f"{cfg}:{task_config[cfg]}" )
-            L = "\n\t".join(L)
-            raise ValueError("error in import config:\n{}")
+    file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
+    cpu_count = max(psutil.cpu_count(logical=False), 1) # there's always at least one core!
+    free_mem = psutil.virtual_memory().free
 
+    lines_per_task, cpu_count = _text_reader_task_size(newlines=newlines, filesize=file_length, cpu_count=cpu_count, free_virtual_memory=free_mem)
+    
+    task_config = {
+        "source":None,  # populated during task creation
+        "table_key":None,  # populated during task creation
+        "columns":columns,
+        "newline":newline, 
+        "guess_datatypes": guess_datatypes,
+        "delimiter":delimiter, 
+        "text_qualifier":text_qualifier,
+        "text_escape_openings":text_escape_openings, 
+        "text_escape_closures":text_escape_closures,
+        "encoding":encoding,
+        "strip_leading_and_tailing_whitespace":strip_leading_and_tailing_whitespace
+    }
+
+    checks = [
+        True,
+        True,
+        isinstance(columns, list),
+        isinstance(newline, str),
+        isinstance(delimiter, str),
+        isinstance(text_qualifier, (str, type(None))),
+        isinstance(text_escape_openings, str),
+        isinstance(text_escape_closures, str),
+        isinstance(encoding, str),
+        isinstance(strip_leading_and_tailing_whitespace, bool),
+        ]
+    if not all(checks):  # create an informative error message
+        L = []
+        for cfg,chk in zip(task_config,checks):
+            if not chk:
+                L.append( f"{cfg}:{task_config[cfg]}" )
+        L = "\n\t".join(L)
+        raise ValueError("error in import config:\n{}")
+    
+    tasks = []
+    with path.open('r', encoding=encoding) as fi:
         parts = []
         assert header_line != "" and header_line.endswith(newline)
         with tqdm(desc=f"splitting {path.name} for multiprocessing", total=newlines, unit="lines") as pbar:
@@ -356,17 +382,22 @@ def text_reader(path, import_as, columns, header_line, first_row_has_headers, en
                 task_config.update({"source":str(p), "table_key":mem.new_id('/table')})
                 tasks.append( Task( text_reader_task, **{**task_config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ) )
     
-    # execute the tasks
-    with TaskManager(cpu_count) as tm:
-        errors = tm.execute(tasks)   # I expects a list of None's if everything is ok.
-        
-        # clean up the tmp source files, before raising any exception.
-        for task in tasks:
-            tmp = pathlib.Path(task.kwargs['source'])
-            tmp.unlink()
+    if cpu_count > 0:
+        # execute the tasks with multiprocessing
+        with TaskManager(cpu_count) as tm:
+            errors = tm.execute(tasks)   # I expects a list of None's if everything is ok.
+            
+            # clean up the tmp source files, before raising any exception.
+            for task in tasks:
+                tmp = pathlib.Path(task.kwargs['source'])
+                tmp.unlink()
 
-        if any(errors):
-            raise Exception("\n".join(e for e in errors if e))
+            if any(errors):
+                raise Exception("\n".join(e for e in errors if e))
+    else:  # execute the tasks in currently process.
+        for task in _tqdm(tasks, desc="Executing tasks in main process"):
+            assert isinstance(task, Task)
+            task.execute()
 
     # consolidate the task results
     t = None
@@ -377,9 +408,7 @@ def text_reader(path, import_as, columns, header_line, first_row_has_headers, en
         else:
             t += tmp
         tmp.save = False  # allow deletion of subproc tables.
-    t.save = True
-
-    
+    t.save = True    
     return t
 
 
@@ -1166,11 +1195,11 @@ class Table(object):
         return get_headers(path, linecount=linecount, delimiter=delimiter)
 
     @classmethod
-    def import_file(cls, path, import_as=None, columns=None, first_row_has_headers=True, 
+    def import_file(cls, path, columns=None, first_row_has_headers=True, 
         encoding=None, start=0, limit=sys.maxsize, 
         sheet=None, 
-        newline='\n', text_qualifier=None, delimiter=None, strip_leading_and_tailing_whitespace=True, 
-        text_escape_openings='', text_escape_closures='',
+        guess_datatypes=True, newline='\n', text_qualifier=None, delimiter=None, strip_leading_and_tailing_whitespace=True, 
+        text_escape_openings='', text_escape_closures='', 
         tqdm=_tqdm):
         """
         reads path and imports 1 or more tables as hdf5
@@ -1178,14 +1207,11 @@ class Table(object):
         REQUIRED
         --------
         path: pathlib.Path or str 
+            selection of filereader uses path.suffix. 
+            See `filereaders`.
 
         OPTIONAL
-        --------
-        import_as: 'csv', 'xlsx', 'txt'  
-            None: will use file suffix to determine filereader function.
-            str: used for selection of filereader instead of file suffix. 
-            See `filereaders`.
-        
+        --------           
         columns: 
             None: (default) All columns will be imported.
             List: only column names from list will be imported (if present in file)
@@ -1221,6 +1247,10 @@ class Table(object):
 
         OPTIONAL FOR TEXT READERS
         -------------------------
+        guess_datatype: bool
+            True: (default) datatypes are guessed using DataTypes.guess(...)
+            False: all data is imported as strings.
+
         newline: newline character (applicable to text_reader only)
             str: '\n' (default) or '\r\n'
         
@@ -1260,8 +1290,7 @@ class Table(object):
         if not isinstance(limit, int) or not 0 < limit <= sys.maxsize:
             raise ValueError(f"limit {limit} not in range(0,{sys.maxsize})")
 
-        if not isinstance(import_as, str):
-            import_as = path.suffix
+        import_as = path.suffix
         if import_as.startswith("."):
             import_as = import_as[1:]
 
@@ -1347,6 +1376,7 @@ class Table(object):
                 'columns': columns, 
                 'header_line': header_line,
                 'first_row_has_headers': first_row_has_headers,
+                'guess_datatypes': guess_datatypes,
                 'encoding': encoding,
                 'start': start,
                 'limit': limit,
