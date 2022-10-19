@@ -1001,7 +1001,7 @@ class Table(object):
                 pass
         return table_true, table_false
     
-    def sort_index(self, sort_mode='excel', tqdm=_tqdm, **kwargs):  
+    def sort_index(self, sort_mode='excel', tqdm=_tqdm, pbar=None, **kwargs):  
         """ 
         helper for methods `sort` and `is_sorted` 
         sort_mode: str: "alphanumeric", "unix", or, "excel"
@@ -1024,13 +1024,18 @@ class Table(object):
             raise ValueError(f"{sort_mode} not in list of sort_modes: {list(sortation.Sortable.modes.modes)}")
 
         rank = {i: tuple() for i in range(len(self))}  # create index and empty tuple for sortation.
-        for key, reverse in tqdm(kwargs.items(), desc='creating sort index'):
+        
+        _pbar = tqdm(total=len(kwargs.items()), desc='creating sort index') if pbar is None else pbar
+        
+        for key, reverse in kwargs.items():
             col = self._columns[key]
             assert isinstance(col, Column)
             ranks = sortation.rank(values=set(col[:].tolist()), reverse=reverse, mode=sort_mode)
             assert isinstance(ranks, dict)
             for ix, v in enumerate(col):
                 rank[ix] += (ranks[v],)  # add tuple
+
+            _pbar.update(1)
 
         new_order = [(r, i) for i, r in rank.items()]  # tuples are listed and sort...
         rank.clear()  # free memory.
@@ -1250,7 +1255,7 @@ class Table(object):
             mask =  np.array([i in ixs for i in range(len(self))],dtype=bool)
             return self._mp_compress(mask)
 
-    def groupby(self, keys, functions, tqdm=_tqdm):  # TODO: This is single core code.
+    def groupby(self, keys, functions, tqdm=_tqdm, pbar=None):  # TODO: This is single core code.
         """
         keys: column names for grouping.
         functions: [optional] list of column names and group functions (See GroupyBy)
@@ -1311,8 +1316,13 @@ class Table(object):
         if keys and not functions: 
             cols = list(zip(*self.index(*keys)))
             result = Table()
-            for col_name, col in tqdm(zip(keys,cols), total=len(keys), desc="groupby"):
+
+            pbar = tqdm(total=len(keys), desc="groupby")  if pbar is None else pbar
+
+            for col_name, col in zip(keys,cols):
                 result[col_name] = col
+
+                pbar.update(1)
             return result
 
         # grouping is required...
@@ -1333,7 +1343,9 @@ class Table(object):
         else:
             tbl = data
 
-        for row in tqdm(tbl.rows, desc="groupby", total=len(tbl)):
+        pbar = tqdm(desc="groupby", total=len(tbl)) if pbar is None else pbar
+
+        for row in tbl.rows:
             d = {col_name: value for col_name,value in zip(L, row)}
             key = tuple([d[k] for k in keys])
             agg_functions = aggregation_functions.get(key)
@@ -1341,6 +1353,8 @@ class Table(object):
                 aggregation_functions[key] = agg_functions =[(col_name, f()) for col_name, f in functions]
             for col_name, f in agg_functions:
                 f.update(d[col_name])
+
+            pbar.update(1)
         
         # 2. make dense table.
         cols = [[] for _ in cols]
@@ -1357,7 +1371,7 @@ class Table(object):
             result[revised_name] = data            
         return result
 
-    def pivot(self, rows, columns, functions, values_as_rows=True):
+    def pivot(self, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=None):
         if isinstance(rows, str):
             rows = [rows]
         if not all(isinstance(i,str) for i in rows)            :
@@ -1374,9 +1388,22 @@ class Table(object):
         keys = rows + columns 
         assert isinstance(keys, list)
 
-        grpby = self.groupby(keys, functions)
+        extra_steps = 2
+
+        if pbar is None:
+            total = extra_steps
+
+            if len(functions) == 0:
+                total = total + len(keys)
+            else:
+                total = total + len(self)
+
+            pbar = tqdm(total=total, desc="pivot")
+
+        grpby = self.groupby(keys, functions, tqdm=tqdm, pbar=pbar)
 
         if len(grpby) == 0:  # return empty table. This must be a test?
+            pbar.update(extra_steps)
             return Table()
         
         # split keys to determine grid dimensions
@@ -1407,6 +1434,7 @@ class Table(object):
                     raise ValueError("this should be empty.")
             records[cix][rix] = func_key
         
+        pbar.update(1)
         result = Table()
         
         if values_as_rows:  # ---> leads to more rows.
@@ -1463,6 +1491,8 @@ class Table(object):
                         cols[ix][r] = f
                 for name,col in zip(names,cols):
                     result[name] = col
+
+        pbar.update(1)
 
         return result
 
