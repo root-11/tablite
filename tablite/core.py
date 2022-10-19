@@ -2054,7 +2054,7 @@ class Table(object):
             raise ValueError(f"Column not found: {[c for c in right_columns if c not in other.columns]}")
         # Input is now guaranteed to be valid.
 
-    def join(self, other, left_keys, right_keys, left_columns, right_columns, kind='inner'):
+    def join(self, other, left_keys, right_keys, left_columns, right_columns, kind='inner', tqdm=_tqdm, pbar=None):
         """
         short-cut for all join functions.
         kind: 'inner', 'left', 'outer', 'cross'
@@ -2068,23 +2068,30 @@ class Table(object):
         if kind not in kinds:
             raise ValueError(f"join type unknown: {kind}")
         f = kinds.get(kind,None)
-        return f(other,left_keys,right_keys,left_columns,right_columns)
+        return f(other,left_keys,right_keys,left_columns,right_columns,tqdm=tqdm,pbar=pbar)
     
-    def _sp_join(self, other, LEFT,RIGHT, left_columns, right_columns):
+    def _sp_join(self, other, LEFT,RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None):
         """
         helper for single processing join
         """
         result = Table()
+
+        if pbar is None:
+            total = len(left_columns) + len(right_columns)
+            pbar = tqdm(total=total, desc="join")
+
         for col_name in left_columns:
             col_data = self[col_name][:]
             result[col_name] = [col_data[k] if k is not None else None for k in LEFT]
+            pbar.update(1)
         for col_name in right_columns:
             col_data = other[col_name][:]
             revised_name = unique_name(col_name, result.columns)
             result[revised_name] = [col_data[k] if k is not None else None for k in RIGHT]
+            pbar.update(1)
         return result
 
-    def _mp_join(self, other, LEFT,RIGHT, left_columns, right_columns):
+    def _mp_join(self, other, LEFT,RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None):
         """ 
         helper for multiprocessing join
         """
@@ -2110,8 +2117,12 @@ class Table(object):
             columns_refs[name] = d_key = mem.new_id('/column')
             tasks.append(Task(indexing_task, source_key=col.key, destination_key=d_key, shm_name_for_sort_index=right_shm.name, shape=right_arr.shape))
 
+        if pbar is None:
+            total = len(left_columns) + len(right_columns)
+            pbar = tqdm(total=total, desc="join")
+
         with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
-            results = tm.execute(tasks)
+            results = tm.execute(tasks, tqdm=tqdm, pbar=pbar)
             
             if any(i is not None for i in results):
                 for err in results:
@@ -2133,7 +2144,7 @@ class Table(object):
         t = Table.load(path=mem.path, key=table_key)
         return t            
 
-    def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is single core code.
+    def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -2163,11 +2174,11 @@ class Table(object):
                     RIGHT.append(right_ix)
 
         if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
-            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)
+            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:  # use multi processing
-            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
+            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
             
-    def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is single core code.
+    def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -2199,11 +2210,11 @@ class Table(object):
                     RIGHT.append(right_ix)
 
         if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
-            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)       
+            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:  # use multi processing
-            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
+            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
-    def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is single core code.
+    def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -2239,11 +2250,11 @@ class Table(object):
                 RIGHT.append(right_ix)
 
         if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
-            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)
+            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:  # use multi processing
-            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
+            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
-    def cross_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
+    def cross_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
         """
         CROSS JOIN returns the Cartesian product of rows from tables in the join. 
         In other words, it will produce rows which combine each row from the first table 
@@ -2258,9 +2269,9 @@ class Table(object):
 
         LEFT, RIGHT = zip(*itertools.product(range(len(self)), range(len(other))))
         if len(LEFT) < SINGLE_PROCESSING_LIMIT:
-            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)
+            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:  # use multi processing
-            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
+            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         
     def lookup(self, other, *criteria, all=True, tqdm=_tqdm):  # TODO: This is single core code.
         """ function for looking up values in `other` according to criteria in ascending order.
