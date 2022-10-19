@@ -13,12 +13,12 @@ def refresh():
     yield
 
 def test_empty():
-    table = Table.import_file(Path(__file__).parent / "data" / "empty.csv", import_as='csv')
+    table = Table.import_file(Path(__file__).parent / "data" / "empty.csv")
 
     assert len(table.columns) == 0
     assert len(list(table.rows)) == 0
 
-    table = Table.import_file(Path(__file__).parent / "data" / "empty_newline.csv", import_as='csv')
+    table = Table.import_file(Path(__file__).parent / "data" / "empty_newline.csv")
 
     assert len(table.columns) == 0
     assert len(list(table.rows)) == 0
@@ -72,7 +72,7 @@ def test_filereader_123csv():
     s = "\n".join(data)
     print(s)
     csv_file.write_text(s)  # write
-    tr_table = Table.import_file(csv_file, import_as='csv', columns=['A', 'B', 'C'])
+    tr_table = Table.import_file(csv_file, columns=['A', 'B', 'C'])
     csv_file.unlink()  # cleanup
 
     tr_table.show()
@@ -88,7 +88,7 @@ def test_filereader_123csv():
 def test_filereader_csv_f12():
     path = Path(__file__).parent / "data" / 'f12.csv'
     columns = ['Prod Slbl', 'Prod Tkt Descp Txt', 'Case Qty', 'Height', 'Width', 'Length', 'Weight', 'sale_date', 'cust_nbr', 'Case Qty_1', 'EA Location', 'CDY/Cs', 'EA/Cs', 'EA/CDY', 'Ordered As', 'Picked As', 'Cs/Pal', 'SKU', 'Order_Number', 'cases']
-    data = Table.import_file(path, import_as='csv', columns=columns)
+    data = Table.import_file(path, columns=columns)
     assert len(data) == 13
     for name in data.columns:
         data[name] = DataTypes.guess(data[name])
@@ -112,7 +112,7 @@ def test_filereader_csv_f12():
 def test_filereader_book1csv():
     path = Path(__file__).parent / "data" / 'book1.csv'
     assert path.exists()
-    table = Table.import_file(path, import_as='csv', columns=['a', 'b', 'c', 'd', 'e', 'f'])
+    table = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'])
     table.show(slice(0, 10))
     for name in table.columns:
         table[name] = DataTypes.guess(table[name])
@@ -127,7 +127,7 @@ def test_filereader_book1csv():
 def test_filereader_book1tsv():
     path = Path(__file__).parent / "data" / 'book1.tsv'
     assert path.exists()
-    table = Table.import_file(path, import_as='csv', columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None)
+    table = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None)
     table.show(slice(0, 10))
     assert len(table) == 45
 
@@ -135,7 +135,7 @@ def test_filereader_book1tsv():
 def test_filereader_gdocs1csv():
     path = Path(__file__).parent / "data" / 'gdocs1.csv'
     assert path.exists()
-    table = Table.import_file(path, import_as='csv', columns=['a', 'b', 'c', 'd', 'e', 'f'], text_qualifier=None)
+    table = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], text_qualifier=None)
     table.show(slice(0, 10))
     assert len(table) == 45
 
@@ -143,7 +143,7 @@ def test_filereader_gdocs1csv():
 def test_filereader_book1txt():
     path = Path(__file__).parent / "data" / 'book1.txt'
     assert path.exists()
-    table = Table.import_file(path, import_as='csv', columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None)
+    table = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None)
     table.show(slice(0, 10))
     assert len(table) == 45
 
@@ -151,11 +151,11 @@ def test_filereader_book1txt():
 def test_filereader_book1_txt_chunks():
     path = Path(__file__).parent / "data" / 'book1.txt'
     assert path.exists()
-    table1 = Table.import_file(path, import_as='csv', columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None)
+    table1 = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None)
     start = 0
     table2 = None
     while True:
-        tmp = Table.import_file(path, import_as='csv', columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None, start=start, limit=5)
+        tmp = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None, start=start, limit=5)
         if len(tmp)==0:
             break
         start += len(tmp) 
@@ -174,11 +174,11 @@ def test_filereader_book1_txt_chunks_and_offset():
 
     start = 2
 
-    table1 = Table.import_file(path, import_as='csv', columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None,start=start)
+    table1 = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None,start=start)
     
     table2 = None
     while True:
-        tmp = Table.import_file(path, import_as='csv', columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None, start=start, limit=5)
+        tmp = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None, start=start, limit=5)
         if len(tmp)==0:
             break
         start += len(tmp) 
@@ -193,7 +193,7 @@ def test_filereader_book1_txt_chunks_and_offset():
 def test_filereader_gdocsc1tsv():
     path = Path(__file__).parent / "data" / 'gdocs1.tsv'
     assert path.exists()
-    table = Table.import_file(path, import_as='csv', columns=['a', 'b', 'c', 'd', 'e', 'f'], text_qualifier=None, delimiter='\t')
+    table = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], text_qualifier=None, delimiter='\t')
     table.show(slice(0, 10))
     assert len(table) == 45
     for name in table.columns:
@@ -208,12 +208,12 @@ def test_filereader_gdocsc1ods():
     path = Path(__file__).parent / "data" / 'gdocs1.ods'
     assert path.exists()
 
-    sheet1 = Table.import_file(path, import_as='ods', sheet='Sheet1')
+    sheet1 = Table.import_file(path, sheet='Sheet1')
     for name in sheet1.columns:
         sheet1[name] = DataTypes.guess(sheet1[name])
         assert sheet1[name].types() == {int:45}
 
-    sheet2 = Table.import_file(path, import_as='ods', sheet='Sheet2')
+    sheet2 = Table.import_file(path, sheet='Sheet2')
     for name in sheet2.columns:
         sheet2[name] = DataTypes.guess(sheet2[name])
         if name == 'a':
@@ -225,7 +225,7 @@ def test_filereader_gdocsc1ods():
 def test_filereader_gdocs1xlsx():
     path = Path(__file__).parent / "data" / 'gdocs1.xlsx'
     assert path.exists()
-    sheet1 = Table.import_file(path, import_as='xlsx', sheet='Sheet1', columns=['a', 'b', 'c', 'd', 'e', 'f'])
+    sheet1 = Table.import_file(path, sheet='Sheet1', columns=['a', 'b', 'c', 'd', 'e', 'f'])
     sheet1.show(slice(0, 10))
 
     for name in sheet1.columns:
@@ -239,7 +239,7 @@ def test_filereader_utf8csv():
     assert path.exists()
 
     columns = ["Item","Materiál","Objem","Jednotka objemu","Free Inv Pcs"]
-    table = Table.import_file(path, import_as='csv', delimiter=';', columns=columns, text_qualifier='"')
+    table = Table.import_file(path, delimiter=';', columns=columns, text_qualifier='"')
     table.show(slice(0, 10))
     table.show(slice(-15,None))
 
@@ -263,7 +263,7 @@ def test_filereader_utf16csv():
     path = Path(__file__).parent / "data" / 'utf16_test.csv'
     assert path.exists()
     col_names = ['"Item"', '"Materiál"', '"Objem"', '"Jednotka objemu"', '"Free Inv Pcs"']
-    table = Table.import_file(path, import_as='csv', delimiter=';', columns=col_names)
+    table = Table.import_file(path, delimiter=';', columns=col_names)
     table.show(slice(0, 10))
     # +===+============+=======================================+============+=================+==============+
     # | # |   "Item"   |               "Materiál"              |  "Objem"   |"Jednotka objemu"|"Free Inv Pcs"|
@@ -288,7 +288,7 @@ def test_filereader_win1251_encoding_csv():
     path = Path(__file__).parent / "data" / 'win1250_test.csv'
     assert path.exists()
     col_names = ['"Item"', '"Materiál"', '"Objem"', '"Jednotka objemu"', '"Free Inv Pcs"']
-    table = Table.import_file(path, import_as='csv', delimiter=';', columns=col_names)
+    table = Table.import_file(path, delimiter=';', columns=col_names)
     table.show(slice(0, 10))
     table.show(slice(None, -15))
     assert len(table) == 99, len(table)
@@ -298,7 +298,7 @@ def test_filereader_utf8sig_encoding_csv():
     path = Path(__file__).parent / "data" / 'utf8sig.csv'
     assert path.exists()
     col_names = ['432', '1']
-    table = Table.import_file(path, import_as='csv', delimiter=',', columns=col_names)
+    table = Table.import_file(path, delimiter=',', columns=col_names)
     table.show(slice(0, 10))
     table.show(slice(-15))
     assert len(table) == 2, len(table)
@@ -311,7 +311,7 @@ def test_filereader_saptxt():
     header = "    | Delivery |  Item|Pl.GI date|Route |SC|Ship-to   |SOrg.|Delivery quantity|SU| TO Number|Material    |Dest.act.qty.|BUn|Typ|Source Bin|Cty"
     col_names = [w.strip(" ").rstrip(" ") for w in header.split("|")]
 
-    table = Table.import_file(path, delimiter="|", import_as='txt', columns=[k for k in col_names if k!=""], strip_leading_and_tailing_whitespace=True)
+    table = Table.import_file(path, delimiter="|", columns=[k for k in col_names if k!=""], strip_leading_and_tailing_whitespace=True, guess_datatypes=False)
     
     for name in table.columns:
         table[name] = DataTypes.guess(table[name])
@@ -325,8 +325,8 @@ def test_filereader_book1xlsx():
     path = Path(__file__).parent / "data" / 'book1.xlsx'
     assert path.exists()
     start = process_time_ns()
-    sheet1 = Table.import_file(path, import_as='xls', sheet='Sheet1', columns=['a', 'b', 'c', 'd', 'e', 'f'])
-    sheet2 = Table.import_file(path, import_as='xls', columns=['a', 'b', 'c', 'd', 'e', 'f'], sheet='Sheet2 ')  # there's a deliberate white space at the end!)
+    sheet1 = Table.import_file(path, sheet='Sheet1', columns=['a', 'b', 'c', 'd', 'e', 'f'])
+    sheet2 = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], sheet='Sheet2 ')  # there's a deliberate white space at the end!)
     end = process_time_ns()
 
     tables = [sheet1,sheet2]
@@ -349,16 +349,16 @@ def test_filereader_exceldatesxlsx():
     path = Path(__file__).parent / "data" / 'excel_dates.xlsx'
     assert path.exists()
     try:
-        _ = Table.import_file(path, import_as='xls', sheet=None, columns=None) 
+        _ = Table.import_file(path, sheet=None, columns=None) 
         assert False
     except ValueError as e:
         assert "available sheets" in str(e)
 
-    table2 = Table.import_file(path, import_as='xls', sheet='Sheet1', columns=None) 
+    table2 = Table.import_file(path, sheet='Sheet1', columns=None) 
     sample = get_headers(path)
     columns = [k for k in sample['Sheet1'][0]]
 
-    table = Table.import_file(path, import_as='xls', sheet='Sheet1', columns=columns)
+    table = Table.import_file(path, sheet='Sheet1', columns=columns)
     assert table == table2
     
     table.show()
@@ -390,10 +390,10 @@ def test_filereader_exceldatesxlsx():
 def test_filereader_gdocs1csv_no_header():
     path = Path(__file__).parent / "data" / 'gdocs1.csv'
     assert path.exists()
-    table = Table.import_file(path, import_as='csv', first_row_has_headers=False)
+    table = Table.import_file(path, first_row_has_headers=False)
     assert table.columns == ['0', '1', '2', '3', '4', '5']
 
-    table = Table.import_file(path, import_as='csv', first_row_has_headers=False, columns=[str(n) for n in [0, 1, 2, 3, 4, 5]])
+    table = Table.import_file(path, first_row_has_headers=False, columns=[str(n) for n in [0, 1, 2, 3, 4, 5]])
     # ^--- this uses the import_file shortcut as it has the same config as the previous import.
 
     table.show(slice(0, 10))
@@ -422,7 +422,7 @@ def test_filereader_gdocs1xlsx_no_header():
     tables = []
     for sheet in ('Sheet1', 'Sheet2', 'Sheet3'):
 
-        table = Table.import_file(path, import_as='xls', sheet=sheet, first_row_has_headers=False, columns={str(n):'f' for n in [0, 1, 2, 3, 4, 5]})
+        table = Table.import_file(path, sheet=sheet, first_row_has_headers=False, columns=[str(n) for n in [0, 1, 2, 3, 4, 5]])
         table.show(slice(0, 10))
         # +===+===+=============+=============+============+============+============+
         # | # | 0 |      1      |      2      |     3      |     4      |     5      |
@@ -470,7 +470,7 @@ def test_filereader_gdocs1xlsx_no_header():
 def test_keep():
     path = Path(__file__).parent / "data" / 'book1.csv'
     assert path.exists()
-    table = Table.import_file(path, columns=['a','b'], import_as='csv')
+    table = Table.import_file(path, columns=['a','b'])
     assert set(table.columns) == {'a', 'b'}
     assert len(table) == 45
 
@@ -487,10 +487,10 @@ def test_long_texts():
         "respondentOrderEng","scl","ECLI","ORIGINATING BODY","YEAR","FULLTEXT","judges", "courts"]
 
     
-    t = Table.import_file(path, import_as='csv', text_qualifier='"')
+    t = Table.import_file(path, text_qualifier='"')
     t.__getitem__(t.columns[0], t.columns[-1]).show()
     
-    t = Table.import_file(path, import_as='csv', columns=columns[:-1], text_qualifier='"')
+    t = Table.import_file(path, columns=columns[:-1], text_qualifier='"')
     selection = columns[:5]
     t.__getitem__(*selection).show()
 
