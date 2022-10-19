@@ -33,7 +33,7 @@ def test_the_basics():
 
     # load data:
     path = pathlib.Path('tests/data/book1.csv')
-    t3 = Table.import_file(path, import_as='csv', columns=None)
+    t3 = Table.import_file(path)
     
     # to view any table use .show(). Note that show gives either first and last 7 rows or the whole table if it is less than 20 rows.
     t3.show()
@@ -231,7 +231,7 @@ def test_filter():
     # FILTER
     # -----------------------------------------
     # in this example we will reload book1.csv:
-    t = Table.import_file('tests/data/book1.csv', import_as='csv', columns=[k for k in 'abcdef'])
+    t = Table.import_file('tests/data/book1.csv')
     # i can now perform a number of actions:
 
     # filter Col A > value
