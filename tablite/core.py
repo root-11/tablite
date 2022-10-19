@@ -212,7 +212,7 @@ def text_reader_task(source, table_key, columns,
     mem.mp_write_table(table_key, columns=columns_refs)
 
 
-def _text_reader_task_size(newlines, filesize, cpu_count, free_virtual_memory, working_overhead=25, memory_usage_ceiling=0.9, python_mem_w_imports=40e6):
+def _text_reader_task_size(newlines, filesize, cpu_count, free_virtual_memory, working_overhead=40, memory_usage_ceiling=0.9, python_mem_w_imports=40e6):
     """
     This function seeks to find the optimal allocation of RAM and CPU as
     CSV reading with type detection is CPU intensive.
@@ -238,24 +238,24 @@ def _text_reader_task_size(newlines, filesize, cpu_count, free_virtual_memory, w
 
     if total_workload < reserved_memory and total_workload < 10_000_000:  # < 10 Mb:  It's a small task: use current process.
         lines_per_task, cpu_count = newlines + 1, 0   
-    
-    multicore = False
-    if cpu_count >= 2:  # there are multiple vPUs
+    else:
+        multicore = False
+        if cpu_count >= 2:  # there are multiple vPUs
 
-        for n_cpus in range(cpu_count,1,-1):  # count down from max to min number of cpus until the task fits into RAM.
-            free_memory = reserved_memory - (n_cpus * python_mem_w_imports)  
-            free_memory_per_vcpu = int(free_memory / cpu_count)  # 8 gb/ 16vCPU = 500Mb/vCPU
-            lines_per_task = free_memory_per_vcpu // (bytes_per_line * working_overhead)  # 500Mb/vCPU / (10 * 109 bytes / line ) = 458715 lines per task
+            for n_cpus in range(cpu_count,1,-1):  # count down from max to min number of cpus until the task fits into RAM.
+                free_memory = reserved_memory - (n_cpus * python_mem_w_imports)  
+                free_memory_per_vcpu = int(free_memory / cpu_count)  # 8 gb/ 16vCPU = 500Mb/vCPU
+                lines_per_task = free_memory_per_vcpu // (bytes_per_line * working_overhead)  # 500Mb/vCPU / (10 * 109 bytes / line ) = 458715 lines per task
 
-            cpu_count = n_cpus
-            if free_memory_per_vcpu > 10_000_000:  # 10Mb as minimum task size
-                multicore = True
-                break
+                cpu_count = n_cpus
+                if free_memory_per_vcpu > 10_000_000:  # 10Mb as minimum task size
+                    multicore = True
+                    break
 
-    if not multicore:  # it's a large task and there is no memory for another python subprocess. 
-        # Use current process and divide the total workload to fit into free memory.
-        lines_per_task = max(1,total_workload // reserved_memory)
-        cpu_count = 0
+        if not multicore:  # it's a large task and there is no memory for another python subprocess. 
+            # Use current process and divide the total workload to fit into free memory.
+            lines_per_task = max(1,total_workload // reserved_memory)
+            cpu_count = 0
 
     return lines_per_task, cpu_count
 
@@ -296,7 +296,7 @@ def text_reader(path, columns, header_line, first_row_has_headers, encoding, sta
             raise ValueError("expected limit as an integer > 0")
 
         try:
-            newlines = sum(1 for _ in _tqdm(fi, desc=f"reading {path.name}"))
+            newlines = sum(1 for _ in _tqdm(fi, desc=f"reading {path.name}", unit='bytes'))
             fi.seek(0)
         except Exception as e:
             raise ValueError(f"file could not be read with encoding={encoding}\n{str(e)}")
@@ -382,9 +382,9 @@ def text_reader(path, columns, header_line, first_row_has_headers, encoding, sta
                 task_config.update({"source":str(p), "table_key":mem.new_id('/table')})
                 tasks.append( Task( text_reader_task, **{**task_config, **{"source":str(p), "table_key":mem.new_id('/table'), 'encoding':'utf-8'}} ) )
     
-    if cpu_count > 0:
+    if cpu_count > 1:
         # execute the tasks with multiprocessing
-        with TaskManager(cpu_count) as tm:
+        with TaskManager(cpu_count-1) as tm:
             errors = tm.execute(tasks)   # I expects a list of None's if everything is ok.
             
             # clean up the tmp source files, before raising any exception.
