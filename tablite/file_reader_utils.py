@@ -243,6 +243,7 @@ def get_encoding(path):
         encoding = chardet.detect(rawdata)['encoding']
         return encoding
 
+
 def get_delimiter(path, encoding):
     with path.open('r', encoding=encoding) as fi:
         lines = []

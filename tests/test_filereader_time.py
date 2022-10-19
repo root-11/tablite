@@ -109,7 +109,6 @@ def test01():
     columns = headers[path.name][0]
 
     config = {
-        "import_as":'csv', 
         "columns":columns, 
         "delimiter":headers['delimiter'], 
         "text_qualifier":None, 
