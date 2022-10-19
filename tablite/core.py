@@ -1078,7 +1078,7 @@ class Table(object):
             t[name] = data
         return t
 
-    def to_hdf5(self, path):
+    def to_hdf5(self, path, tqdm=_tqdm):
         """
         creates a copy of the table as hdf5
         """
@@ -1089,7 +1089,7 @@ class Table(object):
         print(f"writing {total} records to {path}")
 
         with h5py.File(path, 'a') as f:
-            with _tqdm(total=len(self.columns), unit='columns') as pbar:
+            with tqdm(total=len(self.columns), unit='columns') as pbar:
                 n = 0
                 for name, mc in self.columns.values():
                     f.create_dataset(name, data=mc[:])  # stored in hdf5 as '/name'
@@ -1414,7 +1414,7 @@ class Table(object):
             idx[key].add(ix)
         return idx
 
-    def filter(self, expressions, filter_type='all'):
+    def filter(self, expressions, filter_type='all', tqdm=_tqdm):
         """
         enables filtering across columns for multiple criteria.
         
@@ -1495,15 +1495,17 @@ class Table(object):
             merge_tasks.append(task)
 
         n_cpus = min(max(len(filter_tasks),len(merge_tasks)), psutil.cpu_count())
-        with TaskManager(n_cpus) as tm: 
-            # EVALUATE 
-            errs = tm.execute(filter_tasks)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
-            if any(errs):
-                raise Exception(errs)
-            # MERGE RESULTS
-            errs = tm.execute(merge_tasks)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
-            if any(errs):
-                raise Exception(errs)
+        
+        with tqdm(total=len(filter_tasks)+len(merge_tasks), desc="filter") as pbar:
+            with TaskManager(n_cpus) as tm: 
+                # EVALUATE 
+                errs = tm.execute(filter_tasks, pbar=pbar)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
+                if any(errs):
+                    raise Exception(errs)
+                # MERGE RESULTS
+                errs = tm.execute(merge_tasks, pbar=pbar)  # tm.execute returns the tasks with results, but we don't really care as the result is in the result array.
+                if any(errs):
+                    raise Exception(errs)
 
         table_true, table_false = None, None
         for task in merge_tasks:
@@ -1524,7 +1526,7 @@ class Table(object):
                 pass
         return table_true, table_false
     
-    def sort_index(self, sort_mode='excel', **kwargs):  
+    def sort_index(self, sort_mode='excel', tqdm=_tqdm, pbar=None, **kwargs):  
         """ 
         helper for methods `sort` and `is_sorted` 
         sort_mode: str: "alphanumeric", "unix", or, "excel"
@@ -1547,13 +1549,18 @@ class Table(object):
             raise ValueError(f"{sort_mode} not in list of sort_modes: {list(sortation.Sortable.modes.modes)}")
 
         rank = {i: tuple() for i in range(len(self))}  # create index and empty tuple for sortation.
-        for key, reverse in _tqdm(kwargs.items(), desc='creating sort index'):
+        
+        _pbar = tqdm(total=len(kwargs.items()), desc='creating sort index') if pbar is None else pbar
+        
+        for key, reverse in kwargs.items():
             col = self._columns[key]
             assert isinstance(col, Column)
             ranks = sortation.rank(values=set(col[:].tolist()), reverse=reverse, mode=sort_mode)
             assert isinstance(ranks, dict)
             for ix, v in enumerate(col):
                 rank[ix] += (ranks[v],)  # add tuple
+
+            _pbar.update(1)
 
         new_order = [(r, i) for i, r in rank.items()]  # tuples are listed and sort...
         rank.clear()  # free memory.
@@ -1773,7 +1780,7 @@ class Table(object):
             mask =  np.array([i in ixs for i in range(len(self))],dtype=bool)
             return self._mp_compress(mask)
 
-    def groupby(self, keys, functions):  # TODO: This is single core code.
+    def groupby(self, keys, functions, tqdm=_tqdm, pbar=None):  # TODO: This is single core code.
         """
         keys: column names for grouping.
         functions: [optional] list of column names and group functions (See GroupyBy)
@@ -1834,8 +1841,13 @@ class Table(object):
         if keys and not functions: 
             cols = list(zip(*self.index(*keys)))
             result = Table()
+
+            pbar = tqdm(total=len(keys), desc="groupby")  if pbar is None else pbar
+
             for col_name, col in zip(keys,cols):
                 result[col_name] = col
+
+                pbar.update(1)
             return result
 
         # grouping is required...
@@ -1856,6 +1868,8 @@ class Table(object):
         else:
             tbl = data
 
+        pbar = tqdm(desc="groupby", total=len(tbl)) if pbar is None else pbar
+
         for row in tbl.rows:
             d = {col_name: value for col_name,value in zip(L, row)}
             key = tuple([d[k] for k in keys])
@@ -1864,6 +1878,8 @@ class Table(object):
                 aggregation_functions[key] = agg_functions =[(col_name, f()) for col_name, f in functions]
             for col_name, f in agg_functions:
                 f.update(d[col_name])
+
+            pbar.update(1)
         
         # 2. make dense table.
         cols = [[] for _ in cols]
@@ -1880,7 +1896,7 @@ class Table(object):
             result[revised_name] = data            
         return result
 
-    def pivot(self, rows, columns, functions, values_as_rows=True):
+    def pivot(self, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=None):
         if isinstance(rows, str):
             rows = [rows]
         if not all(isinstance(i,str) for i in rows)            :
@@ -1897,9 +1913,22 @@ class Table(object):
         keys = rows + columns 
         assert isinstance(keys, list)
 
-        grpby = self.groupby(keys, functions)
+        extra_steps = 2
+
+        if pbar is None:
+            total = extra_steps
+
+            if len(functions) == 0:
+                total = total + len(keys)
+            else:
+                total = total + len(self)
+
+            pbar = tqdm(total=total, desc="pivot")
+
+        grpby = self.groupby(keys, functions, tqdm=tqdm, pbar=pbar)
 
         if len(grpby) == 0:  # return empty table. This must be a test?
+            pbar.update(extra_steps)
             return Table()
         
         # split keys to determine grid dimensions
@@ -1930,6 +1959,7 @@ class Table(object):
                     raise ValueError("this should be empty.")
             records[cix][rix] = func_key
         
+        pbar.update(1)
         result = Table()
         
         if values_as_rows:  # ---> leads to more rows.
@@ -1987,6 +2017,8 @@ class Table(object):
                 for name,col in zip(names,cols):
                     result[name] = col
 
+        pbar.update(1)
+
         return result
 
     def _join_type_check(self, other, left_keys, right_keys, left_columns, right_columns):
@@ -2022,7 +2054,7 @@ class Table(object):
             raise ValueError(f"Column not found: {[c for c in right_columns if c not in other.columns]}")
         # Input is now guaranteed to be valid.
 
-    def join(self, other, left_keys, right_keys, left_columns, right_columns, kind='inner'):
+    def join(self, other, left_keys, right_keys, left_columns, right_columns, kind='inner', tqdm=_tqdm, pbar=None):
         """
         short-cut for all join functions.
         kind: 'inner', 'left', 'outer', 'cross'
@@ -2036,23 +2068,30 @@ class Table(object):
         if kind not in kinds:
             raise ValueError(f"join type unknown: {kind}")
         f = kinds.get(kind,None)
-        return f(other,left_keys,right_keys,left_columns,right_columns)
+        return f(other,left_keys,right_keys,left_columns,right_columns,tqdm=tqdm,pbar=pbar)
     
-    def _sp_join(self, other, LEFT,RIGHT, left_columns, right_columns):
+    def _sp_join(self, other, LEFT,RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None):
         """
         helper for single processing join
         """
         result = Table()
+
+        if pbar is None:
+            total = len(left_columns) + len(right_columns)
+            pbar = tqdm(total=total, desc="join")
+
         for col_name in left_columns:
             col_data = self[col_name][:]
             result[col_name] = [col_data[k] if k is not None else None for k in LEFT]
+            pbar.update(1)
         for col_name in right_columns:
             col_data = other[col_name][:]
             revised_name = unique_name(col_name, result.columns)
             result[revised_name] = [col_data[k] if k is not None else None for k in RIGHT]
+            pbar.update(1)
         return result
 
-    def _mp_join(self, other, LEFT,RIGHT, left_columns, right_columns):
+    def _mp_join(self, other, LEFT,RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None):
         """ 
         helper for multiprocessing join
         """
@@ -2078,8 +2117,12 @@ class Table(object):
             columns_refs[name] = d_key = mem.new_id('/column')
             tasks.append(Task(indexing_task, source_key=col.key, destination_key=d_key, shm_name_for_sort_index=right_shm.name, shape=right_arr.shape))
 
+        if pbar is None:
+            total = len(left_columns) + len(right_columns)
+            pbar = tqdm(total=total, desc="join")
+
         with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
-            results = tm.execute(tasks)
+            results = tm.execute(tasks, tqdm=tqdm, pbar=pbar)
             
             if any(i is not None for i in results):
                 for err in results:
@@ -2101,7 +2144,7 @@ class Table(object):
         t = Table.load(path=mem.path, key=table_key)
         return t            
 
-    def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is single core code.
+    def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -2131,11 +2174,11 @@ class Table(object):
                     RIGHT.append(right_ix)
 
         if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
-            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)
+            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:  # use multi processing
-            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
+            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
             
-    def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is single core code.
+    def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -2167,11 +2210,11 @@ class Table(object):
                     RIGHT.append(right_ix)
 
         if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
-            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)       
+            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:  # use multi processing
-            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
+            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
-    def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):  # TODO: This is single core code.
+    def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -2207,11 +2250,11 @@ class Table(object):
                 RIGHT.append(right_ix)
 
         if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
-            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)
+            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:  # use multi processing
-            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
+            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
-    def cross_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None):
+    def cross_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
         """
         CROSS JOIN returns the Cartesian product of rows from tables in the join. 
         In other words, it will produce rows which combine each row from the first table 
@@ -2226,11 +2269,11 @@ class Table(object):
 
         LEFT, RIGHT = zip(*itertools.product(range(len(self)), range(len(other))))
         if len(LEFT) < SINGLE_PROCESSING_LIMIT:
-            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns)
+            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:  # use multi processing
-            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns)
+            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         
-    def lookup(self, other, *criteria, all=True):  # TODO: This is single core code.
+    def lookup(self, other, *criteria, all=True, tqdm=_tqdm):  # TODO: This is single core code.
         """ function for looking up values in `other` according to criteria in ascending order.
         :param: other: Table sorted in ascending search order.
         :param: criteria: Each criteria must be a tuple with value comparisons in the form:
@@ -2295,7 +2338,7 @@ class Table(object):
         assert isinstance(left, Table)
         assert isinstance(right, Table)
 
-        for row1 in _tqdm(left.rows, total=self.__len__()):
+        for row1 in tqdm(left.rows, total=self.__len__()):
             row1_tup = tuple(row1)
             row1d = {name: value for name, value in zip(left_columns, row1)}
             row1_hash = hash(row1_tup)
@@ -2929,7 +2972,7 @@ def excel_writer(table, path):
     pyexcel.save_as(array=data, dest_file_name=str(path))
 
 
-def text_writer(table, path):
+def text_writer(table, path, tqdm=_tqdm):
     """ exports table to csv, tsv or txt dependening on path suffix.
     follows the JSON norm. text escape is ON for all strings.
     
@@ -2954,7 +2997,7 @@ def text_writer(table, path):
 
     with path.open('w', encoding='utf-8') as fo:
         fo.write(delimiter.join(c for c in table.columns)+'\n')
-        for row in _tqdm(table.rows, total=len(table)):
+        for row in tqdm(table.rows, total=len(table)):
             fo.write(delimiter.join(txt(c) for c in row)+'\n')
 
 def sql_writer(table, path):
