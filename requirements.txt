@@ -10,4 +10,4 @@ pyperclip==1.8.2
 pyexcel-xlsx==0.6.0
 pyexcel-xls==0.7.0
 pyuca>=1.2
-mplite==1.1.0
+mplite==1.2.0
