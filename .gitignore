@@ -20,3 +20,6 @@ build/
 
 # WIP
 .old
+
+# non-publishable tests
+tests/private_tests.py
