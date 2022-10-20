@@ -1776,7 +1776,7 @@ class Table(object):
         if len(self)*len(self.columns) < SINGLE_PROCESSING_LIMIT:
             t = Table()
             for col_name in self.columns:
-                data = self[col_name]
+                data = self[col_name][:]
                 t[col_name] = [data[i] for i in ixs]
             return t
         else:
@@ -1803,7 +1803,7 @@ class Table(object):
         if len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT:
             t = Table()
             for col_name in self.columns:
-                data = self[col_name]
+                data = self[col_name][:]
                 t[col_name] = [data[i] for i in ixs]
             return t
         else:
