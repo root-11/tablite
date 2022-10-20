@@ -1,4 +1,6 @@
 from tablite.utils import intercept, summary_statistics
+from tablite.utils import expression_interpreter
+
 import statistics
 from random import randint
 from datetime import date,time,datetime
@@ -28,6 +30,21 @@ def test_range_intercept():
 
 def test_normalize_slice():
     assert (0,10,1) == slice(0,None,1).indices(10)
+
+
+
+def test_interpreter():
+    s = "all((A==B, C!=4, 200<D))"
+
+    f = expression_interpreter(s, list('ABCDEF'))
+    assert f(1,2,3,4) is False
+    assert f(10,10,0,201) is True
+
+    s2 = "any((A==B, C!=4, 200<D))"
+
+    f = expression_interpreter(s2, list('ABCDEF'))
+    assert f(1,2,4,4) is False
+    assert f(10,10,0,201) is True
 
 
 def test_summary_statistics_even_ints():
