@@ -2,6 +2,8 @@
 
 | Version    | Change                                              |
 |:-----------|-----------------------------------------------------|
+| 2022.10.11 | filter now accepts any expression (str) that can be compiled by pythons compiler |
+| 2022.10.11 | Bugfix for `.any` and `.all`. The code now executes much faster|
 | 2022.10.10 | Bugfix for `Table.import_file`: `import_as` has been removed from keywords.|
 | 2022.10.10 | All Table functions now have tqdm progressbar. |
 | 2022.10.10 | More robust calculation for task size for multiprocessing. |
