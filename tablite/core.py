@@ -1172,6 +1172,13 @@ class Table(object):
         return "begin; {}; {}; commit;".format(create_table, row_inserts)
 
     def export(self, path):
+        """
+        exports table to path in format given by path suffix
+
+        path: str or pathlib.Path
+
+        for list of supported formats, see `exporters`
+        """
         if isinstance(path,str):
             path = pathlib.Path(path)
         if not isinstance(path, pathlib.Path):
@@ -1186,6 +1193,7 @@ class Table(object):
         handler(table=self, path=path)
 
         log.info(f"exported {self.key} to {path}")
+        print(f"exported {self.key} to {path}")
 
     @classmethod
     def head(cls, path, linecount=5, delimiter=None):
@@ -2776,7 +2784,8 @@ class Column(object):
             d[k].append(ix)
         return d
 
-    def unique(self):  
+    def unique(self):
+        """ returns unique list of values. """
         try:
             return np.unique(self.__getitem__())
         except TypeError:  # np arrays can't handle dtype='O':
