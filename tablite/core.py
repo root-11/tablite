@@ -1874,7 +1874,7 @@ class Table(object):
 
         ixs = set()
         for k, v in kwargs.items():
-            col = self._columns[k]
+            col = self._columns[k][:]
             if callable(v):
                 ix2 = {ix for ix, r in enumerate(col) if v(r)}
             else:
