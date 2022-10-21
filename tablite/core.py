@@ -1648,13 +1648,26 @@ class Table(object):
 
     def reindex(self, index):
         """
-        index: list of integers to declare sort order.
+        index: list of integers that declare sort order.
+
+        Examples:
+
+            Table:  [1,2,3,4,5,6,7,8]
+            index:  [0,2,4,6]
+            result: [1,3,5,7]
+
+            Table:  [1,2,3,4,5,6,7,8]           
+            index:  [0,2,4,6,1,3,5,7]
+            result: [1,3,5,7,2,4,6,8]
+        
         """
         if index is not None:
             if not isinstance(index, list):
                 raise TypeError
-            if len(index)!=len(self):
-                raise ValueError
+            if max(index) >= len(self):
+                raise IndexError("index out of range: max(index) > len(self)")
+            if min(index) < -len(self):
+                raise IndexError("index out of range: min(index) < -len(self)")
             if not all(isinstance(i,int) for i in index):
                 raise TypeError
 
@@ -1666,7 +1679,7 @@ class Table(object):
             return t
         
         else:
-            arr = np.zeros(shape=(len(self), ), dtype=np.int64)
+            arr = np.zeros(shape=(len(index), ), dtype=np.int64)
             shm = shared_memory.SharedMemory(create=True, size=arr.nbytes)  # the co_processors will read this.
             sort_index = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
             sort_index[:] = index
@@ -1691,6 +1704,18 @@ class Table(object):
             shm.unlink()
             t = Table.load(path=mem.path, key=table_key)
             return t            
+
+    def drop_duplicates(self, *args):
+        """
+        removes duplicate rows based on column names
+
+        args: (optional) column_names
+        if no args, all columns are used.
+        """
+        if not args:
+            args = self.columns
+        index = [min(v) for v in self.index(*args).values()]
+        return self.reindex(index)     
 
     def sort(self, sort_mode='excel', **kwargs):  
         """ Perform multi-pass sorting with precedence given order of column names.
@@ -1829,6 +1854,15 @@ class Table(object):
         else:
             mask =  np.array([True if i in ixs else False for i in range(len(self))],dtype=bool)
             return self._mp_compress(mask)
+
+    def drop(self, *args):
+        """
+        args are treated as 'na's
+        """
+        if not args:
+            raise ValueError("What to drop? None? np.nan? ")
+        d = {n: lambda x: x not in set(args) for n in self.columns}
+        return self.all(**d)
 
     def any(self, **kwargs):  
         """
@@ -2488,14 +2522,6 @@ class Table(object):
             t = Table.load(path=mem.path, key=result.key)
             return t
 
-    def drop(self, *args):
-        """
-        args are treated as 'na's
-        """
-        if not args:
-            raise ValueError("What to drop? None? np.nan? ")
-        d = {n: lambda x: x not in set(args) for n in self.columns}
-        return self.all(**d)
 
 class Column(object):
     def __init__(self, data=None, key=None) -> None:
