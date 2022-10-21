@@ -1824,7 +1824,7 @@ class Table(object):
 
         ixs = None
         for k, v in kwargs.items():
-            col = self._columns[k]
+            col = self._columns[k][:]
             if ixs is None:  # first header generates base set.
                 if callable(v):
                     ix2 = {ix for ix, i in enumerate(col) if v(i)}
