@@ -22,14 +22,23 @@ def test_filter_all_1():
     t['b'] = [10,20,30,40]
     true,false = t.filter(
         [
-            {"column1": 'a', "criteria":"==", 'value2':3},
-            {"column1": 'b', "criteria":"==", 'value2':20},
+            {"column1": 'a', "criteria":">=", 'value2':3},
+            {"column1": 'b', "criteria":"<=", 'value2':20},
         ], filter_type='all'
     )
     assert len(true)+len(false)==len(t)
     assert len(true) == 0, true.show()
     assert len(false) == 4, false.show()
+
+    t2 = t.all(a=3).all(b=20)  # same output but different syntax.
+    assert true == t2
     
+    true1, false1 = t.filter('all((a>=3, b<=20))')
+    true2, false2 = t.filter('a>=3 and b<=20')
+
+    assert t2 == true == true1 == true2
+    assert false == false1 == false2
+
 
 def test_filter_any_1():
     t = Table()

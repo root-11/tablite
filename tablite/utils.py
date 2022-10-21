@@ -1,5 +1,6 @@
 from collections import defaultdict
 import math
+import ast
 from datetime import datetime,date,time,timedelta, timezone
 from itertools import compress
 from statistics import StatisticsError
@@ -17,6 +18,37 @@ def unique_name(wanted_name, set_of_names):
         name = f"{wanted_name}_{i}"
         i+=1
     return name
+
+
+def expression_interpreter(expression, columns):
+    """
+    Interprets valid expressions such as:
+
+        "all((A==B, C!=4, 200<D))"
+
+    as:
+        def _f(A,B,C,D):
+            return all((A==B, C!=4, 200<D))
+
+    using python's compiler.
+    """
+    if not isinstance(expression, str):
+        raise TypeError(f"`{expression}` is not a str")
+    if not isinstance(columns, list):
+        raise TypeError
+    if not all(isinstance(i, str) for i in columns):
+        raise TypeError
+    
+    req_columns = ", ".join(i for i in columns if i in expression)
+    script = f"def f({req_columns}):\n    return {expression}"
+    tree = ast.parse(script)
+    code = compile(tree, filename='blah', mode='exec')
+    namespace = {}
+    exec(code, namespace)
+    f = namespace['f']
+    if not callable(f):
+        raise ValueError(f"The expression could not be parse: {expression}")
+    return f
 
 
 def intercept(A,B):

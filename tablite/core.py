@@ -38,7 +38,7 @@ atexit.register(exiting)
 
 from tablite.memory_manager import MemoryManager, Page, Pages
 from tablite.file_reader_utils import TextEscape, get_headers, get_encoding, get_delimiter
-from tablite.utils import summary_statistics, unique_name
+from tablite.utils import summary_statistics, unique_name, expression_interpreter
 from tablite import sortation
 from tablite.groupby_utils import GroupBy, GroupbyFunction
 from tablite.config import SINGLE_PROCESSING_LIMIT, TEMPDIR, H5_ENCODING
@@ -1172,6 +1172,13 @@ class Table(object):
         return "begin; {}; {}; commit;".format(create_table, row_inserts)
 
     def export(self, path):
+        """
+        exports table to path in format given by path suffix
+
+        path: str or pathlib.Path
+
+        for list of supported formats, see `exporters`
+        """
         if isinstance(path,str):
             path = pathlib.Path(path)
         if not isinstance(path, pathlib.Path):
@@ -1186,6 +1193,7 @@ class Table(object):
         handler(table=self, path=path)
 
         log.info(f"exported {self.key} to {path}")
+        print(f"exported {self.key} to {path}")
 
     @classmethod
     def head(cls, path, linecount=5, delimiter=None):
@@ -1444,22 +1452,62 @@ class Table(object):
             idx[key].add(ix)
         return idx
 
+    def _filter(self, expression):
+        """ 
+        filters based on an expression, such as:
+
+            "all((A==B, C!=4, 200<D))"
+
+        which is interpreted using python's compiler to:
+
+            def _f(A,B,C,D):
+                return all((A==B, C!=4, 200<D))
+        """
+        if not isinstance(expression, str):
+            raise TypeError
+        try:
+            _f = expression_interpreter(expression, self.columns)
+        except Exception as e:
+            raise ValueError(f"Expression could not be compiled: {expression}:\n{e}")
+        
+        req_columns = [i for i in self.columns if i in expression]
+        bitmap = [bool(_f(*r)) for r in self.__getitem__(*req_columns).rows]
+        inverse_bitmap = [not i for i in bitmap]
+
+        if len(self)*len(self.columns) < SINGLE_PROCESSING_LIMIT:
+            true,false = Table(), Table()
+            for col_name in self.columns:
+                data = self[col_name][:]
+                true[col_name] = list(itertools.compress(data, bitmap))
+                false[col_name] = list(itertools.compress(data, inverse_bitmap))
+            return true, false
+        else:
+            mask = np.array(bitmap, dtype=bool)
+            return self._mp_compress(mask), self._mp_compress(np.invert(mask))  # true, false
+
     def filter(self, expressions, filter_type='all', tqdm=_tqdm):
         """
         enables filtering across columns for multiple criteria.
         
-        expressions: 
-        list of dicts:
-        L = [
-            {'column1':'A', 'criteria': "==", 'column2': 'B'}, 
-            {'column1':'C', 'criteria': "!=", "value2": '4'},
-            {'value1': 200, 'criteria': "<", column2: 'D' }
-        ]
+        expressions:
+            str: Expression that can be compiled and executed row by row.
+                "all((A==B and C!=4 and 200<D))"  
 
-        accepted dictionary keys: 'column1', 'column2', 'criteria', 'value1', 'value2'
+            list of dicts: E.g.:
+
+                L = [
+                    {'column1':'A', 'criteria': "==", 'column2': 'B'}, 
+                    {'column1':'C', 'criteria': "!=", "value2": '4'},
+                    {'value1': 200, 'criteria': "<", column2: 'D' }
+                ]
+
+            accepted dictionary keys: 'column1', 'column2', 'criteria', 'value1', 'value2'
 
         filter_type: 'all' or 'any'
         """
+        if isinstance(expressions, str):
+            return self._filter(expressions)
+
         if not isinstance(expressions, list):
             raise TypeError
 
@@ -1537,24 +1585,23 @@ class Table(object):
                 if any(errs):
                     raise Exception(errs)
 
-        table_true, table_false = None, None
+        true = Table()
+        true.add_columns(*self.columns)
+        false = true.copy()
+
         for task in merge_tasks:
             tmp_true = Table.load(mem.path, key=task.kwargs['true_key'])
-            if table_true is None:
-                table_true = tmp_true
-            elif len(tmp_true):
-                table_true += tmp_true
+            if len(tmp_true):
+                true += tmp_true
             else:
                 pass
                 
             tmp_false = Table.load(mem.path, key=task.kwargs['false_key'])
-            if table_false is None:
-                table_false = tmp_false
-            elif len(tmp_false):
-                table_false += tmp_false
+            if len(tmp_false):
+                false += tmp_false
             else:
                 pass
-        return table_true, table_false
+        return true, false
     
     def sort_index(self, sort_mode='excel', tqdm=_tqdm, pbar=None, **kwargs):  
         """ 
@@ -1776,7 +1823,7 @@ class Table(object):
         if len(self)*len(self.columns) < SINGLE_PROCESSING_LIMIT:
             t = Table()
             for col_name in self.columns:
-                data = self[col_name]
+                data = self[col_name][:]
                 t[col_name] = [data[i] for i in ixs]
             return t
         else:
@@ -1803,7 +1850,7 @@ class Table(object):
         if len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT:
             t = Table()
             for col_name in self.columns:
-                data = self[col_name]
+                data = self[col_name][:]
                 t[col_name] = [data[i] for i in ixs]
             return t
         else:
@@ -2784,7 +2831,8 @@ class Column(object):
             d[k].append(ix)
         return d
 
-    def unique(self):  
+    def unique(self):
+        """ returns unique list of values. """
         try:
             return np.unique(self.__getitem__())
         except TypeError:  # np arrays can't handle dtype='O':
