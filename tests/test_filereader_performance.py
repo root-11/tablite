@@ -1,18 +1,14 @@
 import time
 import math
-import pathlib
 import pytest
-import tempfile
-import random
+
 
 import logging
 log = logging.getLogger()
 log.setLevel(logging.INFO)
 
-from datetime import datetime
-from string import ascii_uppercase
-
 from tablite import Table, get_headers
+from tablite.datasets import synthetic_order_data_csv, remove_synthetic_data
 
 
 @pytest.fixture(autouse=True) # this resets the HDF5 file for every test.
@@ -42,66 +38,9 @@ def test01_timing():
     a_preview.show()
   
 
-def make_csv_file(rows=100_000):
-    rows = int(rows)
-    d = tempfile.gettempdir()
-    path = pathlib.Path(d) / "large.csv"
-    finger_print = pathlib.Path(d) /"large.csv-fingerprint"
-    if finger_print.exists() and path.exists():
-        with finger_print.open('r',encoding='utf-8') as fi:
-            fp = fi.read()
-            if fp == f"{rows}":
-                print("file already exists ...")
-                return path
-
-    print(f'creating {path} with {rows:,} rows', end=":")
-    headers = ["#", "1","2","3","4","5","6","7","8","9","10","11"]
-    with path.open(mode='w', encoding='utf-8') as fo:
-        fo.write(",".join(headers) + "\n")  # headers
-
-        L1 = ['None', '0°', '6°', '21°']
-        L2 = ['ABC', 'XYZ', ""]
-        for row_no in range(1,rows+1):  # rows
-            row = [
-                row_no,
-                random.randint(18_778_628_504, 2277_772_117_504),  # 1 - mock orderid
-                datetime.fromordinal(random.randint(738000, 738150)).isoformat(),  # 2 - mock delivery date.
-                random.randint(50000, 51000),  # 3 - mock store id.
-                random.randint(0, 1),  # 4 - random bit.
-                random.randint(3000, 30000),  # 5 - mock product id
-                f"C{random.randint(1, 5)}-{random.randint(1, 5)}",  # random weird string
-                "".join(random.choice(ascii_uppercase) for _ in range(3)),  # random category
-                random.choice(L1),  # random temperature group.
-                random.choice(L2),  # random choice of category
-                random.uniform(0.01, 2.5),  # volume?
-                f"{random.uniform(0.1, 25)}\n"  # units?
-            ]
-            assert len(row) == len(headers)
-
-            fo.write(",".join(str(i) for i in row))
-            if row_no % (rows/100) == 0: 
-                print(".",end="")
-
-    with finger_print.open('w', encoding='utf-8') as fo:
-        fo.write(f"{rows}")
-
-    assert isinstance(path, pathlib.Path)
-    return path
-
-
-def test_loggers():
-    loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
-    tablite_logger_found = False
-    for logger in loggers:
-        if 'tablite' in logger.name:
-            tablite_logger_found = True
-        print(logger)
-    assert tablite_logger_found    
-
-
 def test01():
     rows = 8e6
-    path = make_csv_file(rows)
+    path = synthetic_order_data_csv(rows)
     if not path.exists():
         raise FileNotFoundError(path)
     
@@ -167,5 +106,6 @@ def test01():
     print(f"1 TB of data == {len(t4)} rows ({round(end-start,4)} secs)")
     t4.show()
 
-
+    # finally clean up the drive:
+    remove_synthetic_data()
 
