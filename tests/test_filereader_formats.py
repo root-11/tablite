@@ -54,6 +54,32 @@ def test_text_escape():
     assert te == ['1000294', 'S2417DG 24"" LED monitor (210-AJWM)', '47.120,000', 'CM3', '3']
 
 
+def test_text_escape():
+    # set up
+    text_escape = TextEscape(openings='({[', closures=']})', text_qualifier='"', delimiter=',')
+    s = "this,is,a,,嗨,(comma,sep'd),\"text\""
+    L = text_escape(s)
+    assert L == ["this", "is", "a", "","嗨", "(comma,sep'd)", "text"]
+
+def test2():
+    text_escape = TextEscape(openings='({[', closures=']})', delimiter=',')
+
+    s = "this,is,a,,嗨,(comma,sep'd),text"
+    L = text_escape(s)
+    assert L == ["this", "is", "a", "","嗨", "(comma,sep'd)", "text"]
+
+def test_get_headers():
+    import pathlib
+    folder = pathlib.Path(__file__).parent / 'data'
+    for fname in folder.iterdir():
+        d = get_headers(fname)  
+        assert isinstance(d, dict)
+        # this test does not look for content. It merely checks that the reader doesn't fail.
+        assert d
+        print(fname)
+        print(d)
+        
+
 def test_filereader_123csv():
     csv_file = Path(__file__).parent / "data" / "123.csv"
 
