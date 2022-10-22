@@ -227,8 +227,9 @@ def _text_reader_task_size(newlines, filesize, cpu_count, free_virtual_memory, w
     
     returns: 
         lines per task: int
-        cpu_count: int >= 0. If cpu_count returned is zero it means that there 
-                             isn't enough memory to launch a subprocess.
+        cpu_count: int >= 0. 
+            If cpu_count returned is zero it means that there 
+            isn't enough memory to launch a subprocess.
 
     """
     bytes_per_line = math.ceil(filesize / newlines)
@@ -412,7 +413,7 @@ def text_reader(path, columns, header_line, first_row_has_headers, encoding, sta
     return t
 
 
-file_readers = {
+file_readers = {   # dict of file formats and functions used during Table.import_file
     'fods': excel_reader,
     'json': excel_reader,
     'html': excel_reader,
