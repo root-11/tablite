@@ -195,16 +195,18 @@ def test_datatype_inference():
     # ("Jan 1 1999 11:23:34.578", datetime(1999, 1, 1, 11, 23, 34, 578000), "random format"),
 
 
-
 def test_round():
     xround = DataTypes.round
     # round up
+    assert xround(0,1,True) == 0
     assert xround(1.6, 1, True) == 2
     assert xround(1.4, 1, True) == 2
     # round down
+    assert xround(0,1,False) == 0
     assert xround(1.6, 1, False) == 1
     assert xround(1.4, 1, False) == 1
     # round half
+    assert xround(0,1) == 0
     assert xround(1.6, 1) == 2
     assert xround(1.4, 1) == 1
 
