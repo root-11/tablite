@@ -1,6 +1,5 @@
 from tablite.utils import intercept, summary_statistics, date_range, xround, expression_interpreter
 import statistics
-from random import randint
 from datetime import date, time, datetime, timedelta
 from itertools import chain
 
