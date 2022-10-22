@@ -631,3 +631,14 @@ def test_from_dict():
     assert t['b'] == [4,5,6]
 
 
+def test_replace():
+    t = Table()
+    t['a'] = [1,2,3,4]
+    t['b'] = [4,5,6,7]
+    t['c'] = [4,'4',44,'44']
+    t['d'] = [4,None,4.4,'44']
+    t.replace(target=4,replacement=40)
+    assert t['a'] == [1,2,3,40]
+    assert t['b'] == [40,5,6,7]
+    assert t['c'] == [40,'4',44,'44']
+    assert t['d'] == [40,None,4.4,'44']
