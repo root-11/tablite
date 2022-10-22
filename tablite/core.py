@@ -456,6 +456,9 @@ class Table(object):
 
     @save.setter
     def save(self, value):
+        """
+        Makes the table persistent on disk in HDF5 storage.
+        """
         if not isinstance(value, bool):
             raise TypeError(f'expected bool, got: {type(value)}')
         if self._saved != value:
@@ -481,6 +484,9 @@ class Table(object):
 
     @property
     def columns(self):
+        """
+        returns list of column names.
+        """
         return list(self._columns.keys())
 
     @property
@@ -505,12 +511,40 @@ class Table(object):
     def __iter__(self):
         """
         Disabled. Users should use Table.rows or Table.columns
+
+        Why? See [1,2,3] below.
+
+        >>> import this
+        The Zen of Python, by Tim Peters
+
+        Beautiful is better than ugly.
+        Explicit is better than implicit.                          <---- [1]
+        Simple is better than complex.
+        Complex is better than complicated.
+        Flat is better than nested.
+        Sparse is better than dense.
+        Readability counts.                                        <---- [2]
+        Special cases aren't special enough to break the rules.
+        Although practicality beats purity.
+        Errors should never pass silently.
+        Unless explicitly silenced.
+        In the face of ambiguity, refuse the temptation to guess.  <---- [3]
+        There should be one-- and preferably only one --obvious way to do it.
+        Although that way may not be obvious at first unless you're Dutch.
+        Now is better than never.
+        Although never is often better than *right* now.
+        If the implementation is hard to explain, it's a bad idea.
+        If the implementation is easy to explain, it may be a good idea.
+        Namespaces are one honking great idea -- let's do more of those!
         """
         raise AttributeError("use Table.rows or Table.columns")
 
     def __len__(self):
-        for v in self._columns.values():  
-            return len(v)  # return on first key.
+        """
+        returns length of table.
+        """
+        if self._columns:
+            return max(len(c) for c in self._columns.values())
         return 0  # if there are no columns.
 
     def __setitem__(self, keys, values):
@@ -604,16 +638,25 @@ class Table(object):
             raise NotImplemented()
 
     def copy(self):
+        """
+        Returns a copy of the table.
+        """
         t = Table()
         for name, col in self._columns.items():
             t[name] = col
         return t
 
     def clear(self):
+        """
+        removes all rows and columns from a table.
+        """
         for name in self.columns:
             self.__delitem__(name)
 
     def __eq__(self, __o: object) -> bool:
+        """
+        Determines if two tables have identical content.
+        """
         if not isinstance(__o, Table):
             return False
         if id(self) == id(__o):
@@ -705,6 +748,10 @@ class Table(object):
 
     @classmethod
     def load(cls, path, key):
+        """
+        Special classmethod to load saved tables stored in hdf5 storage.
+        Used by reload_saved_tables
+        """
         with h5py.File(path, 'r+') as h5:
             group = f"/table/{key}"
             dset = h5[group]
@@ -800,14 +847,13 @@ class Table(object):
 
     def add_column(self,name, data=None):
         """
-        alias for table[name] = data
+        verbose alias for table[name] = data, that checks if name already exists
         """
         if not isinstance(name, str):
             raise TypeError()
         if name in self.columns:
             raise ValueError(f"{name} already in {self.columns}")
-        if not data:
-            pass
+
         self.__setitem__(name,data)
 
     def stack(self, other):
@@ -841,6 +887,19 @@ class Table(object):
         return t
 
     def types(self):
+        """
+        returns nested dict of data types in the form:
+
+            {column name: {python type class: number of instances }, }
+
+        example:
+        >>> t.types()
+        { 
+            'A': {<class 'str'>: 7}, 
+            'B': {<class 'int'>: 7}
+        }
+        """
+
         d = {}
         for name,col in self._columns.items():
             assert isinstance(col, Column)
@@ -906,8 +965,9 @@ class Table(object):
 
     def show(self, *args, blanks=None):
         """
-        accepted args:
+        param: args:
           - slice
+        blanks: fill value for `None`
         """ 
         if not self.columns:
             print("Empty Table")
@@ -1002,6 +1062,32 @@ class Table(object):
         return start + ''.join(html) + end + warning  
 
     def index(self, *args):
+        """
+        param: *args: column names
+        returns multikey index on the table
+
+        Examples:
+        >>> table6 = Table()
+        >>> table6['A'] = ['Alice', 'Bob', 'Bob', 'Ben', 'Charlie', 'Ben','Albert']
+        >>> table6['B'] = ['Alison', 'Marley', 'Dylan', 'Affleck', 'Hepburn', 'Barnes', 'Einstein']
+
+        >>> table6.index('A')  # single key.
+        {('Alice',): {0}, 
+         ('Bob',): {1, 2}, 
+         ('Ben',): {3, 5}, 
+         ('Charlie',): {4}, 
+         ('Albert',): {6}})
+
+        >>> table6.index('A', 'B')  # multiple keys.
+        {('Alice', 'Alison'): {0}, 
+         ('Bob', 'Marley'): {1},
+         ('Bob', 'Dylan'): {2},
+         ('Ben', 'Affleck'): {3},
+         ('Charlie', 'Hepburn'): {4}, 
+         ('Ben', 'Barnes'): {5}, 
+         ('Albert', 'Einstein'): {6}})
+        
+        """
         cols = []
         for arg in args:
             col = self._columns.get(arg, None)
@@ -1041,6 +1127,25 @@ class Table(object):
 
     @classmethod
     def from_dict(self, d):
+        """
+        creates new Table instance from dict
+
+        Example:
+        >>> from tablite import Table
+        >>> t = Table.from_dict({'a':[1,2], 'b':[3,4]})
+        >>> t
+        Table(2 columns, 2 rows)
+        >>> t.show()
+        +===+===+===+
+        | # | a | b |
+        |row|int|int|
+        +---+---+---+
+        | 0 |  1|  3|
+        | 1 |  2|  4|
+        +===+===+===+
+        >>> 
+
+        """
         t = Table()
         for k,v in d.items():
             if not isinstance(k,str):
@@ -1490,11 +1595,12 @@ class Table(object):
         enables filtering across columns for multiple criteria.
         
         expressions:
+
             str: Expression that can be compiled and executed row by row.
-                "all((A==B and C!=4 and 200<D))"  
+                exampLe: "all((A==B and C!=4 and 200<D))"  
 
-            list of dicts: E.g.:
-
+            list of dicts: (example):
+                
                 L = [
                     {'column1':'A', 'criteria': "==", 'column2': 'B'}, 
                     {'column1':'C', 'criteria': "!=", "value2": '4'},
@@ -1606,8 +1712,9 @@ class Table(object):
     def sort_index(self, sort_mode='excel', tqdm=_tqdm, pbar=None, **kwargs):  
         """ 
         helper for methods `sort` and `is_sorted` 
-        sort_mode: str: "alphanumeric", "unix", or, "excel"
-        kwargs: sort criteria. See Table.sort()
+
+        param: sort_mode: str: "alphanumeric", "unix", or, "excel" (default)
+        param: **kwargs: sort criteria. See Table.sort()
         """
         logging.info(f"Table.sort_index running 1 core")  # TODO: This is single core code.
 
@@ -1652,13 +1759,13 @@ class Table(object):
 
         Examples:
 
-            Table:  [1,2,3,4,5,6,7,8]
+            Table:  ['a','b','c','d','e','f','g','h']
             index:  [0,2,4,6]
-            result: [1,3,5,7]
+            result: ['b','d','f','h']
 
-            Table:  [1,2,3,4,5,6,7,8]           
+            Table:  ['a','b','c','d','e','f','g','h']
             index:  [0,2,4,6,1,3,5,7]
-            result: [1,3,5,7,2,4,6,8]
+            result: ['a','c','e','g','b','d','f','h']
         
         """
         if index is not None:
@@ -1816,6 +1923,34 @@ class Table(object):
         """
         returns Table for rows where ALL kwargs match
         :param kwargs: dictionary with headers and values / boolean callable
+
+        Examples:
+
+            t = Table()
+            t['a'] = [1,2,3,4]
+            t['b'] = [10,20,30,40]
+
+            def f(x):
+                return x == 4 
+            def g(x):
+                return x < 20
+
+            t2 = t.any( **{"a":f, "b":g})
+            assert [r for r in t2.rows] == [[1, 10], [4, 40]]
+            
+            t2 = t.any(a=f,b=g)
+            assert [r for r in t2.rows] == [[1, 10], [4, 40]]
+
+            def h(x):
+                return x>=2
+            
+            def i(x):
+                return x<=30
+
+            t2 = t.all(a=h,b=i)
+            assert [r for r in t2.rows] == [[2,20], [3, 30]]
+
+
         """
         if not isinstance(kwargs, dict):
             raise TypeError("did you forget to add the ** in front of your dict?")
@@ -1857,7 +1992,16 @@ class Table(object):
 
     def drop(self, *args):
         """
-        args are treated as 'na's
+        removes all rows where args are present. 
+        
+        Exmaple:
+        >>> t = Table()
+        >>> t['A'] = [1,2,3,None]
+        >>> t['B'] = [None,2,3,4]
+        >>> t2 = t.drop(None)
+        >>> t2['A'][:], t2['B'][:]
+        ([2,3], [2,3])
+
         """
         if not args:
             raise ValueError("What to drop? None? np.nan? ")
@@ -1894,7 +2038,7 @@ class Table(object):
     def groupby(self, keys, functions, tqdm=_tqdm, pbar=None):  # TODO: This is single core code.
         """
         keys: column names for grouping.
-        functions: [optional] list of column names and group functions (See GroupyBy)
+        functions: [optional] list of column names and group functions (See GroupyBy class)
         returns: table
 
         Example:
@@ -1902,17 +2046,72 @@ class Table(object):
         t = Table()
         t.add_column('A', data=[1, 1, 2, 2, 3, 3] * 2)
         t.add_column('B', data=[1, 2, 3, 4, 5, 6] * 2)
+        t.add_column('C', data=[6, 5, 4, 3, 2, 1] * 2)
 
-        g1 = t.groupby(keys=['A'], functions=[])  # list of unique values
-        assert g1['A'] == [1,2,3]
+        t.show()
+        # +=====+=====+=====+
+        # |  A  |  B  |  C  |
+        # | int | int | int |
+        # +-----+-----+-----+
+        # |    1|    1|    6|
+        # |    1|    2|    5|
+        # |    2|    3|    4|
+        # |    2|    4|    3|
+        # |    3|    5|    2|
+        # |    3|    6|    1|
+        # |    1|    1|    6|
+        # |    1|    2|    5|
+        # |    2|    3|    4|
+        # |    2|    4|    3|
+        # |    3|    5|    2|
+        # |    3|    6|    1|
+        # +=====+=====+=====+
 
-        g2 = t.groupby(keys=['A', 'B'], functions=[])  # list of unique values, grouped by longest combination.
-        assert g2['A'] == [1,1,2,2,3,3]
-        assert g2['B'] == [1,2,3,4,5,6]
+        g = t.groupby(keys=['A', 'C'], functions=[('B', gb.sum)])
+        g.show()
+        # +===+===+===+======+
+        # | # | A | C |Sum(B)|
+        # |row|int|int| int  |
+        # +---+---+---+------+
+        # |0  |  1|  6|     2|
+        # |1  |  1|  5|     4|
+        # |2  |  2|  4|     6|
+        # |3  |  2|  3|     8|
+        # |4  |  3|  2|    10|
+        # |5  |  3|  1|    12|
+        # +===+===+===+======+
 
-        g3 = t.groupby(keys=['A'], functions=[('A', gb.count)])  # A key (unique values) and count hereof.
-        assert g3['A'] == [1,2,3]
-        assert g3['Count(A)'] == [4,4,4]
+        Cheat sheet:
+
+        # list of unique values
+        >>> g1 = t.groupby(keys=['A'], functions=[])  
+        >>> g1['A'][:]
+        [1,2,3]
+
+        # alternatively:
+        >>> t['A'].unique()
+        [1,2,3]
+
+        # list of unique values, grouped by longest combination.
+        >>> g2 = t.groupby(keys=['A', 'B'], functions=[])  
+        >>> g2['A'][:], g2['B'][:]
+        ([1,1,2,2,3,3], [1,2,3,4,5,6])
+
+        # alternatively:
+        >>> list(zip(*t.index('A', 'B').keys()))
+        [(1,1,2,2,3,3) (1,2,3,4,5,6)]
+
+        # A key (unique values) and count hereof.
+        >>> g3 = t.groupby(keys=['A'], functions=[('A', gb.count)])  
+        >>> g3['A'][:], g3['Count(A)'][:]
+        ([1,2,3], [4,4,4])
+
+        # alternatively:
+        >>> t['A'].histogram()
+        ([1,2,3], [4,4,4])
+
+        for more exmaples see: 
+            https://github.com/root-11/tablite/blob/master/tests/test_groupby.py
 
         """
         if not isinstance(keys, list):
@@ -2008,6 +2207,47 @@ class Table(object):
         return result
 
     def pivot(self, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=None):
+        """
+        param: rows: column names to keep as rows
+        param: columns: column names to keep as columns
+        param: functions: aggregation functions from the Groupby class as 
+
+        example: 
+
+        t.show()
+        # +=====+=====+=====+
+        # |  A  |  B  |  C  |
+        # | int | int | int |
+        # +-----+-----+-----+
+        # |    1|    1|    6|
+        # |    1|    2|    5|
+        # |    2|    3|    4|
+        # |    2|    4|    3|
+        # |    3|    5|    2|
+        # |    3|    6|    1|
+        # |    1|    1|    6|
+        # |    1|    2|    5|
+        # |    2|    3|    4|
+        # |    2|    4|    3|
+        # |    3|    5|    2|
+        # |    3|    6|    1|
+        # +=====+=====+=====+
+
+        t2 = t.pivot(rows=['C'], columns=['A'], functions=[('B', gb.sum)])
+        t2.show()
+        # +===+===+========+=====+=====+=====+
+        # | # | C |function|(A=1)|(A=2)|(A=3)|
+        # |row|int|  str   |mixed|mixed|mixed|
+        # +---+---+--------+-----+-----+-----+
+        # |0  |  6|Sum(B)  |    2|None |None |
+        # |1  |  5|Sum(B)  |    4|None |None |
+        # |2  |  4|Sum(B)  |None |    6|None |
+        # |3  |  3|Sum(B)  |None |    8|None |
+        # |4  |  2|Sum(B)  |None |None |   10|
+        # |5  |  1|Sum(B)  |None |None |   12|
+        # +===+===+========+=====+=====+=====+
+
+        """
         if isinstance(rows, str):
             rows = [rows]
         if not all(isinstance(i,str) for i in rows)            :
@@ -2183,7 +2423,7 @@ class Table(object):
     
     def _sp_join(self, other, LEFT,RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None):
         """
-        helper for single processing join
+        private helper for single processing join
         """
         result = Table()
 
@@ -2204,7 +2444,7 @@ class Table(object):
 
     def _mp_join(self, other, LEFT,RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None):
         """ 
-        helper for multiprocessing join
+        private helper for multiprocessing join
         """
         left_arr = np.zeros(shape=(len(LEFT)), dtype=np.int64)
         left_shm = shared_memory.SharedMemory(create=True, size=left_arr.nbytes)  # the co_processors will read this.
@@ -2383,16 +2623,18 @@ class Table(object):
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-        
+    
     def lookup(self, other, *criteria, all=True, tqdm=_tqdm):  # TODO: This is single core code.
         """ function for looking up values in `other` according to criteria in ascending order.
         :param: other: Table sorted in ascending search order.
         :param: criteria: Each criteria must be a tuple with value comparisons in the form:
             (LEFT, OPERATOR, RIGHT)
         :param: all: boolean: True=ALL, False=Any
+
         OPERATOR must be a callable that returns a boolean
         LEFT must be a value that the OPERATOR can compare.
         RIGHT must be a value that the OPERATOR can compare.
+
         Examples:
               ('column A', "==", 'column B')  # comparison of two columns
               ('Date', "<", DataTypes.date(24,12) )  # value from column 'Date' is before 24/12.
