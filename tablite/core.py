@@ -2768,7 +2768,10 @@ class Table(object):
 
 class Column(object):
     def __init__(self, data=None, key=None) -> None:
-
+        """
+        data: list of values
+        key: (default None) id used during Table.load to instantiate the column.
+        """
         if key is None:
             self.key = mem.new_id('/column')
         else:
