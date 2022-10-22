@@ -13,8 +13,8 @@ def blowup():
     raise OSError()
 
 
-def test_timeout_result():
+def test_timeout_result():  
     for i in [1,3]:
-        x = sleepy(i)
+        x = sleepy(i)  # tests that the timeout decorator works on sleepy
         assert x == i
 
