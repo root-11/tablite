@@ -1253,6 +1253,45 @@ class Table(object):
                     pbar.update(n)
         print(f"writing {path} to HDF5 done")
 
+    def to_pandas(self):
+        """
+        returns pandas.DataFrame
+        """
+        try:
+            return pd.DataFrame(self.to_dict())
+        except ImportError:
+            import pandas as pd
+        return pd.DataFrame(self.to_dict())       
+    
+    def from_pandas(self, df):
+        """
+        Creates Table using pd.to_dict('list')
+
+        similar to:
+        >>> import pandas as pd
+        >>> df = pd.DataFrame({'a':[1,2,3], 'b':[4,5,6]})
+        >>> df
+            a  b
+            0  1  4
+            1  2  5
+            2  3  6
+        >>> df.to_dict('list')   
+        {'a': [1, 2, 3], 'b': [4, 5, 6]}
+
+        >>> t = Table.from_dict(df.to_dict('list))
+        >>> t.show()
+            +===+===+===+
+            | # | a | b |
+            |row|int|int|
+            +---+---+---+
+            | 0 |  1|  4|
+            | 1 |  2|  5|
+            | 2 |  3|  6|
+            +===+===+===+
+        """
+        return self.from_dict(df.to_dict('list'))
+        
+
     def from_hdf5(self, path):
         """
         imports an exported hdf5 table.
