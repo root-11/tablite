@@ -1,6 +1,5 @@
 from collections import defaultdict
 from datetime import date,time,datetime,timedelta
-from tablite.datatypes import DataTypes
 
 
 class GroupbyFunction(object):
