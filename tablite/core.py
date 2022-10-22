@@ -2069,6 +2069,15 @@ class Table(object):
         d = {n: lambda x: x not in set(args) for n in self.columns}
         return self.all(**d)
 
+    def replace(self, target, replacement):
+        """ 
+        Finds and replaces all instances of `target` with `replacement` across all Columns
+
+        See Column.replace(target, replacement) for replacement in specific columns.
+        """
+        for _, col in self._columns.items():
+            col.replace(target, replacement)
+
     def any(self, **kwargs):  
         """
         returns Table for rows where ANY kwargs match
@@ -3228,6 +3237,23 @@ class Column(object):
             for k,v in d.items():
                 uarray.append(k), carray.append(v)
         return uarray, carray
+
+    def replace(self, target, replacement):
+        """
+        replaces target with replacement
+        """
+        old_pages = mem.get_pages(self.group)
+        new_pages = old_pages[:]
+        
+        for ix, page in enumerate(old_pages):
+            if type(target) not in page.datatypes():
+                continue  # quick scan.
+
+            data = page[:].tolist()
+            if target in data:
+                data = [i if i != target else replacement for i in page[:]]
+                new_pages[ix] = Page(data)                
+        self._len = mem.create_virtual_dataset(self.group, pages_before=old_pages, pages_after=new_pages)
 
     def statistics(self):
         """
