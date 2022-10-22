@@ -2553,6 +2553,9 @@ class Column(object):
 
     @classmethod
     def load(cls, key):
+        """
+        loads a column using it hdf5 storage key.
+        """
         return Column(key=key)
     
     def __iter__(self):
@@ -2576,13 +2579,24 @@ class Column(object):
             return result
 
     def clear(self):
+        """
+        clears the column. Like list().clear()
+        """
         old_pages = mem.get_pages(self.group)
         self._len = mem.create_virtual_dataset(self.group, pages_before=old_pages, pages_after=[])
 
     def append(self, value):
+        """
+        addends value. Like list().append(value)
+
+        Note: Slower than .extend( many values ) as each append is written to disk
+        """
         self.__setitem__(key=slice(self._len,None,None), value=[value])
         
-    def insert(self, index, value):        
+    def insert(self, index, value):
+        """
+        inserts values. Like list().insert(index, value)
+        """
         old_pages = mem.get_pages(self.group)
         new_pages = old_pages[:]
 
@@ -2600,13 +2614,18 @@ class Column(object):
         self._len = mem.create_virtual_dataset(self.group, pages_before=old_pages, pages_after=new_pages)
     
     def extend(self, values):
+        """
+        extends the list. Like list().extend( many values )
+
+        Note: Faster than .append as all values are written to disk at once.
+        """
         self.__setitem__(slice(self._len,None,None), values)  #  self._extend_from_column(values)
         
     def remove(self, value):
         """ 
         removes a single value.
         
-        see also remove_all
+        To remove all instances of `value` use .remove_all( value )
         """
         pages = mem.get_pages(self.group)
         for ix, page in enumerate(pages):
@@ -2630,7 +2649,7 @@ class Column(object):
         """ 
         removes all values of `value`
         
-        see also remove 
+        To remove only one instance of `value` use .remove ( value )
         """
         pages = mem.get_pages(self.group)
         new_pages = pages[:]
@@ -2644,7 +2663,7 @@ class Column(object):
         
     def pop(self, index):
         """
-        removes value at index.
+        removes value at index. Like list().pop( index )
         """
         index = self._len + index if index < 0 else index
         if index > self._len:
@@ -2828,6 +2847,9 @@ class Column(object):
             raise TypeError(f"bad key: {key}")
 
     def __len__(self):
+        """
+        returns number of entries in the Column. Like len(list()) 
+        """
         return self._len
 
     def __eq__(self, other):
@@ -2851,6 +2873,15 @@ class Column(object):
         return self.copy()
     
     def index(self):
+        """
+        returns dict with { unique entry : list of indices }
+
+        example:
+        >>> c = Column(data=['a','b','a','c','b'])
+        >>> c.index()
+        {'a':[0,2], 'b': [1,4], 'c': [3]}
+        
+        """
         data = self.__getitem__()
         d = {k:[] for k in np.unique(data)}  
         for ix,k in enumerate(data):
@@ -2858,7 +2889,14 @@ class Column(object):
         return d
 
     def unique(self):
-        """ returns unique list of values. """
+        """ 
+        returns unique list of values. 
+
+        example:
+        >>> c = Column(data=['a','b','a','c','b'])
+        >>> c.unqiue()
+        ['a','b','c']
+        """
         try:
             return np.unique(self.__getitem__())
         except TypeError:  # np arrays can't handle dtype='O':
@@ -2869,8 +2907,9 @@ class Column(object):
         returns 2 arrays: unique elements and count of each element 
         
         example:
-        >>> for item, counts in zip(self.histogram()):
-        >>>     print(item,counts)
+        >>> c = Column(data=['a','b','a','c','b'])
+        >>> c.unqiue()
+        ['a','b','c'],[2,2,1]
         """
         try:
             uarray, carray = np.unique(self.__getitem__(), return_counts=True)
@@ -2896,23 +2935,56 @@ class Column(object):
         - distinct (int/float, length of str, date)
         - iqr (int/float, length of str, date)
         - sum (int/float, length of str, date)
-        - histogram
+        - histogram (see .histogram)
         """
         return summary_statistics(*self.histogram())
 
     def __add__(self, other):
+        """
+        Concatenates to Columns. Like list() + list()
+
+        Example:
+        >>> one,two = Column(data=[1,2]), Column(data=[3,4])
+        >>> both = one+two
+        >>> both[:]
+        [1,2,3,4]
+        """
         c = self.copy()
         c.extend(other)
         return c
     
     def __contains__(self, item):
+        """
+        determines if item is in the Column. Similar to 'x' in ['a','b','c']
+        returns boolean
+        """
         return item in self.__getitem__()
     
     def __iadd__(self, other):
+        """
+        Extends instance of Column with another Column
+
+        Example:
+        >>> one,two = Column(data=[1,2]), Column(data=[3,4])
+        >>> one += two
+        >>> one[:]
+        [1,2,3,4]
+
+        """
         self.extend(other)
         return self
     
     def __imul__(self, other):
+        """
+        Repeats instance of column N times. Like list() * N
+
+        Example:
+        >>> one = Column(data=[1,2])
+        >>> one *= 5
+        >>> one
+        [1,2, 1,2, 1,2, 1,2, 1,2]
+        
+        """
         if not isinstance(other, int):
             raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
         old_pages = mem.get_pages(self.group)
@@ -2921,6 +2993,16 @@ class Column(object):
         return self
     
     def __mul__(self, other):
+        """
+        Repeats instance of column N times. Like list() * N
+
+        Example:
+        >>> one = Column(data=[1,2])
+        >>> five = one * 5
+        >>> five
+        [1,2, 1,2, 1,2, 1,2, 1,2]
+
+        """
         if not isinstance(other, int):
             raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
         new = Column()
@@ -2930,6 +3012,9 @@ class Column(object):
         return new
     
     def __ne__(self, other):
+        """
+        compares two columns. Like list1 != list2
+        """
         if len(self) != len(other):  # quick cheap check.
             return True
         if not isinstance(other, np.ndarray):
