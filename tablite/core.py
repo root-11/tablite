@@ -1156,12 +1156,23 @@ class Table(object):
             t[k] = v
         return t
 
-    def to_dict(self, row_count="row id", columns=None, slice_=None, start_on=1):
+    def to_dict(self, columns=None, slice_=None):
         """
-        row_count: name of row counts. Default "row id". Use None to leave it out.
         columns: list of column names. Default is None == all columns.
         slice_: slice. Default is None == all rows.
-        start_on: integer: first row (typically 0 or 1)
+
+        Example:
+        >>> t.show()
+        +===+===+===+
+        | # | a | b |
+        |row|int|int|
+        +---+---+---+
+        | 0 |  1|  3|
+        | 1 |  2|  4|
+        +===+===+===+
+        >>> t.to_dict()
+        {'a':[1,2], 'b':[3,4]}
+
         """
         if slice_ is None:
             slice_  = slice(0, len(self))      
@@ -1180,29 +1191,39 @@ class Table(object):
                 raise ValueError(f"column({name}) not found")
         
         cols = {}
-
-        if row_count is not None:
-            cols[row_count] = [i + start_on for i in range(*slice_.indices(len(self)))]
-
         for name in column_selection:
-            new_name = unique_name(name, set_of_names=set(cols.keys()))
             col = self._columns[name]
-            cols[new_name] = col[slice_].tolist()  # pure python objects. No numpy.
-        d = {"columns": cols, "total_rows": len(self)}
-        return d
+            cols[name] = col[slice_].tolist()  # pure python objects. No numpy.
+        return cols
 
-    def as_json_serializable(self, row_count="row id", columns=None, slice_=None):
-        args = row_count, columns, slice_
-        d = self.to_dict(*args)
-        for k,data in d['columns'].items():
-            d['columns'][k] = [DataTypes.to_json(v) for v in data]  # deal with non-json datatypes.
-        return d
+    def as_json_serializable(self, row_count="row id", start_on=1, columns=None, slice_=None):
+        """
+        returns json friendly format.
+
+        For data conversion rules see DataTypes.to_json
+        """
+        if slice_ is None:
+            slice_  = slice(0, len(self))      
+        assert isinstance(slice_, slice)
+
+        new = {'columns': {}, "total_rows": len(self)}
+        if row_count is not None:
+            new['columns'][row_count] = [i + start_on for i in range(*slice_.indices(len(self)))]
+
+        d = self.to_dict(columns, slice_=slice_)
+        for k,data in d.items():
+            new_k = unique_name(k, new['columns'])  # used to avoid overwriting the `row id` key.
+            new['columns'][new_k] = [DataTypes.to_json(v) for v in data]  # deal with non-json datatypes.
+        return new
 
     def to_json(self, *args, **kwargs):
         return json.dumps(self.as_json_serializable(*args, **kwargs))
 
     @classmethod
     def from_json(cls, jsn):
+        """
+        Imports tables exported using .to_json
+        """
         d = json.loads(jsn)
         t = Table()
         for name, data in d['columns'].items():
