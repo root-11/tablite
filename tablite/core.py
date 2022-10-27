@@ -1081,7 +1081,8 @@ class Table(object):
         for name in column_selection:
             new_name = unique_name(name, set_of_names=set(cols.keys()))
             col = self._columns[name]
-            cols[new_name] = col[slice_].tolist()  # pure python objects. No numpy.
+            row_slice = col[slice_]
+            cols[new_name] = row_slice.tolist() if not isinstance(row_slice, list) else row_slice  # pure python objects. No numpy.
         d = {"columns": cols, "total_rows": len(self)}
         return d
 
