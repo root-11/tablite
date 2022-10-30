@@ -4,6 +4,7 @@
 [![Code coverage](https://codecov.io/gh/root-11/tablite/branch/master/graph/badge.svg)](https://codecov.io/gh/root-11/tablite)
 [![Downloads](https://pepy.tech/badge/tablite)](https://pepy.tech/project/tablite)
 [![Downloads](https://pepy.tech/badge/tablite/month)](https://pepy.tech/project/tablite)
+[![PyPI version](https://badge.fury.io/py/tablite.svg)](https://badge.fury.io/py/tablite)
 
 --------------
 
@@ -44,7 +45,7 @@ Tablite is ~200 kB.
 
 Tablite wants you to be productive, so a number of helpers are available. 
 
-- `Table.import_file` to import csv*, tsv, txt, xls, xlsx, xlsm, ods, zip and logs. There is automatic type detection (see [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/tutorial.ipynb))
+- `Table.import_file` to import csv*, tsv, txt, xls, xlsx, xlsm, ods, zip and logs. There is automatic type detection (see [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/docs/articles/tutorial.ipynb))
 - To peek into any supported file use `get_headers` which shows the first 10 rows.
 - Use `mytable.rows` and `mytable.columns` to iterate over rows or columns.
 - Create multi-key `.index` for quick lookups.
@@ -62,7 +63,7 @@ If you're still missing something add it to the [wishlist](https://github.com/ro
 
 ## Installation
 
-[Tablite](https://pypi.org/project/tablite/)
+Get it from pypi: [Tablite](https://pypi.org/project/tablite/) [![PyPI version](https://badge.fury.io/py/tablite.svg)](https://badge.fury.io/py/tablite)
 
 Install: `pip install tablite`  
 Usage:  `>>> from tablite import Table`  
@@ -93,19 +94,18 @@ Usage:  `>>> from tablite import Table`
 
 ## Tutorial
 
-To learn more see the [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/tutorial.ipynb) (Jupyter notebook)
+To learn more see the [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/docs/articles/tutorial.ipynb) (Jupyter notebook)
 
 
 ## Latest updates
 
-See [changelog.md](https://github.com/root-11/tablite/blob/master/changelog.md)
+See [changelog.md](https://github.com/root-11/tablite/blob/master/docs/articles/changelog.md)
 
 
 ## Credits
 
 - Martynas Kaunas - GroupBy functionality.
-- Audrius Kulikajevas - Edge case testing / various bugs.
-- realratchet - Jupyter notebook integration.
+- Audrius Kulikajevas - Edge case testing / various bugs, Jupyter notebook integration.
 - Sergej Sinkarenko - various bugs.
 - Ovidijus Grigas - various bugs, documentation.
 - Lori Cooper - spell checking.
