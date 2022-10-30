@@ -2,6 +2,7 @@
 
 | Version    | Change                                              |
 |:-----------|-----------------------------------------------------|
+| 2022.10.12 | bugfix for [case](https://github.com/root-11/tablite/blob/master/tests/test_filter.py#L40) where table-2-column relationship wasn't updated |
 | 2022.10.11 | filter now accepts any expression (str) that can be compiled by pythons compiler |
 | 2022.10.11 | Bugfix for `.any` and `.all`. The code now executes much faster|
 | 2022.10.10 | Bugfix for `Table.import_file`: `import_as` has been removed from keywords.|
