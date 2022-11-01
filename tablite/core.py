@@ -2851,6 +2851,157 @@ class Table(object):
             t = Table.load(path=mem.path, key=result.key)
             return t
 
+    def replace_missing_values(self, *args, **kwargs):
+        raise AttributeError("See imputation")
+
+    def imputation(self, targets, missing=None, method='carry forward', sources=None):
+        """
+        In statistics, imputation is the process of replacing missing data with substituted values.
+
+        See more: https://en.wikipedia.org/wiki/Imputation_(statistics)
+
+        Args:
+            table (Table): source table.
+
+            targets (str or list of strings): column names to find and 
+                replace missing values 
+
+            missing (any): value to be replaced
+
+            method (str): method to be used for replacement. Options:
+                
+                'carry forward':
+                    takes the previous value, and carries forward into fields
+                    where values are missing.
+                    +: quick. Realistic on time series.
+                    -: Can produce strange outliers.
+            
+                'mean': 
+                    calculates the column mean (exclude `missing`) and copies
+                    the mean in as replacement.
+                    +: quick
+                    -: doesn't work on text. Causes data set to drift towards the mean.
+                'mode': 
+                    calculates the column mode (exclude `missing`) and copies
+                    the mean in as replacement.
+                    +: quick
+                    -: most frequent value becomes over-represented in the sample
+                
+                'nearest neighbour': 
+                    calculates normalised distance between items in source columns
+                    selects nearest neighbour and copies value as replacement.
+                    +: works for any datatype.
+                    -: computationally intensive (e.g. slow)
+            
+            sources (list of strings): NEAREST NEIGHBOUR ONLY
+                column names to be used during imputation.
+                if None or empty, all columns will be used.
+
+        Returns:
+            table: table with replaced values.
+        """        
+        if isinstance(targets, str) and targets not in self.columns:
+            targets = [targets]
+        if isinstance(targets, list):
+            for name in targets:
+                if not isinstance(name, str):
+                    raise TypeError(f"expected str, not {type(name)}")
+                if name not in self.columns:
+                    raise ValueError(f"target item {name} not a column name in self.columns:\n{self.columns}")
+        else:
+            raise TypeError("Expected source as list of column names")
+
+        if method == 'nearest_neighbour':
+            if sources in (None,[]):
+                sources = self.columns
+            if isinstance(sources, str):
+                sources = [sources]
+            if isinstance(sources, list):
+                for name in sources:
+                    if not isinstance(name, str):
+                        raise TypeError(f"expected str, not {type(name)}")
+                    if name not in self.columns:
+                        raise ValueError(f"source item {name} not a column name in self.columns:\n{self.columns}")
+            else:
+                raise TypeError("Expected source as list of column names")
+        
+
+        methods = ['nearest neighbour', 'mean', 'mode', 'carry forward']
+
+        if method == 'carry forward':
+            
+            new = Table()
+            for name in self.columns:
+                if name in targets:
+                    data = self[name][:]  # create copy
+                    last_value = None
+                    for ix, v in enumerate(data):
+                        if v == missing:  # perform replacement
+                            data[ix] = last_value
+                        else:  # keep last value.
+                            last_value = v
+                    new[name] = data
+                else:
+                    new[name] = self[name]
+
+            return new
+
+        elif method in {'mean', 'mode'}:
+
+            new = Table()
+            for name in self.columns:
+                if name in targets:
+                    col = self[name].copy()
+                    assert isinstance(col, Column)
+                    stats = col.statistics()
+                    new_value = stats[method]
+                    col.replace(target=missing, replacement=new_value)
+                    new[name] = col
+                else:
+                    new[name] = self[name]  # no entropy, keep as is.
+            
+            return new
+
+        elif method == 'nearest neighbour':
+
+            new = self.copy()
+            norm_index = {}
+            normalised_values = Table()
+            for name in sources:
+                values = self[name].unique()
+                values = sortation.unix_sort(values)
+                
+                n = len([v for v in values if v != missing])
+                d = {v:i/n if v != missing else math.inf for i,v in enumerate(values)}
+                normalised_values[name] = [d[v] for v in values]
+                norm_index[name] = d
+            
+            required_columns = set(sources)
+            missing_value_index = self.index(*targets)
+            missing_value_index = {k:v for k,v in missing_value_index.items() if missing in k}  # strip out all that do not have missings.
+            
+            with _tqdm(unit="missing values", total=sum(len(v) for v in missing_value_index.values())) as pbar:
+                for key in sortation.unix_sort(missing_value_index.keys(),reverse=True):  # Fewest None's are at the front of the list.
+                    for row_ids in missing_value_index[key]:
+                        for row_id in row_ids:
+                            err_map = [0.0 for _ in len(self)]
+                            row = {n:v for n,v in zip(self.columns, self[row_id]) if n in required_columns}
+                            for n,v in row.items():
+                                norm_value = norm_index[n][v]
+                                err_map = [e1 + abs(norm_value-e2) for e1,e2 in zip(err_map,normalised_values[n])]
+                            min_err = min(err_map)
+                            ix = err_map.index(min_err)
+                            
+                            for name in targets:  
+                                current_value = new[name][row_id]  
+                                if current_value == missing:
+                                    new[name][row_id] = new[name][ix]
+                            pbar.update(1)
+            return new
+            
+        else:
+            raise ValueError(f"method {method} not recognised amonst known methods: {list(methods)})")
+
 
 class Column(object):
     def __init__(self, data=None, key=None) -> None:
