@@ -5,6 +5,10 @@ import pickle
 
 
 class DataTypes(object):
+    """DataTypes is the conversion library for all datatypes.
+
+    It supports any / all python datatypes.
+    """
     # supported datatypes.
     int = int
     str = str
@@ -336,6 +340,14 @@ class DataTypes(object):
 
     @staticmethod
     def to_json(v):
+        """converts any python type to json.
+
+        Args:
+            v (any): value to convert to json
+
+        Returns:
+            json compatible value from v
+        """
         if hasattr(v, 'dtype'):
             pytype = numpy_types[v.dtype.name]
             v = pytype(v)
@@ -364,6 +376,15 @@ class DataTypes(object):
 
     @staticmethod
     def from_json(v, dtype):
+        """converts json to python datatype
+
+        Args:
+            v (any): value
+            dtype (python type): any python type
+
+        Returns:
+            python type of value v
+        """
         if v in DataTypes.nones:
             if dtype is str and v == "":
                 return ""
@@ -401,11 +422,12 @@ class DataTypes(object):
 
     @staticmethod
     def guess_types(*values):
-        """
-        Attempts to guess the datatype for *values
+        """Attempts to guess the datatype for *values
         returns dict with matching datatypes and probabilities
-        """
 
+        Returns:
+            dict: {key: type, value: probability}
+        """
         d = defaultdict(int)
         probability = Rank(DataTypes.types[:])
         
@@ -427,9 +449,11 @@ class DataTypes(object):
 
     @staticmethod
     def guess(*values):
-        """
-        Makes a best guess the datatype for *values
+        """Makes a best guess the datatype for *values
         returns list of native python values
+
+        Returns:
+            list: list of native python values
         """
         probability = Rank(*DataTypes.types[:])
         matches = [None for _ in values[0]]
@@ -643,21 +667,30 @@ class DataTypes(object):
 
 
 def _get_numpy_types():
-    # d = {}
-    # for name in dir(np):
-    #     obj = getattr(np,name)
-    #     if hasattr(obj, 'dtype'):
-    #         try:
-    #             if 'time' in name:
-    #                 npn = obj(0, 'D')
-    #             else:
-    #                 npn = obj(0)
-    #             nat = npn.item()
-    #             d[name] = type(nat)
-    #             d[npn.dtype.char] = type(nat)
-    #         except:
-    #             pass
-    # return d
+    """mapping of numpy types and python native types
+
+    The mapping can be generated using:
+
+        d = {}
+        for name in dir(np):
+            obj = getattr(np,name)
+            if hasattr(obj, 'dtype'):
+                try:
+                    if 'time' in name:
+                        npn = obj(0, 'D')
+                    else:
+                        npn = obj(0)
+                    nat = npn.item()
+                    d[name] = type(nat)
+                    d[npn.dtype.char] = type(nat)
+                except:
+                    pass
+        return d
+
+    Returns:
+        dict: {key: numpy dtype str, value: python native type class}
+    """
+    
     return {
         "bool": bool,
         "bool_":bool,  #  ('?') -> <class 'bool'>

@@ -4,6 +4,7 @@
 [![Code coverage](https://codecov.io/gh/root-11/tablite/branch/master/graph/badge.svg)](https://codecov.io/gh/root-11/tablite)
 [![Downloads](https://pepy.tech/badge/tablite)](https://pepy.tech/project/tablite)
 [![Downloads](https://pepy.tech/badge/tablite/month)](https://pepy.tech/project/tablite)
+[![PyPI version](https://badge.fury.io/py/tablite.svg)](https://badge.fury.io/py/tablite)
 
 --------------
 
@@ -14,11 +15,11 @@
 
 ### Even smaller memory footprint
 
-Tablite uses HDF5 as a backend with strong abstraction, so that copy, append & repetition of data is handled in pages. This is imperative for [incremental data processing](https://github.com/root-11/tablite/blob/master/images/incremental_dataprocessing.svg). 
+Tablite uses HDF5 as a backend with strong abstraction, so that copy, append & repetition of data is handled in pages. This is imperative for [incremental data processing](https://github.com/root-11/tablite/tree/master/docs/img/incremental_dataprocessing.svg). 
 
 Tablite tests [for memory footprint](https://github.com/root-11/tablite/blob/master/tests/test_memory_footprint.py). One test compares the memory footprint of 10,000,000 integers where `tablite` will use < 1 Mb RAM in contrast to python which will require around 133.7 Mb of RAM (1M lists with 10 integers). Tablite also tests to assure that working with [1Tb of data](https://github.com/root-11/tablite/blob/master/tests/test_filereader_time.py) is tolerable.
 
-Tablite achieves this by using `HDF5` as storage which is faster than mmap'ed files for the average case \[[1](https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr), [2](https://github.com/root-11/root-11.github.io/blob/master/content/short_intro_to_hdf5.ipynb) \] and stores all data in `/tmp/tablite.hdf5` so if your OS (windows/linux/mac) sits on a SSD it will benefit from high IOPS and permit slices of [9,000,000,000 rows in less than a second](https://github.com/root-11/tablite/blob/master/images/1TB_test.png?raw=true).
+Tablite achieves this by using `HDF5` as storage which is faster than mmap'ed files for the average case \[[1](https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr), [2](https://github.com/root-11/root-11.github.io/blob/master/content/short_intro_to_hdf5.ipynb) \] and stores all data in `/tmp/tablite.hdf5` so if your OS (windows/linux/mac) sits on a SSD it will benefit from high IOPS and permit slices of [9,000,000,000 rows in less than a second](https://github.com/root-11/tablite/tree/master/docs/img/1TB_test.png?raw=true).
 
 ### Multiprocessing enabled by default
 
@@ -44,7 +45,7 @@ Tablite is ~200 kB.
 
 Tablite wants you to be productive, so a number of helpers are available. 
 
-- `Table.import_file` to import csv*, tsv, txt, xls, xlsx, xlsm, ods, zip and logs. There is automatic type detection (see [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/tutorial.ipynb))
+- `Table.import_file` to import csv*, tsv, txt, xls, xlsx, xlsm, ods, zip and logs. There is automatic type detection (see [tutorial.ipynb](https://github.com/root-11/tablite/tree/master/docs/articles/tutorial.ipynb))
 - To peek into any supported file use `get_headers` which shows the first 10 rows.
 - Use `mytable.rows` and `mytable.columns` to iterate over rows or columns.
 - Create multi-key `.index` for quick lookups.
@@ -62,7 +63,7 @@ If you're still missing something add it to the [wishlist](https://github.com/ro
 
 ## Installation
 
-[Tablite](https://pypi.org/project/tablite/)
+Get it from pypi: [Tablite](https://pypi.org/project/tablite/) [![PyPI version](https://badge.fury.io/py/tablite.svg)](https://badge.fury.io/py/tablite)
 
 Install: `pip install tablite`  
 Usage:  `>>> from tablite import Table`  
@@ -93,19 +94,18 @@ Usage:  `>>> from tablite import Table`
 
 ## Tutorial
 
-To learn more see the [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/tutorial.ipynb) (Jupyter notebook)
+To learn more see the [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/docs/articles/tutorial.ipynb) (Jupyter notebook)
 
 
 ## Latest updates
 
-See [changelog.md](https://github.com/root-11/tablite/blob/master/changelog.md)
+See [changelog.md](https://github.com/root-11/tablite/blob/master/docs/articles/changelog.md)
 
 
 ## Credits
 
 - Martynas Kaunas - GroupBy functionality.
-- Audrius Kulikajevas - Edge case testing / various bugs.
-- realratchet - Jupyter notebook integration.
+- Audrius Kulikajevas - Edge case testing / various bugs, Jupyter notebook integration.
 - Sergej Sinkarenko - various bugs.
 - Ovidijus Grigas - various bugs, documentation.
 - Lori Cooper - spell checking.

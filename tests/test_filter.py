@@ -37,6 +37,24 @@ def test_filter_all_1():
     assert false == false1 == false2
 
 
+def test_filter_more():
+    from datetime import date
+    tbl = Table()
+    tbl["Date"] = [date(2022, 1, 2)]
+    tbl["OrderId"] = [299]
+    tbl["Customer"] = [53587]
+    tbl["SKU"] = [921558]
+    tbl["Qty"] = [515]
+    tbl.show()
+    print(tbl.key)
+    tbl1, *_ = tbl.filter([{"column1": "Qty", "criteria": ">", "value2": 500}]) # removing this line would not throw, but the line itself doesn't actually filter anything and keeps the table unchanged
+    print(tbl1.key)
+    tbl2, *_ = tbl1.filter([{"column1": "Date", "criteria": ">", "value2": date(2022, 1, 2)}])
+    print(tbl2.key)
+    tbl2.show()
+
+
+
 def test_filter_any_1():
     t = Table()
     t['a'] = [1,2,3,4]

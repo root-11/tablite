@@ -1,6 +1,5 @@
 from tablite import Table
 import random
-random.seed(5432)
 from random import randint
 
 import pytest, time
@@ -39,6 +38,7 @@ def test_any():
 
 
 def test_filter_profile():
+    random.seed(5432)
     t = Table()
     t['1'] = list(range(1000))
     t['2'] = list(randint(1,20) for _ in range(1000))
@@ -58,7 +58,7 @@ def test_filter_profile():
     start = time.process_time()
     t2 = t.all(**{'2': lambda x: x >4, '4': lambda x: x>5, '6': lambda x: x>6, '8': lambda x : x>7})
     end = time.process_time()
-    assert 250 < len(t2) < 265, len(t2)
+    assert 259 == len(t2)
     assert end-start < 2, "this shouldn't take 2 seconds."
 
 
