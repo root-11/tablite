@@ -549,6 +549,19 @@ class Table(object):
         return 0  # if there are no columns.
 
     def __setitem__(self, keys, values):
+        """
+        Args:
+            keys (str, tuple of str's): keys
+            values (Column or Iterable): values
+
+        Examples:
+            t = Table()
+            t['a'] = [1,2,3]  - column 'a' contains values [1,2,3]
+            t[('b','c')] = [ [4,5,6], [7,8,9] ]
+            # column 'b' contains values [4,5,6]
+            # column 'c' contains values [7,8,9]
+
+        """
         if isinstance(keys, str):
             if isinstance(values, (tuple,list,np.ndarray)):
                 if len(values) == 0:
@@ -558,21 +571,23 @@ class Table(object):
             elif isinstance(values, Column):
                 col = self._columns.get(keys,None)
                 if col is None:  # it's a column from another table.
-                    self._columns[keys] = column = values.copy()
-                    mem.create_column_reference(self.key, column_name=keys, column_key=column.key)
+                    self._columns[keys] = col = values.copy()
                 elif values.key == col.key:  # it's update from += or similar
                     self._columns[keys] = values
-                else:               
-                    raise NotImplemented()
-            elif values is None:
-                self._columns[keys] = Column(values)
+                else:
+                    raise TypeError(f"No method for this case.")
+                mem.create_column_reference(self.key, column_name=keys, column_key=col.key)
+
+            elif values is None:  # it's an empty dataset.
+                self._columns[keys] = col = Column(values)
+                mem.create_column_reference(self.key, column_name=keys, column_key=col.key)
             else:
-                raise NotImplemented()
+                raise NotImplemented(f"No method for values of type {type(values)}")
         elif isinstance(keys, tuple) and len(keys) == len(values):
             for key, value in zip(keys,values):
                 self.__setitem__(key,value)
         else:
-            raise NotImplementedError()
+            raise NotImplementedError(f"No method for keys of type {type(keys)}")
     
     def __getitem__(self, *keys):
         """
@@ -691,6 +706,7 @@ class Table(object):
             raise ValueError("Columns names are not the same. Use table.stack instead.")
         for name, col in self._columns.items():
             col += other[name]
+            mem.create_column_reference(self.key, column_name=name, column_key=col.key)
         return self
 
     def __mul__(self,other):
@@ -1193,7 +1209,8 @@ class Table(object):
         cols = {}
         for name in column_selection:
             col = self._columns[name]
-            cols[name] = col[slice_].tolist()  # pure python objects. No numpy.
+            row_slice = col[slice_]
+            cols[name] = row_slice.tolist() if not isinstance(row_slice, list) else row_slice  # pure python objects. No numpy.
         return cols
 
     def as_json_serializable(self, row_count="row id", start_on=1, columns=None, slice_=None):
@@ -1739,7 +1756,7 @@ class Table(object):
             task = Task(f=filter_merge_task, **config)
             merge_tasks.append(task)
 
-        n_cpus = min(max(len(filter_tasks),len(merge_tasks)), psutil.cpu_count())
+        n_cpus = min(max(len(filter_tasks),len(merge_tasks)), psutil.cpu_count())  # revise for case where memory footprint is limited to include zero subprocesses.
         
         with tqdm(total=len(filter_tasks)+len(merge_tasks), desc="filter") as pbar:
             with TaskManager(n_cpus) as tm: 
@@ -1777,7 +1794,7 @@ class Table(object):
         param: sort_mode: str: "alphanumeric", "unix", or, "excel" (default)
         param: **kwargs: sort criteria. See Table.sort()
         """
-        logging.info(f"Table.sort_index running 1 core")  # TODO: This is single core code.
+        logging.info(f"Table.sort_index running 1 core")  # This is single core code.
 
         if not isinstance(kwargs, dict):
             raise ValueError("Expected keyword arguments, did you forget the ** in front of your dict?")
@@ -1798,9 +1815,9 @@ class Table(object):
         _pbar = tqdm(total=len(kwargs.items()), desc='creating sort index') if pbar is None else pbar
         
         for key, reverse in kwargs.items():
-            col = self._columns[key]
-            assert isinstance(col, Column)
-            ranks = sortation.rank(values=set(col[:].tolist()), reverse=reverse, mode=sort_mode)
+            col = self._columns[key][:]
+            col = col.tolist() if isinstance(col, np.ndarray) else col
+            ranks = sortation.rank(values=set(col), reverse=reverse, mode=sort_mode)
             assert isinstance(ranks, dict)
             for ix, v in enumerate(col):
                 rank[ix] += (ranks[v],)  # add tuple
@@ -1900,7 +1917,7 @@ class Table(object):
             sorted_index = self.sort_index(sort_mode=sort_mode, **kwargs) 
             
             t = Table()
-            for col_name, col in self._columns.items():  # this LOOP can be done with TaskManager
+            for col_name, col in self._columns.items():  
                 data = list(col[:])
                 t.add_column(col_name, data=[data[ix] for ix in sorted_index])
             return t
