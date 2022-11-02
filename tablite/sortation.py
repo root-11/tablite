@@ -110,7 +110,7 @@ _unix_value_function = {
     type(None): _unix_none,
 }
 
-def text_sort(values, reverse):
+def text_sort(values, reverse=False):
     """
     Sorts everything as text.
     """
@@ -120,7 +120,7 @@ def text_sort(values, reverse):
     d = {text[value]:ix for ix,value in enumerate(L)}
     return d
 
-def unix_sort(values, reverse):
+def unix_sort(values, reverse=False):
     """
     Unix sortation sorts by the following order:
 
@@ -157,7 +157,7 @@ def unix_sort(values, reverse):
     return d
 
 
-def excel_sort(values, reverse):
+def excel_sort(values, reverse=False):
     """
     Excel sortation sorts by the following order:
 
