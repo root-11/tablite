@@ -2985,6 +2985,7 @@ class Table(object):
                 d = {v:i/n if v != missing else math.inf for i,v in enumerate(values)}
                 normalised_values[name] = [d[v] for v in self[name]]
                 norm_index[name] = d
+                values.clear()
             
             missing_value_index = self.index(*targets)
             missing_value_index = {k:v for k,v in missing_value_index.items() if missing in k}  # strip out all that do not have missings.
@@ -2996,9 +2997,7 @@ class Table(object):
             
             with _tqdm(unit="missing values", total=sum(len(v) for v in missing_value_index.values())) as pbar:
                 for _,key in sorted(new_order.items(), reverse=True):  # Fewest None's are at the front of the list.
-                # for key in sortation.unix_sort(missing_value_index.keys(),reverse=True):  
                     for row_id in missing_value_index[key]:
-                        # for row_id in row_ids:
                         err_map = [0.0 for _ in range(len(self))]
                         for n,v in self.to_dict(columns=sources, slice_=slice(row_id, row_id+1,1)).items():  # self.to_dict doesn't go to disk as hence saves an IOP.
                             v = v[0]
@@ -3007,7 +3006,7 @@ class Table(object):
                                 err_map = [e1 + abs(norm_value-e2) for e1,e2 in zip(err_map,normalised_values[n])]
                         
                         min_err = min(err_map)
-                        ix = err_map.index(min_err)                       
+                        ix = err_map.index(min_err)
                         
                         for name in targets:  
                             current_value = new[name][row_id]  
@@ -3037,7 +3036,7 @@ class Table(object):
         else:
             raise ValueError(f"method {method} not recognised amonst known methods: {list(methods)})")
 
-    def transpose(self, columns, keep=None, new_name='value'):
+    def transpose(self, columns, keep=None, column_name='transpose', value_name='value'):
         """Transpose a selection of columns to rows.
 
         Args:
@@ -3063,15 +3062,43 @@ class Table(object):
         Output:
 
         |col1| col2| col3| transpose| value|
-        |:----:|:----:|:----:|:----:|:----:|
+        |----|-----|-----|----------|------|
         |1234| 2345| 3456| sun      |   456|
         |1234| 2345| 3456| mon      |   567|
         |1244| 2445| 4456| mon      |     7|
 
         """
-        pass
+        if not isinstance(columns, list):
+            raise TypeError
+        for i in columns:
+            if not isinstance(i, str):
+                raise TypeError
+            if not i in self.columns:
+                raise ValueError
+        
+        if keep is None:
+            keep = []
+        for i in keep:
+            if not isinstance(i, str):
+                raise TypeError
+            if not i in self.columns:
+                raise ValueError
 
-    
+        if column_name in keep+columns:
+            column_name = unique_name(column_name, set_of_names=keep + columns)
+        if value_name in keep+columns+[column_name]:
+            value_name = unique_name(value_name, set_of_names=keep + columns)
+
+        new = Table()
+        new.add_columns(*keep+[column_name,value_name])
+        
+        n = len(keep)
+        for row in self.__getitem__(*keep+columns).rows:
+            keeps = row[:n]
+            transposes = row[n:]
+            for name,value in zip(columns, transposes):
+                new.add_rows( keeps + [name , value] )
+        return new  
 
 
 class Column(object):
