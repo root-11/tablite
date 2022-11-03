@@ -511,9 +511,9 @@ def test04_verify_add_rows_for_table():
     for ix, row in enumerate(table4.rows,start=1):  # test .rows
         assert len(row) ==3
         a,b,c = row
-        assert a.dtype == int
+        assert type(a) == int
         assert type(b) == str
-        assert c.dtype == float
+        assert type(c) == float
     assert ix == 20, "there are supposed to be 20 rows."
 
     t = Table()
