@@ -94,6 +94,29 @@ def test_replace_missing_values_02b():
     assert [r for r in result.rows] == expected
 
 
+def test_replace_missing_values_02_same_row_twice():
+    sample = [
+        [1, 2, None],
+        [1, 2, None],
+        [5, 5, None],
+        [5, 5, 5],
+        [6, 6, 6]
+    ]
+
+    t = Table()
+    t.add_columns(*list('abc'))
+    for row in sample:
+        t.add_rows(row)
+
+    expected = [r[:] for r in sample]
+    expected[0][-1] = 5
+    expected[1][-1] = 5
+    expected[2][-1] = 5
+
+    result = t.imputation(targets=['c'], method='nearest neighbour')
+    assert [r for r in result.rows] == expected
+
+
 def test_replace_missing_values_05():
     sample = [
         [None, 1, 2, 3],
@@ -109,6 +132,7 @@ def test_replace_missing_values_05():
         t.add_rows(row)
 
     result = t.imputation(targets=cols, method='nearest neighbour', sources=cols)
+    result = result.imputation(targets=cols, method='nearest neighbour', sources=cols)
 
     expected = [
         [0, 1, 2, 3],
@@ -135,6 +159,7 @@ def test_replace_missing_values_06():
         t.add_rows(row)
 
     result = t.imputation(targets=cols, method='nearest neighbour', sources=cols)
+    result = result.imputation(targets=cols, method='nearest neighbour', sources=cols)
 
     expected = [
         [0, 1, 2, 3],
@@ -164,7 +189,7 @@ def test_replace_missing_values_07():
     expected = [
         [1, 1, 1, 1, 1, 1],
         [2, 2, 2, 2, 2, 2],
-        [3, 3, 3, 3, 3, 1]
+        [3, 3, 3, 3, 3, 2]
     ]
     # special case: columns 1 to 5 are unique, so they become indices.
     # the missing value is then subtituted with first match.
@@ -195,14 +220,7 @@ def test_replace_missing_values_10():
         ['2', 2, False, 'that'],
         ['3', 1, True, 'that'],
         ['4', 1, True, None]
-    ]
-
-    expected = [
-        ['1', 2, False, 'this'],
-        ['2', 2, False, 'that'],
-        ['3', 1, True, 'that'],
-        ['4', 1, True, 'that']
-    ]
+    ]   
 
     cols = [str(i) for i,_ in enumerate(sample[0])]
     t = Table()
@@ -211,6 +229,13 @@ def test_replace_missing_values_10():
         t.add_rows(row)
 
     result = t.imputation(targets=cols, method='nearest neighbour', sources=cols)
+
+    expected = [
+        ['1', 2, False, 'this'],
+        ['2', 2, False, 'that'],
+        ['3', 1, True, 'that'],
+        ['4', 1, True, 'that']
+    ]
 
     assert [r for r in result.rows] == expected
 
