@@ -39,6 +39,7 @@ atexit.register(exiting)
 from tablite.memory_manager import MemoryManager, Page, Pages
 from tablite.file_reader_utils import TextEscape, get_headers, get_encoding, get_delimiter
 from tablite.utils import summary_statistics, unique_name, expression_interpreter
+from tablite.utils import arg_to_slice
 from tablite import sortation
 from tablite.groupby_utils import GroupBy, GroupbyFunction
 from tablite.config import SINGLE_PROCESSING_LIMIT, TEMPDIR, H5_ENCODING
@@ -595,6 +596,7 @@ class Table(object):
         Examples: 
 
             table['a']   # selects column 'a'
+            table[3]  # selects row 3 as a tuple.
             table[:10]   # selects first 10 rows from all columns
             table['a','b', slice(3,20,2)]  # selects a slice from columns 'a' and 'b'
             table['b', 'a', 'a', 'c', 2:20:3]  # selects column 'b' and 'c' and 'a' twice for a slice.
@@ -605,6 +607,10 @@ class Table(object):
             keys = (keys, )
         if len(keys)==1 and all(isinstance(i,tuple) for i in keys):
             keys = keys[0]           
+    
+        if len(keys)==1:
+            if isinstance(keys[0], int):
+                keys = (slice(keys[0]), )
         
         slices = [i for i in keys if isinstance(i, slice)]
         if len(slices)>1:
@@ -2881,6 +2887,7 @@ class Table(object):
                     the mean in as replacement.
                     +: quick
                     -: doesn't work on text. Causes data set to drift towards the mean.
+                    
                 'mode': 
                     calculates the column mode (exclude `missing`) and copies
                     the mean in as replacement.
@@ -2911,7 +2918,7 @@ class Table(object):
         else:
             raise TypeError("Expected source as list of column names")
 
-        if method == 'nearest_neighbour':
+        if method == 'nearest neighbour':
             if sources in (None,[]):
                 sources = self.columns
             if isinstance(sources, str):
@@ -2968,39 +2975,103 @@ class Table(object):
             norm_index = {}
             normalised_values = Table()
             for name in sources:
-                values = self[name].unique()
-                values = sortation.unix_sort(values)
+                values = self[name].unique().tolist()
+                values = sortation.unix_sort(values,reverse=False)
+                values = [(v,k) for k,v in values.items()]
+                values.sort()
+                values = [k for _,k in values]
                 
                 n = len([v for v in values if v != missing])
                 d = {v:i/n if v != missing else math.inf for i,v in enumerate(values)}
-                normalised_values[name] = [d[v] for v in values]
+                normalised_values[name] = [d[v] for v in self[name]]
                 norm_index[name] = d
             
-            required_columns = set(sources)
             missing_value_index = self.index(*targets)
             missing_value_index = {k:v for k,v in missing_value_index.items() if missing in k}  # strip out all that do not have missings.
+            ranks = set()
+            for k,v in missing_value_index.items():
+                ranks.update(set(k))
+            item_order = sortation.unix_sort(list(ranks))
+            new_order = {tuple(item_order[i] for i in k):k for k in missing_value_index.keys()}
             
             with _tqdm(unit="missing values", total=sum(len(v) for v in missing_value_index.values())) as pbar:
-                for key in sortation.unix_sort(missing_value_index.keys(),reverse=True):  # Fewest None's are at the front of the list.
-                    for row_ids in missing_value_index[key]:
-                        for row_id in row_ids:
-                            err_map = [0.0 for _ in len(self)]
-                            row = {n:v for n,v in zip(self.columns, self[row_id]) if n in required_columns}
-                            for n,v in row.items():
-                                norm_value = norm_index[n][v]
+                for _,key in sorted(new_order.items(), reverse=True):  # Fewest None's are at the front of the list.
+                # for key in sortation.unix_sort(missing_value_index.keys(),reverse=True):  
+                    for row_id in missing_value_index[key]:
+                        # for row_id in row_ids:
+                        err_map = [0.0 for _ in range(len(self))]
+                        for n,v in self.to_dict(columns=sources, slice_=slice(row_id, row_id+1,1)).items():  # self.to_dict doesn't go to disk as hence saves an IOP.
+                            v = v[0]
+                            norm_value = norm_index[n][v]
+                            if norm_value != math.inf:
                                 err_map = [e1 + abs(norm_value-e2) for e1,e2 in zip(err_map,normalised_values[n])]
-                            min_err = min(err_map)
-                            ix = err_map.index(min_err)
-                            
-                            for name in targets:  
-                                current_value = new[name][row_id]  
-                                if current_value == missing:
-                                    new[name][row_id] = new[name][ix]
-                            pbar.update(1)
+                        
+                        min_err = min(err_map)
+                        ix = err_map.index(min_err)                       
+                        
+                        for name in targets:  
+                            current_value = new[name][row_id]  
+                            if current_value != missing:  # no need to replace anything.
+                                continue
+                            if new[name][ix] != missing:  # can confidently impute.
+                                new[name][row_id] = new[name][ix]
+                            else:  # replacement is required, but ix points to another missing value.
+                                # we therefore have to search after the next best match:
+                                tmp_err_map = err_map[:]
+                                for _ in range(len(err_map)):
+                                    tmp_min_err = min(tmp_err_map)
+                                    tmp_ix = tmp_err_map.index(tmp_min_err)
+                                    if row_id == tmp_ix:
+                                        tmp_err_map[tmp_ix] = math.inf
+                                        continue
+                                    elif new[name][tmp_ix] == missing:
+                                        tmp_err_map[tmp_ix] = math.inf
+                                        continue
+                                    else:
+                                        new[name][row_id] = new[name][tmp_ix]
+                                        break
+
+                        pbar.update(1)
             return new
             
         else:
             raise ValueError(f"method {method} not recognised amonst known methods: {list(methods)})")
+
+    def transpose(self, columns, keep=None, new_name='value'):
+        """Transpose a selection of columns to rows.
+
+        Args:
+            columns (list of column names): column names to transpose
+            keep (list of column names): column names to keep (repeat)
+
+        Returns:
+            Table: with columns transposed to rows
+        
+        Example:
+            transpose columns 1,2 and 3 and transpose the remaining columns, except `sum`.
+
+        Input:
+
+        | col1 | col2 | col3 | sun | mon | tue | ... | sat | sum  |
+        |------|------|------|-----|-----|-----|-----|-----|------|
+        | 1234 | 2345 | 3456 | 456 | 567 |     | ... |     | 1023 |
+        | 1244 | 2445 | 4456 |     |   7 |     | ... |     |    7 |
+        | ...  |      |      |     |     |     |     |     |      |
+
+        t.transpose(keep=[col1, col2, col3], transpose=[sun,mon,tue,wed,thu,fri,sat])`
+
+        Output:
+
+        |col1| col2| col3| transpose| value|
+        |:----:|:----:|:----:|:----:|:----:|
+        |1234| 2345| 3456| sun      |   456|
+        |1234| 2345| 3456| mon      |   567|
+        |1244| 2445| 4456| mon      |     7|
+
+        """
+        pass
+
+    
 
 
 class Column(object):
@@ -3045,21 +3116,34 @@ class Column(object):
         return (v for v in self.__getitem__())
 
     def __getitem__(self, item=None):
-        if isinstance(item, int):
-            slc = slice(item,item+1,1)
-        if item is None:
-            slc = slice(0,None,1)
-        if isinstance(item, slice):
-            slc = item
-        if not isinstance(slc, slice):
-            raise TypeError(f"expected slice or int, got {type(item)}")
+        """The __getitem__ operator. Behaves like getitem on a list.
+
+        Args:
+            item (slice, optional): The slice. Defaults to None (all records)
+
+        Returns:
+            list: list of python types.
+        """
+        slc = arg_to_slice(item)
         
         result = mem.get_data(self.group, slc)
-
+        
         if isinstance(item, int) and len(result)==1:
             return result[0]
         else:
-            return result
+            if isinstance(result, np.ndarray):
+                return result.tolist()
+            else:
+                return result
+
+    def to_numpy(self, item=None):
+        """
+        returns nympy.ndarray
+
+        *item: (slice): None (default) returns all records.
+        """
+        slc = arg_to_slice(item)
+        return mem.get_data(self.group, slc)
 
     def clear(self):
         """
@@ -3217,10 +3301,12 @@ class Column(object):
                     if not before_slice:
                         after = Pages((Page(value),))
                     else:
-                        last_page = before_slice[-1] 
+                        last_page = before_slice[-1]
                         if mem.get_ref_count(last_page) == 1:
+                            before_copy = mem.get_pages(self.group)  # this is required because .extend is polymorphic
                             last_page.extend(value)
                             after = before_slice
+                            before = before_copy  # to overcome polymorphism.
                         else:  # ref count > 1
                             new_page = Page(value)
                             after = before_slice + Pages([new_page])
@@ -3343,7 +3429,7 @@ class Column(object):
             if mem.get_pages(self.group) == mem.get_pages(other.group):  # special case.
                 return True  
             else:
-                return (self[:] == other[:]).all()
+                return (self.to_numpy() == other.to_numpy()).all()
         elif isinstance(other, np.ndarray): 
             return (self[:]==other).all()
         else:
@@ -3534,6 +3620,7 @@ class Column(object):
         raise NotImplemented("vectorised operation A > B is type-ambiguous")
 
 
+# -------------- MULTI PROCESSING TASKS -----------------
 def _in(a,b):
     """
     enables filter function 'in'
@@ -3621,7 +3708,7 @@ def filter_merge_task(table_key, true_key, false_key, shm_name, shm_shape, slice
     true_columns, false_columns = {}, {}
     for col_name, column_key in columns.items():
         col = Column(key=column_key)
-        slize = col[slice_]  # maybe use .tolist() ?
+        slize = col.to_numpy(slice_)  
         true_values = slize[true_mask]
         if np.any(true_mask):
             true_columns[col_name] = mem.mp_write_column(true_values)
@@ -3635,9 +3722,46 @@ def filter_merge_task(table_key, true_key, false_key, shm_name, shm_shape, slice
     existing_shm.close()  # disconnect
 
 
+def indexing_task(source_key, destination_key, shm_name_for_sort_index, shape):
+    """
+    performs the creation of a column sorted by sort_index (shared memory object).
+    source_key: column to read
+    destination_key: column to write
+    shm_name_for_sort_index: sort index' shm.name created by main.
+    shape: shm array shape.
+
+    *used by sort and all join functions.
+    """
+    existing_shm = shared_memory.SharedMemory(name=shm_name_for_sort_index)  # connect
+    sort_index = np.ndarray(shape, dtype=np.int64, buffer=existing_shm.buf)
+
+    data = mem.get_data(f'/column/{source_key}', slice(None)) # --- READ!
+    values = [data[ix] for ix in sort_index]
+    
+    existing_shm.close()  # disconnect
+    mem.mp_write_column(values, column_key=destination_key)  # --- WRITE!
 
 
+def compress_task(source_key, destination_key, shm_index_name, shape):
+    """
+    compresses the source using boolean mask from shared memory
 
+    source_key: column to read
+    destination_key: column to write
+    shm_name_for_sort_index: sort index' shm.name created by main.
+    shape: shm array shape.
+    """
+    existing_shm = shared_memory.SharedMemory(name=shm_index_name)  # connect
+    mask = np.ndarray(shape, dtype=np.int64, buffer=existing_shm.buf)
+    
+    data = mem.get_data(f'/column/{source_key}', slice(None))  # --- READ!
+    values = np.compress(mask, data)
+    
+    existing_shm.close()  # disconnect
+    mem.mp_write_column(values, column_key=destination_key)  # --- WRITE!
+
+
+# ---------- FILE WRITERS ------------
 def _check_input(table, path):
     if not isinstance(table, Table): 
         raise TypeError
@@ -3735,44 +3859,3 @@ exporters = {  # the commented formats are not yet supported by the pyexcel plug
     # 'hdf5': h5_writer,
     # 'h5': h5_writer
 }
-
-
-def indexing_task(source_key, destination_key, shm_name_for_sort_index, shape):
-    """
-    performs the creation of a column sorted by sort_index (shared memory object).
-    source_key: column to read
-    destination_key: column to write
-    shm_name_for_sort_index: sort index' shm.name created by main.
-    shape: shm array shape.
-
-    *used by sort and all join functions.
-    """
-    existing_shm = shared_memory.SharedMemory(name=shm_name_for_sort_index)  # connect
-    sort_index = np.ndarray(shape, dtype=np.int64, buffer=existing_shm.buf)
-
-    data = mem.get_data(f'/column/{source_key}', slice(None)) # --- READ!
-    values = [data[ix] for ix in sort_index]
-    
-    existing_shm.close()  # disconnect
-    mem.mp_write_column(values, column_key=destination_key)  # --- WRITE!
-
-
-def compress_task(source_key, destination_key, shm_index_name, shape):
-    """
-    compresses the source using boolean mask from shared memory
-
-    source_key: column to read
-    destination_key: column to write
-    shm_name_for_sort_index: sort index' shm.name created by main.
-    shape: shm array shape.
-    """
-    existing_shm = shared_memory.SharedMemory(name=shm_index_name)  # connect
-    mask = np.ndarray(shape, dtype=np.int64, buffer=existing_shm.buf)
-    
-    data = mem.get_data(f'/column/{source_key}', slice(None))  # --- READ!
-    values = np.compress(mask, data)
-    
-    existing_shm.close()  # disconnect
-    mem.mp_write_column(values, column_key=destination_key)  # --- WRITE!
-
-
