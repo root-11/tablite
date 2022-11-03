@@ -840,6 +840,9 @@ class StringType(GenericPage):
             self._len = len(dset)
 
     def extend(self, values):
+        if any(not isinstance(i,str) for i in values):
+            raise TypeError
+            
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[self.group]
             dset.resize(dset.len() + len(values),axis=0)
