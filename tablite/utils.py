@@ -51,14 +51,15 @@ def expression_interpreter(expression, columns):
 
 
 def intercept(A,B):
-    """
-    enables calculation of the intercept of two range objects.
+    """Enables calculation of the intercept of two range objects.
     Used to determine if a datablock contains a slice.
     
-    A: range
-    B: range
+    Args:
+        A: range
+        B: range
     
-    returns: range as intercept of ranges A and B.
+    Returns: 
+        range: The intercept of ranges A and B.
     """
     if not isinstance(A, range):
         raise TypeError
@@ -105,7 +106,7 @@ def arg_to_slice(arg=None):
         arg (optional): integer or slice. Defaults to None.
 
     Returns:
-        _type_: instance of slice
+        slice: instance of slice
     """
     if isinstance(arg, slice):
         return arg
@@ -115,7 +116,6 @@ def arg_to_slice(arg=None):
         return slice(0,None,1)
     else:
         raise TypeError(f"expected slice or int, got {type(arg)}")
-
 
 
 # This list is the contract:
