@@ -98,6 +98,26 @@ def intercept(A,B):
     return range(start, end, step)
 
 
+def arg_to_slice(arg=None):
+    """converts argument to slice
+
+    Args:
+        arg (optional): integer or slice. Defaults to None.
+
+    Returns:
+        _type_: instance of slice
+    """
+    if isinstance(arg, slice):
+        return arg
+    elif isinstance(arg, int):
+        return slice(arg,arg+1,1)
+    elif arg is None:
+        return slice(0,None,1)
+    else:
+        raise TypeError(f"expected slice or int, got {type(arg)}")
+
+
+
 # This list is the contract:
 required_keys = {
     'min','max','mean','median','stdev','mode',
