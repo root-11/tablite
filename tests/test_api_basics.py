@@ -67,6 +67,12 @@ def test01_compatible_datatypes():
     assert rows[0][0] == -1
     assert rows[1][0] == 1
 
+def test_add_rows():
+    t = Table()
+    t['A'] = [1]
+    t.add_rows(*[1.1])
+    assert t['A'] == [1, 1.1]
+
 
 def test01_confirm_storage_reset():
     tables = Table.reload_saved_tables()
