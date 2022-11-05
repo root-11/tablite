@@ -2,15 +2,13 @@
 
 from tablite.datatypes import DataTypes
 from tablite.utils import date_range  # helper for date_ranges
-from tablite.utils import xround
 from tablite.utils import unique_name 
 from tablite.utils import intercept as range_intercept
 from tablite.sortation import text_sort, unix_sort, excel_sort
 from tablite.file_reader_utils import detect_seperator, get_encoding, get_headers, get_delimiter
 
-
 assert callable(date_range)
-assert callable(xround)
+
 assert callable(unique_name)
 assert callable(range_intercept)
 assert callable(text_sort)
@@ -25,3 +23,5 @@ assert callable(get_delimiter)
 guess = DataTypes.guess
 xround = DataTypes.xround
 
+assert callable(guess)
+assert callable(xround)
