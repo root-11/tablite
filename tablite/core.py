@@ -1281,10 +1281,10 @@ class Table(object):
         returns pandas.DataFrame
         """
         try:
-            return pd.DataFrame(self.to_dict())
+            return pd.DataFrame(self.to_dict())  # noqa
         except ImportError:
-            import pandas as pd
-        return pd.DataFrame(self.to_dict())       
+            import pandas as pd  # noqa
+        return pd.DataFrame(self.to_dict())  # noqa
     
     def from_pandas(self, df):
         """
@@ -1312,7 +1312,7 @@ class Table(object):
             | 2 |  3|  6|
             +===+===+===+
         """
-        return self.from_dict(df.to_dict('list'))
+        return self.from_dict(df.to_dict('list'))  # noqa
         
 
     def from_hdf5(self, path):
