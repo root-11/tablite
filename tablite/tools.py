@@ -21,7 +21,7 @@ assert callable(get_headers)
 assert callable(get_delimiter)
 
 guess = DataTypes.guess
-xround = DataTypes.xround
+xround = DataTypes.round
 
 assert callable(guess)
 assert callable(xround)
