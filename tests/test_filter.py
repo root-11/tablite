@@ -37,6 +37,15 @@ def test_filter_all_1():
     assert false == false1 == false2
 
 
+def test_filter_a_in_b():
+    t = Table.from_dict({'A': ["1","2","3"]})
+    a,b = t.filter([{'column1': 'A', "criteria": "in", "value2":"12"}])
+    assert len(a)+len(b)==len(t)
+    assert a['A'] == ["1", "2"]
+    assert b['A'] == ["3"]
+
+
+
 def test_filter_more():
     from datetime import date
     tbl = Table()
