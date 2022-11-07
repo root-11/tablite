@@ -3652,7 +3652,7 @@ def _in(a,b):
     """
     enables filter function 'in'
     """
-    return a.decode('utf-8') in b.decode('utf-8')  # TODO tested?
+    return a in b  
 
 
 filter_ops = {
@@ -3710,7 +3710,7 @@ def filter_evaluation_task(table_key, expression, shm_name, shm_index, shm_shape
 
     existing_shm = shared_memory.SharedMemory(name=shm_name)  # connect
     result_array = np.ndarray(shm_shape, dtype=np.bool, buffer=existing_shm.buf)
-    result_array[shm_index][slice_] = f(dset_A,dset_B)  # Evaluate
+    result_array[shm_index][slice_] = np.array([f(a,b) for a,b in zip(dset_A,dset_B)])  # Evaluate
     existing_shm.close()  # disconnect
 
 
