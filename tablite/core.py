@@ -2485,7 +2485,9 @@ class Table(object):
         for L, R in zip(left_keys, right_keys):
             Lcol, Rcol = self[L], other[R]
             if not set(Lcol.types()).intersection(set(Rcol.types())):
-                raise TypeError(f"{L} is {Lcol.types()}, but {R} is {Rcol.types()}")
+                left_types = tuple(t.__name__ for t in list(Lcol.types().keys()))
+                right_types = tuple(t.__name__ for t in list(Rcol.types().keys()))
+                raise TypeError(f"Type mismatch: Left key '{L}' {left_types} will never match right keys {right_types}")
 
         if not isinstance(left_columns, list) or not left_columns:
             raise TypeError("left_columns (list of strings) are required")
