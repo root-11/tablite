@@ -3661,14 +3661,14 @@ def _in(a,b):
 
 
 filter_ops = {
-            ">": operator.gt,
-            ">=": operator.ge,
-            "==": operator.eq,
-            "<": operator.lt,
-            "<=": operator.le,
-            "!=": operator.ne,
-            "in": _in
-        }
+    ">": operator.gt,
+    ">=": operator.ge,
+    "==": operator.eq,
+    "<": operator.lt,
+    "<=": operator.le,
+    "!=": operator.ne,
+    "in": _in
+}
 
 filter_ops_from_text = {
     "gt": ">",
