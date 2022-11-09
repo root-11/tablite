@@ -63,6 +63,17 @@ def test_filter_more():
     tbl2.show()
 
 
+def test_filter_on_mixed():
+    t = Table.from_dict({'A': [1, 'V1']})
+    true,false = t.filter([{'value1':'V', 'criteria': "in", 'column2': 'A'}])
+    assert true['A'] == ["V1"]
+    assert false['A'] == [1]
+
+    t = Table.from_dict({'A': [1, 'ab', 'ac']})
+    true,false = t.filter([{'column1':'A', 'criteria': "in", 'value2': 'abc'}])
+    assert true['A'] == ["ab", "ac"]
+    assert false['A'] == [1]
+
 
 def test_filter_any_1():
     t = Table()
