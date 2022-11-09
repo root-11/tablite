@@ -3654,7 +3654,7 @@ def _in(a,b):
     """
     enables filter function 'in'
     """
-    return a in b  
+    return str(a) in str(b)
 
 
 filter_ops = {
