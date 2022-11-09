@@ -2744,10 +2744,13 @@ class Table(object):
         any = not all
 
         def not_in(a, b):
-            return not operator.contains(a, b)
+            return not operator.contains(str(a), str(b))
+
+        def _in(a,b):
+            return operator.contains(str(a),str(b))
 
         ops = {
-            "in": operator.contains,
+            "in": _in,
             "not in": not_in,
             "<": operator.lt,
             "<=": operator.le,
