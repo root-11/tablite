@@ -69,9 +69,9 @@ def test_filter_on_mixed():
     assert true['A'] == ["V1"]
     assert false['A'] == [1]
 
-    t = Table.from_dict({'A': [1, 'ab', 'ac']})
+    t = Table.from_dict({'A': [1, 'ab', 'abc']})
     true,false = t.filter([{'column1':'A', 'criteria': "in", 'value2': 'abc'}])
-    assert true['A'] == ["ab", "ac"]
+    assert true['A'] == ["ab", "abc"]
     assert false['A'] == [1]
 
 
