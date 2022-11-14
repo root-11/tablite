@@ -1,7 +1,7 @@
 import logging
 log = logging.getLogger()
 log.setLevel(logging.INFO)
-
+from tablite import Table
 
 
 def test_loggers():
