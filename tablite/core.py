@@ -3454,16 +3454,19 @@ class Column(object):
         return self._len
 
     def __eq__(self, other):
+        if len(self) != len(other):  # quick cheap check.
+            return False
+
         if isinstance(other, (list,tuple)):
             return all(a==b for a,b in zip(self[:],other))
         
         elif isinstance(other, Column):  
             if mem.get_pages(self.group) == mem.get_pages(other.group):  # special case.
-                return True  
-            else:
-                return (self.to_numpy() == other.to_numpy()).all()
-        elif isinstance(other, np.ndarray): 
-            return (self[:]==other).all()
+                return True
+            return (self.to_numpy() == other.to_numpy()).all()
+
+        elif isinstance(other, np.ndarray):
+            return (self.to_numpy() == other).all()
         else:
             raise TypeError
         
@@ -3635,9 +3638,19 @@ class Column(object):
         """
         if len(self) != len(other):  # quick cheap check.
             return True
-        if not isinstance(other, np.ndarray):
-            other = np.array(other)
-        return (self.__getitem__()!=other).any()  # speedy np c level comparison.
+
+        if isinstance(other, (list,tuple)):
+            return any(a!=b for a,b in zip(self[:],other))
+
+        if isinstance(other, Column):
+            if mem.get_pages(self.group) == mem.get_pages(other.group):  # special case.
+                return False
+            return (self.to_numpy() != other.to_numpy()).any()
+
+        elif isinstance(other, np.ndarray): 
+            return (self.to_numpy() != other).any()
+        else:
+            raise TypeError
     
     def __le__(self,other):
         raise NotImplemented("vectorised operation A <= B is type-ambiguous")
