@@ -3096,13 +3096,27 @@ class Table(object):
 
         new = Table()
         new.add_columns(*keep+[column_name,value_name])
+        news = {name: [] for name in new.columns}
         
         n = len(keep)
-        for row in self.__getitem__(*keep+columns).rows:
+        for ix, row in enumerate(self.__getitem__(*keep+columns).rows, start=1):
             keeps = row[:n]
             transposes = row[n:]
+
+            for name, value in zip(keep, keeps):
+                news[name].extend([value]* len(transposes))
             for name,value in zip(columns, transposes):
-                new.add_rows( keeps + [name , value] )
+                news[column_name].append(name)
+                news[value_name].append(value)
+            
+            if ix % SINGLE_PROCESSING_LIMIT == 0:
+                for name,values in news.items():
+                    new[name].extend(values)
+                    values.clear()
+        
+        for name,values in news.items():
+            new[name].extend(values)
+            values.clear()
         return new  
 
 
