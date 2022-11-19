@@ -3541,6 +3541,9 @@ class Column(object):
                 uarray.append(k), carray.append(v)
         return uarray, carray
 
+    def count(self, item):
+        return sum(1 for i in self.__getitem__() if i == item)
+
     def replace(self, target, replacement):
         """
         replaces target with replacement
