@@ -94,12 +94,12 @@ Usage:  `>>> from tablite import Table`
 
 ## Tutorial
 
-To learn more see the [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/docs/articles/tutorial.ipynb) (Jupyter notebook)
+To learn more see the [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/tutorial.ipynb) (Jupyter notebook)
 
 
 ## Latest updates
 
-See [changelog.md](https://github.com/root-11/tablite/blob/master/docs/articles/changelog.md)
+See [changelog.md](https://github.com/root-11/tablite/blob/master/changelog.md)
 
 
 ## Credits
