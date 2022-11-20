@@ -8,9 +8,18 @@
 
 --------------
 
-## Overview 
+## Contents
 
-`Tablite` seeks to be the go-to library for tabular data with an api that is as close in syntax to pure python as possible. 
+- [introduction](#introduction)
+- [installation](#installation)
+- [feature overview](#feature_overview)
+- [tutorial](#tutorial)
+- [latest updates](#latest_updates)
+- [credits](#credits)
+
+## <a name="introduction"></a>Introduction 
+
+`Tablite` seeks to be the go-to library for manipulating tabular data with an api that is as close in syntax to pure python as possible. 
 
 
 ### Even smaller memory footprint
@@ -61,14 +70,14 @@ If you're still missing something add it to the [wishlist](https://github.com/ro
 
 ---------------
 
-## Installation
+## <a name="installation"></a>Installation
 
 Get it from pypi: [Tablite](https://pypi.org/project/tablite/) [![PyPI version](https://badge.fury.io/py/tablite.svg)](https://badge.fury.io/py/tablite)
 
 Install: `pip install tablite`  
 Usage:  `>>> from tablite import Table`  
 
-## General overview
+## <a name="feature_overview"></a>Feature overview
 
 |want to...| this way... |
 |---|---|
@@ -92,17 +101,17 @@ Usage:  `>>> from tablite import Table`
 | from json | `Table.from_json(json_str)`|
 
 
-## Tutorial
+## <a name="tutorial"></a>Tutorial
 
 To learn more see the [tutorial.ipynb](https://github.com/root-11/tablite/blob/master/tutorial.ipynb) (Jupyter notebook)
 
 
-## Latest updates
+## <a name="latest_updates"></a>Latest updates
 
 See [changelog.md](https://github.com/root-11/tablite/blob/master/changelog.md)
 
 
-## Credits
+## <a name="credits"></a>Credits
 
 - Martynas Kaunas - GroupBy functionality.
 - Audrius Kulikajevas - Edge case testing / various bugs, Jupyter notebook integration.
