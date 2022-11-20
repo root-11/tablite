@@ -2,6 +2,7 @@
 
 | Version    | Change                                              |
 |:-----------|-----------------------------------------------------|
+| 2022.11.0 | New table features: <br>`Table.diff(other, columns=...)`, <br>`table.remove_duplicates_rows()`, <br>`table.drop_na(*arg)`,<br>`table.replace(target,replacement)`,<br> `table.imputation(sources, targets, methods=...)`, <br>`table.to_pandas()` and `Table.from_pandas(pd.DataFrame)`,<br>`table.to_dict(columns, slice)`, <br>`Table.from_dict()`,<br>`table.transpose(columns, keep, ...)`,<br> New column features: <br> `Column.count(item)`, <br>`Column[:]` is guaranteed to return a python list.<br>`Column.to_numpy(slice)` returns `np.ndarray`. <br> new `tools` library: `from tablite import tools` with: <br> `date_range(start,end)`, <br>`xround(value, multiple, up=None)`, and, <br> `guess` as short-cut for `Datatypes.guess(...)`.|
 | 2022.10.11 | filter now accepts any expression (str) that can be compiled by pythons compiler |
 | 2022.10.11 | Bugfix for `.any` and `.all`. The code now executes much faster|
 | 2022.10.10 | Bugfix for `Table.import_file`: `import_as` has been removed from keywords.|
