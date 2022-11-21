@@ -3156,7 +3156,7 @@ class Table(object):
         sm = difflib.SequenceMatcher(None, t1, t2)
         new = Table()
         first = unique_name('1st', columns)
-        second = unique_name('2st', columns)
+        second = unique_name('2nd', columns)
         new.add_columns(*columns + [first, second])
         
         news = {n: [] for n in new.columns}
