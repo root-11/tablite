@@ -15,7 +15,7 @@ def test_np_types():
                     npn = obj(0)
                 nat = npn.item()
                 print("{0} ({1!r}) -> {2}".format(name, npn.dtype.char, type(nat)))
-            except:
+            except Exception:
                 pass
     pass  # NOTE: Just use .tolist() to convert 'O' type data to native python.
 
