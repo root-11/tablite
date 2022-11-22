@@ -22,7 +22,9 @@ keywords = list({
     'sort', 'is sorted', 'show', 'use disk', 'out-of-memory', 'list on disk',
     'stored list', 'min', 'max', 'sum', 'first', 'last', 'count', 'unique',
     'average', 'standard deviation', 'median', 'mode', 'in-memory', 'index',
-    'indexing', 'product'
+    'indexing', 'product', 'replace missing values', 'data imputation', 'imputation',
+    'date range', 'read csv', 'xround', 'guess', 'remove duplicates', 'replace', 'to_pandas',
+    'pandas', 'from_pandas', 'transpose', 'dict', 'list', 'numpy', 'tools'
 })
 
 keywords.sort(key=lambda x: x.lower())
