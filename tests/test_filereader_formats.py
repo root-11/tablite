@@ -7,10 +7,11 @@ from pathlib import Path
 import pytest
 
 
-@pytest.fixture(autouse=True) # this resets the HDF5 file for every test.
+@pytest.fixture(autouse=True)  # this resets the HDF5 file for every test.
 def refresh():
     Table.reset_storage()
     yield
+
 
 def test_empty():
     table = Table.import_file(Path(__file__).parent / "data" / "empty.csv")
@@ -23,17 +24,18 @@ def test_empty():
     assert len(table.columns) == 0
     assert len(list(table.rows)) == 0
 
+
 def test_text_escape():
-    text_escape = TextEscape(delimiter=';',openings=None,closures=None)
+    text_escape = TextEscape(delimiter=";", openings=None, closures=None)
 
     te = text_escape('"t"')
-    assert te ==["t"]
+    assert te == ["t"]
 
     te = text_escape('"t";"3";"2"')
     assert te == ["t", "3", "2"]
 
     te = text_escape('"this";"123";234;"this";123;"234"')
-    assert te == ['this', '123', '234', 'this', '123', '234']
+    assert te == ["this", "123", "234", "this", "123", "234"]
 
     te = text_escape('"this";"123";"234"')
     assert te == ["this", "123", "234"]
@@ -48,46 +50,49 @@ def test_text_escape():
     assert te == ["123", "1'3", "234"], te
 
     te = text_escape('"1000627";"MOC;SEaert;pás;krk;XL;černá";"2.180,000";"CM3";2')
-    assert te == ["1000627", "MOC;SEaert;pás;krk;XL;černá", "2.180,000", "CM3", '2']
+    assert te == ["1000627", "MOC;SEaert;pás;krk;XL;černá", "2.180,000", "CM3", "2"]
 
     te = text_escape('"1000294";"S2417DG 24"" LED monitor (210-AJWM)";"47.120,000";"CM3";3')
-    assert te == ['1000294', 'S2417DG 24"" LED monitor (210-AJWM)', '47.120,000', 'CM3', '3']
+    assert te == ["1000294", 'S2417DG 24"" LED monitor (210-AJWM)', "47.120,000", "CM3", "3"]
 
 
-def test_text_escape():
+def test_text_escape2():
     # set up
-    text_escape = TextEscape(openings='({[', closures=']})', text_qualifier='"', delimiter=',')
-    s = "this,is,a,,嗨,(comma,sep'd),\"text\""
+    text_escape = TextEscape(openings="({[", closures="]})", text_qualifier='"', delimiter=",")
+    s = 'this,is,a,,嗨,(comma,sep\'d),"text"'
     L = text_escape(s)
-    assert L == ["this", "is", "a", "","嗨", "(comma,sep'd)", "text"]
+    assert L == ["this", "is", "a", "", "嗨", "(comma,sep'd)", "text"]
+
 
 def test2():
-    text_escape = TextEscape(openings='({[', closures=']})', delimiter=',')
+    text_escape = TextEscape(openings="({[", closures="]})", delimiter=",")
 
     s = "this,is,a,,嗨,(comma,sep'd),text"
     L = text_escape(s)
-    assert L == ["this", "is", "a", "","嗨", "(comma,sep'd)", "text"]
+    assert L == ["this", "is", "a", "", "嗨", "(comma,sep'd)", "text"]
+
 
 def test_get_headers():
     import pathlib
-    folder = pathlib.Path(__file__).parent / 'data'
+
+    folder = pathlib.Path(__file__).parent / "data"
     for fname in folder.iterdir():
-        d = get_headers(fname)  
+        d = get_headers(fname)
         assert isinstance(d, dict)
         # this test does not look for content. It merely checks that the reader doesn't fail.
         assert d
         print(fname)
         print(d)
-        
+
 
 def test_filereader_123csv():
     csv_file = Path(__file__).parent / "data" / "123.csv"
 
     table7 = Table()
-    table7.add_column('A', data=[1, None, 8, 3, 4, 6, 5, 7, 9])
-    table7.add_column('B', data=[10, 100, 1, 1, 1, 1, 10, 10, 10])
-    table7.add_column('C', data=[0, 1, 0, 1, 0, 1, 0, 1, 0])
-    sort_order = {'B': False, 'C': False, 'A': False}
+    table7.add_column("A", data=[1, None, 8, 3, 4, 6, 5, 7, 9])
+    table7.add_column("B", data=[10, 100, 1, 1, 1, 1, 10, 10, 10])
+    table7.add_column("C", data=[0, 1, 0, 1, 0, 1, 0, 1, 0])
+    sort_order = {"B": False, "C": False, "A": False}
     table7 = table7.sort(**sort_order)
 
     headers = ",".join([c for c in table7.columns])
@@ -98,198 +103,492 @@ def test_filereader_123csv():
     s = "\n".join(data)
     print(s)
     csv_file.write_text(s)  # write
-    tr_table = Table.import_file(csv_file, columns=['A', 'B', 'C'])
+    tr_table = Table.import_file(csv_file, columns=["A", "B", "C"])
     csv_file.unlink()  # cleanup
 
     tr_table.show()
     for c in tr_table.columns:
         col = tr_table[c]
         col[:] = DataTypes.guess(col)
-    
+
     tr_table.show()
 
     assert tr_table == table7
 
 
 def test_filereader_csv_f12():
-    path = Path(__file__).parent / "data" / 'f12.csv'
-    columns = ['Prod Slbl', 'Prod Tkt Descp Txt', 'Case Qty', 'Height', 'Width', 'Length', 'Weight', 'sale_date', 'cust_nbr', 'Case Qty_1', 'EA Location', 'CDY/Cs', 'EA/Cs', 'EA/CDY', 'Ordered As', 'Picked As', 'Cs/Pal', 'SKU', 'Order_Number', 'cases']
+    path = Path(__file__).parent / "data" / "f12.csv"
+    columns = [
+        "Prod Slbl",
+        "Prod Tkt Descp Txt",
+        "Case Qty",
+        "Height",
+        "Width",
+        "Length",
+        "Weight",
+        "sale_date",
+        "cust_nbr",
+        "Case Qty_1",
+        "EA Location",
+        "CDY/Cs",
+        "EA/Cs",
+        "EA/CDY",
+        "Ordered As",
+        "Picked As",
+        "Cs/Pal",
+        "SKU",
+        "Order_Number",
+        "cases",
+    ]
     data = Table.import_file(path, columns=columns)
     assert len(data) == 13
     for name in data.columns:
         data[name] = DataTypes.guess(data[name])
     assert list(data.rows) == [
-        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 1365660, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1365660_2012/01/01', 1],
-        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 1696753, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1696753_2012/01/01', 1],
-        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 1828693, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1828693_2012/01/01', 1],
-        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 2211182, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '2211182_2012/01/01', 2],
-        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 2229312, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '2229312_2012/01/01', 1],
-        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 2414206, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '2414206_2012/01/01', 1],
-        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 266791, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '266791_2012/01/01', 2],
-        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1017988, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1017988_2012/01/02', 1],
-        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1020158, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1020158_2012/01/02', 2],
-        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1032132, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1032132_2012/01/02', 1],
-        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1048323, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1048323_2012/01/02', 1],
-        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1056865, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1056865_2012/01/02', 2],
-        [52609, '3.99 BTSZ RDS TO', 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1057577, 7, 'EA', 0, 7, 0, 'Each', 'Each', 72, 587, '1057577_2012/01/02', 0]
+        [
+            52609,
+            "3.99 BTSZ RDS TO",
+            7,
+            16,
+            16,
+            22,
+            20,
+            datetime(2012, 1, 1, 0, 0),
+            1365660,
+            7,
+            "EA",
+            0,
+            7,
+            0,
+            "Each",
+            "Each",
+            72,
+            587,
+            "1365660_2012/01/01",
+            1,
+        ],
+        [
+            52609,
+            "3.99 BTSZ RDS TO",
+            7,
+            16,
+            16,
+            22,
+            20,
+            datetime(2012, 1, 1, 0, 0),
+            1696753,
+            7,
+            "EA",
+            0,
+            7,
+            0,
+            "Each",
+            "Each",
+            72,
+            587,
+            "1696753_2012/01/01",
+            1,
+        ],
+        [
+            52609,
+            "3.99 BTSZ RDS TO",
+            7,
+            16,
+            16,
+            22,
+            20,
+            datetime(2012, 1, 1, 0, 0),
+            1828693,
+            7,
+            "EA",
+            0,
+            7,
+            0,
+            "Each",
+            "Each",
+            72,
+            587,
+            "1828693_2012/01/01",
+            1,
+        ],
+        [
+            52609,
+            "3.99 BTSZ RDS TO",
+            7,
+            16,
+            16,
+            22,
+            20,
+            datetime(2012, 1, 1, 0, 0),
+            2211182,
+            7,
+            "EA",
+            0,
+            7,
+            0,
+            "Each",
+            "Each",
+            72,
+            587,
+            "2211182_2012/01/01",
+            2,
+        ],
+        [
+            52609,
+            "3.99 BTSZ RDS TO",
+            7,
+            16,
+            16,
+            22,
+            20,
+            datetime(2012, 1, 1, 0, 0),
+            2229312,
+            7,
+            "EA",
+            0,
+            7,
+            0,
+            "Each",
+            "Each",
+            72,
+            587,
+            "2229312_2012/01/01",
+            1,
+        ],
+        [
+            52609,
+            "3.99 BTSZ RDS TO",
+            7,
+            16,
+            16,
+            22,
+            20,
+            datetime(2012, 1, 1, 0, 0),
+            2414206,
+            7,
+            "EA",
+            0,
+            7,
+            0,
+            "Each",
+            "Each",
+            72,
+            587,
+            "2414206_2012/01/01",
+            1,
+        ],
+        [
+            52609,
+            "3.99 BTSZ RDS TO",
+            7,
+            16,
+            16,
+            22,
+            20,
+            datetime(2012, 1, 1, 0, 0),
+            266791,
+            7,
+            "EA",
+            0,
+            7,
+            0,
+            "Each",
+            "Each",
+            72,
+            587,
+            "266791_2012/01/01",
+            2,
+        ],
+        [
+            52609,
+            "3.99 BTSZ RDS TO",
+            7,
+            16,
+            16,
+            22,
+            20,
+            datetime(2012, 1, 2, 0, 0),
+            1017988,
+            7,
+            "EA",
+            0,
+            7,
+            0,
+            "Each",
+            "Each",
+            72,
+            587,
+            "1017988_2012/01/02",
+            1,
+        ],
+        [
+            52609,
+            "3.99 BTSZ RDS TO",
+            7,
+            16,
+            16,
+            22,
+            20,
+            datetime(2012, 1, 2, 0, 0),
+            1020158,
+            7,
+            "EA",
+            0,
+            7,
+            0,
+            "Each",
+            "Each",
+            72,
+            587,
+            "1020158_2012/01/02",
+            2,
+        ],
+        [
+            52609,
+            "3.99 BTSZ RDS TO",
+            7,
+            16,
+            16,
+            22,
+            20,
+            datetime(2012, 1, 2, 0, 0),
+            1032132,
+            7,
+            "EA",
+            0,
+            7,
+            0,
+            "Each",
+            "Each",
+            72,
+            587,
+            "1032132_2012/01/02",
+            1,
+        ],
+        [
+            52609,
+            "3.99 BTSZ RDS TO",
+            7,
+            16,
+            16,
+            22,
+            20,
+            datetime(2012, 1, 2, 0, 0),
+            1048323,
+            7,
+            "EA",
+            0,
+            7,
+            0,
+            "Each",
+            "Each",
+            72,
+            587,
+            "1048323_2012/01/02",
+            1,
+        ],
+        [
+            52609,
+            "3.99 BTSZ RDS TO",
+            7,
+            16,
+            16,
+            22,
+            20,
+            datetime(2012, 1, 2, 0, 0),
+            1056865,
+            7,
+            "EA",
+            0,
+            7,
+            0,
+            "Each",
+            "Each",
+            72,
+            587,
+            "1056865_2012/01/02",
+            2,
+        ],
+        [
+            52609,
+            "3.99 BTSZ RDS TO",
+            7,
+            16,
+            16,
+            22,
+            20,
+            datetime(2012, 1, 2, 0, 0),
+            1057577,
+            7,
+            "EA",
+            0,
+            7,
+            0,
+            "Each",
+            "Each",
+            72,
+            587,
+            "1057577_2012/01/02",
+            0,
+        ],
     ], list(data.rows)
 
 
 def test_filereader_book1csv():
-    path = Path(__file__).parent / "data" / 'book1.csv'
+    path = Path(__file__).parent / "data" / "book1.csv"
     assert path.exists()
-    table = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'])
+    table = Table.import_file(path, columns=["a", "b", "c", "d", "e", "f"])
     table.show(slice(0, 10))
     for name in table.columns:
         table[name] = DataTypes.guess(table[name])
 
-    assert table['a'].types() == {int:45}
-    for name in list('bcdef'):
-        assert table[name].types() == {float:45}
+    assert table["a"].types() == {int: 45}
+    for name in list("bcdef"):
+        assert table[name].types() == {float: 45}
 
     assert len(table) == 45
 
 
 def test_filereader_book1tsv():
-    path = Path(__file__).parent / "data" / 'book1.tsv'
+    path = Path(__file__).parent / "data" / "book1.tsv"
     assert path.exists()
-    table = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None)
+    table = Table.import_file(path, columns=["a", "b", "c", "d", "e", "f"], delimiter="\t", text_qualifier=None)
     table.show(slice(0, 10))
     assert len(table) == 45
 
 
 def test_filereader_gdocs1csv():
-    path = Path(__file__).parent / "data" / 'gdocs1.csv'
+    path = Path(__file__).parent / "data" / "gdocs1.csv"
     assert path.exists()
-    table = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], text_qualifier=None)
+    table = Table.import_file(path, columns=["a", "b", "c", "d", "e", "f"], text_qualifier=None)
     table.show(slice(0, 10))
     assert len(table) == 45
 
 
 def test_filereader_book1txt():
-    path = Path(__file__).parent / "data" / 'book1.txt'
+    path = Path(__file__).parent / "data" / "book1.txt"
     assert path.exists()
-    table = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None)
+    table = Table.import_file(path, columns=["a", "b", "c", "d", "e", "f"], delimiter="\t", text_qualifier=None)
     table.show(slice(0, 10))
     assert len(table) == 45
 
 
 def test_filereader_book1_txt_chunks():
-    path = Path(__file__).parent / "data" / 'book1.txt'
+    path = Path(__file__).parent / "data" / "book1.txt"
     assert path.exists()
-    table1 = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None)
+    table1 = Table.import_file(path, columns=["a", "b", "c", "d", "e", "f"], delimiter="\t", text_qualifier=None)
     start = 0
     table2 = None
     while True:
-        tmp = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None, start=start, limit=5)
-        if len(tmp)==0:
+        tmp = Table.import_file(
+            path, columns=["a", "b", "c", "d", "e", "f"], delimiter="\t", text_qualifier=None, start=start, limit=5
+        )
+        if len(tmp) == 0:
             break
-        start += len(tmp) 
+        start += len(tmp)
 
         if table2 is None:
             table2 = tmp
         else:
             table2 += tmp
-        
+
     assert table1 == table2
-        
+
 
 def test_filereader_book1_txt_chunks_and_offset():
-    path = Path(__file__).parent / "data" / 'book1.txt'
+    path = Path(__file__).parent / "data" / "book1.txt"
     assert path.exists()
 
     start = 2
 
-    table1 = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None,start=start)
-    
+    table1 = Table.import_file(
+        path, columns=["a", "b", "c", "d", "e", "f"], delimiter="\t", text_qualifier=None, start=start
+    )
+
     table2 = None
     while True:
-        tmp = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], delimiter='\t', text_qualifier=None, start=start, limit=5)
-        if len(tmp)==0:
+        tmp = Table.import_file(
+            path, columns=["a", "b", "c", "d", "e", "f"], delimiter="\t", text_qualifier=None, start=start, limit=5
+        )
+        if len(tmp) == 0:
             break
-        start += len(tmp) 
+        start += len(tmp)
         if table2 is None:
             table2 = tmp
         else:
             table2 += tmp
-    
+
     assert table1 == table2
 
 
 def test_filereader_gdocsc1tsv():
-    path = Path(__file__).parent / "data" / 'gdocs1.tsv'
+    path = Path(__file__).parent / "data" / "gdocs1.tsv"
     assert path.exists()
-    table = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], text_qualifier=None, delimiter='\t')
+    table = Table.import_file(path, columns=["a", "b", "c", "d", "e", "f"], text_qualifier=None, delimiter="\t")
     table.show(slice(0, 10))
     assert len(table) == 45
     for name in table.columns:
         table[name] = DataTypes.guess(table[name])
-    
-    assert table['a'].types() == {int:45}
-    for name in list('bcdef'):
-        assert table[name].types() == {float:45}
+
+    assert table["a"].types() == {int: 45}
+    for name in list("bcdef"):
+        assert table[name].types() == {float: 45}
 
 
 def test_filereader_gdocsc1ods():
-    path = Path(__file__).parent / "data" / 'gdocs1.ods'
+    path = Path(__file__).parent / "data" / "gdocs1.ods"
     assert path.exists()
 
-    sheet1 = Table.import_file(path, sheet='Sheet1')
+    sheet1 = Table.import_file(path, sheet="Sheet1")
     for name in sheet1.columns:
         sheet1[name] = DataTypes.guess(sheet1[name])
-        assert sheet1[name].types() == {int:45}
+        assert sheet1[name].types() == {int: 45}
 
-    sheet2 = Table.import_file(path, sheet='Sheet2')
+    sheet2 = Table.import_file(path, sheet="Sheet2")
     for name in sheet2.columns:
         sheet2[name] = DataTypes.guess(sheet2[name])
-        if name == 'a':
-            assert sheet2[name].types() == {int:45}
+        if name == "a":
+            assert sheet2[name].types() == {int: 45}
         else:
-            assert sheet2[name].types() == {float:45}
+            assert sheet2[name].types() == {float: 45}
 
 
 def test_filereader_gdocs1xlsx():
-    path = Path(__file__).parent / "data" / 'gdocs1.xlsx'
+    path = Path(__file__).parent / "data" / "gdocs1.xlsx"
     assert path.exists()
-    sheet1 = Table.import_file(path, sheet='Sheet1', columns=['a', 'b', 'c', 'd', 'e', 'f'])
+    sheet1 = Table.import_file(path, sheet="Sheet1", columns=["a", "b", "c", "d", "e", "f"])
     sheet1.show(slice(0, 10))
 
     for name in sheet1.columns:
         sheet1[name] = DataTypes.guess(sheet1[name])
-        assert sheet1[name].types() == {int:45}
+        assert sheet1[name].types() == {int: 45}
     assert len(sheet1) == 45
 
 
 def test_filereader_utf8csv():
-    path = Path(__file__).parent / "data" / 'utf8_test.csv'
+    path = Path(__file__).parent / "data" / "utf8_test.csv"
     assert path.exists()
 
-    columns = ["Item","Materiál","Objem","Jednotka objemu","Free Inv Pcs"]
-    table = Table.import_file(path, delimiter=';', columns=columns, text_qualifier='"')
+    columns = ["Item", "Materiál", "Objem", "Jednotka objemu", "Free Inv Pcs"]
+    table = Table.import_file(path, delimiter=";", columns=columns, text_qualifier='"')
     table.show(slice(0, 10))
-    table.show(slice(-15,None))
+    table.show(slice(-15, None))
 
-    types = {
-        'Item': int,
-        'Materiál': str,
-        'Objem': float,
-        'Jednotka objemu': str,
-        'Free Inv Pcs': int
-    }
+    types = {"Item": int, "Materiál": str, "Objem": float, "Jednotka objemu": str, "Free Inv Pcs": int}
 
     for name in table.columns:
         table[name] = DataTypes.guess(table[name])
         tt = table[name].types()
-        assert max(tt,key=tt.get) == types[name]
+        assert max(tt, key=tt.get) == types[name]
 
     assert len(table) == 99, len(table)
 
 
 def test_filereader_utf16csv():
-    path = Path(__file__).parent / "data" / 'utf16_test.csv'
+    path = Path(__file__).parent / "data" / "utf16_test.csv"
     assert path.exists()
     col_names = ['"Item"', '"Materiál"', '"Objem"', '"Jednotka objemu"', '"Free Inv Pcs"']
-    table = Table.import_file(path, delimiter=';', columns=col_names)
+    table = Table.import_file(path, delimiter=";", columns=col_names)
     table.show(slice(0, 10))
     # +===+============+=======================================+============+=================+==============+
     # | # |   "Item"   |               "Materiál"              |  "Objem"   |"Jednotka objemu"|"Free Inv Pcs"|
@@ -311,82 +610,90 @@ def test_filereader_utf16csv():
 
 
 def test_filereader_win1251_encoding_csv():
-    path = Path(__file__).parent / "data" / 'win1250_test.csv'
+    path = Path(__file__).parent / "data" / "win1250_test.csv"
     assert path.exists()
     col_names = ['"Item"', '"Materiál"', '"Objem"', '"Jednotka objemu"', '"Free Inv Pcs"']
-    table = Table.import_file(path, delimiter=';', columns=col_names)
+    table = Table.import_file(path, delimiter=";", columns=col_names)
     table.show(slice(0, 10))
     table.show(slice(None, -15))
     assert len(table) == 99, len(table)
 
 
 def test_filereader_utf8sig_encoding_csv():
-    path = Path(__file__).parent / "data" / 'utf8sig.csv'
+    path = Path(__file__).parent / "data" / "utf8sig.csv"
     assert path.exists()
-    col_names = ['432', '1']
-    table = Table.import_file(path, delimiter=',', columns=col_names)
+    col_names = ["432", "1"]
+    table = Table.import_file(path, delimiter=",", columns=col_names)
     table.show(slice(0, 10))
     table.show(slice(-15))
     assert len(table) == 2, len(table)
 
 
 def test_filereader_saptxt():
-    path = Path(__file__).parent / "data" / 'sap.txt'
+    path = Path(__file__).parent / "data" / "sap.txt"
     assert path.exists()
-    
-    header = "    | Delivery |  Item|Pl.GI date|Route |SC|Ship-to   |SOrg.|Delivery quantity|SU| TO Number|Material    |Dest.act.qty.|BUn|Typ|Source Bin|Cty"
+
+    header = "    | Delivery |  Item|Pl.GI date|Route |SC|Ship-to   |SOrg.|Delivery quantity|SU| TO Number|Material    |Dest.act.qty.|BUn|Typ|Source Bin|Cty"  # noqa
     col_names = [w.strip(" ").rstrip(" ") for w in header.split("|")]
 
-    table = Table.import_file(path, delimiter="|", columns=[k for k in col_names if k!=""], strip_leading_and_tailing_whitespace=True, guess_datatypes=False)
-    
+    table = Table.import_file(
+        path,
+        delimiter="|",
+        columns=[k for k in col_names if k != ""],
+        strip_leading_and_tailing_whitespace=True,
+        guess_datatypes=False,
+    )
+
     for name in table.columns:
         table[name] = DataTypes.guess(table[name])
-    
+
     table.show()
 
     assert len(table) == 20, len(table)
 
 
 def test_filereader_book1xlsx():
-    path = Path(__file__).parent / "data" / 'book1.xlsx'
+    path = Path(__file__).parent / "data" / "book1.xlsx"
     assert path.exists()
     start = process_time_ns()
-    sheet1 = Table.import_file(path, sheet='Sheet1', columns=['a', 'b', 'c', 'd', 'e', 'f'])
-    sheet2 = Table.import_file(path, columns=['a', 'b', 'c', 'd', 'e', 'f'], sheet='Sheet2 ')  # there's a deliberate white space at the end!)
+    sheet1 = Table.import_file(path, sheet="Sheet1", columns=["a", "b", "c", "d", "e", "f"])
+    sheet2 = Table.import_file(
+        path, columns=["a", "b", "c", "d", "e", "f"], sheet="Sheet2 "
+    )  # there's a deliberate white space at the end!)
     end = process_time_ns()
 
-    tables = [sheet1,sheet2]
+    tables = [sheet1, sheet2]
     fields = sum(len(t) * len(t.columns) for t in tables)
     print("{:,} fields/seccond".format(round(1e9 * fields / max(1, end - start), 0)))
 
-    for name in 'abcdef':
+    for name in "abcdef":
         sheet1[name] = DataTypes.guess(sheet1[name])
         assert sheet1[name].types() == {int: len(sheet1)}
 
-    sheet2['a'] == DataTypes.guess(sheet2['a'])
-    assert sheet2['a'].types() == {int: len(sheet2)}
-    
-    for name in list('bcdef'):
+    sheet2["a"] == DataTypes.guess(sheet2["a"])
+    assert sheet2["a"].types() == {int: len(sheet2)}
+
+    for name in list("bcdef"):
         sheet2[name] = DataTypes.guess(sheet2[name])
         assert sheet2[name].types() == {float: len(sheet2)}
 
 
 def test_filereader_exceldatesxlsx():
-    path = Path(__file__).parent / "data" / 'excel_dates.xlsx'
+    path = Path(__file__).parent / "data" / "excel_dates.xlsx"
     assert path.exists()
     try:
-        _ = Table.import_file(path, sheet=None, columns=None) 
+        _ = Table.import_file(path, sheet=None, columns=None)
         assert False
     except ValueError as e:
         assert "available sheets" in str(e)
 
-    table2 = Table.import_file(path, sheet='Sheet1', columns=None) 
+    table2 = Table.import_file(path, sheet="Sheet1", columns=None)
     sample = get_headers(path)
-    columns = [k for k in sample['Sheet1'][0]]
+    columns = [k for k in sample["Sheet1"][0]]
 
-    table = Table.import_file(path, sheet='Sheet1', columns=columns)
+    table = Table.import_file(path, sheet="Sheet1", columns=columns)
     assert table == table2
-    
+
     table.show()
     # +===+===================+=============+==========+=====+
     # | # |        Date       |numeric value|  string  | bool|
@@ -396,12 +703,12 @@ def test_filereader_exceldatesxlsx():
     # |1  |2016-10-31 00:00:00|        42674|2016/10/31|False|
     # +===+===================+=============+==========+=====+
     assert len(table) == 2, len(table)
-    assert table['Date'].types() == {datetime: len(table)}
-    assert table['numeric value'].types() == {int: len(table)}
-    assert table['bool'].types() == {bool: len(table)}
+    assert table["Date"].types() == {datetime: len(table)}
+    assert table["numeric value"].types() == {int: len(table)}
+    assert table["bool"].types() == {bool: len(table)}
 
-    assert table['string'].types() == {str: len(table)}
-    table['string'] = DataTypes.guess(table['string'])
+    assert table["string"].types() == {str: len(table)}
+    table["string"] = DataTypes.guess(table["string"])
     # table.show()
     # +===+===================+=============+==========+=====+
     # | # |        Date       |numeric value|  string  | bool|
@@ -410,14 +717,14 @@ def test_filereader_exceldatesxlsx():
     # |0  |1920-01-01 00:00:00|            0|1920-01-01| True|
     # |1  |2016-10-31 00:00:00|        42674|2016-10-31|False|
     # +===+===================+=============+==========+=====+
-    assert table['string'].types() == {date:len(table)}
+    assert table["string"].types() == {date: len(table)}
 
 
 def test_filereader_gdocs1csv_no_header():
-    path = Path(__file__).parent / "data" / 'gdocs1.csv'
+    path = Path(__file__).parent / "data" / "gdocs1.csv"
     assert path.exists()
     table = Table.import_file(path, first_row_has_headers=False)
-    assert table.columns == ['0', '1', '2', '3', '4', '5']
+    assert table.columns == ["0", "1", "2", "3", "4", "5"]
 
     table = Table.import_file(path, first_row_has_headers=False, columns=[str(n) for n in [0, 1, 2, 3, 4, 5]])
     # ^--- this uses the import_file shortcut as it has the same config as the previous import.
@@ -443,12 +750,14 @@ def test_filereader_gdocs1csv_no_header():
 
 
 def test_filereader_gdocs1xlsx_no_header():
-    path = Path(__file__).parent / "data" / 'gdocs1.xlsx'
+    path = Path(__file__).parent / "data" / "gdocs1.xlsx"
     assert path.exists()
     tables = []
-    for sheet in ('Sheet1', 'Sheet2', 'Sheet3'):
+    for sheet in ("Sheet1", "Sheet2", "Sheet3"):
 
-        table = Table.import_file(path, sheet=sheet, first_row_has_headers=False, columns=[str(n) for n in [0, 1, 2, 3, 4, 5]])
+        table = Table.import_file(
+            path, sheet=sheet, first_row_has_headers=False, columns=[str(n) for n in [0, 1, 2, 3, 4, 5]]
+        )
         table.show(slice(0, 10))
         # +===+===+=============+=============+============+============+============+
         # | # | 0 |      1      |      2      |     3      |     4      |     5      |
@@ -465,27 +774,27 @@ def test_filereader_gdocs1xlsx_no_header():
         # |8  |8  |7.757575758  |15.51515152  |31.03030303 |62.06060606 |124.1212121 |
         # |9  |9  |15.51515152  |31.03030303  |62.06060606 |124.1212121 |248.2424242 |
         # +===+===+=============+=============+============+============+============+
-        
+
         if sheet == "Sheet1":
             assert len(table) == 46
             assert table.types() == {
-                '0': {int: 44, float: 1, str: 1}, 
-                '1': {int: 43, float: 2, str: 1}, 
-                '2': {int: 43, float: 2, str: 1}, 
-                '3': {int: 43, float: 2, str: 1}, 
-                '4': {int: 43, float: 2, str: 1}, 
-                '5': {int: 43, float: 2, str: 1}
-                }
+                "0": {int: 44, float: 1, str: 1},
+                "1": {int: 43, float: 2, str: 1},
+                "2": {int: 43, float: 2, str: 1},
+                "3": {int: 43, float: 2, str: 1},
+                "4": {int: 43, float: 2, str: 1},
+                "5": {int: 43, float: 2, str: 1},
+            }
         elif sheet == "Sheet2":
             assert len(table) == 46
             assert table.types() == {
-                '0': {int: 45, str: 1}, 
-                '1': {int: 11, float: 34, str: 1}, 
-                '2': {int: 12, float: 33, str: 1}, 
-                '3': {int: 13, float: 32, str: 1}, 
-                '4': {int: 14, float: 31, str: 1},
-                '5': {int: 15, float: 30, str: 1}
-                }
+                "0": {int: 45, str: 1},
+                "1": {int: 11, float: 34, str: 1},
+                "2": {int: 12, float: 33, str: 1},
+                "3": {int: 13, float: 32, str: 1},
+                "4": {int: 14, float: 31, str: 1},
+                "5": {int: 15, float: 30, str: 1},
+            }
         elif sheet == "Sheet3":
             assert len(table) == 0
             assert table.types() == {}
@@ -494,31 +803,54 @@ def test_filereader_gdocs1xlsx_no_header():
 
 
 def test_keep():
-    path = Path(__file__).parent / "data" / 'book1.csv'
+    path = Path(__file__).parent / "data" / "book1.csv"
     assert path.exists()
-    table = Table.import_file(path, columns=['a','b'])
-    assert set(table.columns) == {'a', 'b'}
+    table = Table.import_file(path, columns=["a", "b"])
+    assert set(table.columns) == {"a", "b"}
     assert len(table) == 45
 
 
 def test_long_texts():
-    path = Path(__file__).parent / "data" / 'long_text_test.csv'
+    path = Path(__file__).parent / "data" / "long_text_test.csv"
     assert path.exists()
 
     columns = [
-        "sharepointid","Rank","ITEMID","docname","doctype","application","APPNO",
-        "ARTICLES","violation","nonviolation","CONCLUSION","importance","ORIGINATING BODY ID",
-        "typedescription","kpdate","kpdateAsText","documentcollectionid","documentcollectionid2",
-        "languageisocode","extractedappno","isplaceholder","doctypebranch","RESPONDENT",
-        "respondentOrderEng","scl","ECLI","ORIGINATING BODY","YEAR","FULLTEXT","judges", "courts"]
+        "sharepointid",
+        "Rank",
+        "ITEMID",
+        "docname",
+        "doctype",
+        "application",
+        "APPNO",
+        "ARTICLES",
+        "violation",
+        "nonviolation",
+        "CONCLUSION",
+        "importance",
+        "ORIGINATING BODY ID",
+        "typedescription",
+        "kpdate",
+        "kpdateAsText",
+        "documentcollectionid",
+        "documentcollectionid2",
+        "languageisocode",
+        "extractedappno",
+        "isplaceholder",
+        "doctypebranch",
+        "RESPONDENT",
+        "respondentOrderEng",
+        "scl",
+        "ECLI",
+        "ORIGINATING BODY",
+        "YEAR",
+        "FULLTEXT",
+        "judges",
+        "courts",
+    ]
 
-    
     t = Table.import_file(path, text_qualifier='"')
     t.__getitem__(t.columns[0], t.columns[-1]).show()
-    
+
     t = Table.import_file(path, columns=columns[:-1], text_qualifier='"')
     selection = columns[:5]
     t.__getitem__(*selection).show()
-
-
-

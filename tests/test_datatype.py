@@ -3,63 +3,67 @@ from datetime import date, time, datetime, timedelta
 import numpy as np
 import math
 
+
 def test_np_types():
     for name in dir(np):
         obj = getattr(np, name)
-        if hasattr(obj, 'dtype'):
+        if hasattr(obj, "dtype"):
             try:
-                if 'time' in name:
-                    npn = obj(0, 'D')
+                if "time" in name:
+                    npn = obj(0, "D")
                 else:
                     npn = obj(0)
                 nat = npn.item()
-                print('{0} ({1!r}) -> {2}'.format(name, npn.dtype.char, type(nat)))
+                print("{0} ({1!r}) -> {2}".format(name, npn.dtype.char, type(nat)))
             except:
                 pass
-    pass # NOTE: Just use .tolist() to convert 'O' type data to native python.
+    pass  # NOTE: Just use .tolist() to convert 'O' type data to native python.
 
 
 def test_dt_ranks():
-    r = Rank('A', 'B', 'C')
-    r.match('C')
-    assert list(r) == ['C', 'A', 'B']
-    assert [i for i in r] == ['C', 'A', 'B']
-    r.match('B')
-    assert list(r) == ['C', 'B', 'A']
-    r.match('C')
-    assert list(r) == ['C', 'B', 'A']
-    r.match('B')
-    assert list(r) == ['C', 'B', 'A']
-    r.match('A')
-    assert list(r) == ['C', 'B', 'A']
-    r.match('A')
-    assert list(r) == ['C', 'B', 'A']
-    r.match('A')
-    assert list(r) == ['A', 'C', 'B']
+    r = Rank("A", "B", "C")
+    r.match("C")
+    assert list(r) == ["C", "A", "B"]
+    assert [i for i in r] == ["C", "A", "B"]
+    r.match("B")
+    assert list(r) == ["C", "B", "A"]
+    r.match("C")
+    assert list(r) == ["C", "B", "A"]
+    r.match("B")
+    assert list(r) == ["C", "B", "A"]
+    r.match("A")
+    assert list(r) == ["C", "B", "A"]
+    r.match("A")
+    assert list(r) == ["C", "B", "A"]
+    r.match("A")
+    assert list(r) == ["A", "C", "B"]
     for i in range(5):
-        r.match('A')
-    assert list(r) == ['A', 'C', 'B']
-    
+        r.match("A")
+    assert list(r) == ["A", "C", "B"]
+
 
 def test_datatype_inference():
     # integers
     assert DataTypes.infer(1, int) == 1
     assert DataTypes.infer(0, int) == 0
     assert DataTypes.infer(-1, int) == -1
-    assert DataTypes.infer('1', int) == 1
-    assert DataTypes.infer('0', int) == 0
-    assert DataTypes.infer('-1', int) == -1
-    assert DataTypes.infer('"1000028234565432345676542345676543342345675432"', int) == 1000028234565432345676542345676543342345675432
+    assert DataTypes.infer("1", int) == 1
+    assert DataTypes.infer("0", int) == 0
+    assert DataTypes.infer("-1", int) == -1
+    assert (
+        DataTypes.infer('"1000028234565432345676542345676543342345675432"', int)
+        == 1000028234565432345676542345676543342345675432
+    )
     assert DataTypes.infer('"1000028"', int) == 1000028
     assert DataTypes.infer('"1,000,028"', int) == 1000028
     try:
-        DataTypes.infer('1.0', int)
+        DataTypes.infer("1.0", int)
         assert False, "1.0 is a float."
     except ValueError:
         assert True
 
     try:
-        DataTypes.infer('1.0', float)
+        DataTypes.infer("1.0", float)
         assert True, "1.0 is a float."
     except ValueError:
         assert False
@@ -76,18 +80,18 @@ def test_datatype_inference():
     assert DataTypes.infer("-10e5", float) == -10e5
     assert DataTypes.infer("-10e-5", float) == -10e-5
     try:
-        DataTypes.infer('100126495100211788-1', float)
+        DataTypes.infer("100126495100211788-1", float)
         assert False, "this is a corrupted string."
     except ValueError:
         assert True
 
     # booleans
-    assert DataTypes.infer('true', bool) is True
-    assert DataTypes.infer('True', bool) is True
-    assert DataTypes.infer('TRUE', bool) is True
-    assert DataTypes.infer('false', bool) is False
-    assert DataTypes.infer('False', bool) is False
-    assert DataTypes.infer('FALSE', bool) is False
+    assert DataTypes.infer("true", bool) is True
+    assert DataTypes.infer("True", bool) is True
+    assert DataTypes.infer("TRUE", bool) is True
+    assert DataTypes.infer("false", bool) is False
+    assert DataTypes.infer("False", bool) is False
+    assert DataTypes.infer("FALSE", bool) is False
 
     # strings
     assert DataTypes.infer(7, str) == "7"
@@ -151,7 +155,7 @@ def test_datatype_inference():
     isodatetime = datetime.now()
     assert DataTypes.infer(isodatetime, datetime) == isodatetime
     assert DataTypes.infer(isodatetime.isoformat(), datetime) == isodatetime
-    dirty_date = datetime(1990, 1, 1, 23, 12, 11, int(0.003 * 10 ** 6))
+    dirty_date = datetime(1990, 1, 1, 23, 12, 11, int(0.003 * 10**6))
     assert DataTypes.infer("1990-01-01T23:12:11.003000", datetime) == dirty_date  # iso minus T microsecond
     assert DataTypes.infer("1990-01-01T23:12:11.003", datetime) == dirty_date  #
     assert DataTypes.infer("1990-01-01 23:12:11.003", datetime) == dirty_date  # iso space
@@ -163,20 +167,28 @@ def test_datatype_inference():
     assert DataTypes.infer("1990 01 01T23:12:11.003", datetime) == dirty_date  # iso space T
     assert DataTypes.infer("1990 01 01 23:12:11.003", datetime) == dirty_date  # iso space
 
-    assert DataTypes.infer("2003-09-25T10:49:41", datetime) == datetime(2003, 9, 25, 10, 49, 41)  # iso minus T fields omitted.
+    assert DataTypes.infer("2003-09-25T10:49:41", datetime) == datetime(
+        2003, 9, 25, 10, 49, 41
+    )  # iso minus T fields omitted.
     assert DataTypes.infer("2003-09-25T10:49", datetime) == datetime(2003, 9, 25, 10, 49)
     assert DataTypes.infer("2003-09-25T10", datetime) == datetime(2003, 9, 25, 10)
 
-    assert DataTypes.infer("20080227T21:26:01.123456789", datetime) == datetime(2008, 2, 27, 21, 26, 1, 123456)  # high precision seconds
-    assert DataTypes.infer("20030925T104941", datetime) == datetime(2003, 9, 25, 10, 49, 41)  # iso nospace T fields omitted.
+    assert DataTypes.infer("20080227T21:26:01.123456789", datetime) == datetime(
+        2008, 2, 27, 21, 26, 1, 123456
+    )  # high precision seconds
+    assert DataTypes.infer("20030925T104941", datetime) == datetime(
+        2003, 9, 25, 10, 49, 41
+    )  # iso nospace T fields omitted.
     assert DataTypes.infer("20030925T1049", datetime) == datetime(2003, 9, 25, 10, 49, 0)
     assert DataTypes.infer("20030925T10", datetime) == datetime(2003, 9, 25, 10)
 
     assert DataTypes.infer("199709020908", datetime) == datetime(1997, 9, 2, 9, 8)
     assert DataTypes.infer("19970902090807", datetime) == datetime(1997, 9, 2, 9, 8, 7)
-    assert DataTypes.infer("2003-09-25 10:49:41,502", datetime) == datetime(2003, 9, 25, 10, 49, 41, 502000)  # python logger format
-    assert DataTypes.infer('0099-01-01T00:00:00', datetime) == datetime(99, 1, 1, 0, 0)  # 99 ad
-    assert DataTypes.infer('0031-01-01T00:00:00', datetime) == datetime(31, 1, 1, 0, 0)  # 31 ad
+    assert DataTypes.infer("2003-09-25 10:49:41,502", datetime) == datetime(
+        2003, 9, 25, 10, 49, 41, 502000
+    )  # python logger format
+    assert DataTypes.infer("0099-01-01T00:00:00", datetime) == datetime(99, 1, 1, 0, 0)  # 99 ad
+    assert DataTypes.infer("0031-01-01T00:00:00", datetime) == datetime(31, 1, 1, 0, 0)  # 31 ad
 
     # NOT HANDLED. ambiguous format. Year is not 4 digits.
     # ("950404 122212", datetime(1995, 4, 4, 12, 22, 12), "random format"),
@@ -198,15 +210,15 @@ def test_datatype_inference():
 def test_round():
     xround = DataTypes.round
     # round up
-    assert xround(0,1,True) == 0
+    assert xround(0, 1, True) == 0
     assert xround(1.6, 1, True) == 2
     assert xround(1.4, 1, True) == 2
     # round down
-    assert xround(0,1,False) == 0
+    assert xround(0, 1, False) == 0
     assert xround(1.6, 1, False) == 1
     assert xround(1.4, 1, False) == 1
     # round half
-    assert xround(0,1) == 0
+    assert xround(0, 1) == 0
     assert xround(1.6, 1) == 2
     assert xround(1.4, 1) == 1
 
@@ -229,38 +241,34 @@ def test_round():
 
     assert xround(123, 5.07, False) == 24 * 5.07
 
-    dt = datetime(2022,8,18,11,14,53,440)
+    dt = datetime(2022, 8, 18, 11, 14, 53, 440)
 
-    td = timedelta(hours=0.5)    
-    assert xround(dt,td, up=False) == datetime(2022,8,18,11,0)
-    assert xround(dt,td, up=None) == datetime(2022,8,18,11,0)
-    assert xround(dt,td, up=True) == datetime(2022,8,18,11,30)
+    td = timedelta(hours=0.5)
+    assert xround(dt, td, up=False) == datetime(2022, 8, 18, 11, 0)
+    assert xround(dt, td, up=None) == datetime(2022, 8, 18, 11, 0)
+    assert xround(dt, td, up=True) == datetime(2022, 8, 18, 11, 30)
 
     td = timedelta(hours=24)
-    assert xround(dt,td, up=False) == datetime(2022,8,18)
-    assert xround(dt,td, up=None) == datetime(2022,8,18)
-    assert xround(dt,td, up=True) == datetime(2022,8,19)
-
+    assert xround(dt, td, up=False) == datetime(2022, 8, 18)
+    assert xround(dt, td, up=None) == datetime(2022, 8, 18)
+    assert xround(dt, td, up=True) == datetime(2022, 8, 19)
 
     td = timedelta(days=0.5)
-    assert xround(dt,td, up=False) == datetime(2022,8,18)
-    assert xround(dt,td, up=None) == datetime(2022,8,18,12)
-    assert xround(dt,td, up=True) == datetime(2022,8,18,12)
+    assert xround(dt, td, up=False) == datetime(2022, 8, 18)
+    assert xround(dt, td, up=None) == datetime(2022, 8, 18, 12)
+    assert xround(dt, td, up=True) == datetime(2022, 8, 18, 12)
 
     td = timedelta(days=1.5)
-    assert xround(dt,td, up=False) == datetime(2022,8,18)
-    assert xround(dt,td, up=None) == datetime(2022,8,18)
-    assert xround(dt,td, up=True) == datetime(2022,8,19,12)
+    assert xround(dt, td, up=False) == datetime(2022, 8, 18)
+    assert xround(dt, td, up=None) == datetime(2022, 8, 18)
+    assert xround(dt, td, up=True) == datetime(2022, 8, 19, 12)
 
     td = timedelta(seconds=0.5)
-    assert xround(dt,td, up=False) == datetime(2022,8,18,11,14,53,0)
-    assert xround(dt,td, up=None) == datetime(2022,8,18,11,14,53,0)
-    assert xround(dt,td, up=True) == datetime(2022,8,18,11,14,53,500000)
+    assert xround(dt, td, up=False) == datetime(2022, 8, 18, 11, 14, 53, 0)
+    assert xround(dt, td, up=None) == datetime(2022, 8, 18, 11, 14, 53, 0)
+    assert xround(dt, td, up=True) == datetime(2022, 8, 18, 11, 14, 53, 500000)
 
     td = timedelta(seconds=40000)
-    assert xround(dt,td, up=False) == datetime(2022,8,18,6,40)
-    assert xround(dt,td, up=None) == datetime(2022,8,18,6,40)
-    assert xround(dt,td, up=True) == datetime(2022,8,18,17,46,40)
-
-    
-
+    assert xround(dt, td, up=False) == datetime(2022, 8, 18, 6, 40)
+    assert xround(dt, td, up=None) == datetime(2022, 8, 18, 6, 40)
+    assert xround(dt, td, up=True) == datetime(2022, 8, 18, 17, 46, 40)
