@@ -3,19 +3,19 @@ from tablite import Table
 import gc
 import time
 from time import process_time
-import os 
+import os
 
 
-def test_recreate_readme_comparison():  
+def test_recreate_readme_comparison():
     process = psutil.Process(os.getpid())
     baseline_memory = process.memory_info().rss
 
     digits = 1_000_000
 
     records = Table()
-    records.add_column('method')
-    records.add_column('memory')
-    records.add_column('time')
+    records.add_column("method")
+    records.add_column("memory")
+    records.add_column("time")
 
     # Let's now use the common and convenient "row" based format:
 
@@ -27,7 +27,7 @@ def test_recreate_readme_comparison():
 
     # go and check taskmanagers memory usage.
     # At this point we're using ~154.2 Mb to store 1 million lists with 10 items.
-    records.add_rows(('1e6 lists w. 10 integers', process.memory_info().rss - baseline_memory, round(end-start,4)))
+    records.add_rows(("1e6 lists w. 10 integers", process.memory_info().rss - baseline_memory, round(end - start, 4)))
 
     L.clear()
     gc.collect()
@@ -40,7 +40,7 @@ def test_recreate_readme_comparison():
 
     # go and check taskmanagers memory usage.
     # at this point we're using ~98.2 Mb to store 10 lists with 1 million items.
-    records.add_rows(('10 lists with 1e6 integers', process.memory_info().rss - baseline_memory, round(end-start,4)))
+    records.add_rows(("10 lists with 1e6 integers", process.memory_info().rss - baseline_memory, round(end - start, 4)))
     L.clear()
     gc.collect()
     time.sleep(1)
@@ -54,13 +54,16 @@ def test_recreate_readme_comparison():
     # Let's start with an array:
 
     import array
+
     start = process_time()
-    L = [array.array('i', [11 for _ in range(digits)]) for _ in range(10)]
+    L = [array.array("i", [11 for _ in range(digits)]) for _ in range(10)]
     end = process_time()
     # go and check taskmanagers memory usage.
     # at this point we're using 60.0 Mb to store 10 lists with 1 million integers.
 
-    records.add_rows(('10 lists with 1e6 integers in arrays', process.memory_info().rss - baseline_memory, round(end-start,4)))
+    records.add_rows(
+        ("10 lists with 1e6 integers in arrays", process.memory_info().rss - baseline_memory, round(end - start, 4))
+    )
     L.clear()
     gc.collect()
     time.sleep(1)
@@ -73,13 +76,21 @@ def test_recreate_readme_comparison():
         t.add_column(str(i), data=[11 for _ in range(digits)])
     end = process_time()
 
-    records.add_rows(('Table with 10 columns with 1e6 integers', process.memory_info().rss - baseline_memory, round(end-start,4)))
+    records.add_rows(
+        ("Table with 10 columns with 1e6 integers", process.memory_info().rss - baseline_memory, round(end - start, 4))
+    )
 
     start = process_time()
-    t2 = t.copy()
+    _ = t.copy()
     end = process_time()
 
-    records.add_rows(('2 Tables with 10 columns with 1e6 integers each', process.memory_info().rss - baseline_memory, round(end-start,4)))
+    records.add_rows(
+        (
+            "2 Tables with 10 columns with 1e6 integers each",
+            process.memory_info().rss - baseline_memory,
+            round(end - start, 4),
+        )
+    )
 
     # go and check taskmanagers memory usage.
     # At this point we're using  24.5 Mb to store 10 columns with 1 million integers.
@@ -94,5 +105,5 @@ def test_recreate_readme_comparison():
     # |1  |10 lists with 1e6 integers                     | 84,103,168|0.5625|
     # |2  |10 lists with 1e6 integers in arrays           | 44,027,904|0.6719|
     # |3  |Table with 10 columns with 1e6 integers        |  3,203,072|1.6094|
-    # |4  |2 Tables with 10 columns with 1e6 integers each|  3,846,144|0.0781|  
+    # |4  |2 Tables with 10 columns with 1e6 integers each|  3,846,144|0.0781|
     # +===+===============================================+====++=====+======+
