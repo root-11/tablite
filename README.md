@@ -1,6 +1,6 @@
 # Tablite
 
-![Build status](https://github.com/root-11/tablite/actions/workflows/python-package.yml/badge.svg)
+![Build status](https://github.com/root-11/tablite/actions/workflows/python-test.yml/badge.svg)
 [![Code coverage](https://codecov.io/gh/root-11/tablite/branch/master/graph/badge.svg)](https://codecov.io/gh/root-11/tablite)
 [![Downloads](https://pepy.tech/badge/tablite)](https://pepy.tech/project/tablite)
 [![Downloads](https://pepy.tech/badge/tablite/month)](https://pepy.tech/project/tablite)
