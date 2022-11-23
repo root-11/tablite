@@ -1,7 +1,7 @@
 from collections import defaultdict
 import math
 import ast
-from datetime import datetime, date, time, timedelta, timezone
+from datetime import datetime, date, time, timedelta, timezone  # noqa
 from itertools import compress
 
 
@@ -9,13 +9,13 @@ def unique_name(wanted_name, set_of_names):
     """
     returns a wanted_name as wanted_name_i given a list of names
     which guarantees unique naming.
-    """        
+    """
     if not isinstance(set_of_names, set):
         set_of_names = set(set_of_names)
-    name,i = wanted_name,1
+    name, i = wanted_name, 1
     while name in set_of_names:
         name = f"{wanted_name}_{i}"
-        i+=1
+        i += 1
     return name
 
 
@@ -37,45 +37,45 @@ def expression_interpreter(expression, columns):
         raise TypeError
     if not all(isinstance(i, str) for i in columns):
         raise TypeError
-    
+
     req_columns = ", ".join(i for i in columns if i in expression)
     script = f"def f({req_columns}):\n    return {expression}"
     tree = ast.parse(script)
-    code = compile(tree, filename='blah', mode='exec')
+    code = compile(tree, filename="blah", mode="exec")
     namespace = {}
     exec(code, namespace)
-    f = namespace['f']
+    f = namespace["f"]
     if not callable(f):
         raise ValueError(f"The expression could not be parse: {expression}")
     return f
 
 
-def intercept(A,B):
+def intercept(A, B):
     """Enables calculation of the intercept of two range objects.
     Used to determine if a datablock contains a slice.
-    
+
     Args:
         A: range
         B: range
-    
-    Returns: 
+
+    Returns:
         range: The intercept of ranges A and B.
     """
     if not isinstance(A, range):
         raise TypeError
-    if A.step < 0: # turn the range around
+    if A.step < 0:  # turn the range around
         A = range(A.stop, A.start, abs(A.step))
 
     if not isinstance(B, range):
         raise TypeError
     if B.step < 0:  # turn the range around
         B = range(B.stop, B.start, abs(B.step))
-    
+
     boundaries = [A.start, A.stop, B.start, B.stop]
     boundaries.sort()
-    a,b,c,d = boundaries
-    if [A.start, A.stop] in [[a,b],[c,d]]:
-        return range(0) # then there is no intercept
+    a, b, c, d = boundaries
+    if [A.start, A.stop] in [[a, b], [c, d]]:
+        return range(0)  # then there is no intercept
     # else: The inner range (subset) is b,c, limited by the first shared step.
     A_start_steps = math.ceil((b - A.start) / A.step)
     A_start = A_start_steps * A.step + A.start
@@ -84,8 +84,8 @@ def intercept(A,B):
     B_start = B_start_steps * B.step + B.start
 
     if A.step == 1 or B.step == 1:
-        start = max(A_start,B_start)
-        step = B.step if A.step==1 else A.step
+        start = max(A_start, B_start)
+        step = B.step if A.step == 1 else A.step
         end = c
     else:
         intersection = set(range(A_start, c, A.step)).intersection(set(range(B_start, c, B.step)))
@@ -95,7 +95,7 @@ def intercept(A,B):
         end = max(c, max(intersection))
         intersection.remove(start)
         step = min(intersection) - start
-    
+
     return range(start, end, step)
 
 
@@ -111,21 +111,32 @@ def arg_to_slice(arg=None):
     if isinstance(arg, slice):
         return arg
     elif isinstance(arg, int):
-        return slice(arg,arg+1,1)
+        return slice(arg, arg + 1, 1)
     elif arg is None:
-        return slice(0,None,1)
+        return slice(0, None, 1)
     else:
         raise TypeError(f"expected slice or int, got {type(arg)}")
 
 
 # This list is the contract:
 required_keys = {
-    'min','max','mean','median','stdev','mode',
-    'distinct', 'iqr_low','iqr_high','iqr','sum',
-    'summary type', 'histogram'}
+    "min",
+    "max",
+    "mean",
+    "median",
+    "stdev",
+    "mode",
+    "distinct",
+    "iqr_low",
+    "iqr_high",
+    "iqr",
+    "sum",
+    "summary type",
+    "histogram",
+}
 
 
-def summary_statistics(values,counts):
+def summary_statistics(values, counts):
     """
     values: any type
     counts: integer
@@ -145,7 +156,7 @@ def summary_statistics(values,counts):
     # determine the dominant datatype:
     dtypes = defaultdict(int)
     most_frequent, most_frequent_dtype = 0, int
-    for v,c in zip(values, counts):
+    for v, c in zip(values, counts):
         dtype = type(v)
         total = dtypes[dtype] + c
         dtypes[dtype] = total
@@ -155,98 +166,98 @@ def summary_statistics(values,counts):
 
     if most_frequent == 0:
         return {}
-    
+
     most_frequent_dtype = max(dtypes, key=dtypes.get)
-    mask = [type(v)==most_frequent_dtype for v in values]
+    mask = [type(v) == most_frequent_dtype for v in values]
     v = list(compress(values, mask))
     c = list(compress(counts, mask))
-    
-    f = summary_methods.get(most_frequent_dtype, int)        
-    result = f(v,c)
-    result['distinct'] = len(values)
-    result['summary type'] = most_frequent_dtype.__name__
-    result['histogram'] = [values, counts]
+
+    f = summary_methods.get(most_frequent_dtype, int)
+    result = f(v, c)
+    result["distinct"] = len(values)
+    result["summary type"] = most_frequent_dtype.__name__
+    result["histogram"] = [values, counts]
     assert set(result.keys()) == required_keys, "Key missing!"
     return result
 
 
-def _numeric_statistics_summary(v,c):
-    VC = [[v,c] for v,c in zip(v, c)]
+def _numeric_statistics_summary(v, c):
+    VC = [[v, c] for v, c in zip(v, c)]
     VC.sort()
-    
-    total_val, mode, median, total_cnt =  0, None, None, sum(c)
-    
+
+    total_val, mode, median, total_cnt = 0, None, None, sum(c)
+
     max_cnt, cnt_n = -1, 0
-    mn,cstd = 0, 0.0
-    iqr25 = total_cnt * 1/4
-    iqr50 = total_cnt * 1/2
-    iqr75 = total_cnt * 3/4
+    mn, cstd = 0, 0.0
+    iqr25 = total_cnt * 1 / 4
+    iqr50 = total_cnt * 1 / 2
+    iqr75 = total_cnt * 3 / 4
     iqr_low, iqr_high = 0, 0
     vx_0 = None
-    vmin,vmax = VC[0][0], VC[-1][0]
+    vmin, vmax = VC[0][0], VC[-1][0]
 
     for vx, cx in VC:
         cnt_0 = cnt_n
         cnt_n += cx
 
-        if cnt_0 < iqr25 < cnt_n:  # iqr 25% 
+        if cnt_0 < iqr25 < cnt_n:  # iqr 25%
             iqr_low = vx
         elif cnt_0 == iqr25:
-            _,delta = divmod(1*(total_cnt-1), 4)
-            iqr_low = (vx_0 * (4-delta) + vx * delta) / 4
+            _, delta = divmod(1 * (total_cnt - 1), 4)
+            iqr_low = (vx_0 * (4 - delta) + vx * delta) / 4
 
         # median calculations
-        if cnt_n-cx < iqr50 < cnt_n:
+        if cnt_n - cx < iqr50 < cnt_n:
             median = vx
         elif cnt_0 == iqr50:
-            _,delta = divmod(2*(total_cnt-1), 4)
-            median = (vx_0 * (4-delta) + vx * delta) / 4
+            _, delta = divmod(2 * (total_cnt - 1), 4)
+            median = (vx_0 * (4 - delta) + vx * delta) / 4
 
         if cnt_0 < iqr75 < cnt_n:  # iqr 75%
             iqr_high = vx
         elif cnt_0 == iqr75:
-            _,delta = divmod(3*(total_cnt-1), 4)
-            iqr_high = (vx_0 * (4-delta) + vx * delta) / 4
-        
+            _, delta = divmod(3 * (total_cnt - 1), 4)
+            iqr_high = (vx_0 * (4 - delta) + vx * delta) / 4
+
         # stdev calulations
-        dt = cx * (vx-mn) # dt = value - self.mean
+        dt = cx * (vx - mn)  # dt = value - self.mean
         mn += dt / cnt_n  # self.mean += dt / self.count
-        cstd += dt * (vx-mn)  #self.c += dt * (value - self.mean)
+        cstd += dt * (vx - mn)  # self.c += dt * (value - self.mean)
 
         # mode calculations
         if cx > max_cnt:
-            mode,max_cnt = vx,cx
+            mode, max_cnt = vx, cx
 
-        total_val += vx*cx
+        total_val += vx * cx
         vx_0 = vx
-    
-    var = cstd / (cnt_n-1) if cnt_n > 1 else 0
-    stdev = var**(1/2) if cnt_n > 1 else 0
+
+    var = cstd / (cnt_n - 1) if cnt_n > 1 else 0
+    stdev = var ** (1 / 2) if cnt_n > 1 else 0
 
     d = {
-        'min': vmin,
-        'max': vmax,
-        'mean': total_val / (total_cnt if total_cnt >= 1 else None),
-        'median': median,
-        'stdev': stdev,
-        'mode': mode,
-        'iqr_low': iqr_low,
-        'iqr_high': iqr_high,
-        'iqr': iqr_high - iqr_low,
-        'sum': total_val,
+        "min": vmin,
+        "max": vmax,
+        "mean": total_val / (total_cnt if total_cnt >= 1 else None),
+        "median": median,
+        "stdev": stdev,
+        "mode": mode,
+        "iqr_low": iqr_low,
+        "iqr_high": iqr_high,
+        "iqr": iqr_high - iqr_low,
+        "sum": total_val,
     }
     return d
 
 
-def _none_type_summary(v,c):
-    return {k:'n/a' for k in required_keys}
+def _none_type_summary(v, c):
+    return {k: "n/a" for k in required_keys}
 
 
-def _boolean_statistics_summary(v,c):
+def _boolean_statistics_summary(v, c):
     v = [int(vx) for vx in v]
-    d = _numeric_statistics_summary(v,c)
-    for k,v in d.items():
-        if k in {'mean','stdev','sum','iqr_low','iqr_high','iqr'}:
+    d = _numeric_statistics_summary(v, c)
+    for k, v in d.items():
+        if k in {"mean", "stdev", "sum", "iqr_low", "iqr_high", "iqr"}:
             continue
         elif v == 1:
             d[k] = True
@@ -257,84 +268,83 @@ def _boolean_statistics_summary(v,c):
     return d
 
 
-def _timedelta_statistics_summary(v,c):
-    v= [vx.days + v.seconds/(24*60*60) for vx in v]
-    d = _numeric_statistics_summary(v,c)
+def _timedelta_statistics_summary(v, c):
+    v = [vx.days + v.seconds / (24 * 60 * 60) for vx in v]
+    d = _numeric_statistics_summary(v, c)
     for k in d.keys():
         d[k] = timedelta(d[k])
     return d
 
 
-def _datetime_statistics_summary(v,c):
+def _datetime_statistics_summary(v, c):
     v = [vx.timestamp() for vx in v]
-    d = _numeric_statistics_summary(v,c)
+    d = _numeric_statistics_summary(v, c)
     for k in d.keys():
-        if k in {'stdev','iqr','sum'}:
+        if k in {"stdev", "iqr", "sum"}:
             d[k] = f"{d[k]/(24*60*60)} days"
         else:
             d[k] = datetime.fromtimestamp(d[k])
     return d
 
 
-def _time_statistics_summary(v,c):
-    v = [ sum(t.hour * 60 * 60,t.minute * 60, t.second, t.microsecond/1e6) for t in v]
-    d = _numeric_statistics_summary(v,c)
+def _time_statistics_summary(v, c):
+    v = [sum(t.hour * 60 * 60, t.minute * 60, t.second, t.microsecond / 1e6) for t in v]
+    d = _numeric_statistics_summary(v, c)
     for k in d.keys():
-        if k in {'min','max','mean','median'}:
+        if k in {"min", "max", "mean", "median"}:
             timestamp = d[k]
             hours = timestamp // (60 * 60)
             timestamp -= hours * 60 * 60
             minutes = timestamp // 60
             timestamp -= minutes * 60
-            d[k] = time.fromtimestamp(hours,minutes,timestamp)
-        elif k in {'stdev','iqr','sum'}:
+            d[k] = time.fromtimestamp(hours, minutes, timestamp)
+        elif k in {"stdev", "iqr", "sum"}:
             d[k] = f"{d[k]} seconds"
         else:
             pass
     return d
 
 
-def _date_statistics_summary(v,c):
-    v = [datetime(d.year,d.month,d.day,0,0,0).timestamp() for d in v]
-    d = _numeric_statistics_summary(v,c)
+def _date_statistics_summary(v, c):
+    v = [datetime(d.year, d.month, d.day, 0, 0, 0).timestamp() for d in v]
+    d = _numeric_statistics_summary(v, c)
     for k in d.keys():
-        if k in {'min','max','mean','median'}:
+        if k in {"min", "max", "mean", "median"}:
             d[k] = date(*datetime.fromtimestamp(d[k]).timetuple()[:3])
-        elif k in {'stdev','iqr','sum'}:
+        elif k in {"stdev", "iqr", "sum"}:
             d[k] = f"{d[k]/(24*60*60)} days"
         else:
             pass
     return d
 
 
-def _string_statistics_summary(v,c):
+def _string_statistics_summary(v, c):
     vx = [len(x) for x in v]
-    d = _numeric_statistics_summary(vx,c)
+    d = _numeric_statistics_summary(vx, c)
     for k in d.keys():
         d[k] = f"{d[k]} characters"
     return d
 
 
 summary_methods = {
-        bool: _boolean_statistics_summary,
-        int: _numeric_statistics_summary,
-        float: _numeric_statistics_summary,
-        str: _string_statistics_summary,
-        date: _date_statistics_summary,
-        datetime: _datetime_statistics_summary,
-        time: _time_statistics_summary,
-        timedelta: _timedelta_statistics_summary,
-        type(None): _none_type_summary,
-    }
+    bool: _boolean_statistics_summary,
+    int: _numeric_statistics_summary,
+    float: _numeric_statistics_summary,
+    str: _string_statistics_summary,
+    date: _date_statistics_summary,
+    datetime: _datetime_statistics_summary,
+    time: _time_statistics_summary,
+    timedelta: _timedelta_statistics_summary,
+    type(None): _none_type_summary,
+}
 
 
-def date_range(start,stop,step):
+def date_range(start, stop, step):
     if not isinstance(start, datetime):
         raise TypeError("start is not datetime")
     if not isinstance(stop, datetime):
         raise TypeError("stop is not datetime")
     if not isinstance(step, timedelta):
         raise TypeError("step is not timedelta")
-    n = (stop-start)//step
-    return [start+step*i for i in range(n)]
-
+    n = (stop - start) // step
+    return [start + step * i for i in range(n)]
