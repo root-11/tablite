@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import date,time,datetime,timedelta
+from datetime import date, time, datetime, timedelta  # noqa
 
 
 class GroupbyFunction(object):
@@ -35,7 +35,8 @@ class Min(Limit):
 class Sum(GroupbyFunction):
     def __init__(self):
         self.value = 0
-    def update(self,value):
+
+    def update(self, value):
         if isinstance(value, (type(None), date, time, datetime, str)):
             raise ValueError(f"Sum of {type(value)} doesn't make sense.")
         self.value += value
@@ -44,12 +45,13 @@ class Sum(GroupbyFunction):
 class Product(GroupbyFunction):
     def __init__(self) -> None:
         self.value = 1
-    def update(self,value):
+
+    def update(self, value):
         self.value *= value
 
 
 class First(GroupbyFunction):
-    empty = (None, )
+    empty = (None,)
     # we will never receive a tuple, so using (None,) as the initial
     # value will assure that IF None is the first value, then it can
     # be captured correctly.
@@ -95,7 +97,7 @@ class Average(GroupbyFunction):
         self.value = 0
 
     def update(self, value):
-        if isinstance(value, (date,time,datetime,str)):
+        if isinstance(value, (date, time, datetime, str)):
             raise ValueError(f"Sum of {type(value)} doesn't make sense.")
         if value is not None:
             self.sum += value
@@ -108,13 +110,14 @@ class StandardDeviation(GroupbyFunction):
     Uses J.P. Welfords (1962) algorithm.
     For details see https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm
     """
+
     def __init__(self):
         self.count = 0
         self.mean = 0
         self.c = 0.0
 
     def update(self, value):
-        if isinstance(value, (date,time,datetime,str)):
+        if isinstance(value, (date, time, datetime, str)):
             raise ValueError(f"Std.dev. of {type(value)} doesn't make sense.")
         if value is not None:
             self.count += 1
@@ -179,8 +182,7 @@ class Mode(Histogram):
         return most_frequent
 
 
-
-class GroupBy(object):    
+class GroupBy(object):
     max = Max  # shortcuts to avoid having to type a long list of imports.
     min = Min
     sum = Sum
@@ -194,11 +196,6 @@ class GroupBy(object):
     median = Median
     mode = Mode
 
-    functions = [
-        Max, Min, Sum, First, Last, Product,
-        Count, CountUnique,
-        Average, StandardDeviation, Median, Mode
-    ]
+    functions = [Max, Min, Sum, First, Last, Product, Count, CountUnique, Average, StandardDeviation, Median, Mode]
 
     function_names = {f.__name__: f for f in functions}
-
