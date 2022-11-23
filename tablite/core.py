@@ -1019,8 +1019,8 @@ class Table(object):
                 len(column_types[name]),
                 len(name),
                 dots,
-                max([len(str(v)) if not isinstance(v, str) else len(str(v)) for v in col]),
                 len(str(None)) if len(col) != len(self) else 0,
+                *[len(str(v)) if not isinstance(v, str) else len(str(v)) for v in col],
             )
             column_lengths.add(len(col))
 
