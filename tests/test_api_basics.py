@@ -585,10 +585,9 @@ def test05_verify_show_table():
 
     table4.add_columns("A", "B", "C")
     txt2 = table4.to_ascii()
-    assert (
-        txt2
-        == "+=====+=====+=====+\n|  A  |  B  |  C  |\n|mixed|mixed|mixed|\n+-----+-----+-----+\n+=====+=====+=====+"
-    )
+    # fmt: off
+    assert txt2 == "+=====+=====+=====+\n|  A  |  B  |  C  |\n|mixed|mixed|mixed|\n+-----+-----+-----+\n+=====+=====+=====+"  # noqa
+    # fmt: on
     for i in range(5):
         table4["A"] += [i]
         table4["B"] += [str(i + 9)]
