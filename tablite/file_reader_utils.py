@@ -5,13 +5,13 @@ import chardet
 
 
 def split_by_sequence(text, sequence):
-    """ helper to split text according to a split sequence. """
+    """helper to split text according to a split sequence."""
     chunks = tuple()
     for element in sequence:
         idx = text.find(element)
         if idx < 0:
             raise ValueError(f"'{element}' not in row")
-        chunk, text = text[:idx], text[len(element) + idx:]
+        chunk, text = text[:idx], text[len(element) + idx :]
         chunks += (chunk,)
     chunks += (text,)  # the remaining text.
     return chunks
@@ -27,10 +27,18 @@ class TextEscape(object):
         list_of_words = text_escape(line)  # use the instance.
         ...
     """
-    def __init__(self, openings='({[', closures=']})', text_qualifier='"', delimiter=',', strip_leading_and_tailing_whitespace=False):
+
+    def __init__(
+        self,
+        openings="({[",
+        closures="]})",
+        text_qualifier='"',
+        delimiter=",",
+        strip_leading_and_tailing_whitespace=False,
+    ):
         """
-        As an example, the Danes and Germans use " for inches and ' for feet, 
-        so we will see data that contains nail (75 x 4 mm, 3" x 3/12"), so 
+        As an example, the Danes and Germans use " for inches and ' for feet,
+        so we will see data that contains nail (75 x 4 mm, 3" x 3/12"), so
         for this case ( and ) are valid escapes, but " and ' aren't.
 
         """
@@ -39,7 +47,7 @@ class TextEscape(object):
         elif isinstance(openings, str):
             self.openings = {c for c in openings}
         else:
-            raise TypeError(f"expected str, got {type(openings)}")           
+            raise TypeError(f"expected str, got {type(openings)}")
 
         if closures is None:
             closures = [None]
@@ -52,15 +60,15 @@ class TextEscape(object):
             raise TypeError(f"expected str, got {type(delimiter)}")
         self.delimiter = delimiter
         self._delimiter_length = len(delimiter)
-        self.strip_leading_and_tailing_whitespace= strip_leading_and_tailing_whitespace
-        
+        self.strip_leading_and_tailing_whitespace = strip_leading_and_tailing_whitespace
+
         if text_qualifier is None:
             pass
         elif text_qualifier in openings + closures:
             raise ValueError("It's a bad idea to have qoute character appears in openings or closures.")
         else:
             self.qoute = text_qualifier
-        
+
         if not text_qualifier:
             self.c = self._call1
         elif not any(openings + closures):
@@ -68,25 +76,25 @@ class TextEscape(object):
         else:
             try:
                 # TODO: The regex below needs to be constructed dynamically depending on the inputs.
-                self.re = re.compile("([\d\w\s\u4e00-\u9fff]+)(?=,|$)|((?<=\A)|(?<=,))(?=,|$)|(\(.+\)|\".+\")", "gmu") # <-- Disclaimer: Audrius wrote this.
+                self.re = re.compile('([\d\w\s\u4e00-\u9fff]+)(?=,|$)|((?<=\A)|(?<=,))(?=,|$)|(\(.+\)|".+")', "gmu")  # noqa <-- Disclaimer: Audrius wrote this.
                 self.c = self._call3
             except TypeError:
                 self.c = self._call3_slow
-            
-    def __call__(self,s):
+
+    def __call__(self, s):
         s2 = self.c(s)
         if self.strip_leading_and_tailing_whitespace:
             s2 = [w.rstrip(" ").lstrip(" ") for w in s2]
         return s2
-       
-    def _call1(self,s):  # just looks for delimiter.
+
+    def _call1(self, s):  # just looks for delimiter.
         return s.split(self.delimiter)
 
-    def _call2(self,s): # looks for qoutes.
+    def _call2(self, s):  # looks for qoutes.
         words = []
-        qoute= False
+        qoute = False
         ix = 0
-        while ix < len(s):  
+        while ix < len(s):
             c = s[ix]
             if c == self.qoute:
                 qoute = not qoute
@@ -94,35 +102,35 @@ class TextEscape(object):
                 ix += 1
                 continue
             if c == self.delimiter:
-                word, s = s[:ix], s[ix+self._delimiter_length:]
+                word, s = s[:ix], s[ix + self._delimiter_length :]
                 word = word.lstrip(self.qoute).rstrip(self.qoute)
                 words.append(word)
                 ix = -1
-            ix+=1
+            ix += 1
         if s:
-            s=s.lstrip(self.qoute).rstrip(self.qoute)
+            s = s.lstrip(self.qoute).rstrip(self.qoute)
             words.append(s)
         return words
 
     def _call3(self, s):  # looks for qoutes, openings and closures.
         return self.re.match(s)  # TODO - TEST!
-    
+
     def _call3_slow(self, s):
         words = []
         qoute = False
-        ix,depth = 0,0
-        while ix < len(s):  
+        ix, depth = 0, 0
+        while ix < len(s):
             c = s[ix]
 
             if c == self.qoute:
                 qoute = not qoute
 
             if qoute:
-                ix+=1
+                ix += 1
                 continue
 
             if depth == 0 and c == self.delimiter:
-                word, s = s[:ix], s[ix+self._delimiter_length:]
+                word, s = s[:ix], s[ix + self._delimiter_length :]
                 words.append(word.rstrip(self.qoute).lstrip(self.qoute))
                 ix = -1
             elif c in self.openings:
@@ -136,7 +144,6 @@ class TextEscape(object):
         if s:
             words.append(s.rstrip(self.qoute).lstrip(self.qoute))
         return words
-
 
 
 def detect_seperator(text):
@@ -154,8 +161,9 @@ def detect_seperator(text):
     # to (1) find the set of characters that intersect with ',;:|\t' which in
     # practice is a single character, unless (2) it is empty whereby it must
     # be whitespace.
-    if len(text) == 0: return None
-    seps = {',', '\t', ';', ':', '|'}.intersection(text)
+    if len(text) == 0:
+        return None
+    seps = {",", "\t", ";", ":", "|"}.intersection(text)
     if not seps:
         if " " in text:
             return " "
@@ -169,7 +177,7 @@ def detect_seperator(text):
         return frq[0][-1]
 
 
-def get_headers(path, linecount=10, delimiter=None): 
+def get_headers(path, linecount=10, delimiter=None):
     """
     file format	definition
     csv	    comma separated values
@@ -195,9 +203,9 @@ def get_headers(path, linecount=10, delimiter=None):
         raise FileNotFoundError(str(path))
 
     delimiters = {
-        '.csv': ',',
-        '.tsv': '\t',
-        '.txt': None,
+        ".csv": ",",
+        ".tsv": "\t",
+        ".txt": None,
     }
 
     d = {}
@@ -207,29 +215,29 @@ def get_headers(path, linecount=10, delimiter=None):
             for sheet_name in book.sheet_names():
                 sheet = book[sheet_name]
                 stop = sheet.number_of_rows()
-                d[sheet_name] = [sheet.row[i] for i in range(0, min(linecount,stop))]
-                d['delimiter'] = None
+                d[sheet_name] = [sheet.row[i] for i in range(0, min(linecount, stop))]
+                d["delimiter"] = None
             return d
         except Exception:
             pass  # it must be a raw text format.
 
     try:
-        with path.open('rb') as fi:
+        with path.open("rb") as fi:
             rawdata = fi.read(10000)
-            encoding = chardet.detect(rawdata)['encoding']
-        with path.open('r', encoding=encoding) as fi:
+            encoding = chardet.detect(rawdata)["encoding"]
+        with path.open("r", encoding=encoding) as fi:
             lines = []
             for n, line in enumerate(fi):
-                line = line.rstrip('\n')
+                line = line.rstrip("\n")
                 lines.append(line)
                 if n > linecount:
                     break  # break on first
             if delimiter is None:
-                d['delimiter'] = delimiter = detect_seperator('\n'.join(lines))
+                d["delimiter"] = delimiter = detect_seperator("\n".join(lines))
 
             if delimiter is None:
-                d['delimiter'] = delimiters[path.suffix] # pickup the default one
-                d['is_empty'] = True # mark as empty to return an empty table instead of throwing
+                d["delimiter"] = delimiters[path.suffix]  # pickup the default one
+                d["is_empty"] = True  # mark as empty to return an empty table instead of throwing
 
             d[path.name] = [line.split(delimiter) for line in lines]
         return d
@@ -238,22 +246,21 @@ def get_headers(path, linecount=10, delimiter=None):
 
 
 def get_encoding(path):
-    with path.open('rb') as fi:
+    with path.open("rb") as fi:
         rawdata = fi.read(10000)
-        encoding = chardet.detect(rawdata)['encoding']
+        encoding = chardet.detect(rawdata)["encoding"]
         return encoding
 
 
 def get_delimiter(path, encoding):
-    with path.open('r', encoding=encoding) as fi:
+    with path.open("r", encoding=encoding) as fi:
         lines = []
         for n, line in enumerate(fi):
-            line = line.rstrip('\n')
+            line = line.rstrip("\n")
             lines.append(line)
             if n > 10:
                 break  # break on first
-        delimiter = detect_seperator('\n'.join(lines))
+        delimiter = detect_seperator("\n".join(lines))
         if delimiter is None:
             raise ValueError("Delimiter could not be determined")
         return delimiter
-

@@ -9,6 +9,7 @@ class DataTypes(object):
 
     It supports any / all python datatypes.
     """
+
     # supported datatypes.
     int = int
     str = str
@@ -17,18 +18,18 @@ class DataTypes(object):
     date = date
     datetime = datetime
     time = time
-    timedelta = timedelta  
+    timedelta = timedelta
 
     numeric_types = {int, float, date, time, datetime}
-    epoch = datetime(2000,1,1,0,0,0,0,timezone.utc)
-    epoch_no_tz = datetime(2000,1,1,0,0,0,0)
-    digits = '1234567890'
-    decimals = set('1234567890-+eE.')
-    integers = set('1234567890-+')
-    nones = {'null', 'Null', 'NULL', '#N/A', '#n/a', "", 'None', None, np.nan}
+    epoch = datetime(2000, 1, 1, 0, 0, 0, 0, timezone.utc)
+    epoch_no_tz = datetime(2000, 1, 1, 0, 0, 0, 0)
+    digits = "1234567890"
+    decimals = set("1234567890-+eE.")
+    integers = set("1234567890-+")
+    nones = {"null", "Null", "NULL", "#N/A", "#n/a", "", "None", None, np.nan}
     none_type = type(None)
 
-    _type_codes ={
+    _type_codes = {
         type(None): 1,
         bool: 2,
         int: 3,
@@ -39,42 +40,52 @@ class DataTypes(object):
         date: 8,
         time: 9,
         timedelta: 10,
-        'pickle': 11
+        "pickle": 11,
     }
 
     @classmethod
-    def type_code(cls, value): 
+    def type_code(cls, value):
         if type(value) in cls._type_codes:
             return cls._type_codes[type(value)]
-        elif hasattr(value,'dtype'):
+        elif hasattr(value, "dtype"):
             dtype = numpy_types.get(np.dtype(value).name)
             return cls._type_codes[dtype]
         else:
-            return cls._type_codes['pickle']
-    
+            return cls._type_codes["pickle"]
+
     def b_none(v):
         return b"None"
+
     def b_bool(v):
-        return bytes(str(v), encoding='utf-8')
+        return bytes(str(v), encoding="utf-8")
+
     def b_int(v):
-        return bytes(str(v), encoding='utf-8')
+        return bytes(str(v), encoding="utf-8")
+
     def b_float(v):
-        return bytes(str(v), encoding='utf-8')
+        return bytes(str(v), encoding="utf-8")
+
     def b_str(v):
-        return v.encode('utf-8')
+        return v.encode("utf-8")
+
     def b_bytes(v):
         return v
+
     def b_datetime(v):
-        return bytes(v.isoformat(), encoding='utf-8')
+        return bytes(v.isoformat(), encoding="utf-8")
+
     def b_date(v):
-        return bytes(v.isoformat(), encoding='utf-8')
+        return bytes(v.isoformat(), encoding="utf-8")
+
     def b_time(v):
-        return bytes(v.isoformat(), encoding='utf-8')
+        return bytes(v.isoformat(), encoding="utf-8")
+
     def b_timedelta(v):
-        return bytes(str(float(v.days + (v.seconds / (24*60*60)))), 'utf-8')
+        return bytes(str(float(v.days + (v.seconds / (24 * 60 * 60)))), "utf-8")
+
     def b_pickle(v):
         return pickle.dumps(v, protocol=0)
-        
+
     bytes_functions = {
         type(None): b_none,
         bool: b_bool,
@@ -85,14 +96,14 @@ class DataTypes(object):
         datetime: b_datetime,
         date: b_date,
         time: b_time,
-        timedelta: b_timedelta
+        timedelta: b_timedelta,
     }
 
     @classmethod
     def to_bytes(cls, v):
         if type(v) in cls.bytes_functions:  # it's a python native type
             f = cls.bytes_functions[type(v)]
-        elif hasattr(v, 'dtype'):  # it's a numpy/c type.
+        elif hasattr(v, "dtype"):  # it's a numpy/c type.
             dtype = numpy_types.get(np.dtype(v).name)
             f = cls.bytes_functions[dtype]
         else:
@@ -101,29 +112,39 @@ class DataTypes(object):
 
     def _none(v):
         return None
+
     def _bool(v):
-        return bool(v.decode('utf-8')=='True')
+        return bool(v.decode("utf-8") == "True")
+
     def _int(v):
-        return int(v.decode('utf-8'))
+        return int(v.decode("utf-8"))
+
     def _float(v):
-        return float(v.decode('utf-8'))
+        return float(v.decode("utf-8"))
+
     def _str(v):
-        return v.decode('utf-8')
+        return v.decode("utf-8")
+
     def _bytes(v):
         return v
+
     def _datetime(v):
-        return datetime.fromisoformat(v.decode('utf-8'))
+        return datetime.fromisoformat(v.decode("utf-8"))
+
     def _date(v):
-        return date.fromisoformat(v.decode('utf-8'))
+        return date.fromisoformat(v.decode("utf-8"))
+
     def _time(v):
-        return time.fromisoformat(v.decode('utf-8'))
+        return time.fromisoformat(v.decode("utf-8"))
+
     def _timedelta(v):
         days = float(v)
-        seconds = 24 * 60 * 60 * ( float(v) - int( float(v) ) )
+        seconds = 24 * 60 * 60 * (float(v) - int(float(v)))
         return timedelta(int(days), seconds)
+
     def _unpickle(v):
         return pickle.loads(v)
-    
+
     type_code_functions = {
         1: _none,
         2: _bool,
@@ -135,7 +156,7 @@ class DataTypes(object):
         8: _date,
         9: _time,
         10: _timedelta,
-        11: _unpickle
+        11: _unpickle,
     }
 
     pytype_from_type_code = {
@@ -149,7 +170,7 @@ class DataTypes(object):
         8: date,
         9: time,
         10: timedelta,
-        11: 'pickled object'
+        11: "pickled object",
     }
 
     @classmethod
@@ -195,68 +216,50 @@ class DataTypes(object):
 
     datetime_formats = {
         # Note: Only recognised ISO8601 formats are accepted.
-
         # year first
-        'NNNN-NN-NNTNN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x),  # -T
-        'NNNN-NN-NNTNN:NN': lambda x: DataTypes.pattern_to_datetime(x),
-
-        'NNNN-NN-NN NN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, T=" "),  # - space
-        'NNNN-NN-NN NN:NN': lambda x: DataTypes.pattern_to_datetime(x, T=" "),
-
-        'NNNN/NN/NNTNN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='/'),  # / T
-        'NNNN/NN/NNTNN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='/'),
-
-        'NNNN/NN/NN NN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='/', T=" "),  # / space
-        'NNNN/NN/NN NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='/', T=" "),
-
-        'NNNN NN NNTNN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd=' '),  # space T
-        'NNNN NN NNTNN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd=' '),
-
-        'NNNN NN NN NN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd=' ', T=" "),  # space
-        'NNNN NN NN NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd=' ', T=" "),
-
-        'NNNN.NN.NNTNN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.'),  # dot T
-        'NNNN.NN.NNTNN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.'),
-
-        'NNNN.NN.NN NN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.', T=" "),  # dot
-        'NNNN.NN.NN NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.', T=" "),
-
-
+        "NNNN-NN-NNTNN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x),  # -T
+        "NNNN-NN-NNTNN:NN": lambda x: DataTypes.pattern_to_datetime(x),
+        "NNNN-NN-NN NN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, T=" "),  # - space
+        "NNNN-NN-NN NN:NN": lambda x: DataTypes.pattern_to_datetime(x, T=" "),
+        "NNNN/NN/NNTNN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="/"),  # / T
+        "NNNN/NN/NNTNN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="/"),
+        "NNNN/NN/NN NN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="/", T=" "),  # / space
+        "NNNN/NN/NN NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="/", T=" "),
+        "NNNN NN NNTNN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd=" "),  # space T
+        "NNNN NN NNTNN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd=" "),
+        "NNNN NN NN NN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd=" ", T=" "),  # space
+        "NNNN NN NN NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd=" ", T=" "),
+        "NNNN.NN.NNTNN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="."),  # dot T
+        "NNNN.NN.NNTNN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="."),
+        "NNNN.NN.NN NN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd=".", T=" "),  # dot
+        "NNNN.NN.NN NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd=".", T=" "),
         # day first
-        'NN-NN-NNNNTNN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='-', T=' ', day_first=True),  # - T
-        'NN-NN-NNNNTNN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='-', T=' ', day_first=True),
-
-        'NN-NN-NNNN NN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='-', T=' ', day_first=True),  # - space
-        'NN-NN-NNNN NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='-', T=' ', day_first=True),
-
-        'NN/NN/NNNNTNN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='/', day_first=True),  # / T
-        'NN/NN/NNNNTNN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='/', day_first=True),
-
-        'NN/NN/NNNN NN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='/', T=' ', day_first=True),  # / space
-        'NN/NN/NNNN NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='/', T=' ', day_first=True),
-
-        'NN NN NNNNTNN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='/', day_first=True),  # space T
-        'NN NN NNNNTNN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='/', day_first=True),
-
-        'NN NN NNNN NN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='/', day_first=True),  # space
-        'NN NN NNNN NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='/', day_first=True),
-
-        'NN.NN.NNNNTNN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.', day_first=True),  # space T
-        'NN.NN.NNNNTNN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.', day_first=True),
-
-        'NN.NN.NNNN NN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.', day_first=True),  # space
-        'NN.NN.NNNN NN:NN': lambda x: DataTypes.pattern_to_datetime(x, ymd='.', day_first=True),
-
+        "NN-NN-NNNNTNN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="-", T=" ", day_first=True),  # - T
+        "NN-NN-NNNNTNN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="-", T=" ", day_first=True),
+        "NN-NN-NNNN NN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="-", T=" ", day_first=True),  # - space
+        "NN-NN-NNNN NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="-", T=" ", day_first=True),
+        "NN/NN/NNNNTNN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="/", day_first=True),  # / T
+        "NN/NN/NNNNTNN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="/", day_first=True),
+        "NN/NN/NNNN NN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="/", T=" ", day_first=True),  # / space
+        "NN/NN/NNNN NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="/", T=" ", day_first=True),
+        "NN NN NNNNTNN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="/", day_first=True),  # space T
+        "NN NN NNNNTNN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="/", day_first=True),
+        "NN NN NNNN NN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="/", day_first=True),  # space
+        "NN NN NNNN NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd="/", day_first=True),
+        "NN.NN.NNNNTNN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd=".", day_first=True),  # space T
+        "NN.NN.NNNNTNN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd=".", day_first=True),
+        "NN.NN.NNNN NN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd=".", day_first=True),  # space
+        "NN.NN.NNNN NN:NN": lambda x: DataTypes.pattern_to_datetime(x, ymd=".", day_first=True),
         # compact formats - type 1
-        'NNNNNNNNTNNNNNN': lambda x: DataTypes.pattern_to_datetime(x, compact=1),
-        'NNNNNNNNTNNNN': lambda x: DataTypes.pattern_to_datetime(x, compact=1),
-        'NNNNNNNNTNN': lambda x: DataTypes.pattern_to_datetime(x, compact=1),
+        "NNNNNNNNTNNNNNN": lambda x: DataTypes.pattern_to_datetime(x, compact=1),
+        "NNNNNNNNTNNNN": lambda x: DataTypes.pattern_to_datetime(x, compact=1),
+        "NNNNNNNNTNN": lambda x: DataTypes.pattern_to_datetime(x, compact=1),
         # compact formats - type 2
-        'NNNNNNNNNN': lambda x: DataTypes.pattern_to_datetime(x, compact=2),
-        'NNNNNNNNNNNN': lambda x: DataTypes.pattern_to_datetime(x, compact=2),
-        'NNNNNNNNNNNNNN': lambda x: DataTypes.pattern_to_datetime(x, compact=2),
+        "NNNNNNNNNN": lambda x: DataTypes.pattern_to_datetime(x, compact=2),
+        "NNNNNNNNNNNN": lambda x: DataTypes.pattern_to_datetime(x, compact=2),
+        "NNNNNNNNNNNNNN": lambda x: DataTypes.pattern_to_datetime(x, compact=2),
         # compact formats - type 3
-        'NNNNNNNNTNN:NN:NN': lambda x: DataTypes.pattern_to_datetime(x, compact=3),
+        "NNNNNNNNTNN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, compact=3),
     }
 
     @staticmethod
@@ -282,20 +285,20 @@ class DataTypes(object):
         if "," in iso_string:
             iso_string = iso_string.replace(",", ".")
 
-        dot = iso_string[::-1].find('.')
+        dot = iso_string[::-1].find(".")
         if 0 < dot < 10:
             ix = len(iso_string) - dot
-            microsecond = int(float(f"0{iso_string[ix - 1:]}") * 10 ** 6)
-            iso_string = iso_string[:len(iso_string) - dot] + str(microsecond).rjust(6, "0")
+            microsecond = int(float(f"0{iso_string[ix - 1:]}") * 10**6)
+            iso_string = iso_string[: len(iso_string) - dot] + str(microsecond).rjust(6, "0")
         if ymd:
-            iso_string = iso_string.replace(ymd, '-', 2)
+            iso_string = iso_string.replace(ymd, "-", 2)
         if T:
             iso_string = iso_string.replace(T, "T")
         return datetime.fromisoformat(iso_string)
 
     @classmethod
     def round(cls, value, multiple, up=None):
-        """ a nicer way to round numbers.
+        """a nicer way to round numbers.
 
         :param value: float, integer or datetime to be rounded.
         :param multiple: float, integer or timedelta to be used as the base of the rounding.
@@ -321,11 +324,11 @@ class DataTypes(object):
                 epoch = cls.epoch_no_tz
             else:
                 epoch = cls.epoch
-        
-        value2 = value-epoch
+
+        value2 = value - epoch
         if value2 == 0:
             return value2
-            
+
         low = (value2 // multiple) * multiple
         high = low + multiple
         if up is True:
@@ -333,7 +336,7 @@ class DataTypes(object):
         elif up is False:
             return low + epoch
         else:
-            if abs((high + epoch) - value) < abs(value-(low + epoch)):
+            if abs((high + epoch) - value) < abs(value - (low + epoch)):
                 return high + epoch
             else:
                 return low + epoch
@@ -348,7 +351,7 @@ class DataTypes(object):
         Returns:
             json compatible value from v
         """
-        if hasattr(v, 'dtype'):
+        if hasattr(v, "dtype"):
             pytype = numpy_types[v.dtype.name]
             v = pytype(v)
         if v is None:
@@ -397,9 +400,9 @@ class DataTypes(object):
         elif dtype is float:
             return float(v)
         elif dtype is bool:
-            if v == 'False':
+            if v == "False":
                 return False
-            elif v == 'True':
+            elif v == "True":
                 return True
             else:
                 raise ValueError(v)
@@ -410,8 +413,8 @@ class DataTypes(object):
         elif dtype is time:
             return time.fromisoformat(v)
         elif dtype is timedelta:
-            L = v.split('DT')
-            days = int(L[0].lstrip('P'))
+            L = v.split("DT")
+            days = int(L[0].lstrip("P"))
             seconds = float(L[1].rstrip("S"))
             return timedelta(days, seconds)
         else:
@@ -430,22 +433,22 @@ class DataTypes(object):
         """
         d = defaultdict(int)
         probability = Rank(DataTypes.types[:])
-        
+
         for value in values:
-            if hasattr(value, 'dtype'):
+            if hasattr(value, "dtype"):
                 value = numpy_types[np.dtype(value).name](value)
 
             for dtype in probability:
                 try:
-                    _ = DataTypes.infer(value,dtype)
-                    d[dtype] += 1 
+                    _ = DataTypes.infer(value, dtype)
+                    d[dtype] += 1
                     probability.match(dtype)
                     break
                 except (ValueError, TypeError):
                     pass
         if not d:
-            d[str]=len(values)
-        return {k:round(v/len(values),3) for k,v in d.items()}
+            d[str] = len(values)
+        return {k: round(v / len(values), 3) for k, v in d.items()}
 
     @staticmethod
     def guess(*values):
@@ -457,13 +460,13 @@ class DataTypes(object):
         """
         probability = Rank(*DataTypes.types[:])
         matches = [None for _ in values[0]]
-        
+
         for ix, value in enumerate(values[0]):
-            if hasattr(value, 'dtype'):
+            if hasattr(value, "dtype"):
                 value = numpy_types[np.dtype(value).name](value)
             for dtype in probability:
                 try:
-                    matches[ix] = DataTypes.infer(value,dtype)
+                    matches[ix] = DataTypes.infer(value, dtype)
                     probability.match(dtype)
                     break
                 except (ValueError, TypeError):
@@ -520,9 +523,9 @@ class DataTypes(object):
                 return int(value)
             raise ValueError("it's a float")
         elif isinstance(value, str):
-            value = value.replace('"', '')  # "1,234" --> 1,234
+            value = value.replace('"', "")  # "1,234" --> 1,234
             value = value.replace(" ", "")  # 1 234 --> 1234
-            value = value.replace(',', '')  # 1,234 --> 1234
+            value = value.replace(",", "")  # 1,234 --> 1234
             value_set = set(value)
             if value_set - DataTypes.integers:  # set comparison.
                 raise ValueError
@@ -540,18 +543,18 @@ class DataTypes(object):
         if isinstance(value, float):
             return value
         elif isinstance(value, str):
-            value = value.replace('"', '')
-            dot_index, comma_index = value.find('.'), value.find(',')
+            value = value.replace('"', "")
+            dot_index, comma_index = value.find("."), value.find(",")
             if dot_index == comma_index == -1:
                 pass  # there are no dots or commas.
             elif 0 < dot_index < comma_index:  # 1.234,567
-                value = value.replace('.', '')  # --> 1234,567
-                value = value.replace(',', '.')  # --> 1234.567
+                value = value.replace(".", "")  # --> 1234,567
+                value = value.replace(",", ".")  # --> 1234.567
             elif dot_index > comma_index > 0:  # 1,234.678
-                value = value.replace(',', '')
+                value = value.replace(",", "")
 
             elif comma_index and dot_index == -1:
-                value = value.replace(',', '.')
+                value = value.replace(",", ".")
             else:
                 pass
 
@@ -568,17 +571,17 @@ class DataTypes(object):
                 float_value = float(value)
             except Exception:
                 raise ValueError(f"{value} is not a float.")
-            if value_set.intersection('Ee'):  # it's scientific notation.
+            if value_set.intersection("Ee"):  # it's scientific notation.
                 v = value.lower()
-                if v.count('e') != 1:
+                if v.count("e") != 1:
                     raise ValueError("only 1 e in scientific notation")
 
-                e = v.find('e')
+                e = v.find("e")
                 v_float_part = float(v[:e])
-                v_exponent = int(v[e + 1:])
+                v_exponent = int(v[e + 1 :])
                 return float(f"{v_float_part}e{v_exponent}")
 
-            elif "." in str(float_value) and not "." in value_set:
+            elif "." in str(float_value) and "." not in value_set:
                 # when traversing through Datatype.types,
                 # integer is presumed to have failed for the column,
                 # so we ignore this and turn it into a float...
@@ -586,7 +589,7 @@ class DataTypes(object):
 
             elif "." in value:
                 precision = len(value) - value.index(".") - 1
-                formatter = '{0:.' + str(precision) + 'f}'
+                formatter = "{0:." + str(precision) + "f}"
                 reconstructed_input = formatter.format(float_value)
 
             else:
@@ -624,10 +627,10 @@ class DataTypes(object):
             try:
                 return datetime.fromisoformat(value)
             except ValueError:
-                if '.' in value:
-                    dot = value.find('.', 11)  # 11 = len("1999.12.12")
-                elif ',' in value:
-                    dot = value.find(',', 11)
+                if "." in value:
+                    dot = value.find(".", 11)  # 11 = len("1999.12.12")
+                elif "," in value:
+                    dot = value.find(",", 11)
                 else:
                     dot = len(value)
 
@@ -661,7 +664,7 @@ class DataTypes(object):
     def _infer_none(cls, value):
         if value is None:
             return None
-        if isinstance(value,str) and value == str(None):
+        if isinstance(value, str) and value == str(None):
             return None
         raise ValueError()
 
@@ -690,14 +693,14 @@ def _get_numpy_types():
     Returns:
         dict: {key: numpy dtype str, value: python native type class}
     """
-    
+
     return {
         "bool": bool,
-        "bool_":bool,  #  ('?') -> <class 'bool'>
+        "bool_": bool,  # ('?') -> <class 'bool'>
         "byte": int,  # ('b') -> <class 'int'>
-        "bytes0": bytes,  #  ('S') -> <class 'bytes'>
-        "bytes_": bytes,  #  ('S') -> <class 'bytes'>
-        "cdouble": complex,   #('D') -> <class 'complex'>
+        "bytes0": bytes,  # ('S') -> <class 'bytes'>
+        "bytes_": bytes,  # ('S') -> <class 'bytes'>
+        "cdouble": complex,  # ('D') -> <class 'complex'>
         "cfloat": complex,  # ('D') -> <class 'complex'>
         "clongdouble": float,  # ('G') -> <class 'numpy.clongdouble'>
         "clongfloat": float,  # ('G') -> <class 'numpy.clongdouble'>
@@ -720,40 +723,39 @@ def _get_numpy_types():
         "int_": int,  # ('l') -> <class 'int'>
         "intc": int,  # ('i') -> <class 'int'>
         "intp": int,  # ('q') -> <class 'int'>
-        "longcomplex":float,  # ('G') -> <class 'numpy.clongdouble'>
+        "longcomplex": float,  # ('G') -> <class 'numpy.clongdouble'>
         "longdouble": float,  # ('g') -> <class 'numpy.longdouble'>
-        "longfloat":  float,  # ('g') -> <class 'numpy.longdouble'>
+        "longfloat": float,  # ('g') -> <class 'numpy.longdouble'>
         "longlong": int,  # ('q') -> <class 'int'>
         "matrix": int,  # ('l') -> <class 'int'>
         "record": bytes,  # ('V') -> <class 'bytes'>
         "short": int,  # ('h') -> <class 'int'>
     }
 
+
 numpy_types = _get_numpy_types()
 
 
 class Rank(object):
     def __init__(self, *items):
-        self.items = {i:ix for i,ix in zip(items,range(len(items)))}
+        self.items = {i: ix for i, ix in zip(items, range(len(items)))}
         self.ranks = [0 for _ in items]
         self.items_list = [i for i in items]
-    
+
     def match(self, k):  # k+=1
         ix = self.items[k]
         r = self.ranks
-        r[ix]+=1
+        r[ix] += 1
 
         if ix > 0:
             p = self.items_list
-            while r[ix] > r[ix-1] and ix >0:  # use a simple bubble sort to maintain rank
-                r[ix], r[ix-1] = r[ix-1], r[ix]
-                p[ix], p[ix-1] = p[ix-1], p[ix]
+            while r[ix] > r[ix - 1] and ix > 0:  # use a simple bubble sort to maintain rank
+                r[ix], r[ix - 1] = r[ix - 1], r[ix]
+                p[ix], p[ix - 1] = p[ix - 1], p[ix]
                 old = p[ix]
                 self.items[old] = ix
-                self.items[k] = ix-1
+                self.items[k] = ix - 1
                 ix -= 1
-    
+
     def __iter__(self):
         return iter(self.items_list)
-
-
