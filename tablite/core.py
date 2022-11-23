@@ -1154,7 +1154,7 @@ class Table(object):
     def index(self, *args):
         """
         param: *args: column names
-        returns multikey index on the table
+        returns multikey index on the columns as d[(key tuple, )] = {index1, index2, ...}
 
         Examples:
         >>> table6 = Table()
@@ -1178,18 +1178,15 @@ class Table(object):
          ('Albert', 'Einstein'): {6}})
 
         """
-        cols = []
-        for arg in args:
-            col = self._columns.get(arg, None)
-            if col is not None:
-                cols.append(col)
-        if not cols:
-            raise ValueError("no columns?")
-
-        c = np.column_stack(cols)
         idx = defaultdict(set)
-        for ix, key in enumerate(c):
-            idx[tuple(key)].add(ix)
+        tbl = self.__getitem__(*args)
+        g = tbl.rows if isinstance(tbl, Table) else iter(tbl)
+        for ix, key in enumerate(g):
+            if isinstance(key, list):
+                key = tuple(key)
+            else:
+                key = (key,)
+            idx[key].add(ix)
         return idx
 
     def copy_to_clipboard(self):
@@ -1717,21 +1714,6 @@ class Table(object):
         if t.save is False:
             raise AttributeError("filereader should set table.save = True to avoid repeated imports")
         return t
-
-    # def index(self, *keys):
-    #     """
-    #     Returns index on *keys columns as d[(key tuple, )] = {index1, index2, ...}
-    #     """
-    #     idx = defaultdict(set)
-    #     tbl = self.__getitem__(*keys)
-    #     g = tbl.rows if isinstance(tbl, Table) else iter(tbl)
-    #     for ix, key in enumerate(g):
-    #         if isinstance(key, list):
-    #             key = tuple(key)
-    #         else:
-    #             key = (key,)
-    #         idx[key].add(ix)
-    #     return idx
 
     def _filter(self, expression):
         """
