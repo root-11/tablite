@@ -79,6 +79,11 @@ def test_datatype_inference():
     assert DataTypes.infer("10e5", float) == 10e5
     assert DataTypes.infer("-10e5", float) == -10e5
     assert DataTypes.infer("-10e-5", float) == -10e-5
+    assert DataTypes.infer(1.0, float) == 1.0
+    assert DataTypes.infer("1", float) == 1.0
+    assert DataTypes.infer("1.0", float) == 1.0
+    assert DataTypes.infer(1, float) == 1.0
+
     try:
         DataTypes.infer("100126495100211788-1", float)
         assert False, "this is a corrupted string."

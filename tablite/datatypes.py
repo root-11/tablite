@@ -539,7 +539,7 @@ class DataTypes(object):
     @classmethod
     def _infer_float(cls, value):
         if isinstance(value, int):
-            raise ValueError("it's an integer")
+            return float(value)
         if isinstance(value, float):
             return value
         elif isinstance(value, str):
