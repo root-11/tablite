@@ -1,9 +1,10 @@
 import time
 import math
+import logging
 import pytest
 from tablite import Table, get_headers
 from tablite.datasets import synthetic_order_data_csv, remove_synthetic_data
-import logging
+
 
 log = logging.getLogger()
 log.setLevel(logging.INFO)
@@ -15,6 +16,7 @@ def refresh():
     yield
 
 
+@pytest.mark.timesensitive  # to include run: pytest tests --timesensitive . See tests/conftest.py for details.
 def test01_timing():
     table1 = Table()
     base_data = list(range(10_000))
@@ -36,6 +38,7 @@ def test01_timing():
     a_preview.show()
 
 
+@pytest.mark.timesensitive  # to include run: pytest tests --timesensitive . See tests/conftest.py for details.
 def test01():
     rows = 8e6
     path = synthetic_order_data_csv(rows)
