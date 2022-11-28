@@ -76,7 +76,9 @@ class TextEscape(object):
         else:
             try:
                 # TODO: The regex below needs to be constructed dynamically depending on the inputs.
+                # fmt: off
                 self.re = re.compile('([\d\w\s\u4e00-\u9fff]+)(?=,|$)|((?<=\A)|(?<=,))(?=,|$)|(\(.+\)|".+")', "gmu")  # noqa <-- Disclaimer: Audrius wrote this.
+                # fmt: on
                 self.c = self._call3
             except TypeError:
                 self.c = self._call3_slow
@@ -249,7 +251,9 @@ def get_encoding(path):
     with path.open("rb") as fi:
         rawdata = fi.read(10000)
         encoding = chardet.detect(rawdata)["encoding"]
-        return encoding
+        if encoding == "ascii":  # utf-8 is backwards compatible with ascii
+            return "utf-8"  # --   so should the first 10k chars not be enough,
+        return encoding  # --      the utf-8 encoding will still get it right.
 
 
 def get_delimiter(path, encoding):
