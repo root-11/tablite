@@ -580,7 +580,7 @@ def test04_utf8_extension():
     for row in t.rows:
         t2.add_rows(row)
     t2.show()
-    assert len(t) == len(t2)
+    t == t2
 
 
 def test04_verify_multiprocessing_index_in_shared_memory():
