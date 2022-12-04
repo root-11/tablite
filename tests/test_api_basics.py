@@ -570,6 +570,19 @@ def test04_verify_add_rows_for_table():
     assert t["row"] == list(range(1, 17))
 
 
+def test04_utf8_extension():
+    t = Table()
+    t["a"] = [1, 2, 3, 4]
+    t["b"] = ["bjørn", "björn", "crème", "opið"]
+    t.show()
+    t2 = Table()
+    t2.add_columns(*t.columns)
+    for row in t.rows:
+        t2.add_rows(row)
+    t2.show()
+    assert len(t) == len(t2)
+
+
 def test04_verify_multiprocessing_index_in_shared_memory():
     pass  # done in filereader, filter, sort.
 
