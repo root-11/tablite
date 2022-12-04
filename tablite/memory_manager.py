@@ -834,19 +834,18 @@ class StringType(GenericPage):
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[self.group]
             dset.resize(dset.len() + len(value), axis=0)
-            dset[-len(value) :] = value.astype(bytes)  # encoding to bytes is required.
+            dset[-len(value) :] = np.char.encode(np.array([value], dtype=str), "utf-8")  # encoding to bytes.
             self._len = len(dset)
 
     def insert(self, index, value):
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[self.group]
-            value = np.array([value], dtype=dset.dtype)
             data = dset[:]
             dset.resize(dset.len() + len(value), axis=0)
 
             a, b = index, index + len(value)
             dset[:a] = data[:a]
-            dset[a:b] = value.astype(bytes)  # encoding to bytes is required.
+            dset[a:b] = np.char.encode(np.array([value], dtype=str), "utf-8")  # encoding to bytes.
             dset[b:] = data[a:]
             self._len = len(dset)
 
@@ -857,7 +856,7 @@ class StringType(GenericPage):
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[self.group]
             dset.resize(dset.len() + len(values), axis=0)
-            dset[-len(values) :] = np.array(values, dtype=str).astype(bytes)  # encoding to bytes is required.
+            dset[-len(values) :] = np.char.encode(np.array(values, dtype=str), "utf-8")  # encoding to bytes.
             self._len = len(dset)
 
     def remove(self, value):
