@@ -3196,7 +3196,7 @@ class Table(object):
         else:
             raise ValueError(f"method {method} not recognised amonst known methods: {list(methods)})")
 
-    def transpose(self, columns, keep=None, column_name="transpose", value_name="value"):
+    def transpose(self, columns, keep=None, column_name="transpose", value_name="value", tqdm=_tqdm):
         """Transpose a selection of columns to rows.
 
         Args:
@@ -3254,20 +3254,24 @@ class Table(object):
         news = {name: [] for name in new.columns}
 
         n = len(keep)
-        for ix, row in enumerate(self.__getitem__(*keep + columns).rows, start=1):
-            keeps = row[:n]
-            transposes = row[n:]
+        
+        with tqdm(total=len(self), desc="transpose") as pbar:
+            for ix, row in enumerate(self.__getitem__(*keep + columns).rows, start=1):
+                keeps = row[:n]
+                transposes = row[n:]
 
-            for name, value in zip(keep, keeps):
-                news[name].extend([value] * len(transposes))
-            for name, value in zip(columns, transposes):
-                news[column_name].append(name)
-                news[value_name].append(value)
+                for name, value in zip(keep, keeps):
+                    news[name].extend([value] * len(transposes))
+                for name, value in zip(columns, transposes):
+                    news[column_name].append(name)
+                    news[value_name].append(value)
 
-            if ix % SINGLE_PROCESSING_LIMIT == 0:
-                for name, values in news.items():
-                    new[name].extend(values)
-                    values.clear()
+                if ix % SINGLE_PROCESSING_LIMIT == 0:
+                    for name, values in news.items():
+                        new[name].extend(values)
+                        values.clear()
+
+                pbar.update(1)
 
         for name, values in news.items():
             new[name].extend(values)
