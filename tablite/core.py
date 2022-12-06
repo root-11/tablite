@@ -3017,7 +3017,7 @@ class Table(object):
     def replace_missing_values(self, *args, **kwargs):
         raise AttributeError("See imputation")
 
-    def imputation(self, targets, missing=None, method="carry forward", sources=None):
+    def imputation(self, targets, missing=None, method="carry forward", sources=None, tqdm=_tqdm):
         """
         In statistics, imputation is the process of replacing missing data with substituted values.
 
@@ -3153,7 +3153,7 @@ class Table(object):
             item_order = sortation.unix_sort(list(ranks))
             new_order = {tuple(item_order[i] for i in k): k for k in missing_value_index.keys()}
 
-            with _tqdm(unit="missing values", total=sum(len(v) for v in missing_value_index.values())) as pbar:
+            with tqdm(unit="missing values", total=sum(len(v) for v in missing_value_index.values())) as pbar:
                 for _, key in sorted(new_order.items(), reverse=True):  # Fewest None's are at the front of the list.
                     for row_id in missing_value_index[key]:
                         err_map = [0.0 for _ in range(len(self))]
