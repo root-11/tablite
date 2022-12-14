@@ -23,7 +23,7 @@ jobs:
         python -m pip install flake8 pytest
         python -m pip install coverage
         python -m pip install -r requirements.txt
-        coverage run --source='.' --parallel -m pytest 
+        coverage run --source='.' -m pytest --timesensitive
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1
       with:
