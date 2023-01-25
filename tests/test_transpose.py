@@ -9,7 +9,7 @@ def test01():
     t["d"] = [4]
     t["e"] = [5]
 
-    new = t.transpose(columns=["c", "d", "e"], keep=["a", "b"])
+    new = t.pivot_transpose(columns=["c", "d", "e"], keep=["a", "b"])
 
     assert [r for r in new.rows] == [
         [1, 2, "c", 3],
@@ -26,7 +26,7 @@ def test02():
     t["d"] = [4, 40]
     t["e"] = [5, 50]
 
-    new = t.transpose(columns=["c", "d", "e"], keep=["a", "b"])
+    new = t.pivot_transpose(columns=["c", "d", "e"], keep=["a", "b"])
 
     assert [r for r in new.rows] == [
         [1, 2, "c", 3],
