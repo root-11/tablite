@@ -171,7 +171,7 @@ def test_summary_statistics_even_strings():
     assert d["mean"] == "2.857142857142857 characters"
     assert d["median"] == "3 characters"
     assert d["stdev"] == "1.0994504121565505 characters"
-    assert d["mode"] == "4 characters"
+    assert d["mode"] == "dddd"
     assert d["distinct"] == len(V)
     assert d["iqr"] == "2 characters"
     assert d["sum"] == "40 characters"

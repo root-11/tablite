@@ -321,8 +321,15 @@ def _date_statistics_summary(v, c):
 def _string_statistics_summary(v, c):
     vx = [len(x) for x in v]
     d = _numeric_statistics_summary(vx, c)
+
+    vc_sorted = sorted(zip(v, c), key=lambda t: t[1], reverse=True)
+    mode, _ = vc_sorted[0]
+
     for k in d.keys():
         d[k] = f"{d[k]} characters"
+
+    d["mode"] = mode
+    
     return d
 
 
