@@ -9,7 +9,7 @@ def test01():
     t["d"] = [4]
     t["e"] = [5]
 
-    new = t.transpose(columns=["c", "d", "e"], keep=["a", "b"])
+    new = t.pivot_transpose(columns=["c", "d", "e"], keep=["a", "b"])
 
     assert [r for r in new.rows] == [
         [1, 2, "c", 3],
@@ -26,7 +26,7 @@ def test02():
     t["d"] = [4, 40]
     t["e"] = [5, 50]
 
-    new = t.transpose(columns=["c", "d", "e"], keep=["a", "b"])
+    new = t.pivot_transpose(columns=["c", "d", "e"], keep=["a", "b"])
 
     assert [r for r in new.rows] == [
         [1, 2, "c", 3],
@@ -35,4 +35,49 @@ def test02():
         [10, 20, "c", 30],
         [10, 20, "d", 40],
         [10, 20, "e", 50],
+    ]
+
+def test_03():
+    t = Table()
+    t["a"] = [1, 10]
+    t["b"] = [2, 20]
+    t["c"] = [3, 30]
+    t["d"] = [4, 40]
+    t["e"] = [5, 50]
+
+    new = t.transpose()
+
+    assert new.columns == ["a", "1", "10"]
+    assert [r for r in new.rows] == [
+        ["b", 2, 20],
+        ["c", 3, 30],
+        ["d", 4, 40],
+        ["e", 5, 50]
+    ]
+
+def test_04():
+    t = Table()
+
+    new = t.transpose()
+
+    assert len(new.columns) == 0
+    assert len(new) == 0
+
+
+def test_05():
+    t = Table()
+    t["a"] = []
+    t["b"] = []
+    t["c"] = []
+    t["d"] = []
+    t["e"] = []
+
+    new = t.transpose()
+
+    assert new.columns == ["a"]
+    assert [r for r in new.rows] == [
+        ["b"],
+        ["c"],
+        ["d"],
+        ["e"]
     ]

@@ -3196,7 +3196,33 @@ class Table(object):
         else:
             raise ValueError(f"method {method} not recognised amonst known methods: {list(methods)})")
 
-    def transpose(self, columns, keep=None, column_name="transpose", value_name="value", tqdm=_tqdm):
+    @property
+    def T(self):
+        return self.transpose()
+
+    def transpose(self, tqdm=_tqdm):
+        if len(self.columns) == 0:
+            return Table()
+
+        rows = [[] for _ in range(len(self) + 1)]
+        rows[0] = self.columns[1:]
+
+        for x in tqdm(range(0, len(self)), desc="table transpose"):
+            for y in rows[0]:
+                value = self[y][x]
+                rows[x + 1].append(value)
+
+        unique_names = []
+        table = Table()
+
+        for column_name, values in zip((unique_name(str(c), unique_names) for c in ([self.columns[0]] + list(self[self.columns[0]]))), rows):
+            unique_names.append(column_name)
+
+            table[column_name] = values
+
+        return table
+
+    def pivot_transpose(self, columns, keep=None, column_name="transpose", value_name="value", tqdm=_tqdm):
         """Transpose a selection of columns to rows.
 
         Args:
