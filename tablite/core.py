@@ -3201,6 +3201,9 @@ class Table(object):
         return self.transpose()
 
     def transpose(self, tqdm=_tqdm):
+        if len(self.columns) == 0:
+            return Table()
+
         rows = [[] for _ in range(len(self) + 1)]
         rows[0] = self.columns[1:]
 
