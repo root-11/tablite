@@ -261,6 +261,14 @@ def test03_unequal_column_lengths():
     for row in table1.rows:
         print(row)
 
+def test03_verify_negative_slice_operator_for_uniform_datatype():
+    table4 = Table()
+    table4["A"] = L = [0, 10, 20, 3, 4, 5, 100]  # create
+    assert L == [0, 10, 20, 3, 4, 5, 100]
+    assert table4["A"] == L
+
+    for i in range(-1, -len(L), -1):
+        assert table4["A"][i] == L[i]
 
 def test03_verify_slice_operator_for_uniform_datatype():
     table4 = Table()
