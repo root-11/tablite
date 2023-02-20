@@ -111,6 +111,8 @@ def arg_to_slice(arg=None):
     if isinstance(arg, slice):
         return arg
     elif isinstance(arg, int):
+        if arg == -1: # special case that needs to be without step, unless we know the number of elements
+            return slice(arg, None, None)
         return slice(arg, arg + 1, 1)
     elif arg is None:
         return slice(0, None, 1)
