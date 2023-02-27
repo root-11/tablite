@@ -130,6 +130,10 @@ def test_datatype_inference():
     assert DataTypes.infer("19760704", date) == date(1976, 7, 4)  # "random format"),
 
     assert DataTypes.infer("7 4 1976", date) == date(1976, 4, 7)
+
+    assert DataTypes.infer(DataTypes.infer("1990-01-01", datetime), date) == date(1990, 1, 1)
+    assert DataTypes.infer(DataTypes.infer("1990-01-01", date), datetime) == datetime(1990, 1, 1)
+
     # assert DataTypes.infer("14 jul 1976", date) == date(1976, 7, 14)
     # assert DataTypes.infer("4 Jul 1976", date) == date(1976, 7, 4)
 
