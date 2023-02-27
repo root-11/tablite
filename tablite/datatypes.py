@@ -604,7 +604,9 @@ class DataTypes(object):
 
     @classmethod
     def _infer_date(cls, value):
-        if isinstance(value, date):
+        if isinstance(value, datetime):
+            return date(value.year, value.month, value.day)
+        elif isinstance(value, date):
             return value
         elif isinstance(value, str):
             try:
@@ -623,6 +625,8 @@ class DataTypes(object):
     def _infer_datetime(cls, value):
         if isinstance(value, datetime):
             return value
+        elif isinstance(value, date):
+            return datetime(value.year, value.month, value.day)
         elif isinstance(value, str):
             try:
                 return datetime.fromisoformat(value)
