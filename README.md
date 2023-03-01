@@ -24,7 +24,7 @@
 
 ### Even smaller memory footprint
 
-Tablite uses HDF5 as a backend with strong abstraction, so that copy, append & repetition of data is handled in pages. This is imperative for [incremental data processing](https://github.com/root-11/tablite/tree/master/docs/img/incremental_dataprocessing.svg). 
+Tablite uses HDF5 as a backend with strong abstraction, so that copy, append & repetition of data is handled in pages. This is imperative for [incremental data processing](https://github.com/root-11/tablite/tree/master/docs/images/incremental_dataprocessing.svg). 
 
 Tablite tests [for memory footprint](https://github.com/root-11/tablite/blob/master/tests/test_memory_footprint.py). One test compares the memory footprint of 10,000,000 integers where `tablite` will use < 1 Mb RAM in contrast to python which will require around 133.7 Mb of RAM (1M lists with 10 integers). Tablite also tests to assure that working with [1Tb of data](https://github.com/root-11/tablite/blob/master/tests/test_filereader_time.py) is tolerable.
 
