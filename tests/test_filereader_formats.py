@@ -1,5 +1,7 @@
+import codecs
+import tempfile
 from tablite import Table
-from tablite.file_reader_utils import TextEscape, get_headers
+from tablite.file_reader_utils import TextEscape, get_headers, ENCODING_GUESS_BYTES
 from tablite.datatypes import DataTypes
 from time import process_time_ns
 from datetime import date, datetime
@@ -854,3 +856,14 @@ def test_long_texts():
     t = Table.import_file(path, columns=columns[:-1], text_qualifier='"')
     selection = columns[:5]
     t.__getitem__(*selection).show()
+
+def test_no_commas():
+    table = Table.import_file(Path(__file__).parent / "data" / "no_separator.csv")
+
+    assert len(table) == 25
+
+
+def test_multi_charset():
+    tbl = Table.import_file(Path(__file__).parent / "data" / "formats.csv")
+
+    assert len(tbl) == ENCODING_GUESS_BYTES + 3
