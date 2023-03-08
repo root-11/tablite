@@ -2,6 +2,10 @@
 
 | Version    | Change                                              |
 |:-----------|-----------------------------------------------------|
+| 2022.11.7 | Added `TABLITE_TMPDIR` environment variable for setting tablite work directory. <br> Characters that fail to be read text reader due to improper encoding will be skipped. <br> Fixed an issue where single column text files with no column delimiters would be imported as empty tables. |
+| 2022.11.6 | Date inference fix |
+| 2022.11.5 | Fixed negative slicing issues |
+| 2022.11.4 | Transpose API changes: <br> `table.transpose(...)` was renamed to `table.pivot_transpose(...)` <br> new `table.transpose()` and `table.T` were added, it's functionality acts similarly to `numpy.T`, the column headers are used the first row in the table when transposing. |
 | 2022.11.3 | Bugfix for non-ascii encoded strings during `t.add_rows(...)` |
 | 2022.11.2 | As `utf-8` is ascii compatible, the file reader utils selects `utf-8` instead of `ascii` as a default. |
 | 2022.11.1 | bugfix in `datatypes.infer()` where 1 was inferred as int, not float. |
