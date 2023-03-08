@@ -3,6 +3,7 @@ from pathlib import Path
 import pyexcel
 import chardet
 
+ENCODING_GUESS_BYTES = 10000
 
 def split_by_sequence(text, sequence):
     """helper to split text according to a split sequence."""
@@ -169,6 +170,8 @@ def detect_seperator(text):
     if not seps:
         if " " in text:
             return " "
+        if "\n" in text:
+            return "\n"
         else:
             raise ValueError("separator not detected")
     if len(seps) == 1:
@@ -225,7 +228,7 @@ def get_headers(path, linecount=10, delimiter=None):
 
     try:
         with path.open("rb") as fi:
-            rawdata = fi.read(10000)
+            rawdata = fi.read(ENCODING_GUESS_BYTES)
             encoding = chardet.detect(rawdata)["encoding"]
         with path.open("r", encoding=encoding) as fi:
             lines = []

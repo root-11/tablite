@@ -320,7 +320,7 @@ def text_reader(
     if not isinstance(path, pathlib.Path):
         path = pathlib.Path(path)
 
-    with path.open("r", encoding=encoding) as fi:
+    with path.open("r", encoding=encoding, errors="ignore") as fi:
         # task: find chunk ...
         # Here is the problem in a nutshell:
         # --------------------------------------------------------
@@ -343,7 +343,13 @@ def text_reader(
             raise ValueError("expected limit as an integer > 0")
 
         try:
-            newlines = sum(1 for _ in _tqdm(fi, desc=f"reading {path.name}", unit="bytes"))
+            newlines = 0
+            
+            with _tqdm(desc=f"reading {path.name}", unit="bytes", total=path.stat().st_size) as pbar:
+                for block in fi:
+                    newlines = newlines + 1
+                    
+                    pbar.update(len(block))
             fi.seek(0)
         except Exception as e:
             raise ValueError(f"file could not be read with encoding={encoding}\n{str(e)}")
@@ -399,7 +405,7 @@ def text_reader(
         raise ValueError("error in import config:\n{}")
 
     tasks = []
-    with path.open("r", encoding=encoding) as fi:
+    with path.open("r", encoding=encoding, errors="ignore") as fi:
         parts = []
         assert header_line != "" and header_line.endswith(newline)
         with tqdm(desc=f"splitting {path.name} for multiprocessing", total=newlines, unit="lines") as pbar:
