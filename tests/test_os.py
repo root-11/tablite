@@ -3,8 +3,8 @@ import h5py
 import pathlib
 import tempfile
 
-
 from tablite.config import TEMPDIR
+from tablite.core import _text_reader_task_size
 
 
 def test01():
@@ -31,3 +31,20 @@ def test2():
         dset.attrs["now"] = time.time()
 
     path.unlink()
+
+def test_one_core():
+    newlines = 10_000
+    filesize = 1_000_000 # ~1MB
+    cpu_count = 1
+    free_virtual_memory = 8_000_000_000 # ~8GB
+    
+    lines_per_task, _ = _text_reader_task_size(newlines, filesize, cpu_count, free_virtual_memory)
+    assert (newlines / lines_per_task) == 1, "Should fit in one task!"
+
+    filesize = 16_000_000_000 # ~8GB
+    lines_per_task, _ = _text_reader_task_size(newlines, filesize, cpu_count, free_virtual_memory, working_overhead=0, memory_usage_ceiling=1)
+    assert (newlines / lines_per_task) == 2, "Should fit in two tasks!"
+
+    filesize = 8_000_000_000 # ~8GB
+    lines_per_task, _ = _text_reader_task_size(newlines, filesize, cpu_count, free_virtual_memory, working_overhead=0)
+    assert (newlines / lines_per_task) == 2, "Should fit in two tasks!"

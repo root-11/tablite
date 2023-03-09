@@ -2,6 +2,7 @@
 
 | Version    | Change                                              |
 |:-----------|-----------------------------------------------------|
+| 2022.11.8 | Fix a bug with task size calculation on single core systems. |
 | 2022.11.7 | Added `TABLITE_TMPDIR` environment variable for setting tablite work directory. <br> Characters that fail to be read text reader due to improper encoding will be skipped. <br> Fixed an issue where single column text files with no column delimiters would be imported as empty tables. |
 | 2022.11.6 | Date inference fix |
 | 2022.11.5 | Fixed negative slicing issues |
