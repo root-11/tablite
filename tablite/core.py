@@ -287,7 +287,7 @@ def _text_reader_task_size(
 
         if not multicore:  # it's a large task and there is no memory for another python subprocess.
             # Use current process and divide the total workload to fit into free memory.
-            lines_per_task = max(1, total_workload // reserved_memory)
+            lines_per_task = newlines // max(1, total_workload // reserved_memory)
             cpu_count = 0
 
     return lines_per_task, cpu_count
