@@ -230,7 +230,7 @@ def get_headers(path, linecount=10, delimiter=None):
         with path.open("rb") as fi:
             rawdata = fi.read(ENCODING_GUESS_BYTES)
             encoding = chardet.detect(rawdata)["encoding"]
-        with path.open("r", encoding=encoding) as fi:
+        with path.open("r", encoding=encoding, errors="ignore") as fi:
             lines = []
             for n, line in enumerate(fi):
                 line = line.rstrip("\n")
@@ -260,7 +260,7 @@ def get_encoding(path):
 
 
 def get_delimiter(path, encoding):
-    with path.open("r", encoding=encoding) as fi:
+    with path.open("r", encoding=encoding, errors="ignore") as fi:
         lines = []
         for n, line in enumerate(fi):
             line = line.rstrip("\n")
