@@ -1,7 +1,7 @@
 import re
-from pathlib import Path
-import pyexcel
 import chardet
+import openpyxl
+from pathlib import Path
 
 ENCODING_GUESS_BYTES = 10000
 
@@ -216,14 +216,35 @@ def get_headers(path, linecount=10, delimiter=None):
     d = {}
     if path.suffix not in delimiters:
         try:
-            book = pyexcel.get_book(file_name=str(path))
-            for sheet_name in book.sheet_names():
-                sheet = book[sheet_name]
-                stop = sheet.number_of_rows()
-                d[sheet_name] = [sheet.row[i] for i in range(0, min(linecount, stop))]
-                d["delimiter"] = None
+            book = openpyxl.open(str(path), read_only=True)
+
+            try:
+                all_sheets = book.sheetnames
+
+                for sheet_name, sheet in ((name, book[name]) for name in all_sheets):
+                    max_rows = min(sheet.max_row, linecount)
+                    container = [None] * max_rows
+                    padding_ends = 0
+                    max_column = sheet.max_column
+                    
+                    for i, row_data in enumerate(sheet.iter_rows(0, max_rows, values_only=True)):
+                        container[i] = list(row_data)
+                        
+                        for j, cell in enumerate(reversed(row_data)):
+                            if cell is None:
+                                continue
+
+                            padding_ends = max(padding_ends, max_column - j)
+
+                            break
+
+                    d[sheet_name] = [c[0:padding_ends] for c in container]
+                    d["delimiter"] = None
+            finally:
+                book.close()
+
             return d
-        except Exception:
+        except Exception as e:
             pass  # it must be a raw text format.
 
     try:
