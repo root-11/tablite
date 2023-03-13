@@ -2,6 +2,7 @@
 
 | Version    | Change                                              |
 |:-----------|-----------------------------------------------------|
+| 2022.10.10 | `get_headers` now uses plain `openpyxl` instead of `pyexcel` wrapper to speed up fetch times ~10x on certain files.
 | 2022.11.9 | `get_headers` can fail safe on unrecognized characters. |
 | 2022.11.8 | Fix a bug with task size calculation on single core systems. |
 | 2022.11.7 | Added `TABLITE_TMPDIR` environment variable for setting tablite work directory. <br> Characters that fail to be read text reader due to improper encoding will be skipped. <br> Fixed an issue where single column text files with no column delimiters would be imported as empty tables. |
