@@ -258,8 +258,9 @@ def _text_reader_task_size(
             isn't enough memory to launch a subprocess.
 
     """
+    working_overhead = max(working_overhead, 1)
     bytes_per_line = math.ceil(filesize / newlines)
-    total_workload = max(working_overhead, 1) * filesize
+    total_workload = working_overhead * filesize
 
     reserved_memory = int(free_virtual_memory * memory_usage_ceiling)
 
@@ -276,9 +277,9 @@ def _text_reader_task_size(
             ):  # count down from max to min number of cpus until the task fits into RAM.
                 free_memory = reserved_memory - (n_cpus * python_mem_w_imports)
                 free_memory_per_vcpu = int(free_memory / cpu_count)  # 8 gb/ 16vCPU = 500Mb/vCPU
-                lines_per_task = free_memory_per_vcpu // (
+                lines_per_task = math.ceil(free_memory_per_vcpu / (
                     bytes_per_line * working_overhead
-                )  # 500Mb/vCPU / (10 * 109 bytes / line ) = 458715 lines per task
+                ))  # 500Mb/vCPU / (10 * 109 bytes / line ) = 458715 lines per task
 
                 cpu_count = n_cpus
                 if free_memory_per_vcpu > 10_000_000:  # 10Mb as minimum task size
