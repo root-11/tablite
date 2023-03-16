@@ -320,95 +320,110 @@ def text_reader(
     if not isinstance(path, pathlib.Path):
         path = pathlib.Path(path)
 
-    with path.open("r", encoding=encoding, errors="ignore") as fi:
-        # task: find chunk ...
-        # Here is the problem in a nutshell:
-        # --------------------------------------------------------
-        # text = "this is my \n text".encode('utf-16')
-        # >>> text
-        # b'\xff\xfet\x00h\x00i\x00s\x00 \x00i\x00s\x00 \x00m\x00y\x00 \x00\n\x00 \x00t\x00e\x00x\x00t\x00'
-        # >>> newline = "\n".encode('utf-16')
-        # >>> newline in text
-        # False
-        # >>> newline.decode('utf-16') in text.decode('utf-16')
-        # True
-        # --------------------------------------------------------
-        # This means we can't read the encoded stream to check if in contains a particular character.
-        # We will need to decode it.
-        # furthermore fi.tell() will not tell us which character we a looking at.
-        # so the only option left is to read the file and split it in workable chunks.
-        if not (isinstance(start, int) and start >= 0):
-            raise ValueError("expected start as an integer >= 0")
-        if not (isinstance(limit, int) and limit > 0):
-            raise ValueError("expected limit as an integer > 0")
+    read_stage, process_stage, dump_stage, consolidation_stage = 20, 50, 20, 10
 
-        try:
-            newlines = 0
-            
-            with _tqdm(desc=f"reading {path.name}", unit="bytes", total=path.stat().st_size) as pbar:
-                for block in fi:
-                    newlines = newlines + 1
-                    
-                    pbar.update(len(block))
-            fi.seek(0)
-        except Exception as e:
-            raise ValueError(f"file could not be read with encoding={encoding}\n{str(e)}")
-        if newlines < 1:
-            raise ValueError(f"Using {newline} to split file, revealed {newlines} lines in the file.")
+    pbar_fname = path.name
 
-        if newlines <= start + (1 if first_row_has_headers else 0):  # Then start > end: Return EMPTY TABLE.
-            t = Table()
-            t.add_columns(*columns)
-            t.save = True
-            return t
+    if len(pbar_fname) > 20:
+        pbar_fname = pbar_fname[0:10] + "..." + pbar_fname[-7:]
+
+    assert sum([read_stage, process_stage, dump_stage, consolidation_stage]) == 100, "Must add to to a 100"
 
     file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
-    cpu_count = max(psutil.cpu_count(logical=False), 1)  # there's always at least one core!
-    free_mem = psutil.virtual_memory().free
 
-    lines_per_task, cpu_count = _text_reader_task_size(
-        newlines=newlines, filesize=file_length, cpu_count=cpu_count, free_virtual_memory=free_mem
-    )
+    with tqdm(total=100, desc=f"importing: reading '{pbar_fname}' bytes", unit="%", bar_format="{desc}: {percentage:3.2f}%|{bar}| [{elapsed}<{remaining}]") as pbar:
+        with path.open("r", encoding=encoding, errors="ignore") as fi:
+            # task: find chunk ...
+            # Here is the problem in a nutshell:
+            # --------------------------------------------------------
+            # text = "this is my \n text".encode('utf-16')
+            # >>> text
+            # b'\xff\xfet\x00h\x00i\x00s\x00 \x00i\x00s\x00 \x00m\x00y\x00 \x00\n\x00 \x00t\x00e\x00x\x00t\x00'
+            # >>> newline = "\n".encode('utf-16')
+            # >>> newline in text
+            # False
+            # >>> newline.decode('utf-16') in text.decode('utf-16')
+            # True
+            # --------------------------------------------------------
+            # This means we can't read the encoded stream to check if in contains a particular character.
+            # We will need to decode it.
+            # furthermore fi.tell() will not tell us which character we a looking at.
+            # so the only option left is to read the file and split it in workable chunks.
+            if not (isinstance(start, int) and start >= 0):
+                raise ValueError("expected start as an integer >= 0")
+            if not (isinstance(limit, int) and limit > 0):
+                raise ValueError("expected limit as an integer > 0")
 
-    task_config = {
-        "source": None,  # populated during task creation
-        "table_key": None,  # populated during task creation
-        "columns": columns,
-        "newline": newline,
-        "guess_datatypes": guess_datatypes,
-        "delimiter": delimiter,
-        "text_qualifier": text_qualifier,
-        "text_escape_openings": text_escape_openings,
-        "text_escape_closures": text_escape_closures,
-        "encoding": encoding,
-        "strip_leading_and_tailing_whitespace": strip_leading_and_tailing_whitespace,
-    }
+            try:
+                newlines = 0
 
-    checks = [
-        True,
-        True,
-        isinstance(columns, list),
-        isinstance(newline, str),
-        isinstance(delimiter, str),
-        isinstance(text_qualifier, (str, type(None))),
-        isinstance(text_escape_openings, str),
-        isinstance(text_escape_closures, str),
-        isinstance(encoding, str),
-        isinstance(strip_leading_and_tailing_whitespace, bool),
-    ]
-    if not all(checks):  # create an informative error message
-        L = []
-        for cfg, chk in zip(task_config, checks):
-            if not chk:
-                L.append(f"{cfg}:{task_config[cfg]}")
-        L = "\n\t".join(L)
-        raise ValueError("error in import config:\n{}")
+                for block in fi:
+                    newlines = newlines + 1
 
-    tasks = []
-    with path.open("r", encoding=encoding, errors="ignore") as fi:
-        parts = []
-        assert header_line != "" and header_line.endswith(newline)
-        with tqdm(desc=f"splitting {path.name} for multiprocessing", total=newlines, unit="lines") as pbar:
+                    pbar.update((len(block) / file_length) * read_stage)
+
+                pbar.desc = f"importing: processing '{pbar_fname}'"
+                pbar.update(read_stage - pbar.n)
+
+                fi.seek(0)
+            except Exception as e:
+                raise ValueError(f"file could not be read with encoding={encoding}\n{str(e)}")
+            if newlines < 1:
+                raise ValueError(f"Using {newline} to split file, revealed {newlines} lines in the file.")
+
+            if newlines <= start + (1 if first_row_has_headers else 0):  # Then start > end: Return EMPTY TABLE.
+                t = Table()
+                t.add_columns(*columns)
+                t.save = True
+                return t
+
+        
+        cpu_count = max(psutil.cpu_count(logical=True), 1)  # there's always at least one core!
+        free_mem = psutil.virtual_memory().available
+
+        lines_per_task, cpu_count = _text_reader_task_size(
+            newlines=newlines, filesize=file_length, cpu_count=cpu_count, free_virtual_memory=free_mem
+        )
+
+        task_config = {
+            "source": None,  # populated during task creation
+            "table_key": None,  # populated during task creation
+            "columns": columns,
+            "newline": newline,
+            "guess_datatypes": guess_datatypes,
+            "delimiter": delimiter,
+            "text_qualifier": text_qualifier,
+            "text_escape_openings": text_escape_openings,
+            "text_escape_closures": text_escape_closures,
+            "encoding": encoding,
+            "strip_leading_and_tailing_whitespace": strip_leading_and_tailing_whitespace,
+        }
+
+        checks = [
+            True,
+            True,
+            isinstance(columns, list),
+            isinstance(newline, str),
+            isinstance(delimiter, str),
+            isinstance(text_qualifier, (str, type(None))),
+            isinstance(text_escape_openings, str),
+            isinstance(text_escape_closures, str),
+            isinstance(encoding, str),
+            isinstance(strip_leading_and_tailing_whitespace, bool),
+        ]
+        if not all(checks):  # create an informative error message
+            L = []
+            for cfg, chk in zip(task_config, checks):
+                if not chk:
+                    L.append(f"{cfg}:{task_config[cfg]}")
+            L = "\n\t".join(L)
+            raise ValueError("error in import config:\n{}")
+
+        tasks = []
+        with path.open("r", encoding=encoding, errors="ignore") as fi:
+            parts = []
+            assert header_line != "" and header_line.endswith(newline)
+
             for ix, line in enumerate(fi, start=(-1 if first_row_has_headers else 0)):
                 if ix < start:
                     # ix is -1 if the first row has headers, but header_line already has the first line.
@@ -423,7 +438,7 @@ def text_reader(
                     with p.open("w", encoding=H5_ENCODING) as fo:
                         parts.insert(0, header_line)
                         fo.write("".join(parts))
-                    pbar.update(len(parts))
+                    pbar.update((len(parts) / newlines) * process_stage)
                     parts.clear()
                     tasks.append(
                         Task(
@@ -440,7 +455,7 @@ def text_reader(
                 with p.open("w", encoding=H5_ENCODING) as fo:
                     parts.insert(0, header_line)
                     fo.write("".join(parts))
-                pbar.update(len(parts))
+                pbar.update((len(parts) / newlines) * process_stage)
                 parts.clear()
                 task_config.update({"source": str(p), "table_key": mem.new_id("/table")})
                 tasks.append(
@@ -450,34 +465,56 @@ def text_reader(
                     )
                 )
 
-    if cpu_count > 1:
-        # execute the tasks with multiprocessing
-        with TaskManager(cpu_count - 1) as tm:
-            errors = tm.execute(tasks)  # I expects a list of None's if everything is ok.
+        pbar.desc = f"importing: saving '{pbar_fname}' to disk"
+        pbar.update((read_stage + process_stage) - pbar.n)
 
-            # clean up the tmp source files, before raising any exception.
+        len_tasks = len(tasks)
+        dump_size = dump_stage / len_tasks
+
+        class PatchTqdm: # we need to re-use the tqdm pbar, this will patch the tqdm to update existing pbar instead of creating a new one
+            def update(self, n=1):
+                pbar.update(n * dump_size)
+
+        if cpu_count > 1:
+            # execute the tasks with multiprocessing
+            with TaskManager(cpu_count - 1) as tm:
+                errors = tm.execute(tasks, pbar=PatchTqdm())  # I expects a list of None's if everything is ok.
+
+                # clean up the tmp source files, before raising any exception.
+                for task in tasks:
+                    tmp = pathlib.Path(task.kwargs["source"])
+                    tmp.unlink()
+
+                if any(errors):
+                    raise Exception("\n".join(e for e in errors if e))
+        else:  # execute the tasks in currently process.
             for task in tasks:
-                tmp = pathlib.Path(task.kwargs["source"])
-                tmp.unlink()
+                assert isinstance(task, Task)
+                task.execute()
 
-            if any(errors):
-                raise Exception("\n".join(e for e in errors if e))
-    else:  # execute the tasks in currently process.
-        for task in _tqdm(tasks, desc="Executing tasks in main process"):
-            assert isinstance(task, Task)
-            task.execute()
+                pbar.update(dump_size)
 
-    # consolidate the task results
-    t = None
-    for task in tasks:
-        tmp = Table.load(path=mem.path, key=task.kwargs["table_key"])
-        if t is None:
-            t = tmp.copy()
-        else:
-            t += tmp
-        tmp.save = False  # allow deletion of subproc tables.
-    t.save = True
-    return t
+        pbar.desc = f"importing: consolidating '{pbar_fname}'"
+        pbar.update((read_stage + process_stage + dump_stage) - pbar.n)
+
+        consolidation_size = consolidation_stage / len_tasks
+
+        # consolidate the task results
+        t = None
+        for task in tasks:
+            tmp = Table.load(path=mem.path, key=task.kwargs["table_key"])
+            if t is None:
+                t = tmp.copy()
+            else:
+                t += tmp
+            tmp.save = False  # allow deletion of subproc tables.
+
+            pbar.update(consolidation_size)
+
+        pbar.update(100 - pbar.n)
+
+        t.save = True
+        return t
 
 
 file_readers = {  # dict of file formats and functions used during Table.import_file
