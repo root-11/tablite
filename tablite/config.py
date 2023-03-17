@@ -2,10 +2,11 @@ import os
 import pathlib
 import tempfile
 
-__tmpdir__ = os.environ.get("TABLITE_TMPDIR", tempfile.gettempdir())
+__tmpdir__ = pathlib.Path(os.environ.get("TABLITE_TMPDIR", tempfile.gettempdir()))
+__tmpdir__.mkdir(parents=True, exist_ok=True)
 
 # The default location for the storage
-H5_STORAGE = pathlib.Path(__tmpdir__) / "tablite.hdf5"
+H5_STORAGE = __tmpdir__ / "tablite.hdf5"
 # to overwrite first import the config class:
 # >>> from tablite.config import Config
 # >>> Config.H5_STORAGE = /this/new/location
