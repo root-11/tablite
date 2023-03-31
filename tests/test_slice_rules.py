@@ -1,5 +1,5 @@
 import numpy as np
-import h5py
+import tablite.h5py as h5py
 from pathlib import Path
 
 
