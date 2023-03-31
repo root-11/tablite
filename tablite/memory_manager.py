@@ -6,7 +6,7 @@ import logging
 from os import getpid
 from collections import defaultdict
 from string import digits
-import h5py  # https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr?rq=1  # noqa
+import tablite.h5py as h5py  # https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr?rq=1  # noqa
 import numpy as np
 
 from tablite.config import H5_STORAGE, H5_PAGE_SIZE, H5_ENCODING
@@ -59,7 +59,8 @@ class MemoryManager(object):
 
         self.path = H5_STORAGE
         if not self.path.exists():
-            h5py.File(self.path, TRUNCATE).close()
+            with h5py.File(self.path, TRUNCATE):
+                pass
 
     @timeout
     def new_id(self, group):

@@ -15,7 +15,7 @@ import pyexcel
 import pyperclip
 from tqdm import tqdm as _tqdm
 import numpy as np
-import h5py
+import tablite.h5py as h5py
 import psutil
 from mplite import TaskManager, Task
 
@@ -32,7 +32,6 @@ from tablite.config import SINGLE_PROCESSING_LIMIT, TEMPDIR, H5_ENCODING
 from tablite.datatypes import DataTypes
 
 PYTHON_EXIT = False  # exit handler so that Table.__del__ doesn't run into import error during exit.
-
 
 def exiting():
     global PYTHON_EXIT
@@ -3239,10 +3238,6 @@ class Table(object):
 
         else:
             raise ValueError(f"method {method} not recognised amonst known methods: {list(methods)})")
-
-    @property
-    def T(self):
-        return self.transpose()
 
     def transpose(self, tqdm=_tqdm):
         if len(self.columns) == 0:
