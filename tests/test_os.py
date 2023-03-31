@@ -1,6 +1,6 @@
 import time
 import math
-import h5py
+import tablite.h5py as h5py
 import pathlib
 import tempfile
 
