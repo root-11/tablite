@@ -2,6 +2,8 @@
 
 | Version    | Change                                              |
 |:-----------|-----------------------------------------------------|
+| 2022.11.14 | Improve locking mechanism to allow retries when opening file as the previous solution could cause deadlocks when running multiple threads. |
+| 2022.11.13 | Fix an issue with copying empty pages. |
 | 2022.11.12 | Tablite now is now able to create it's own temporary directory. |
 | 2022.11.11 | `text_reader` tqdm tracks the entire process now. <br> `text_reader` properly respects free memory in *nix based systems. <br> `text_reader` no longer discriminates against hyperthreaded cores.
 | 2022.11.10 | `get_headers` now uses plain `openpyxl` instead of `pyexcel` wrapper to speed up fetch times ~10x on certain files. |
