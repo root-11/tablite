@@ -2,6 +2,7 @@
 
 | Version    | Change                                              |
 |:-----------|-----------------------------------------------------|
+| 2022.11.15 | Bump `mplite` to avoid deadlock issues OS kill the process. |
 | 2022.11.14 | Improve locking mechanism to allow retries when opening file as the previous solution could cause deadlocks when running multiple threads. |
 | 2022.11.13 | Fix an issue with copying empty pages. |
 | 2022.11.12 | Tablite now is now able to create it's own temporary directory. |
