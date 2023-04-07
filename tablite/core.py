@@ -4172,6 +4172,7 @@ def indexing_task(source_key, destination_key, shm_name_for_sort_index, shape, s
     sort_index = np.ndarray(shape, dtype=np.int64, buffer=existing_shm.buf)
 
     sort_slice = sort_index[slice_]
+
     if shm_name_for_sort_index_mask is not None:
         existing_mask_shm = shared_memory.SharedMemory(name=shm_name_for_sort_index_mask)  # connect
         sort_index_mask = np.ndarray(shape, dtype=np.int8, buffer=existing_mask_shm.buf)
@@ -4179,13 +4180,15 @@ def indexing_task(source_key, destination_key, shm_name_for_sort_index, shape, s
         sort_index_mask = None
 
     data = mem.get_data(f"/column/{source_key}", slice(None))  # --- READ!
+
     values = [
         None if sort_index_mask is not None and sort_index_mask[j] == 1 else data[ix] 
-        for j, ix in enumerate(sort_index)
+        for j, ix in enumerate(sort_slice, 0 if slice_.start is None else slice_.start)
     ]
 
     existing_shm.close()  # disconnect
-    existing_mask_shm.close()
+    if sort_index_mask is not None:
+        existing_mask_shm.close()
     mem.mp_write_column(values, column_key=destination_key)  # --- WRITE!
 
 
