@@ -39,3 +39,79 @@ def test_empty_table_creation():
     mem.mp_write_table(new_table_key, columns=cols) 
     t = Table.load(mem.path, new_table_key) 
     assert len(t) == 0
+
+
+def test_merge_columns_1():
+    mem = MemoryManager()
+    cols = [
+        mem.mp_write_column(values=[1, 2, 3]),
+    ]
+
+    merged_column_key = mem.mp_merge_columns(cols)
+
+    assert merged_column_key == cols[0]
+
+    new_table_key = mem.new_id("/table")
+    mem.mp_write_table(new_table_key, columns={"A": merged_column_key})
+    t = Table.load(mem.path, new_table_key)
+    assert len(t) == 3
+
+
+def test_merge_columns_2():
+    mem = MemoryManager()
+    cols = [
+        mem.mp_write_column(values=[1, 2, 3]),
+        mem.mp_write_column(values=[4, 5, 6]),
+    ]
+    new_table_key = mem.new_id("/table")
+    mem.mp_write_table(new_table_key, columns={"A": mem.mp_merge_columns(cols)})
+    t = Table.load(mem.path, new_table_key)
+    assert len(t) == 6
+
+
+def test_merge_columns_3():
+    mem = MemoryManager()
+    cols = [
+        mem.mp_write_column(values=[1, 2, 3]),
+        mem.mp_write_column(values=[4, 5, 6]),
+        mem.mp_write_column(values=[7, 8, 9]),
+    ]
+    new_table_key = mem.new_id("/table")
+    mem.mp_write_table(new_table_key, columns={"A": mem.mp_merge_columns(cols)})
+    t = Table.load(mem.path, new_table_key)
+    assert len(t) == 9
+
+
+def test_merge_columns_4():
+    mem = MemoryManager()
+    cols = [
+        mem.mp_write_column(values=[1, 2, 3]),
+    ]
+
+    column_key = mem.new_id("/column")
+    merged_column_key = mem.mp_merge_columns(cols, column_key)
+
+    assert merged_column_key == column_key
+
+    new_table_key = mem.new_id("/table")
+    mem.mp_write_table(new_table_key, columns={"A": merged_column_key})
+    t = Table.load(mem.path, new_table_key)
+    assert len(t) == 3
+
+
+def test_merge_columns_5():
+    mem = MemoryManager()
+    cols = [
+        mem.mp_write_column(values=[1, 2, 3]),
+        mem.mp_write_column(values=[4, 5, 6]),
+    ]
+
+    column_key = mem.new_id("/column")
+    merged_column_key = mem.mp_merge_columns(cols, column_key)
+
+    assert merged_column_key == column_key
+
+    new_table_key = mem.new_id("/table")
+    mem.mp_write_table(new_table_key, columns={"A": merged_column_key})
+    t = Table.load(mem.path, new_table_key)
+    assert len(t) == 6
