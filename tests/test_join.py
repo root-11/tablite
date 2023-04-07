@@ -9,13 +9,13 @@ def refresh():
     yield
 
 
-def test_left_join():
+def do_left_join(always_mp):
     """joining a table on itself. Wierd but possible."""
     numbers = Table()
     numbers.add_column("number", data=[1, 2, 3, 4, None])
     numbers.add_column("colour", data=["black", "blue", "white", "white", "blue"])
 
-    left_join = numbers.left_join(numbers, left_keys=["colour"], right_keys=["colour"])
+    left_join = numbers.left_join(numbers, left_keys=["colour"], right_keys=["colour"], always_mp=always_mp)
     left_join.show()
 
     assert list(left_join.rows) == [
@@ -30,8 +30,13 @@ def test_left_join():
         [4, "white", 4, "white"],
     ]
 
+def test_left_join_sp():
+    do_left_join(False)
 
-def test_left_join2():
+def test_left_join_mp():
+    do_left_join(True)
+
+def do_left_join2(always_mp):
     """joining a table on itself. Wierd but possible."""
     numbers = Table()
     numbers.add_column("number", data=[1, 2, 3, 4, None])
@@ -43,6 +48,7 @@ def test_left_join2():
         right_keys=["colour"],
         left_columns=["colour", "number"],
         right_columns=["number", "colour"],
+        always_mp=always_mp
     )
     left_join.show()
 
@@ -58,8 +64,13 @@ def test_left_join2():
         ["white", 4, 4, "white"],
     ]
 
+def test_left_join2_sp():
+    do_left_join2(False)
 
-def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2):
+def test_left_join2_mp():
+    do_left_join2(True)
+
+def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2, always_mp):
     """
     SELECT tbl1.number, tbl1.color, tbl2.number, tbl2.color
       FROM `tbl2`
@@ -80,6 +91,7 @@ def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2):
         right_keys=[column_2],
         left_columns=["number", "colour"],
         right_columns=["number", "colour"],
+        always_mp=always_mp
     )
 
     assert len(pairs_ans) == len(left_join)
@@ -87,7 +99,7 @@ def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2):
         assert a == tuple(b)
 
 
-def test_same_join_1():
+def do_same_join_1(always_mp):
     """FIDDLE: http://sqlfiddle.com/#!9/7dd756/7"""
 
     pairs_1 = [
@@ -148,10 +160,16 @@ def test_same_join_1():
         (None, "blue", None, "blue"),
     ]
 
-    _join_left(pairs_1, pairs_2, pairs_ans, "colour", "colour")
+    _join_left(pairs_1, pairs_2, pairs_ans, "colour", "colour", always_mp)
 
 
-def test_left_join_2():
+def test_same_join_1_sp():
+    do_same_join_1(False)
+
+def test_same_join_1_mp():
+    do_same_join_1(True)
+
+def do_left_join_2(always_mp):
     """FIDDLE: http://sqlfiddle.com/#!9/986b2a/3"""
 
     pairs_1 = [(1, "black"), (2, "blue"), (3, "white"), (4, "white"), (None, "blue")]
@@ -166,11 +184,16 @@ def test_left_join_2():
         (2, "blue", None, "blue"),
         (None, "blue", None, "blue"),
     ]
-    _join_left(pairs_1, pairs_1, pairs_ans, "colour", "colour")
+    _join_left(pairs_1, pairs_1, pairs_ans, "colour", "colour", always_mp)
 
+def test_left_join_2_sp():
+    do_left_join_2(False)
+
+def test_left_join_2_mp():
+    do_left_join_2(True)
 
 # https://en.wikipedia.org/wiki/Join_(SQL)#Inner_join
-def test_wiki_joins():
+def do_wiki_joins(always_mp):
     employees = Table()
     employees["last name"] = ["Rafferty", "Jones", "Heisenberg", "Robinson", "Smith", "Williams"]
     employees["department"] = [31, 33, 33, 34, 34, None]
@@ -257,7 +280,7 @@ def test_wiki_joins():
     #     ("Williams", None, 35, "Marketing"),
     # ]
     tbl_result = [
-        tuple(row) for row in employees.cross_join(departments, left_keys=["department"], right_keys=["id"]).rows
+        tuple(row) for row in employees.cross_join(departments, left_keys=["department"], right_keys=["id"], always_mp=always_mp).rows
     ]
 
     # Definition: A cross join produces a cartesian product between the two tables,
@@ -284,7 +307,8 @@ def test_wiki_joins():
     tbl_result = [
         tuple(row)
         for row in employees.inner_join(
-            departments, ["department"], ["id"], left_columns=["last name"], right_columns=["id", "name"]
+            departments, ["department"], ["id"], left_columns=["last name"], right_columns=["id", "name"],
+            always_mp=always_mp
         ).rows
     ]
 
@@ -306,7 +330,9 @@ def test_wiki_joins():
     #     ("Smith", 34, 34, "Clerical"),
     #     ("Williams", None, None, None),
     # ]
-    tbl_result = [tuple(row) for row in employees.left_join(departments, ["department"], ["id"]).rows]
+    tbl_join = employees.left_join(departments, ["department"], ["id"], always_mp=always_mp)
+    tbl_join.show()
+    tbl_result = [tuple(row) for row in tbl_join.rows]
 
     assert sql_result == tbl_result
 
@@ -324,7 +350,7 @@ def test_wiki_joins():
         sql_result = None  # sqlite3.OperationalError: RIGHT and FULL OUTER JOINs are not currently supported
 
     # left join where L and R are swopped.
-    tbl_result = [tuple(row) for row in departments.left_join(employees, ["id"], ["department"]).rows]
+    tbl_result = [tuple(row) for row in departments.left_join(employees, ["id"], ["department"], always_mp=always_mp).rows]
     assert tbl_result == [
         (31, "Sales", "Rafferty", 31),
         (33, "Engineering", "Jones", 33),
@@ -349,7 +375,7 @@ def test_wiki_joins():
         sql_result = None  # sqlite3.OperationalError: RIGHT and FULL OUTER JOINs are not currently supported
 
     tbl_result = [
-        tuple(row) for row in employees.outer_join(departments, left_keys=["department"], right_keys=["id"]).rows
+        tuple(row) for row in employees.outer_join(departments, left_keys=["department"], right_keys=["id"], always_mp=always_mp).rows
     ]
     assert tbl_result == [
         ("Rafferty", 31, 31, "Sales"),
@@ -360,3 +386,9 @@ def test_wiki_joins():
         ("Williams", None, None, None),
         (None, None, 35, "Marketing"),
     ]  # <-- result from https://en.wikipedia.org/wiki/Join_(SQL)#Full_outer_join
+
+def test_wiki_joins_sp():
+    do_wiki_joins(False)
+
+def test_wiki_joins_mp():
+    do_wiki_joins(True)
