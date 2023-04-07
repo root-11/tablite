@@ -283,6 +283,31 @@ class MemoryManager(object):
             return column_key
 
     @timeout
+    def mp_merge_columns(self, columns, column_key = None):
+        assert isinstance(columns, list)
+        if len(columns) == 1 and column_key is None:
+            return columns[0]   # if we dont care about column key and only one column, just return the same column
+
+        with h5py.File(self.path, "r+") as h5:
+            if not column_key:
+                column_key = self.new_id("/column")
+
+            merged_len = 0
+            pages = []
+
+            for col in (h5["column"][c] for c in columns):
+                merged_len = merged_len + int(col.attrs.get("length", 0))
+                col_pages = json.loads(col.attrs.get("pages", "[]"))
+
+                pages.extend(col_pages)
+
+            dset = h5.create_dataset(name=f"/column/{column_key}", dtype=h5py.Empty("f"))
+            dset.attrs["pages"] = json.dumps(pages)
+            dset.attrs["length"] = merged_len
+
+        return column_key
+
+    @timeout
     def mp_write_table(self, table_key, columns):
         """
         multi processing helper for writing table data.

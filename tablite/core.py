@@ -18,6 +18,7 @@ import numpy as np
 import tablite.h5py as h5py
 import psutil
 from mplite import TaskManager, Task
+from functools import reduce
 
 import atexit
 
@@ -2698,49 +2699,106 @@ class Table(object):
         """
         private helper for multiprocessing join
         """
-        left_arr = np.zeros(shape=(len(LEFT)), dtype=np.int64)
-        left_shm = shared_memory.SharedMemory(create=True, size=left_arr.nbytes)  # the co_processors will read this.
-        left_index = np.ndarray(left_arr.shape, dtype=left_arr.dtype, buffer=left_shm.buf)
-        left_index[:] = LEFT
+        def maskify(arr):
+            none_mask = [None] * len(arr)
 
-        right_arr = np.zeros(shape=(len(RIGHT)), dtype=np.int64)
-        right_shm = shared_memory.SharedMemory(create=True, size=right_arr.nbytes)  # the co_processors will read this.
-        right_index = np.ndarray(right_arr.shape, dtype=right_arr.dtype, buffer=right_shm.buf)
-        right_index[:] = RIGHT
+            for i in range(len(arr)):
+                is_none = none_mask[i] = arr[i] == None
+
+                if is_none:
+                    arr[i] = 0
+
+            return none_mask
+        
+        def share_mem(inp_arr, dtype):
+            len_ = len(inp_arr)
+            size = np.dtype(dtype).itemsize * len_
+            shape = (len_, )
+
+            out_shm = shared_memory.SharedMemory(create=True, size=size)  # the co_processors will read this.
+            out_arr_index = np.ndarray(shape, dtype=dtype, buffer=out_shm.buf)
+            out_arr_index[:] = inp_arr
+
+            return out_arr_index, out_shm
+
+        LEFT_NONE_MASK, RIGHT_NONE_MASK = (maskify(arr) for arr in (LEFT, RIGHT))
+
+        left_arr, left_shm = share_mem(LEFT, np.int64)
+        right_arr, right_shm = share_mem(RIGHT, np.int64)
+        left_msk_arr, left_msk_shm = share_mem(LEFT_NONE_MASK, np.bool8)
+        right_msk_arr, right_msk_shm = share_mem(RIGHT_NONE_MASK, np.bool8)
+
+        assert len(LEFT) == len(RIGHT)
 
         tasks = []
         columns_refs = {}
+
+        rows_per_page = 1_000_000
+
         for name in left_columns:
             col = self[name]
-            columns_refs[name] = d_key = mem.new_id("/column")
-            tasks.append(
-                Task(
-                    indexing_task,
-                    source_key=col.key,
-                    destination_key=d_key,
-                    shm_name_for_sort_index=left_shm.name,
-                    shape=left_arr.shape,
+            container = columns_refs[name] = []
+            
+            offset = 0
+            col_len = len(col)
+
+            while offset < col_len or col_len == 0: # create an empty page
+                new_offset = offset + rows_per_page
+                slice_ = slice(offset, new_offset)
+                d_key = mem.new_id("/column")
+                container.append(d_key)
+                tasks.append(
+                    Task(
+                        indexing_task,
+                        source_key=col.key,
+                        destination_key=d_key,
+                        shm_name_for_sort_index=left_shm.name,
+                        shm_name_for_sort_index_mask=left_msk_shm.name,
+                        shape=left_arr.shape,
+                        slice_=slice_
+                    )
                 )
-            )
+
+                offset = new_offset
+
+                if col_len == 0:
+                    break
 
         for name in right_columns:
+            revised_name = unique_name(name, columns_refs.keys())
             col = other[name]
-            columns_refs[name] = d_key = mem.new_id("/column")
-            tasks.append(
-                Task(
-                    indexing_task,
-                    source_key=col.key,
-                    destination_key=d_key,
-                    shm_name_for_sort_index=right_shm.name,
-                    shape=right_arr.shape,
+            container = columns_refs[revised_name] = []
+            
+            offset = 0
+            col_len = len(col)
+
+            while offset < col_len or col_len == 0: # create an empty page
+                new_offset = offset + rows_per_page
+                slice_ = slice(offset, new_offset)
+                d_key = mem.new_id("/column")
+                container.append(d_key)
+                tasks.append(
+                    Task(
+                        indexing_task,
+                        source_key=col.key,
+                        destination_key=d_key,
+                        shm_name_for_sort_index=right_shm.name,
+                        shm_name_for_sort_index_mask=right_msk_shm.name,
+                        shape=right_arr.shape,
+                        slice_=slice_
+                    )
                 )
-            )
+
+                offset = new_offset
+
+                if col_len == 0:
+                    break
 
         if pbar is None:
-            total = len(left_columns) + len(right_columns)
+            total = len(tasks)
             pbar = tqdm(total=total, desc="join")
 
-        with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
+        with TaskManager(cpu_count=min(psutil.cpu_count(), total)) as tm:
             results = tm.execute(tasks, tqdm=tqdm, pbar=pbar)
 
             if any(i is not None for i in results):
@@ -2748,11 +2806,16 @@ class Table(object):
                     if err is not None:
                         print(err)
                 raise Exception("multiprocessing error.")
+            
+        merged_column_refs = {
+            k: mem.mp_merge_columns(v)
+            for k, v in columns_refs.items()
+        }
 
         with h5py.File(mem.path, "r+") as h5:
             table_key = mem.new_id("/table")
             dset = h5.create_dataset(name=f"/table/{table_key}", dtype=h5py.Empty("f"))
-            dset.attrs["columns"] = json.dumps(columns_refs)
+            dset.attrs["columns"] = json.dumps(merged_column_refs)
             dset.attrs["saved"] = False
 
         left_shm.close()
@@ -2760,11 +2823,16 @@ class Table(object):
         right_shm.close()
         right_shm.unlink()
 
+        left_msk_shm.close()
+        left_msk_shm.unlink()
+        right_msk_shm.close()
+        right_msk_shm.unlink()
+
         t = Table.load(path=mem.path, key=table_key)
         return t
 
     def left_join(
-        self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None
+        self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None, always_mp=False
     ):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
@@ -2796,13 +2864,13 @@ class Table(object):
                     LEFT.append(left_ix)
                     RIGHT.append(right_ix)
 
-        if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
+        if not always_mp and len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
     def inner_join(
-        self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None
+        self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None, always_mp=False
     ):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
@@ -2836,13 +2904,13 @@ class Table(object):
                     LEFT.append(left_ix)
                     RIGHT.append(right_ix)
 
-        if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
+        if not always_mp and len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
     def outer_join(
-        self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None
+        self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None, always_mp=False
     ):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
@@ -2880,12 +2948,12 @@ class Table(object):
                 LEFT.append(None)
                 RIGHT.append(right_ix)
 
-        if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
+        if not always_mp and len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
-    def cross_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
+    def cross_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None, always_mp=False):
         """
         CROSS JOIN returns the Cartesian product of rows from tables in the join.
         In other words, it will produce rows which combine each row from the first table
@@ -2899,7 +2967,7 @@ class Table(object):
         self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
 
         LEFT, RIGHT = zip(*itertools.product(range(len(self)), range(len(other))))
-        if len(LEFT) < SINGLE_PROCESSING_LIMIT:
+        if not always_mp and len(LEFT) < SINGLE_PROCESSING_LIMIT:
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
@@ -4089,12 +4157,13 @@ def filter_merge_task(table_key, true_key, false_key, shm_name, shm_shape, slice
     existing_shm.close()  # disconnect
 
 
-def indexing_task(source_key, destination_key, shm_name_for_sort_index, shape):
+def indexing_task(source_key, destination_key, shm_name_for_sort_index, shape, slice_=slice(None), shm_name_for_sort_index_mask=None):
     """
     performs the creation of a column sorted by sort_index (shared memory object).
     source_key: column to read
     destination_key: column to write
     shm_name_for_sort_index: sort index' shm.name created by main.
+    shm_name_for_sort_index_mask: sort index' shm.name created by main containing None mask.
     shape: shm array shape.
 
     *used by sort and all join functions.
@@ -4102,10 +4171,24 @@ def indexing_task(source_key, destination_key, shm_name_for_sort_index, shape):
     existing_shm = shared_memory.SharedMemory(name=shm_name_for_sort_index)  # connect
     sort_index = np.ndarray(shape, dtype=np.int64, buffer=existing_shm.buf)
 
+    sort_slice = sort_index[slice_]
+
+    if shm_name_for_sort_index_mask is not None:
+        existing_mask_shm = shared_memory.SharedMemory(name=shm_name_for_sort_index_mask)  # connect
+        sort_index_mask = np.ndarray(shape, dtype=np.int8, buffer=existing_mask_shm.buf)
+    else:
+        sort_index_mask = None
+
     data = mem.get_data(f"/column/{source_key}", slice(None))  # --- READ!
-    values = [data[ix] for ix in sort_index]
+
+    values = [
+        None if sort_index_mask is not None and sort_index_mask[j] == 1 else data[ix] 
+        for j, ix in enumerate(sort_slice, 0 if slice_.start is None else slice_.start)
+    ]
 
     existing_shm.close()  # disconnect
+    if sort_index_mask is not None:
+        existing_mask_shm.close()
     mem.mp_write_column(values, column_key=destination_key)  # --- WRITE!
 
 
