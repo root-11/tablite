@@ -2835,7 +2835,7 @@ class Table(object):
                     LEFT.append(left_ix)
                     RIGHT.append(right_ix)
 
-        if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
+        if False and len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)

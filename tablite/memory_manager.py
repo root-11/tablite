@@ -283,7 +283,7 @@ class MemoryManager(object):
             return column_key
 
     @timeout
-    def mp_merge_columns(self, columns: list[str], column_key=None):
+    def mp_merge_columns(self, columns: "list[str]", column_key: "str" = None):
         assert isinstance(columns, list)
         if len(columns) == 1 and column_key is None:
             return columns[0]   # if we dont care about column key and only one column, just return the same column
