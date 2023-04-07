@@ -2,6 +2,7 @@
 
 | Version    | Change                                              |
 |:-----------|-----------------------------------------------------|
+| 2022.11.16 | Changed `join` to process 1M rows per task to avoid potential OOM on lower memory systems.<br> Added `mp_merge_columns` to `MemoryManager` that merges column pages into a single column. |
 | 2022.11.15 | Bump `mplite` to avoid deadlock issues OS kill the process. |
 | 2022.11.14 | Improve locking mechanism to allow retries when opening file as the previous solution could cause deadlocks when running multiple threads. |
 | 2022.11.13 | Fix an issue with copying empty pages. |

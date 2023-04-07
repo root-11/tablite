@@ -18,6 +18,7 @@ import numpy as np
 import tablite.h5py as h5py
 import psutil
 from mplite import TaskManager, Task
+from functools import reduce
 
 import atexit
 
@@ -2710,37 +2711,70 @@ class Table(object):
 
         tasks = []
         columns_refs = {}
+
+        rows_per_page = 1_000_000
+
         for name in left_columns:
             col = self[name]
-            columns_refs[name] = d_key = mem.new_id("/column")
-            tasks.append(
-                Task(
-                    indexing_task,
-                    source_key=col.key,
-                    destination_key=d_key,
-                    shm_name_for_sort_index=left_shm.name,
-                    shape=left_arr.shape,
+            container = columns_refs[name] = []
+            
+            offset = 0
+            col_len = len(col)
+
+            while offset < col_len or col_len == 0: # create an empty page
+                new_offset = offset + rows_per_page
+                slice_ = slice(offset, new_offset)
+                d_key = mem.new_id("/column")
+                container.append(d_key)
+                tasks.append(
+                    Task(
+                        indexing_task,
+                        source_key=col.key,
+                        destination_key=d_key,
+                        shm_name_for_sort_index=left_shm.name,
+                        shape=left_arr.shape,
+                        slice_=slice_
+                    )
                 )
-            )
+
+                offset = new_offset
+
+                if col_len == 0:
+                    break
 
         for name in right_columns:
             col = other[name]
-            columns_refs[name] = d_key = mem.new_id("/column")
-            tasks.append(
-                Task(
-                    indexing_task,
-                    source_key=col.key,
-                    destination_key=d_key,
-                    shm_name_for_sort_index=right_shm.name,
-                    shape=right_arr.shape,
+            container = columns_refs[name] = []
+            
+            offset = 0
+            col_len = len(col)
+
+            while offset < col_len or col_len == 0: # create an empty page
+                new_offset = offset + rows_per_page
+                slice_ = slice(offset, new_offset)
+                d_key = mem.new_id("/column")
+                container.append(d_key)
+                tasks.append(
+                    Task(
+                        indexing_task,
+                        source_key=col.key,
+                        destination_key=d_key,
+                        shm_name_for_sort_index=right_shm.name,
+                        shape=right_arr.shape,
+                        slice_=slice_
+                    )
                 )
-            )
+
+                offset = new_offset
+
+                if col_len == 0:
+                    break
 
         if pbar is None:
-            total = len(left_columns) + len(right_columns)
+            total = len(tasks)
             pbar = tqdm(total=total, desc="join")
 
-        with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
+        with TaskManager(cpu_count=min(psutil.cpu_count(), total)) as tm:
             results = tm.execute(tasks, tqdm=tqdm, pbar=pbar)
 
             if any(i is not None for i in results):
@@ -2748,11 +2782,16 @@ class Table(object):
                     if err is not None:
                         print(err)
                 raise Exception("multiprocessing error.")
+            
+        merged_column_refs = {
+            k: mem.mp_merge_columns(v)
+            for k, v in columns_refs.items()
+        }
 
         with h5py.File(mem.path, "r+") as h5:
             table_key = mem.new_id("/table")
             dset = h5.create_dataset(name=f"/table/{table_key}", dtype=h5py.Empty("f"))
-            dset.attrs["columns"] = json.dumps(columns_refs)
+            dset.attrs["columns"] = json.dumps(merged_column_refs)
             dset.attrs["saved"] = False
 
         left_shm.close()
@@ -4089,7 +4128,7 @@ def filter_merge_task(table_key, true_key, false_key, shm_name, shm_shape, slice
     existing_shm.close()  # disconnect
 
 
-def indexing_task(source_key, destination_key, shm_name_for_sort_index, shape):
+def indexing_task(source_key, destination_key, shm_name_for_sort_index, shape, slice_=slice(None)):
     """
     performs the creation of a column sorted by sort_index (shared memory object).
     source_key: column to read
@@ -4102,8 +4141,12 @@ def indexing_task(source_key, destination_key, shm_name_for_sort_index, shape):
     existing_shm = shared_memory.SharedMemory(name=shm_name_for_sort_index)  # connect
     sort_index = np.ndarray(shape, dtype=np.int64, buffer=existing_shm.buf)
 
+    sort_slice = sort_index[slice_]
+
+    # if this is problematic we can slice this in chunks too and change values to data[ix - slice_start]
     data = mem.get_data(f"/column/{source_key}", slice(None))  # --- READ!
-    values = [data[ix] for ix in sort_index]
+
+    values = [data[ix] for ix in sort_slice]
 
     existing_shm.close()  # disconnect
     mem.mp_write_column(values, column_key=destination_key)  # --- WRITE!
