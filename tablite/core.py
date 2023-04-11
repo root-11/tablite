@@ -584,7 +584,7 @@ class Table(object):
             log.info("Table.__del__ suppressed.")
 
     def __str__(self):
-        return f"Table({len(self._columns):,} columns, {len(self):,} rows)"
+        return f"{self.__class__.__name__}({len(self._columns):,} columns, {len(self):,} rows)"
 
     def __repr__(self):
         return self.__str__()
@@ -880,11 +880,13 @@ class Table(object):
         Special classmethod to load saved tables stored in hdf5 storage.
         Used by reload_saved_tables
         """
+        assert issubclass(cls, Table), f"'{cls.__name__}' must be a subclass of '{Table.__module__}.{Table.__name__}'"
+
         with h5py.File(path, "r+") as h5:
             group = f"/table/{key}"
             dset = h5[group]
             saved = dset.attrs["saved"]
-            t = Table(key=key, save=saved, _create=False)
+            t = cls(key=key, save=saved, _create=False)
             columns = json.loads(dset.attrs["columns"])
             for col_name, column_key in columns.items():
                 c = Column.load(key=column_key)
