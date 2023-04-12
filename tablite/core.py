@@ -680,8 +680,8 @@ class Table(object):
                     self._columns[keys] = col = values.copy()
                 elif values.key == col.key:  # it's update from += or similar
                     self._columns[keys] = values
-                else:
-                    raise TypeError("No method for this case.")
+                else:   # we're likely creating a new table using `from_dict` without pulling in data to memory
+                    self._columns[keys] = col = values.copy()
                 mem.create_column_reference(self.key, column_name=keys, column_key=col.key)
 
             elif values is None:  # it's an empty dataset.
