@@ -1259,7 +1259,7 @@ class Table(object):
         return t
 
     @classmethod
-    def from_dict(self, d):
+    def from_dict(cls, d):
         """
         creates new Table instance from dict
 
@@ -1279,11 +1279,11 @@ class Table(object):
         >>>
 
         """
-        t = Table()
+        t = cls()
         for k, v in d.items():
             if not isinstance(k, str):
                 raise TypeError("expected keys as str")
-            if not isinstance(v, (list, tuple)):
+            if not isinstance(v, (list, tuple, Column)):
                 raise TypeError("expected values as list or tuple")
             t[k] = v
         return t
@@ -1360,7 +1360,7 @@ class Table(object):
         Imports tables exported using .to_json
         """
         d = json.loads(jsn)
-        t = Table()
+        t = cls()
         for name, data in d["columns"].items():
             if not isinstance(name, str):
                 raise TypeError(f"expect {name} as a string")
@@ -1398,7 +1398,8 @@ class Table(object):
             import pandas as pd  # noqa
         return pd.DataFrame(self.to_dict())  # noqa
 
-    def from_pandas(self, df):
+    @classmethod
+    def from_pandas(cls, df):
         """
         Creates Table using pd.to_dict('list')
 
@@ -1424,16 +1425,17 @@ class Table(object):
             | 2 |  3|  6|
             +===+===+===+
         """
-        return self.from_dict(df.to_dict("list"))  # noqa
+        return cls.from_dict(df.to_dict("list"))  # noqa
 
-    def from_hdf5(self, path):
+    @classmethod
+    def from_hdf5(cls, path):
         """
         imports an exported hdf5 table.
         """
         if isinstance(path, str):
             path = pathlib.Path(path)
 
-        t = Table()
+        t = cls()
         with h5py.File(path, "r") as h5:
             for col_name in h5.keys():
                 dset = h5[col_name]
