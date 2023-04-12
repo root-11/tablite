@@ -2,7 +2,7 @@
 
 | Version    | Change                                              |
 |:-----------|-----------------------------------------------------|
-| 2022.11.17 | `Table.load` now properly subclassess the table instead of always resulting in `tablite.Table`. |
+| 2022.11.17 | `Table.load` now properly subclassess the table instead of always resulting in `tablite.Table`.<br>`Table.from_*` methods now respect subclassess, fixed some `from_*` methods which were instance methods and not class methods. |
 | 2022.11.16 | Changed `join` to process 1M rows per task to avoid potential OOM on lower memory systems.<br> Added `mp_merge_columns` to `MemoryManager` that merges column pages into a single column.<br>Fix `join` parity in single process and multiple process outputs.<br>Fix an issue with multiprocess `join` where no matches would throw instead of producing `None`. |
 | 2022.11.15 | Bump `mplite` to avoid deadlock issues OS kill the process. |
 | 2022.11.14 | Improve locking mechanism to allow retries when opening file as the previous solution could cause deadlocks when running multiple threads. |
