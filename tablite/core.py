@@ -51,6 +51,8 @@ log = logging.getLogger(__name__)
 
 mem = MemoryManager()
 
+_all = all
+_any = any
 
 def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
     """
@@ -2703,34 +2705,12 @@ class Table(object):
         """
         private helper for multiprocessing join
         """
-        def maskify(arr):
-            none_mask = [None] * len(arr)
+        LEFT_NONE_MASK, RIGHT_NONE_MASK = (_maskify(arr) for arr in (LEFT, RIGHT))
 
-            for i in range(len(arr)):
-                is_none = none_mask[i] = arr[i] == None
-
-                if is_none:
-                    arr[i] = 0
-
-            return none_mask
-        
-        def share_mem(inp_arr, dtype):
-            len_ = len(inp_arr)
-            size = np.dtype(dtype).itemsize * len_
-            shape = (len_, )
-
-            out_shm = shared_memory.SharedMemory(create=True, size=size)  # the co_processors will read this.
-            out_arr_index = np.ndarray(shape, dtype=dtype, buffer=out_shm.buf)
-            out_arr_index[:] = inp_arr
-
-            return out_arr_index, out_shm
-
-        LEFT_NONE_MASK, RIGHT_NONE_MASK = (maskify(arr) for arr in (LEFT, RIGHT))
-
-        left_arr, left_shm = share_mem(LEFT, np.int64)
-        right_arr, right_shm = share_mem(RIGHT, np.int64)
-        left_msk_arr, left_msk_shm = share_mem(LEFT_NONE_MASK, np.bool8)
-        right_msk_arr, right_msk_shm = share_mem(RIGHT_NONE_MASK, np.bool8)
+        left_arr, left_shm = _share_mem(LEFT, np.int64)
+        right_arr, right_shm = _share_mem(RIGHT, np.int64)
+        left_msk_arr, left_msk_shm = _share_mem(LEFT_NONE_MASK, np.bool8)
+        right_msk_arr, right_msk_shm = _share_mem(RIGHT_NONE_MASK, np.bool8)
 
         assert len(LEFT) == len(RIGHT)
 
@@ -2976,7 +2956,7 @@ class Table(object):
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
-    def lookup(self, other, *criteria, all=True, tqdm=_tqdm):  # TODO: This is single core code.
+    def lookup(self, other, *criteria, all=True, tqdm=_tqdm, always_mp=False):  # TODO: This is single core code.
         """function for looking up values in `other` according to criteria in ascending order.
         :param: other: Table sorted in ascending search order.
         :param: criteria: Each criteria must be a tuple with value comparisons in the form:
@@ -3076,7 +3056,7 @@ class Table(object):
             results.append(lru_cache[row1_hash])
 
         result = self.copy()
-        if len(self) * len(other.columns) < SINGLE_PROCESSING_LIMIT:
+        if not always_mp and len(self) * len(other.columns) < SINGLE_PROCESSING_LIMIT:
             for col_name in other.columns:
                 col_data = other[col_name][:]
                 revised_name = unique_name(col_name, result.columns)
@@ -3084,25 +3064,25 @@ class Table(object):
             return result
         else:
             # 1. create shared memory array.
-            right_arr = np.zeros(shape=(len(results)), dtype=np.int64)
-            right_shm = shared_memory.SharedMemory(
-                create=True, size=right_arr.nbytes
-            )  # the co_processors will read this.
-            right_index = np.ndarray(right_arr.shape, dtype=right_arr.dtype, buffer=right_shm.buf)
-            right_index[:] = results
+            RIGHT_NONE_MASK = _maskify(results)
+            right_arr, right_shm = _share_mem(results, np.int64)
+            right_msk_arr, right_msk_shm = _share_mem(RIGHT_NONE_MASK, np.bool8)
+
             # 2. create tasks
             tasks = []
             columns_refs = {}
 
             for name in other.columns:
+                revised_name = unique_name(name, result.columns + list(columns_refs.keys()))
                 col = other[name]
-                columns_refs[name] = d_key = mem.new_id("/column")
+                columns_refs[revised_name] = d_key = mem.new_id("/column")
                 tasks.append(
                     Task(
                         indexing_task,
                         source_key=col.key,
                         destination_key=d_key,
                         shm_name_for_sort_index=right_shm.name,
+                        shm_name_for_sort_index_mask=right_msk_shm.name,
                         shape=right_arr.shape,
                     )
                 )
@@ -3110,20 +3090,23 @@ class Table(object):
             # 3. let task manager handle the tasks
             with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
                 errs = tm.execute(tasks)
-                if any(errs):
+                if _any(errs):
                     raise Exception(f"multiprocessing error. {[e for e in errs if e]}")
 
-            # 4. close the share memory and deallocate
-            right_shm.close()
-            right_shm.unlink()
-
-            # 5. update the result table.
+            # 4. update the result table.
             with h5py.File(mem.path, "r+") as h5:
                 dset = h5[f"/table/{result.key}"]
-                columns = dset.attrs["columns"]
+                columns = json.loads(dset.attrs["columns"])
                 columns.update(columns_refs)
                 dset.attrs["columns"] = json.dumps(columns)
                 dset.attrs["saved"] = False
+
+            # 5. close the share memory and deallocate
+            right_shm.close()
+            right_shm.unlink()
+
+            right_msk_shm.close()
+            right_msk_shm.unlink()
 
             # 6. reload the result table
             t = Table.load(path=mem.path, key=result.key)
@@ -4317,3 +4300,26 @@ exporters = {  # the commented formats are not yet supported by the pyexcel plug
     # 'hdf5': h5_writer,
     # 'h5': h5_writer
 }
+
+
+def _maskify(arr):
+    none_mask = [None] * len(arr)
+
+    for i in range(len(arr)):
+        is_none = none_mask[i] = arr[i] == None
+
+        if is_none:
+            arr[i] = 0
+
+    return none_mask
+
+def _share_mem(inp_arr, dtype):
+    len_ = len(inp_arr)
+    size = np.dtype(dtype).itemsize * len_
+    shape = (len_, )
+
+    out_shm = shared_memory.SharedMemory(create=True, size=size)  # the co_processors will read this.
+    out_arr_index = np.ndarray(shape, dtype=dtype, buffer=out_shm.buf)
+    out_arr_index[:] = inp_arr
+
+    return out_arr_index, out_shm
