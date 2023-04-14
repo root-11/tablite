@@ -432,7 +432,7 @@ def test_join_logic():
     # -----------------------------------------
 
 
-def test_lookup_logic():
+def do_lookup_logic(always_mp):
     friends = Table()
     friends.add_column("name", data=["Alice", "Betty", "Charlie", "Dorethy", "Edward", "Fred"])
     friends.add_column(
@@ -465,7 +465,7 @@ def test_lookup_logic():
     print("Departures from Concert Hall towards ...")
     bustable.show(slice(0, 10))
 
-    lookup_1 = friends.lookup(bustable, (DataTypes.time(21, 10), "<=", "time"), ("stop", "==", "stop"))
+    lookup_1 = friends.lookup(bustable, (DataTypes.time(21, 10), "<=", "time"), ("stop", "==", "stop"), always_mp=always_mp)
     lookup1_sorted = lookup_1.sort(**{"time": True, "name": False, "sort_mode": "unix"})
     lookup1_sorted.show()
 
@@ -478,3 +478,9 @@ def test_lookup_logic():
         ["Fred", "Chicago", None, None, None],
     ]
     assert expected == [r for r in lookup1_sorted.rows]
+
+def test_lookup_logic_sp():
+    do_lookup_logic(False)
+
+def test_lookup_logic_mp():
+    do_lookup_logic(True)
