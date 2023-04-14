@@ -1824,6 +1824,9 @@ class Table(object):
 
         if not isinstance(expressions, list):
             raise TypeError
+        
+        if len(self) == 0:
+            return self.copy(), self.copy()
 
         for expression in expressions:
             if not isinstance(expression, dict):
