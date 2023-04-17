@@ -770,7 +770,8 @@ class Table(object):
         """
         Returns a copy of the table.
         """
-        t = Table()
+        cls = type(self)
+        t = cls()
         for name, col in self._columns.items():
             t[name] = col
         return t
