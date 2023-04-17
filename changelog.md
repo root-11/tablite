@@ -2,6 +2,7 @@
 
 | Version    | Change                                              |
 |:-----------|-----------------------------------------------------|
+| 2022.11.18 | `Table.copy` now properly respects the table subclass. |
 | 2022.11.17 | `Table.load` now properly subclassess the table instead of always resulting in `tablite.Table`.<br>`Table.from_*` methods now respect subclassess, fixed some `from_*` methods which were instance methods and not class methods.<br>Fixed `Table.from_dict` only accepting `list` and `tuple` but not `tablite.Column` which is an equally valid type.<br>Fix `lookup` parity in single process and multiple process outputs.<br>Fix an issue with multiprocess `lookup` where no matches would throw instead of producing `None`.<br>Fix an issue with filtering an empty table. |
 | 2022.11.16 | Changed `join` to process 1M rows per task to avoid potential OOM on lower memory systems.<br> Added `mp_merge_columns` to `MemoryManager` that merges column pages into a single column.<br>Fix `join` parity in single process and multiple process outputs.<br>Fix an issue with multiprocess `join` where no matches would throw instead of producing `None`. |
 | 2022.11.15 | Bump `mplite` to avoid deadlock issues OS kill the process. |
