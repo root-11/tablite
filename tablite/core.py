@@ -1917,18 +1917,20 @@ class Table(object):
                 if any(errs):
                     raise Exception(errs)
 
-        true = Table()
+        cls = type(self)
+
+        true = cls()
         true.add_columns(*self.columns)
         false = true.copy()
 
         for task in merge_tasks:
-            tmp_true = Table.load(mem.path, key=task.kwargs["true_key"])
+            tmp_true = cls.load(mem.path, key=task.kwargs["true_key"])
             if len(tmp_true):
                 true += tmp_true
             else:
                 pass
 
-            tmp_false = Table.load(mem.path, key=task.kwargs["false_key"])
+            tmp_false = cls.load(mem.path, key=task.kwargs["false_key"])
             if len(tmp_false):
                 false += tmp_false
             else:
@@ -2114,7 +2116,7 @@ class Table(object):
 
             shm.close()
             shm.unlink()
-            t = Table.load(path=mem.path, key=table_key)
+            t = type(self).load(path=mem.path, key=table_key)
             return t
 
     def is_sorted(self, **kwargs):
@@ -2163,7 +2165,10 @@ class Table(object):
 
         shm.close()
         shm.unlink()
-        t = Table.load(path=mem.path, key=table_key)
+
+        cls = type(self)
+
+        t = cls.load(path=mem.path, key=table_key)
         return t
 
     def all(self, **kwargs):
@@ -2228,7 +2233,8 @@ class Table(object):
                 break
 
         if len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT:
-            t = Table()
+            cls = type(self)
+            t = cls()
             for col_name in self.columns:
                 data = self[col_name][:]
                 t[col_name] = [data[i] for i in ixs]
@@ -2282,7 +2288,9 @@ class Table(object):
             ixs.update(ix2)
 
         if len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT:
-            t = Table()
+            cls = type(self)
+            
+            t = cls()
             for col_name in self.columns:
                 data = self[col_name][:]
                 t[col_name] = [data[i] for i in ixs]
