@@ -725,9 +725,9 @@ class Table(object):
 
         cols = [i for i in keys if not isinstance(i, slice)]
         if cols:
-            key_errors = [cname not in self.columns for cname in cols]
+            key_errors = [cname for cname in filter(lambda cname: cname not in self.columns, cols)]
             if any(key_errors):
-                raise KeyError(f"keys not found: {key_errors}")
+                raise KeyError(f"keys not found: {', '.join(key_errors)}")
             if len(set(cols)) != len(cols):
                 raise KeyError(f"duplicated keys in {cols}")
         else:  # e.g. tbl[:10]
@@ -1903,19 +1903,32 @@ class Table(object):
         )  # revise for case where memory footprint is limited to include zero subprocesses.
 
         with tqdm(total=len(filter_tasks) + len(merge_tasks), desc="filter") as pbar:
-            with TaskManager(n_cpus) as tm:
-                # EVALUATE
-                errs = tm.execute(filter_tasks, pbar=pbar)
-                # tm.execute returns the tasks with results, but we don't
-                # really care as the result is in the result array.
-                if any(errs):
-                    raise Exception(errs)
-                # MERGE RESULTS
-                errs = tm.execute(merge_tasks, pbar=pbar)
-                # tm.execute returns the tasks with results, but we don't
-                # really care as the result is in the result array.
-                if any(errs):
-                    raise Exception(errs)
+            if len(self) * (len(filter_tasks) + len(merge_tasks)) >= SINGLE_PROCESSING_LIMIT:
+                with TaskManager(n_cpus) as tm:
+                    # EVALUATE
+                    errs = tm.execute(filter_tasks, pbar=pbar)
+                    # tm.execute returns the tasks with results, but we don't
+                    # really care as the result is in the result array.
+                    if any(errs):
+                        raise Exception(errs)
+                    # MERGE RESULTS
+                    errs = tm.execute(merge_tasks, pbar=pbar)
+                    # tm.execute returns the tasks with results, but we don't
+                    # really care as the result is in the result array.
+                    if any(errs):
+                        raise Exception(errs)
+            else:
+                for t in filter_tasks:
+                    r = t.f(*t.args, **t.kwargs)
+                    if r is not None:
+                        raise r
+                    pbar.update(1)
+
+                for t in merge_tasks:
+                    r = t.f(*t.args, **t.kwargs)
+                    if r is not None:
+                        raise r
+                    pbar.update(1)
 
         cls = type(self)
 
@@ -3506,7 +3519,7 @@ class Column(object):
             self.extend(data)
 
         else:
-            length, pages = mem.load_column_attrs(self.group)
+            length, _ = mem.load_column_attrs(self.group)
             self._len = length
 
     def __str__(self) -> str:
