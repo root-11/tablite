@@ -898,9 +898,9 @@ class Table(object):
             return t
 
     @classmethod
-    def reset_storage(cls):
+    def reset_storage(cls, include_imports=True):
         """Resets all stored tables."""
-        mem.reset_storage()
+        mem.reset_storage(include_imports)
 
     def add_rows(self, *args, **kwargs):
         """its more efficient to add many rows at once.
