@@ -1,5 +1,3 @@
-import codecs
-import tempfile
 from tablite import Table
 from tablite.file_reader_utils import TextEscape, get_headers, ENCODING_GUESS_BYTES
 from tablite.datatypes import DataTypes
@@ -20,11 +18,19 @@ def test_empty():
 
     assert len(table.columns) == 0
     assert len(list(table.rows)) == 0
+    Table.reset_storage(include_imports=False)
+
+    existing_tables = Table.reload_saved_tables()
+    assert len(existing_tables) == 1
 
     table = Table.import_file(Path(__file__).parent / "data" / "empty_newline.csv")
 
     assert len(table.columns) == 0
     assert len(list(table.rows)) == 0
+    Table.reset_storage(include_imports=True)
+
+    existing_tables = Table.reload_saved_tables()
+    assert len(existing_tables) == 0
 
 
 def test_text_escape():
@@ -756,7 +762,6 @@ def test_filereader_gdocs1xlsx_no_header():
     assert path.exists()
     tables = []
     for sheet in ("Sheet1", "Sheet2", "Sheet3"):
-
         table = Table.import_file(
             path, sheet=sheet, first_row_has_headers=False, columns=[str(n) for n in [0, 1, 2, 3, 4, 5]]
         )
@@ -856,6 +861,7 @@ def test_long_texts():
     t = Table.import_file(path, columns=columns[:-1], text_qualifier='"')
     selection = columns[:5]
     t.__getitem__(*selection).show()
+
 
 def test_no_commas():
     table = Table.import_file(Path(__file__).parent / "data" / "no_separator.csv")
