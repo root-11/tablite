@@ -578,9 +578,13 @@ class Table(object):
         if PYTHON_EXIT:
             return
 
-        try:
-            for key in list(self._columns):
+        for key in list(self._columns):
+            try:
                 del self[key]
+            except KeyError:
+                log.info("del self[key] suppressed.")
+
+        try:
             mem.delete_table(self.group)
         except KeyError:
             log.info("Table.__del__ suppressed.")
@@ -773,7 +777,7 @@ class Table(object):
         cls = type(self)
         t = cls()
         for name, col in self._columns.items():
-            t[name] = col
+            t[name] = col.copy()
         return t
 
     def clear(self):
@@ -1288,7 +1292,7 @@ class Table(object):
                 raise TypeError("expected keys as str")
             if not isinstance(v, (list, tuple, Column)):
                 raise TypeError("expected values as list or tuple")
-            t[k] = v
+            t[k] = list(v)
         return t
 
     def to_dict(self, columns=None, slice_=None):
@@ -1823,7 +1827,7 @@ class Table(object):
         if isinstance(expressions, str):
             return self._filter(expressions)
 
-        if not isinstance(expressions, list):
+        if not isinstance(expressions, list) and not isinstance(expressions, tuple):
             raise TypeError
         
         if len(self) == 0:
@@ -2052,8 +2056,7 @@ class Table(object):
             with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
                 errs = tm.execute(tasks)
                 if any(errs):
-                    msg = "\n".join(errs)
-                    raise Exception(f"multiprocessing error:{msg}")
+                    raise Exception("\n".join(filter(lambda x: x is not None, errs)))
 
             table_key = mem.new_id("/table")
             mem.create_table(key=table_key, columns=columns_refs)
@@ -2121,8 +2124,7 @@ class Table(object):
             with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
                 errs = tm.execute(tasks)
                 if any(errs):
-                    msg = "\n".join(errs)
-                    raise Exception(f"multiprocessing error:{msg}")
+                    raise Exception("\n".join(filter(lambda x: x is not None, errs)))
 
             table_key = mem.new_id("/table")
             mem.create_table(key=table_key, columns=columns_refs)
@@ -2811,10 +2813,7 @@ class Table(object):
             results = tm.execute(tasks, tqdm=tqdm, pbar=pbar)
 
             if any(i is not None for i in results):
-                for err in results:
-                    if err is not None:
-                        print(err)
-                raise Exception("multiprocessing error.")
+                raise Exception("\n".join(filter(lambda x: x is not None, results)))
             
         merged_column_refs = {
             k: mem.mp_merge_columns(v)
@@ -3116,7 +3115,7 @@ class Table(object):
             with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
                 errs = tm.execute(tasks)
                 if _any(errs):
-                    raise Exception(f"multiprocessing error. {[e for e in errs if e]}")
+                    raise Exception("\n".join(filter(lambda x: x is not None, errs)))
 
             # 4. update the result table.
             with h5py.File(mem.path, "r+") as h5:
