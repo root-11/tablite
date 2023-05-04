@@ -899,7 +899,12 @@ class Table(object):
 
     @classmethod
     def reset_storage(cls, include_imports=True):
-        """Resets all stored tables."""
+        """Resets all stored tables.
+        
+        include_imports: bool
+            True: imports will be removed (default)
+            False: imports will be kept.
+        """
         mem.reset_storage(include_imports)
 
     def add_rows(self, *args, **kwargs):
