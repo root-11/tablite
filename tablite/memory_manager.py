@@ -228,11 +228,34 @@ class MemoryManager(object):
         assert isinstance(page, Page)
         return self.ref_counts[page.group]
 
-    def reset_storage(self):
+    def reset_storage(self, include_imports=True):
+        """Resets the HDF5 storage.
+
+        Args:
+            include_imports (bool, optional): removes imports as well. Defaults to True.
+        """
         log.info(f"{getpid()} resetting storage.")
-        with h5py.File(self.path, TRUNCATE) as h5:
-            assert list(h5.keys()) == []
-        time.sleep(1)  # let the OS flush the write outbuffer.
+        if include_imports:
+            with h5py.File(self.path, TRUNCATE) as h5:
+                assert list(h5.keys()) == []
+            log.info(f"{getpid()} storage reset.")
+        else:
+            with h5py.File(self.path, READWRITE) as h5:
+                imports = 0
+                deletes = 0
+                if "/table" in h5.keys():
+                    for table_key in list(h5["/table"].keys()):
+                        dset = h5[f"/table/{table_key}"]
+                        config = dset.attrs.get("config", None)
+                        if config is None:
+                            imports += 1
+                        else:
+                            self.delete_table(table_key)
+                            deletes += 1
+            log.info(
+                f"{getpid()} storage reset without removing imports. {imports} tables kept, {deletes} tables erased."
+            )
+        time.sleep(0.5)  # let the OS flush the write outbuffer.
 
     @timeout
     def get_data(self, group, item):
@@ -283,10 +306,10 @@ class MemoryManager(object):
             return column_key
 
     @timeout
-    def mp_merge_columns(self, columns, column_key = None):
+    def mp_merge_columns(self, columns, column_key=None):
         assert isinstance(columns, list)
         if len(columns) == 1 and column_key is None:
-            return columns[0]   # if we dont care about column key and only one column, just return the same column
+            return columns[0]  # if we dont care about column key and only one column, just return the same column
 
         with h5py.File(self.path, "r+") as h5:
             if not column_key:
@@ -1013,7 +1036,6 @@ class MixedType(GenericPage):
 
     def __delitem__(self, key):
         with h5py.File(self.path, READWRITE) as h5:
-
             if isinstance(key, int):
                 for grp in [self.group, self.type_group]:
                     dset = h5[grp]
@@ -1061,7 +1083,6 @@ class MixedType(GenericPage):
         g2 = [dt.bytes_functions(value), dt.type_code(value)]
 
         with h5py.File(self.path, READWRITE) as h5:
-
             for grp, v in zip(g1, g2):
                 dset = h5[grp]
                 data = dset[:]
@@ -1209,7 +1230,6 @@ class SparseType(GenericPage):
         match_range = range(*item.indices(self._len))
 
         with h5py.File(self.path, READONLY) as h5:
-
             default_value_group = h5[self.index_group]
             default_value = default_value_group.attrs[self._default_value]
             default_value_type_code = default_value_group.attrs[self._default_value_type_code]
