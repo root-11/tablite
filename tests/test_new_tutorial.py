@@ -3,6 +3,7 @@ import time as cputime
 import pytest
 import random
 import pathlib
+import tablite.config as tcfg
 
 from datetime import datetime, date, time, timedelta
 from tablite import Table, DataTypes, GroupBy, get_headers
@@ -11,7 +12,10 @@ from tablite import Table, DataTypes, GroupBy, get_headers
 @pytest.fixture(autouse=True)  # this resets the HDF5 file for every test.
 def refresh():
     Table.reset_storage()
-    yield
+    try:
+        yield
+    finally:
+        tcfg.PROCESSING_PRIORITY = "auto"
 
 
 def test_the_basics():
@@ -433,6 +437,8 @@ def test_join_logic():
 
 
 def do_lookup_logic(always_mp):
+    tcfg.PROCESSING_PRIORITY = "mp" if always_mp else "sp"
+
     friends = Table()
     friends.add_column("name", data=["Alice", "Betty", "Charlie", "Dorethy", "Edward", "Fred"])
     friends.add_column(
