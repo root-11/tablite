@@ -10,13 +10,13 @@ def refresh():
     try:
         yield
     finally:
-        tcfg.SINGLE_PROCESSING_LIMIT = "auto"
+        tcfg.PROCESSING_PRIORITY = "auto"
 
 
 def do_left_join(always_mp):
     """joining a table on itself. Wierd but possible."""
     
-    tcfg.SINGLE_PROCESSING_LIMIT = "mp" if always_mp else "sp"
+    tcfg.PROCESSING_PRIORITY = "mp" if always_mp else "sp"
     
     numbers = Table()
     numbers.add_column("number", data=[1, 2, 3, 4, None])
@@ -45,7 +45,7 @@ def test_left_join_mp():
     do_left_join(True)
 
 def do_left_join2(always_mp):
-    tcfg.SINGLE_PROCESSING_LIMIT = "mp" if always_mp else "sp"
+    tcfg.PROCESSING_PRIORITY = "mp" if always_mp else "sp"
 
     """joining a table on itself. Wierd but possible."""
     numbers = Table()
@@ -86,7 +86,7 @@ def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2, always_mp):
       LEFT JOIN `tbl2`
         ON tbl1.color = tbl2.color;
     """
-    tcfg.SINGLE_PROCESSING_LIMIT = "mp" if always_mp else "sp"
+    tcfg.PROCESSING_PRIORITY = "mp" if always_mp else "sp"
 
     numbers_1 = Table()
     numbers_1.add_column("number", data=[p[0] for p in pairs_1])
@@ -204,7 +204,7 @@ def test_left_join_2_mp():
 
 # https://en.wikipedia.org/wiki/Join_(SQL)#Inner_join
 def do_wiki_joins(always_mp):
-    tcfg.SINGLE_PROCESSING_LIMIT = "mp" if always_mp else "sp"
+    tcfg.PROCESSING_PRIORITY = "mp" if always_mp else "sp"
 
     employees = Table()
     employees["last name"] = ["Rafferty", "Jones", "Heisenberg", "Robinson", "Smith", "Williams"]
