@@ -34,6 +34,7 @@ from tablite.datatypes import DataTypes
 
 PYTHON_EXIT = False  # exit handler so that Table.__del__ doesn't run into import error during exit.
 
+
 def exiting():
     global PYTHON_EXIT
     PYTHON_EXIT = True
@@ -53,6 +54,7 @@ mem = MemoryManager()
 
 _all = all
 _any = any
+
 
 def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
     """
@@ -90,7 +92,6 @@ def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, sta
     used_columns_names = set()
     t = Table(save=True)
     for idx, column in enumerate(ws.columns()):
-
         if first_row_has_headers:
             header, start_row_pos = str(column[0]), max(1, start)
         else:
@@ -273,15 +274,14 @@ def _text_reader_task_size(
     else:
         multicore = False
         if cpu_count >= 2:  # there are multiple vPUs
-
             for n_cpus in range(
                 cpu_count, 1, -1
             ):  # count down from max to min number of cpus until the task fits into RAM.
                 free_memory = reserved_memory - (n_cpus * python_mem_w_imports)
                 free_memory_per_vcpu = int(free_memory / cpu_count)  # 8 gb/ 16vCPU = 500Mb/vCPU
-                lines_per_task = math.ceil(free_memory_per_vcpu / (
-                    bytes_per_line * working_overhead
-                ))  # 500Mb/vCPU / (10 * 109 bytes / line ) = 458715 lines per task
+                lines_per_task = math.ceil(
+                    free_memory_per_vcpu / (bytes_per_line * working_overhead)
+                )  # 500Mb/vCPU / (10 * 109 bytes / line ) = 458715 lines per task
 
                 cpu_count = n_cpus
                 if free_memory_per_vcpu > 10_000_000:  # 10Mb as minimum task size
@@ -334,7 +334,12 @@ def text_reader(
 
     file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
 
-    with tqdm(total=100, desc=f"importing: reading '{pbar_fname}' bytes", unit="%", bar_format="{desc}: {percentage:3.2f}%|{bar}| [{elapsed}<{remaining}]") as pbar:
+    with tqdm(
+        total=100,
+        desc=f"importing: reading '{pbar_fname}' bytes",
+        unit="%",
+        bar_format="{desc}: {percentage:3.2f}%|{bar}| [{elapsed}<{remaining}]",
+    ) as pbar:
         with path.open("r", encoding=encoding, errors="ignore") as fi:
             # task: find chunk ...
             # Here is the problem in a nutshell:
@@ -380,7 +385,6 @@ def text_reader(
                 t.save = True
                 return t
 
-        
         cpu_count = max(psutil.cpu_count(logical=True), 1)  # there's always at least one core!
         free_mem = psutil.virtual_memory().available
 
@@ -474,7 +478,7 @@ def text_reader(
         len_tasks = len(tasks)
         dump_size = dump_stage / len_tasks
 
-        class PatchTqdm: # we need to re-use the tqdm pbar, this will patch the tqdm to update existing pbar instead of creating a new one
+        class PatchTqdm:  # we need to re-use the tqdm pbar, this will patch the tqdm to update existing pbar instead of creating a new one
             def update(self, n=1):
                 pbar.update(n * dump_size)
 
@@ -682,7 +686,7 @@ class Table(object):
                     self._columns[keys] = col = values.copy()
                 elif values.key == col.key:  # it's update from += or similar
                     self._columns[keys] = values
-                else:   # we're likely creating a new table using `from_dict` without pulling in data to memory
+                else:  # we're likely creating a new table using `from_dict` without pulling in data to memory
                     self._columns[keys] = col = values.copy()
                 mem.create_column_reference(self.key, column_name=keys, column_key=col.key)
 
@@ -900,7 +904,7 @@ class Table(object):
     @classmethod
     def reset_storage(cls, include_imports=True):
         """Resets all stored tables.
-        
+
         include_imports: bool
             True: imports will be removed (default)
             False: imports will be kept.
@@ -1829,7 +1833,7 @@ class Table(object):
 
         if not isinstance(expressions, list):
             raise TypeError
-        
+
         if len(self) == 0:
             return self.copy(), self.copy()
 
@@ -2583,7 +2587,7 @@ class Table(object):
             n = r + 1  # rows keys + 1 col for function values.
             cols = [[] for _ in range(n)]
             for row, ix in row_key_index.items():
-                for (col_name, f) in functions:
+                for col_name, f in functions:
                     cols[-1].append(f"{f.__name__}({col_name})")
                     for col_ix, v in enumerate(row):
                         cols[col_ix].append(v)
@@ -2730,11 +2734,11 @@ class Table(object):
         for name in left_columns:
             col = self[name]
             container = columns_refs[name] = []
-            
+
             offset = 0
             col_len = len(col)
 
-            while offset < col_len or col_len == 0: # create an empty page
+            while offset < col_len or col_len == 0:  # create an empty page
                 new_offset = offset + rows_per_page
                 slice_ = slice(offset, new_offset)
                 d_key = mem.new_id("/column")
@@ -2747,7 +2751,7 @@ class Table(object):
                         shm_name_for_sort_index=left_shm.name,
                         shm_name_for_sort_index_mask=left_msk_shm.name,
                         shape=left_arr.shape,
-                        slice_=slice_
+                        slice_=slice_,
                     )
                 )
 
@@ -2760,11 +2764,11 @@ class Table(object):
             revised_name = unique_name(name, columns_refs.keys())
             col = other[name]
             container = columns_refs[revised_name] = []
-            
+
             offset = 0
             col_len = len(col)
 
-            while offset < col_len or col_len == 0: # create an empty page
+            while offset < col_len or col_len == 0:  # create an empty page
                 new_offset = offset + rows_per_page
                 slice_ = slice(offset, new_offset)
                 d_key = mem.new_id("/column")
@@ -2777,7 +2781,7 @@ class Table(object):
                         shm_name_for_sort_index=right_shm.name,
                         shm_name_for_sort_index_mask=right_msk_shm.name,
                         shape=right_arr.shape,
-                        slice_=slice_
+                        slice_=slice_,
                     )
                 )
 
@@ -2798,11 +2802,8 @@ class Table(object):
                     if err is not None:
                         print(err)
                 raise Exception("multiprocessing error.")
-            
-        merged_column_refs = {
-            k: mem.mp_merge_columns(v)
-            for k, v in columns_refs.items()
-        }
+
+        merged_column_refs = {k: mem.mp_merge_columns(v) for k, v in columns_refs.items()}
 
         with h5py.File(mem.path, "r+") as h5:
             table_key = mem.new_id("/table")
@@ -2824,7 +2825,15 @@ class Table(object):
         return t
 
     def left_join(
-        self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None, always_mp=False
+        self,
+        other,
+        left_keys,
+        right_keys,
+        left_columns=None,
+        right_columns=None,
+        tqdm=_tqdm,
+        pbar=None,
+        always_mp=False,
     ):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
@@ -2862,7 +2871,15 @@ class Table(object):
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
     def inner_join(
-        self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None, always_mp=False
+        self,
+        other,
+        left_keys,
+        right_keys,
+        left_columns=None,
+        right_columns=None,
+        tqdm=_tqdm,
+        pbar=None,
+        always_mp=False,
     ):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
@@ -2902,7 +2919,15 @@ class Table(object):
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
     def outer_join(
-        self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None, always_mp=False
+        self,
+        other,
+        left_keys,
+        right_keys,
+        left_columns=None,
+        right_columns=None,
+        tqdm=_tqdm,
+        pbar=None,
+        always_mp=False,
     ):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
@@ -2945,7 +2970,17 @@ class Table(object):
         else:  # use multi processing
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
-    def cross_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None, always_mp=False):
+    def cross_join(
+        self,
+        other,
+        left_keys,
+        right_keys,
+        left_columns=None,
+        right_columns=None,
+        tqdm=_tqdm,
+        pbar=None,
+        always_mp=False,
+    ):
         """
         CROSS JOIN returns the Cartesian product of rows from tables in the join.
         In other words, it will produce rows which combine each row from the first table
@@ -3198,7 +3233,6 @@ class Table(object):
         methods = ["nearest neighbour", "mean", "mode", "carry forward"]
 
         if method == "carry forward":
-
             new = Table()
             for name in self.columns:
                 if name in targets:
@@ -3216,7 +3250,6 @@ class Table(object):
             return new
 
         elif method in {"mean", "mode"}:
-
             new = Table()
             for name in self.columns:
                 if name in targets:
@@ -3232,7 +3265,6 @@ class Table(object):
             return new
 
         elif method == "nearest neighbour":
-
             new = self.copy()
             norm_index = {}
             normalised_values = Table()
@@ -3317,7 +3349,9 @@ class Table(object):
         unique_names = []
         table = Table()
 
-        for column_name, values in zip((unique_name(str(c), unique_names) for c in ([self.columns[0]] + list(self[self.columns[0]]))), rows):
+        for column_name, values in zip(
+            (unique_name(str(c), unique_names) for c in ([self.columns[0]] + list(self[self.columns[0]]))), rows
+        ):
             unique_names.append(column_name)
 
             table[column_name] = values
@@ -3382,7 +3416,7 @@ class Table(object):
         news = {name: [] for name in new.columns}
 
         n = len(keep)
-        
+
         with tqdm(total=len(self), desc="transpose") as pbar:
             for ix, row in enumerate(self.__getitem__(*keep + columns).rows, start=1):
                 keeps = row[:n]
@@ -4152,7 +4186,9 @@ def filter_merge_task(table_key, true_key, false_key, shm_name, shm_shape, slice
     existing_shm.close()  # disconnect
 
 
-def indexing_task(source_key, destination_key, shm_name_for_sort_index, shape, slice_=slice(None), shm_name_for_sort_index_mask=None):
+def indexing_task(
+    source_key, destination_key, shm_name_for_sort_index, shape, slice_=slice(None), shm_name_for_sort_index_mask=None
+):
     """
     performs the creation of a column sorted by sort_index (shared memory object).
     source_key: column to read
@@ -4177,7 +4213,7 @@ def indexing_task(source_key, destination_key, shm_name_for_sort_index, shape, s
     data = mem.get_data(f"/column/{source_key}", slice(None))  # --- READ!
 
     values = [
-        None if sort_index_mask is not None and sort_index_mask[j] == 1 else data[ix] 
+        None if sort_index_mask is not None and sort_index_mask[j] == 1 else data[ix]
         for j, ix in enumerate(sort_slice, 0 if slice_.start is None else slice_.start)
     ]
 
@@ -4248,11 +4284,11 @@ def text_writer(table, path, tqdm=_tqdm):
 
     Note:
     ----------------------
-    If the delimiter is present in a string when the string is exported, 
-    text-escape is required, as the format otherwise is corrupted. 
-    When the file is being written, it is unknown whether any string in 
+    If the delimiter is present in a string when the string is exported,
+    text-escape is required, as the format otherwise is corrupted.
+    When the file is being written, it is unknown whether any string in
     a column contrains the delimiter. As text escaping the few strings
-    that may contain the delimiter would lead to an assymmetric format, 
+    that may contain the delimiter would lead to an assymmetric format,
     the safer guess is to text escape all strings.
     """
     _check_input(table, path)
@@ -4331,10 +4367,11 @@ def _maskify(arr):
 
     return none_mask
 
+
 def _share_mem(inp_arr, dtype):
     len_ = len(inp_arr)
     size = np.dtype(dtype).itemsize * len_
-    shape = (len_, )
+    shape = (len_,)
 
     out_shm = shared_memory.SharedMemory(create=True, size=size)  # the co_processors will read this.
     out_arr_index = np.ndarray(shape, dtype=dtype, buffer=out_shm.buf)
