@@ -22,8 +22,12 @@ def do_left_join(always_mp):
     numbers.add_column("number", data=[1, 2, 3, 4, None])
     numbers.add_column("colour", data=["black", "blue", "white", "white", "blue"])
 
+    numbers2 = Table()
+    numbers2.add_column("number", data=[1, 2, 3, 4, None, 6, 6, 6, 6, 6, 6])
+    numbers2.add_column("colour", data=["black", "blue", "white", "white", "blue", "purple", "purple", "purple", "purple", "purple", "purple"])
 
-    left_join = numbers.left_join(numbers, left_keys=["colour"], right_keys=["colour"])
+
+    left_join = numbers.left_join(numbers2, left_keys=["colour"], right_keys=["colour"])
     left_join.show()
 
     assert list(left_join.rows) == [

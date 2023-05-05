@@ -2737,6 +2737,7 @@ class Table(object):
     def _mp_join(self, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None):
         """
         private helper for multiprocessing join
+        TODO: better memory management when processes share column chunks (requires masking Nones)
         """
         LEFT_NONE_MASK, RIGHT_NONE_MASK = (_maskify(arr) for arr in (LEFT, RIGHT))
 
@@ -2754,18 +2755,15 @@ class Table(object):
 
         rows_per_page = tcfg.H5_PAGE_SIZE
 
-        paddings = {}
-
         for name in left_columns:
             col = self[name]
             container = columns_refs[name] = []
-            
-            offset = 0
-            col_len = len(col)
 
-            while offset < col_len or col_len == 0: # create an empty page
-                new_offset = offset + rows_per_page
-                slice_ = slice(offset, min(new_offset, col_len))
+            offset = 0
+
+            while offset < final_len or final_len == 0:  # create an empty page
+                new_offset = min(offset + rows_per_page, final_len)
+                slice_ = slice(offset, new_offset)
                 d_key = mem.new_id("/column")
                 container.append(d_key)
                 tasks.append(
@@ -2776,39 +2774,26 @@ class Table(object):
                         shm_name_for_sort_index=left_shm.name,
                         shm_name_for_sort_index_mask=left_msk_shm.name,
                         shape=left_arr.shape,
-                        slice_=slice_
+                        slice_=slice_,
                     )
                 )
 
                 offset = new_offset
 
-                if col_len == 0:
+                if final_len == 0:
                     break
 
-            padding_required = max(final_len - col_len, 0)
-
-            if padding_required > 0:
-                if padding_required not in paddings:
-                    paddings[padding_required] = d_key = mem.new_id("/column")
-
-                    values = [None] * padding_required
-
-                    mem.mp_write_column(values, column_key=d_key)
-                else:
-                    d_key = paddings[padding_required]
-                container.append(d_key)
 
         for name in right_columns:
             revised_name = unique_name(name, columns_refs.keys())
             col = other[name]
             container = columns_refs[revised_name] = []
-            
-            offset = 0
-            col_len = len(col)
 
-            while offset < col_len or col_len == 0: # create an empty page
-                new_offset = offset + rows_per_page
-                slice_ = slice(offset, min(new_offset, col_len))
+            offset = 0
+
+            while offset < final_len or final_len == 0:  # create an empty page
+                new_offset = min(offset + rows_per_page, final_len)
+                slice_ = slice(offset, new_offset)
                 d_key = mem.new_id("/column")
                 container.append(d_key)
                 tasks.append(
@@ -2819,29 +2804,14 @@ class Table(object):
                         shm_name_for_sort_index=right_shm.name,
                         shm_name_for_sort_index_mask=right_msk_shm.name,
                         shape=right_arr.shape,
-                        slice_=slice_
+                        slice_=slice_,
                     )
                 )
 
                 offset = new_offset
 
-                if col_len == 0:
+                if final_len == 0:
                     break
-
-            padding_required = max(final_len - col_len, 0)
-
-            if padding_required > 0:
-                if padding_required not in paddings:
-                    paddings[padding_required] = d_key = mem.new_id("/column")
-
-                    values = [None] * padding_required
-
-                    mem.mp_write_column(values, column_key=d_key)
-                else:
-                    d_key = paddings[padding_required]
-                container.append(d_key)
-
-        paddings.clear() # cleanup, paddings already added to containers
 
         if pbar is None:
             total = len(tasks)
@@ -2852,7 +2822,7 @@ class Table(object):
 
             if any(i is not None for i in results):
                 raise Exception("\n".join(filter(lambda x: x is not None, results)))
-            
+
         merged_column_refs = {
             k: mem.mp_merge_columns(v)
             for k, v in columns_refs.items()
