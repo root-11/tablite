@@ -4271,7 +4271,9 @@ def text_writer(table, path, tqdm=_tqdm):
     _check_input(table, path)
 
     def txt(value):  # helper for text writer
-        if isinstance(value, str):
+        if value is None:
+            return ""
+        elif isinstance(value, str):
             if not (value.startswith('"') and value.endswith('"')):
                 return f'"{value}"'  # this must be escape: "the quick fox, jumped over the comma"
             else:

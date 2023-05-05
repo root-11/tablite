@@ -22,22 +22,22 @@ def test_timeout_result():
 
 def test_empty_table_creation():
     """
-        Was failing when creating a table with some empty pages, however equivalent form presented below was passing.
-        
-        mem = MemoryManager()
-        cols = { "A": [], "B": [], "C": [], } 
-        new_table = Table.from_dict(cols) 
-        t = Table.load(mem.path, new_table.key)
+    Was failing when creating a table with some empty pages, however equivalent form presented below was passing.
+
+    mem = MemoryManager()
+    cols = { "A": [], "B": [], "C": [], }
+    new_table = Table.from_dict(cols)
+    t = Table.load(mem.path, new_table.key)
     """
     mem = MemoryManager()
-    cols = { 
-        "A": mem.mp_write_column(values=[]), 
-        "B": mem.mp_write_column(values=[]), 
-        "C": mem.mp_write_column(values=[]), 
-    } 
-    new_table_key = mem.new_id("/table") 
-    mem.mp_write_table(new_table_key, columns=cols) 
-    t = Table.load(mem.path, new_table_key) 
+    cols = {
+        "A": mem.mp_write_column(values=[]),
+        "B": mem.mp_write_column(values=[]),
+        "C": mem.mp_write_column(values=[]),
+    }
+    new_table_key = mem.new_id("/table")
+    mem.mp_write_table(new_table_key, columns=cols)
+    t = Table.load(mem.path, new_table_key)
     assert len(t) == 0
 
 
