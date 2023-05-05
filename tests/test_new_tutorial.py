@@ -465,7 +465,7 @@ def do_lookup_logic(always_mp):
     print("Departures from Concert Hall towards ...")
     bustable.show(slice(0, 10))
 
-    lookup_1 = friends.lookup(bustable, (DataTypes.time(21, 10), "<=", "time"), ("stop", "==", "stop"), always_mp=always_mp)
+    lookup_1 = friends.lookup(bustable, (DataTypes.time(21, 10), "<=", "time"), ("stop", "==", "stop"))
     lookup1_sorted = lookup_1.sort(**{"time": True, "name": False, "sort_mode": "unix"})
     lookup1_sorted.show()
 
