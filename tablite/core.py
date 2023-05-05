@@ -4246,12 +4246,20 @@ def text_writer(table, path, tqdm=_tqdm):
     """exports table to csv, tsv or txt dependening on path suffix.
     follows the JSON norm. text escape is ON for all strings.
 
+    Note:
+    ----------------------
+    If the delimiter is present in a string when the string is exported, 
+    text-escape is required, as the format otherwise is corrupted. 
+    When the file is being written, it is unknown whether any string in 
+    a column contrains the delimiter. As text escaping the few strings
+    that may contain the delimiter would lead to an assymmetric format, 
+    the safer guess is to text escape all strings.
     """
     _check_input(table, path)
 
     def txt(value):  # helper for text writer
         if value is None:
-            return ""
+            return ""  # A column with 1,None,2 must be "1,,2".
         elif isinstance(value, str):
             if not (value.startswith('"') and value.endswith('"')):
                 return f'"{value}"'  # this must be escape: "the quick fox, jumped over the comma"
