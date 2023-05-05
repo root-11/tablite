@@ -250,7 +250,10 @@ class MemoryManager(object):
                         if config is None:
                             imports += 1
                         else:
-                            self.delete_table(table_key)
+                            try:
+                                self.delete_table(table_key)
+                            except:
+                                log.warn(f"Could not delete table: {table_key}")
                             deletes += 1
             log.info(
                 f"{getpid()} storage reset without removing imports. {imports} tables kept, {deletes} tables erased."

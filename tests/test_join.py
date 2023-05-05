@@ -1,21 +1,29 @@
 import sqlite3
 from tablite import Table
+import tablite.config as tcfg
 import pytest
 
 
 @pytest.fixture(autouse=True)  # this resets the HDF5 file for every test.
 def refresh():
     Table.reset_storage()
-    yield
+    try:
+        yield
+    finally:
+        tcfg.SINGLE_PROCESSING_LIMIT = "auto"
 
 
 def do_left_join(always_mp):
     """joining a table on itself. Wierd but possible."""
+    
+    tcfg.SINGLE_PROCESSING_LIMIT = "mp" if always_mp else "sp"
+    
     numbers = Table()
     numbers.add_column("number", data=[1, 2, 3, 4, None])
     numbers.add_column("colour", data=["black", "blue", "white", "white", "blue"])
 
-    left_join = numbers.left_join(numbers, left_keys=["colour"], right_keys=["colour"], always_mp=always_mp)
+
+    left_join = numbers.left_join(numbers, left_keys=["colour"], right_keys=["colour"])
     left_join.show()
 
     assert list(left_join.rows) == [
@@ -37,6 +45,8 @@ def test_left_join_mp():
     do_left_join(True)
 
 def do_left_join2(always_mp):
+    tcfg.SINGLE_PROCESSING_LIMIT = "mp" if always_mp else "sp"
+
     """joining a table on itself. Wierd but possible."""
     numbers = Table()
     numbers.add_column("number", data=[1, 2, 3, 4, None])
@@ -47,8 +57,7 @@ def do_left_join2(always_mp):
         left_keys=["colour"],
         right_keys=["colour"],
         left_columns=["colour", "number"],
-        right_columns=["number", "colour"],
-        always_mp=always_mp
+        right_columns=["number", "colour"]
     )
     left_join.show()
 
@@ -77,6 +86,8 @@ def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2, always_mp):
       LEFT JOIN `tbl2`
         ON tbl1.color = tbl2.color;
     """
+    tcfg.SINGLE_PROCESSING_LIMIT = "mp" if always_mp else "sp"
+
     numbers_1 = Table()
     numbers_1.add_column("number", data=[p[0] for p in pairs_1])
     numbers_1.add_column("colour", data=[p[1] for p in pairs_1])
@@ -90,8 +101,7 @@ def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2, always_mp):
         left_keys=[column_1],
         right_keys=[column_2],
         left_columns=["number", "colour"],
-        right_columns=["number", "colour"],
-        always_mp=always_mp
+        right_columns=["number", "colour"]
     )
 
     assert len(pairs_ans) == len(left_join)
@@ -194,6 +204,8 @@ def test_left_join_2_mp():
 
 # https://en.wikipedia.org/wiki/Join_(SQL)#Inner_join
 def do_wiki_joins(always_mp):
+    tcfg.SINGLE_PROCESSING_LIMIT = "mp" if always_mp else "sp"
+
     employees = Table()
     employees["last name"] = ["Rafferty", "Jones", "Heisenberg", "Robinson", "Smith", "Williams"]
     employees["department"] = [31, 33, 33, 34, 34, None]
@@ -280,7 +292,7 @@ def do_wiki_joins(always_mp):
     #     ("Williams", None, 35, "Marketing"),
     # ]
     tbl_result = [
-        tuple(row) for row in employees.cross_join(departments, left_keys=["department"], right_keys=["id"], always_mp=always_mp).rows
+        tuple(row) for row in employees.cross_join(departments, left_keys=["department"], right_keys=["id"]).rows
     ]
 
     # Definition: A cross join produces a cartesian product between the two tables,
@@ -307,8 +319,7 @@ def do_wiki_joins(always_mp):
     tbl_result = [
         tuple(row)
         for row in employees.inner_join(
-            departments, ["department"], ["id"], left_columns=["last name"], right_columns=["id", "name"],
-            always_mp=always_mp
+            departments, ["department"], ["id"], left_columns=["last name"], right_columns=["id", "name"]
         ).rows
     ]
 
@@ -330,7 +341,7 @@ def do_wiki_joins(always_mp):
     #     ("Smith", 34, 34, "Clerical"),
     #     ("Williams", None, None, None),
     # ]
-    tbl_join = employees.left_join(departments, ["department"], ["id"], always_mp=always_mp)
+    tbl_join = employees.left_join(departments, ["department"], ["id"])
     tbl_join.show()
     tbl_result = [tuple(row) for row in tbl_join.rows]
 
@@ -350,7 +361,7 @@ def do_wiki_joins(always_mp):
         sql_result = None  # sqlite3.OperationalError: RIGHT and FULL OUTER JOINs are not currently supported
 
     # left join where L and R are swopped.
-    tbl_result = [tuple(row) for row in departments.left_join(employees, ["id"], ["department"], always_mp=always_mp).rows]
+    tbl_result = [tuple(row) for row in departments.left_join(employees, ["id"], ["department"]).rows]
     assert tbl_result == [
         (31, "Sales", "Rafferty", 31),
         (33, "Engineering", "Jones", 33),
@@ -375,7 +386,7 @@ def do_wiki_joins(always_mp):
         sql_result = None  # sqlite3.OperationalError: RIGHT and FULL OUTER JOINs are not currently supported
 
     tbl_result = [
-        tuple(row) for row in employees.outer_join(departments, left_keys=["department"], right_keys=["id"], always_mp=always_mp).rows
+        tuple(row) for row in employees.outer_join(departments, left_keys=["department"], right_keys=["id"]).rows
     ]
     assert tbl_result == [
         ("Rafferty", 31, 31, "Sales"),
