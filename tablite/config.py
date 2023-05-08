@@ -26,3 +26,5 @@ TEMPDIR = pathlib.Path(__tmpdir__) / "tablite-tmp"
 if not TEMPDIR.exists():
     TEMPDIR.mkdir()
 # tempdir for file_reader and other temporary files.
+
+PROCESSING_PRIORITY = "auto"
