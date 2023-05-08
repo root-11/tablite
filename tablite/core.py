@@ -29,6 +29,7 @@ from tablite.utils import summary_statistics, unique_name, expression_interprete
 from tablite.utils import arg_to_slice
 from tablite import sortation
 from tablite.groupby_utils import GroupBy, GroupbyFunction
+import tablite.config as tcfg
 from tablite.config import SINGLE_PROCESSING_LIMIT, TEMPDIR, H5_ENCODING
 from tablite.datatypes import DataTypes
 
@@ -582,9 +583,13 @@ class Table(object):
         if PYTHON_EXIT:
             return
 
-        try:
-            for key in list(self._columns):
+        for key in list(self._columns):
+            try:
                 del self[key]
+            except KeyError:
+                log.info("del self[key] suppressed.")
+
+        try:
             mem.delete_table(self.group)
         except KeyError:
             log.info("Table.__del__ suppressed.")
@@ -729,9 +734,9 @@ class Table(object):
 
         cols = [i for i in keys if not isinstance(i, slice)]
         if cols:
-            key_errors = [cname not in self.columns for cname in cols]
+            key_errors = [cname for cname in filter(lambda cname: cname not in self.columns, cols)]
             if any(key_errors):
-                raise KeyError(f"keys not found: {key_errors}")
+                raise KeyError(f"keys not found: {', '.join(key_errors)}")
             if len(set(cols)) != len(cols):
                 raise KeyError(f"duplicated keys in {cols}")
         else:  # e.g. tbl[:10]
@@ -774,9 +779,10 @@ class Table(object):
         """
         Returns a copy of the table.
         """
-        t = Table()
+        cls = type(self)
+        t = cls()
         for name, col in self._columns.items():
-            t[name] = col
+            t[name] = col.copy()
         return t
 
     def clear(self):
@@ -1296,7 +1302,7 @@ class Table(object):
                 raise TypeError("expected keys as str")
             if not isinstance(v, (list, tuple, Column)):
                 raise TypeError("expected values as list or tuple")
-            t[k] = v
+            t[k] = list(v)
         return t
 
     def to_dict(self, columns=None, slice_=None):
@@ -1831,7 +1837,7 @@ class Table(object):
         if isinstance(expressions, str):
             return self._filter(expressions)
 
-        if not isinstance(expressions, list):
+        if not isinstance(expressions, list) and not isinstance(expressions, tuple):
             raise TypeError
 
         if len(self) == 0:
@@ -1911,32 +1917,47 @@ class Table(object):
         )  # revise for case where memory footprint is limited to include zero subprocesses.
 
         with tqdm(total=len(filter_tasks) + len(merge_tasks), desc="filter") as pbar:
-            with TaskManager(n_cpus) as tm:
-                # EVALUATE
-                errs = tm.execute(filter_tasks, pbar=pbar)
-                # tm.execute returns the tasks with results, but we don't
-                # really care as the result is in the result array.
-                if any(errs):
-                    raise Exception(errs)
-                # MERGE RESULTS
-                errs = tm.execute(merge_tasks, pbar=pbar)
-                # tm.execute returns the tasks with results, but we don't
-                # really care as the result is in the result array.
-                if any(errs):
-                    raise Exception(errs)
+            if len(self) * (len(filter_tasks) + len(merge_tasks)) >= SINGLE_PROCESSING_LIMIT:
+                with TaskManager(n_cpus) as tm:
+                    # EVALUATE
+                    errs = tm.execute(filter_tasks, pbar=pbar)
+                    # tm.execute returns the tasks with results, but we don't
+                    # really care as the result is in the result array.
+                    if any(errs):
+                        raise Exception(errs)
+                    # MERGE RESULTS
+                    errs = tm.execute(merge_tasks, pbar=pbar)
+                    # tm.execute returns the tasks with results, but we don't
+                    # really care as the result is in the result array.
+                    if any(errs):
+                        raise Exception(errs)
+            else:
+                for t in filter_tasks:
+                    r = t.f(*t.args, **t.kwargs)
+                    if r is not None:
+                        raise r
+                    pbar.update(1)
 
-        true = Table()
+                for t in merge_tasks:
+                    r = t.f(*t.args, **t.kwargs)
+                    if r is not None:
+                        raise r
+                    pbar.update(1)
+
+        cls = type(self)
+
+        true = cls()
         true.add_columns(*self.columns)
         false = true.copy()
 
         for task in merge_tasks:
-            tmp_true = Table.load(mem.path, key=task.kwargs["true_key"])
+            tmp_true = cls.load(mem.path, key=task.kwargs["true_key"])
             if len(tmp_true):
                 true += tmp_true
             else:
                 pass
 
-            tmp_false = Table.load(mem.path, key=task.kwargs["false_key"])
+            tmp_false = cls.load(mem.path, key=task.kwargs["false_key"])
             if len(tmp_false):
                 false += tmp_false
             else:
@@ -2045,8 +2066,7 @@ class Table(object):
             with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
                 errs = tm.execute(tasks)
                 if any(errs):
-                    msg = "\n".join(errs)
-                    raise Exception(f"multiprocessing error:{msg}")
+                    raise Exception("\n".join(filter(lambda x: x is not None, errs)))
 
             table_key = mem.new_id("/table")
             mem.create_table(key=table_key, columns=columns_refs)
@@ -2114,15 +2134,14 @@ class Table(object):
             with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
                 errs = tm.execute(tasks)
                 if any(errs):
-                    msg = "\n".join(errs)
-                    raise Exception(f"multiprocessing error:{msg}")
+                    raise Exception("\n".join(filter(lambda x: x is not None, errs)))
 
             table_key = mem.new_id("/table")
             mem.create_table(key=table_key, columns=columns_refs)
 
             shm.close()
             shm.unlink()
-            t = Table.load(path=mem.path, key=table_key)
+            t = type(self).load(path=mem.path, key=table_key)
             return t
 
     def is_sorted(self, **kwargs):
@@ -2171,7 +2190,10 @@ class Table(object):
 
         shm.close()
         shm.unlink()
-        t = Table.load(path=mem.path, key=table_key)
+
+        cls = type(self)
+
+        t = cls.load(path=mem.path, key=table_key)
         return t
 
     def all(self, **kwargs):
@@ -2236,7 +2258,8 @@ class Table(object):
                 break
 
         if len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT:
-            t = Table()
+            cls = type(self)
+            t = cls()
             for col_name in self.columns:
                 data = self[col_name][:]
                 t[col_name] = [data[i] for i in ixs]
@@ -2290,7 +2313,9 @@ class Table(object):
             ixs.update(ix2)
 
         if len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT:
-            t = Table()
+            cls = type(self)
+            
+            t = cls()
             for col_name in self.columns:
                 data = self[col_name][:]
                 t[col_name] = [data[i] for i in ixs]
@@ -2716,6 +2741,7 @@ class Table(object):
     def _mp_join(self, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None):
         """
         private helper for multiprocessing join
+        TODO: better memory management when processes share column chunks (requires masking Nones)
         """
         LEFT_NONE_MASK, RIGHT_NONE_MASK = (_maskify(arr) for arr in (LEFT, RIGHT))
 
@@ -2724,22 +2750,23 @@ class Table(object):
         left_msk_arr, left_msk_shm = _share_mem(LEFT_NONE_MASK, np.bool8)
         right_msk_arr, right_msk_shm = _share_mem(RIGHT_NONE_MASK, np.bool8)
 
+        final_len = len(LEFT)
+
         assert len(LEFT) == len(RIGHT)
 
         tasks = []
         columns_refs = {}
 
-        rows_per_page = 1_000_000
+        rows_per_page = tcfg.H5_PAGE_SIZE
 
         for name in left_columns:
             col = self[name]
             container = columns_refs[name] = []
 
             offset = 0
-            col_len = len(col)
 
-            while offset < col_len or col_len == 0:  # create an empty page
-                new_offset = offset + rows_per_page
+            while offset < final_len or final_len == 0:  # create an empty page
+                new_offset = min(offset + rows_per_page, final_len)
                 slice_ = slice(offset, new_offset)
                 d_key = mem.new_id("/column")
                 container.append(d_key)
@@ -2757,8 +2784,9 @@ class Table(object):
 
                 offset = new_offset
 
-                if col_len == 0:
+                if final_len == 0:
                     break
+
 
         for name in right_columns:
             revised_name = unique_name(name, columns_refs.keys())
@@ -2766,10 +2794,9 @@ class Table(object):
             container = columns_refs[revised_name] = []
 
             offset = 0
-            col_len = len(col)
 
-            while offset < col_len or col_len == 0:  # create an empty page
-                new_offset = offset + rows_per_page
+            while offset < final_len or final_len == 0:  # create an empty page
+                new_offset = min(offset + rows_per_page, final_len)
                 slice_ = slice(offset, new_offset)
                 d_key = mem.new_id("/column")
                 container.append(d_key)
@@ -2787,7 +2814,7 @@ class Table(object):
 
                 offset = new_offset
 
-                if col_len == 0:
+                if final_len == 0:
                     break
 
         if pbar is None:
@@ -2798,12 +2825,12 @@ class Table(object):
             results = tm.execute(tasks, tqdm=tqdm, pbar=pbar)
 
             if any(i is not None for i in results):
-                for err in results:
-                    if err is not None:
-                        print(err)
-                raise Exception("multiprocessing error.")
+                raise Exception("\n".join(filter(lambda x: x is not None, results)))
 
-        merged_column_refs = {k: mem.mp_merge_columns(v) for k, v in columns_refs.items()}
+        merged_column_refs = {
+            k: mem.mp_merge_columns(v)
+            for k, v in columns_refs.items()
+        }
 
         with h5py.File(mem.path, "r+") as h5:
             table_key = mem.new_id("/table")
@@ -2825,16 +2852,8 @@ class Table(object):
         return t
 
     def left_join(
-        self,
-        other,
-        left_keys,
-        right_keys,
-        left_columns=None,
-        right_columns=None,
-        tqdm=_tqdm,
-        pbar=None,
-        always_mp=False,
-    ):  # TODO: This is single core code.
+        self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None
+    ):
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -2865,22 +2884,19 @@ class Table(object):
                     LEFT.append(left_ix)
                     RIGHT.append(right_ix)
 
-        if not always_mp and len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
+        if tcfg.PROCESSING_PRIORITY == "sp":
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-        else:  # use multi processing
+        elif tcfg.PROCESSING_PRIORITY == "mp":
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+        else:
+            if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
+                return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+            else:  # use multi processing
+                return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
     def inner_join(
-        self,
-        other,
-        left_keys,
-        right_keys,
-        left_columns=None,
-        right_columns=None,
-        tqdm=_tqdm,
-        pbar=None,
-        always_mp=False,
-    ):  # TODO: This is single core code.
+        self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None
+    ):
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -2913,21 +2929,18 @@ class Table(object):
                     LEFT.append(left_ix)
                     RIGHT.append(right_ix)
 
-        if not always_mp and len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
+        if tcfg.PROCESSING_PRIORITY == "sp":
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-        else:  # use multi processing
+        elif tcfg.PROCESSING_PRIORITY == "mp":
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+        else:
+            if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
+                return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+            else:  # use multi processing
+                return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
     def outer_join(
-        self,
-        other,
-        left_keys,
-        right_keys,
-        left_columns=None,
-        right_columns=None,
-        tqdm=_tqdm,
-        pbar=None,
-        always_mp=False,
+        self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None
     ):  # TODO: This is single core code.
         """
         :param other: self, other = (left, right)
@@ -2965,22 +2978,17 @@ class Table(object):
                 LEFT.append(None)
                 RIGHT.append(right_ix)
 
-        if not always_mp and len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
+        if tcfg.PROCESSING_PRIORITY == "sp":
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-        else:  # use multi processing
+        elif tcfg.PROCESSING_PRIORITY == "mp":
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+        else:
+            if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
+                return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+            else:  # use multi processing
+                return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
-    def cross_join(
-        self,
-        other,
-        left_keys,
-        right_keys,
-        left_columns=None,
-        right_columns=None,
-        tqdm=_tqdm,
-        pbar=None,
-        always_mp=False,
-    ):
+    def cross_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
         """
         CROSS JOIN returns the Cartesian product of rows from tables in the join.
         In other words, it will produce rows which combine each row from the first table
@@ -2994,12 +3002,18 @@ class Table(object):
         self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
 
         LEFT, RIGHT = zip(*itertools.product(range(len(self)), range(len(other))))
-        if not always_mp and len(LEFT) < SINGLE_PROCESSING_LIMIT:
+        
+        if tcfg.PROCESSING_PRIORITY == "sp":
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-        else:  # use multi processing
+        elif tcfg.PROCESSING_PRIORITY == "mp":
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+        else:
+            if len(LEFT) < SINGLE_PROCESSING_LIMIT:
+                return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+            else:  # use multi processing
+                return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
-    def lookup(self, other, *criteria, all=True, tqdm=_tqdm, always_mp=False):  # TODO: This is single core code.
+    def lookup(self, other, *criteria, all=True, tqdm=_tqdm):  # TODO: This is single core code.
         """function for looking up values in `other` according to criteria in ascending order.
         :param: other: Table sorted in ascending search order.
         :param: criteria: Each criteria must be a tuple with value comparisons in the form:
@@ -3099,61 +3113,74 @@ class Table(object):
             results.append(lru_cache[row1_hash])
 
         result = self.copy()
-        if not always_mp and len(self) * len(other.columns) < SINGLE_PROCESSING_LIMIT:
-            for col_name in other.columns:
-                col_data = other[col_name][:]
-                revised_name = unique_name(col_name, result.columns)
-                result[revised_name] = [col_data[k] if k is not None else None for k in results]
-            return result
+
+        if tcfg.PROCESSING_PRIORITY == "sp":
+            return self._sp_lookup(other, result, results)
+        elif tcfg.PROCESSING_PRIORITY == "mp":
+            return self._mp_lookup(other, result, results)
         else:
-            # 1. create shared memory array.
-            RIGHT_NONE_MASK = _maskify(results)
-            right_arr, right_shm = _share_mem(results, np.int64)
-            right_msk_arr, right_msk_shm = _share_mem(RIGHT_NONE_MASK, np.bool8)
+            if len(self) * len(other.columns) < SINGLE_PROCESSING_LIMIT:
+                return self._sp_lookup(other, result, results)
+            else:
+                return self._mp_lookup(other, result, results)
+        
+    def _sp_lookup(self, other, result, results):
+        for col_name in other.columns:
+            col_data = other[col_name][:]
+            revised_name = unique_name(col_name, result.columns)
+            result[revised_name] = [col_data[k] if k is not None else None for k in results]
+        return result
+    
+    def _mp_lookup(self, other, result, results):
+        # 1. create shared memory array.
+        RIGHT_NONE_MASK = _maskify(results)
+        right_arr, right_shm = _share_mem(results, np.int64)
+        _, right_msk_shm = _share_mem(RIGHT_NONE_MASK, np.bool8)
 
-            # 2. create tasks
-            tasks = []
-            columns_refs = {}
+        # 2. create tasks
+        tasks = []
+        columns_refs = {}
 
-            for name in other.columns:
-                revised_name = unique_name(name, result.columns + list(columns_refs.keys()))
-                col = other[name]
-                columns_refs[revised_name] = d_key = mem.new_id("/column")
-                tasks.append(
-                    Task(
-                        indexing_task,
-                        source_key=col.key,
-                        destination_key=d_key,
-                        shm_name_for_sort_index=right_shm.name,
-                        shm_name_for_sort_index_mask=right_msk_shm.name,
-                        shape=right_arr.shape,
-                    )
+        for name in other.columns:
+            revised_name = unique_name(name, result.columns + list(columns_refs.keys()))
+            col = other[name]
+            columns_refs[revised_name] = d_key = mem.new_id("/column")
+            tasks.append(
+                Task(
+                    indexing_task,
+                    source_key=col.key,
+                    destination_key=d_key,
+                    shm_name_for_sort_index=right_shm.name,
+                    shm_name_for_sort_index_mask=right_msk_shm.name,
+                    shape=right_arr.shape,
                 )
+            )
 
-            # 3. let task manager handle the tasks
-            with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
-                errs = tm.execute(tasks)
-                if _any(errs):
-                    raise Exception(f"multiprocessing error. {[e for e in errs if e]}")
+        # 3. let task manager handle the tasks
+        with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
+            errs = tm.execute(tasks)
+            if _any(errs):
+                raise Exception("\n".join(filter(lambda x: x is not None, errs)))
 
-            # 4. update the result table.
-            with h5py.File(mem.path, "r+") as h5:
-                dset = h5[f"/table/{result.key}"]
-                columns = json.loads(dset.attrs["columns"])
-                columns.update(columns_refs)
-                dset.attrs["columns"] = json.dumps(columns)
-                dset.attrs["saved"] = False
+        # 4. update the result table.
+        with h5py.File(mem.path, "r+") as h5:
+            dset = h5[f"/table/{result.key}"]
+            columns = json.loads(dset.attrs["columns"])
+            columns.update(columns_refs)
+            dset.attrs["columns"] = json.dumps(columns)
+            dset.attrs["saved"] = False
 
-            # 5. close the share memory and deallocate
-            right_shm.close()
-            right_shm.unlink()
+        # 5. close the share memory and deallocate
+        right_shm.close()
+        right_shm.unlink()
 
-            right_msk_shm.close()
-            right_msk_shm.unlink()
+        right_msk_shm.close()
+        right_msk_shm.unlink()
 
-            # 6. reload the result table
-            t = Table.load(path=mem.path, key=result.key)
-            return t
+        # 6. reload the result table
+        t = Table.load(path=mem.path, key=result.key)
+
+        return t
 
     def replace_missing_values(self, *args, **kwargs):
         raise AttributeError("See imputation")
@@ -3536,7 +3563,7 @@ class Column(object):
             self.extend(data)
 
         else:
-            length, pages = mem.load_column_attrs(self.group)
+            length, _ = mem.load_column_attrs(self.group)
             self._len = length
 
     def __str__(self) -> str:
@@ -4212,10 +4239,15 @@ def indexing_task(
 
     data = mem.get_data(f"/column/{source_key}", slice(None))  # --- READ!
 
-    values = [
-        None if sort_index_mask is not None and sort_index_mask[j] == 1 else data[ix]
-        for j, ix in enumerate(sort_slice, 0 if slice_.start is None else slice_.start)
-    ]
+    values = [None] * len(sort_slice)
+
+    start_offset = 0 if slice_.start is None else slice_.start
+
+    for i, (j, ix) in enumerate(enumerate(sort_slice, start_offset)):
+        if sort_index_mask is not None and sort_index_mask[j] == 1:
+            values[i] = None
+        else:
+            values[i] = data[ix]
 
     existing_shm.close()  # disconnect
     if sort_index_mask is not None:
@@ -4297,9 +4329,9 @@ def text_writer(table, path, tqdm=_tqdm):
         if value is None:
             return ""  # A column with 1,None,2 must be "1,,2".
         elif isinstance(value, str):
-            if not (value.startswith('"') and value.endswith('"')):
-                return f'"{value}"'  # this must be escape: "the quick fox, jumped over the comma"
-            else:
+            # if not (value.startswith('"') and value.endswith('"')):
+            #     return f'"{value}"'  # this must be escape: "the quick fox, jumped over the comma"
+            # else:
                 return value  # this would for example be an empty string: ""
         else:
             return str(DataTypes.to_json(value))  # this handles datetimes, timedelta, etc.
@@ -4357,13 +4389,12 @@ exporters = {  # the commented formats are not yet supported by the pyexcel plug
 
 
 def _maskify(arr):
-    none_mask = [None] * len(arr)
+    none_mask = [False] * len(arr) # Setting the default
 
     for i in range(len(arr)):
-        is_none = none_mask[i] = arr[i] == None
-
-        if is_none:
-            arr[i] = 0
+        if arr[i] is None:         # Check if our value is None
+            none_mask[i] = True
+            arr[i] = 0             # Remove None from the original array
 
     return none_mask
 
