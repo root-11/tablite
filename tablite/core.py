@@ -4389,13 +4389,12 @@ exporters = {  # the commented formats are not yet supported by the pyexcel plug
 
 
 def _maskify(arr):
-    none_mask = [None] * len(arr)
+    none_mask = [False] * len(arr) # Setting the default
 
     for i in range(len(arr)):
-        is_none = none_mask[i] = arr[i] == None
-
-        if is_none:
-            arr[i] = 0
+        if arr[i] is None:         # Check if our value is None
+            none_mask[i] = True
+            arr[i] = 0             # Remove None from the original array
 
     return none_mask
 
