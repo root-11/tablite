@@ -4252,6 +4252,7 @@ def indexing_task(source_key, destination_key, shm_name_for_sort_index, shape, s
         import traceback
 
         print("sort_index_mask:", len(sort_index_mask), "data:", len(data), "slice:", slice_)
+        print("ix:", ix)
         traceback.print_exception(e)
         raise e
 
