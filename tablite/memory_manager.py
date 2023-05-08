@@ -117,12 +117,13 @@ class MemoryManager(object):
             columns[column_name] = column_key
             dset.attrs["columns"] = json.dumps(columns)
 
-    def delete_table(self, table_key):
+    def delete_table(self, table_key, *, force=False):
         with h5py.File(self.path, READWRITE) as h5:
             dset = h5[table_key]
-            saved_flag = dset.attrs["saved"]
-            if saved_flag:
-                return
+            if not force:
+                saved_flag = dset.attrs["saved"]
+                if saved_flag:
+                    return
             del h5[table_key]
 
     def delete_column_reference(self, table_key, column_name, column_key):
@@ -251,9 +252,9 @@ class MemoryManager(object):
                             imports += 1
                         else:
                             try:
-                                self.delete_table(table_key)
-                            except:
-                                log.warn(f"Could not delete table: {table_key}")
+                                self.delete_table(f"/table/{table_key}", force=True)
+                            except Exception:
+                                log.warn(f"Could not delete table: /table/{table_key}")
                             deletes += 1
             log.info(
                 f"{getpid()} storage reset without removing imports. {imports} tables kept, {deletes} tables erased."
