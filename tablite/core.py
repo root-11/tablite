@@ -4239,27 +4239,15 @@ def indexing_task(
 
     data = mem.get_data(f"/column/{source_key}", slice(None))  # --- READ!
 
-    try:
-        values = [None] * len(sort_slice)
+    values = [None] * len(sort_slice)
 
-        start_offset = 0 if slice_.start is None else slice_.start
-        # start_offset = 0
+    start_offset = 0 if slice_.start is None else slice_.start
 
-        for i, (j, ix) in enumerate(enumerate(sort_slice, start_offset)):
-            if sort_index_mask is not None and sort_index_mask[j] == 1:
-                values[i] = None
-            else:
-                v = data[ix]
-
-                values[i] = v
-
-    except Exception as e:
-        import traceback
-
-        print("sort_index_mask:", len(sort_index_mask), "data:", len(data), "slice:", slice_)
-        print("ix:", ix)
-        traceback.print_exception(e)
-        raise e
+    for i, (j, ix) in enumerate(enumerate(sort_slice, start_offset)):
+        if sort_index_mask is not None and sort_index_mask[j] == 1:
+            values[i] = None
+        else:
+            values[i] = data[ix]
 
     existing_shm.close()  # disconnect
     if sort_index_mask is not None:
