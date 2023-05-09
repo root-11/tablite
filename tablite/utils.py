@@ -5,6 +5,11 @@ from datetime import datetime, date, time, timedelta, timezone  # noqa
 from itertools import compress
 
 
+def type_check(var, type_):
+    if not isinstance(var, type):
+        raise TypeError(f"Expected {type_}, not {type(var)}")
+
+
 def unique_name(wanted_name, set_of_names):
     """
     returns a wanted_name as wanted_name_i given a list of names
@@ -111,7 +116,7 @@ def arg_to_slice(arg=None):
     if isinstance(arg, slice):
         return arg
     elif isinstance(arg, int):
-        if arg == -1: # special case that needs to be without step, unless we know the number of elements
+        if arg == -1:  # special case that needs to be without step, unless we know the number of elements
             return slice(arg, None, None)
         return slice(arg, arg + 1, 1)
     elif arg is None:
@@ -331,7 +336,7 @@ def _string_statistics_summary(v, c):
         d[k] = f"{d[k]} characters"
 
     d["mode"] = mode
-    
+
     return d
 
 
