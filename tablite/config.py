@@ -23,5 +23,10 @@ class Config(object):
 
     PROCESSING_PRIORITY = "auto"
 
+    @classmethod
+    def reset(cls):
+        for k, v in _default_values.items():
+            setattr(Config, k, v)
 
-config = Config()
+
+_default_values = {k: v for k, v in Config.__dict__.items() if not k.startswith("__") or callable(v)}

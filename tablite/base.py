@@ -5,7 +5,7 @@ from pathlib import Path
 from itertools import count, chain
 
 from utils import type_check, intercept
-from config import config
+from config import Config
 
 
 class Page(object):
@@ -65,7 +65,7 @@ class Column(object):
         """
         type_check(values, np.ndarray)
         if page_size is None:
-            page_size = config.PAGE_SIZE
+            page_size = Config.PAGE_SIZE
         type_check(page_size, int)
 
         arrays = []
@@ -177,7 +177,7 @@ class Table(object):
         """
         if _path is None:
             if self._pid_dir is None:
-                self._pid_dir = Path(config.workdir) / f"pid-{os.getpid()}"
+                self._pid_dir = Path(Config.workdir) / f"pid-{os.getpid()}"
                 if not self._pid_dir.exists():
                     self._pid_dir.mkdir()
                     (self._pid_dir / "tables").mkdir()
@@ -353,26 +353,32 @@ def test_basics():
 
 
 def test_page_size():
-    config.PAGE_SIZE = 10
-    assert config.PAGE_SIZE == 10
+    original_value = Config.PAGE_SIZE
+
+    Config.PAGE_SIZE = 10
+    assert Config.PAGE_SIZE == 10
     A = list(range(1, 21))
     B = [i * 10 for i in A]
     C = [i * 10 for i in B]
     data = {"A": A, "B": B, "C": C}
 
+    # during __setitem__ Column.paginate will use config.
     t = Table(columns=data)
     assert t == data
     assert t.items() == data.items()
 
     x = t["A"]
     assert isinstance(x, Column)
-    assert len(x.pages) == math.ceil(len(A) / config.PAGE_SIZE)
-    config.PAGE_SIZE = 7
+    assert len(x.pages) == math.ceil(len(A) / Config.PAGE_SIZE)
+    Config.PAGE_SIZE = 7
     t2 = Table(columns=data)
     assert t == t2
     x2 = t2["A"]
     assert isinstance(x2, Column)
-    assert len(x2.pages) == math.ceil(len(A) / config.PAGE_SIZE)
+    assert len(x2.pages) == math.ceil(len(A) / Config.PAGE_SIZE)
+
+    Config.reset()
+    assert Config.PAGE_SIZE == original_value
 
 
 if __name__ == "__main__":
@@ -384,5 +390,5 @@ if __name__ == "__main__":
     it can be more efficient to maintain a list of tests locally in
     __main__ as it saves you from maintaining the imports.
     """
-    # test_basics()
+    test_basics()
     test_page_size()
