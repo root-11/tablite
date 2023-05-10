@@ -1,11 +1,30 @@
 import os
 import math
+
+import atexit
+import shutil
 import numpy as np
 from pathlib import Path
 from itertools import count, chain
 
 from utils import type_check, intercept
 from config import Config
+
+file_registry = set()
+
+
+def register(path):
+    global file_registry
+    file_registry.add(path)
+
+
+def shutdown():
+    for path in file_registry:
+        if str(os.getpid()) in str(path):  # safety feature to prevent rm -rf /
+            shutil.rmtree(path)
+
+
+atexit.register(shutdown)
 
 
 class Page(object):
@@ -183,6 +202,7 @@ class Table(object):
                     (self._pid_dir / "tables").mkdir()
                     (self._pid_dir / "pages").mkdir()
                     (self._pid_dir / "index").mkdir()
+                register(self._pid_dir)
 
             _path = Path(self._pid_dir) / f"{next(self._ids)}.yml"
             # if it exists under the given PID it will be overwritten.
@@ -381,6 +401,27 @@ def test_page_size():
     assert Config.PAGE_SIZE == original_value
 
 
+def test_cleaup():
+    A = list(range(1, 21))
+    B = [i * 10 for i in A]
+    C = [i * 10 for i in B]
+    data = {"A": A, "B": B, "C": C}
+
+    t = Table(columns=data)
+    assert isinstance(t, Table)
+    _folder = t._pid_dir
+    _t_path = t.path
+
+    del t
+    import gc
+
+    while gc.collect() > 0:
+        pass
+
+    assert _folder.exists()  # should be there until sigint.
+    assert not _t_path.exists()  # should have been deleted
+
+
 if __name__ == "__main__":
     print("running unittest in main")
     """
@@ -392,3 +433,4 @@ if __name__ == "__main__":
     """
     test_basics()
     test_page_size()
+    test_cleaup()
