@@ -5,7 +5,7 @@ from pathlib import Path
 from itertools import count, chain
 
 from utils import type_check, intercept
-import config
+from config import config
 
 
 class Page(object):
@@ -51,7 +51,7 @@ class Column(object):
         self.pages.append(page)
 
     @staticmethod
-    def _paginate(values, page_size=config.PAGE_SIZE):
+    def _paginate(values, page_size=None):
         """
         Takes a numpy array and turns it into
         a list of numpy arrays of page_size or less.
@@ -64,12 +64,14 @@ class Column(object):
             list of ndarrays
         """
         type_check(values, np.ndarray)
+        if page_size is None:
+            page_size = config.PAGE_SIZE
         type_check(page_size, int)
 
         arrays = []
-        n = 1 + int(math.ceil(len(values) // page_size) + 1) * page_size
+        n = int(math.ceil(len(values) / page_size)) * page_size
         start = 0
-        for end in range(page_size, n, page_size):
+        for end in range(page_size, n + 1, page_size):
             x = np.array(values[start:end])
             arrays.append(x)
             start = end
@@ -141,8 +143,8 @@ class Column(object):
         elif isinstance(other, Column):
             if self.pages == other.pages:  # special case.
                 return True
-            for p1, p2 in zip(self.pages, other.pages):
-                if not (p1.get() == p2.get()).all():
+            for a, b in zip(iter(self), iter(other)):
+                if a != b:
                     return False
             return True
 
@@ -317,15 +319,7 @@ class Table(object):
         return True
 
 
-if __name__ == "__main__":
-    print("running unittest in main")
-    """
-    Joe: Why is this here? Shouldn't all tests be in /tests?
-
-    Bjorn: Yes tests should be in /tests, but where you're refactoring
-    it can be more efficient to maintain a list of tests locally in
-    __main__ as it saves you from maintaining the imports.
-    """
+def test_basics():
     A = list(range(1, 21))
     B = [i * 10 for i in A]
     C = [i * 10 for i in B]
@@ -356,3 +350,39 @@ if __name__ == "__main__":
     assert x == list(A)
     assert x == np.array(A)
     assert x == tuple(A)
+
+
+def test_page_size():
+    config.PAGE_SIZE = 10
+    assert config.PAGE_SIZE == 10
+    A = list(range(1, 21))
+    B = [i * 10 for i in A]
+    C = [i * 10 for i in B]
+    data = {"A": A, "B": B, "C": C}
+
+    t = Table(columns=data)
+    assert t == data
+    assert t.items() == data.items()
+
+    x = t["A"]
+    assert isinstance(x, Column)
+    assert len(x.pages) == math.ceil(len(A) / config.PAGE_SIZE)
+    config.PAGE_SIZE = 7
+    t2 = Table(columns=data)
+    assert t == t2
+    x2 = t2["A"]
+    assert isinstance(x2, Column)
+    assert len(x2.pages) == math.ceil(len(A) / config.PAGE_SIZE)
+
+
+if __name__ == "__main__":
+    print("running unittest in main")
+    """
+    Joe: Why is this here? Shouldn't all tests be in /tests?
+
+    Bjorn: Yes tests should be in /tests, but where you're refactoring
+    it can be more efficient to maintain a list of tests locally in
+    __main__ as it saves you from maintaining the imports.
+    """
+    # test_basics()
+    test_page_size()
