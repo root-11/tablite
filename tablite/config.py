@@ -2,29 +2,26 @@ import os
 import pathlib
 import tempfile
 
-__tmpdir__ = pathlib.Path(os.environ.get("TABLITE_TMPDIR", tempfile.gettempdir()))
-__tmpdir__.mkdir(parents=True, exist_ok=True)
 
-# The default location for the storage
-H5_STORAGE = __tmpdir__ / "tablite.hdf5"
-# to overwrite first import the config class:
-# >>> from tablite.config import Config
-# >>> Config.H5_STORAGE = /this/new/location
-# then import the Table class
-# >>> from tablite import Table
-# for every new table or record this path will be used.
+class Config(object):
+    # The default location for the storage
+    workdir = pathlib.Path(os.environ.get("TABLITE_TMPDIR", f"{tempfile.gettempdir()}/tablite-tmp"))
+    workdir.mkdir(parents=True, exist_ok=True)
+    # to overwrite first import the config class:
+    # >>> from tablite import config
+    # >>> from pathlib import Path
+    # >>> config.workdir = Path("/this/new/location")
+    # for every new table or record this path will be used.
 
-H5_PAGE_SIZE = 1_000_000  # sets the page size limit.
+    PAGE_SIZE = 1_000_000  # sets the page size limit.
+    ENCODING = "UTF-8"  # sets the page encoding when using bytes
+    DISK_LIMIT = 10e9  # 10e9 (10Gb) on 100 Gb disk means raise at 90 Gb disk usage.
 
-H5_ENCODING = "UTF-8"  # sets the page encoding when using bytes
+    SINGLE_PROCESSING_LIMIT = 1_000_000
+    # when the number of fields (rows x columns)
+    # exceed this value, multiprocessing is used.
 
-SINGLE_PROCESSING_LIMIT = 1_000_000
-# when the number of fields (rows x columns)
-# exceed this value, multiprocessing is used.
+    PROCESSING_PRIORITY = "auto"
 
-TEMPDIR = pathlib.Path(__tmpdir__) / "tablite-tmp"
-if not TEMPDIR.exists():
-    TEMPDIR.mkdir()
-# tempdir for file_reader and other temporary files.
 
-PROCESSING_PRIORITY = "auto"
+config = Config()
