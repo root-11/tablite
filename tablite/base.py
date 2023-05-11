@@ -75,7 +75,7 @@ class Column(object):
             value (Iterable, optional): Data to store. Defaults to None.
         """
         self.path = path
-        self.pages = []
+        self.pages = []  # keeps pointers to instances of Page
         if value is not None:
             self.extend(value)
 
@@ -115,7 +115,14 @@ class Column(object):
             self.pages.append(Page(path=self.path.parent, array=array))
 
     def __getitem__(self, item):  # USER FUNCTION.
-        # user function.
+        """gets numpy array.
+
+        Args:
+            item (slice): slice of column
+
+        Returns:
+            np.ndarray: results as numpy array.
+        """
         pages = self.getpages(item)
         result = []
         for element in pages:
@@ -123,7 +130,8 @@ class Column(object):
                 result.append(element.get())
             else:
                 result.append(element)
-
+        if not result:
+            return np.array([])
         dtypes = {arr.dtype: len(arr) for arr in result}
         if len(dtypes) == 1:
             dtype, _ = dtypes.popitem()
@@ -196,6 +204,9 @@ class Column(object):
         else:
             raise TypeError
 
+    def copy(self):
+        raise AttributeError("Column requires path")
+
 
 class Table(object):
     _pid_dir = None  # workdir / gettpid /
@@ -226,8 +237,8 @@ class Table(object):
             _path = Path(self._pid_dir) / f"{next(self._ids)}.yml"
             # if it exists under the given PID it will be overwritten.
         type_check(_path, Path)
-        self.path = _path
-        self.columns = {}
+        self.path = _path  # filename used during multiprocessing.
+        self.columns = {}  # maps colunn names to instances of Column.
 
         # user friendly features.
         if columns and any((headers, rows)):
@@ -257,6 +268,26 @@ class Table(object):
         Args:
             key (str): column name
             value (iterable): list, tuple or nd.array with values.
+
+        As Table now accepts the keyword `columns` as a dict:
+            t = Table(columns={'b':[4,5,6], 'c':[7,8,9]})
+        and the header/data combinations:
+            t = Table(header=['b','c'], data=[[4,5,6],[7,8,9]])
+
+        it is no longer necessary to write:
+            t = Table
+            t['b'] = [4,5,6]
+            t['c'] = [7,8,9]
+
+        and the following assignment method is DEPRECATED:
+
+            t = Table()
+            t[('b','c')] = [ [4,5,6], [7,8,9] ]
+            Which then produced the table with two columns:
+            t['b'] == [4,5,6]
+            t['c'] == [7,8,9]
+
+        This has the side-benefit that tuples now can be used as headers.
         """
         if isinstance(value, (list, tuple)):
             value = np.array(value)
@@ -435,6 +466,15 @@ class Table(object):
                 t.columns[name] = column
         return t
 
+    def copy(self):
+        cls = type(self)
+        t = cls()
+        for name, column in self.columns.items():
+            new = Column(t.path)
+            new.pages = column.pages[:]
+            t.columns[name] = new
+        return t
+
 
 def test_basics():
     A = list(range(1, 21))
@@ -469,6 +509,16 @@ def test_basics():
     assert x == tuple(A)
 
 
+def test_empty_table():
+    t2 = Table()
+    assert isinstance(t2, Table)
+    t2["A"] = []
+    assert len(t2) == 0
+    c = t2["A"]
+    assert isinstance(c, Column)
+    assert len(c) == 0
+
+
 def test_page_size():
     original_value = Config.PAGE_SIZE
 
@@ -499,7 +549,7 @@ def test_page_size():
 
 
 def test_cleaup():
-    A = list(range(1, 21))
+    A = list(range(1, 10_000_000))
     B = [i * 10 for i in A]
     C = [i * 10 for i in B]
     data = {"A": A, "B": B, "C": C}
@@ -559,6 +609,64 @@ def save_and_load():
     os.rmdir(my_folder)
 
 
+def test_copy():
+    A = list(range(1, 21))
+    B = [i * 10 for i in A]
+    C = [i * 10 for i in B]
+    data = {"A": A, "B": B, "C": C}
+
+    t1 = Table(columns=data)
+    assert isinstance(t1, Table)
+
+    t2 = t1.copy()
+    for name, t2column in t2.columns.items():
+        t1column = t1.columns[name]
+        assert id(t2column) != id(t1column)
+        for p2, p1 in zip(t2column.pages, t1column.pages):
+            assert id(p2) == id(p1), "columns can point to the same pages."
+
+
+def test_speed():
+    log.setLevel(logging.INFO)
+    A = list(range(1, 10_000_000))
+    B = [i * 10 for i in A]
+    data = {"A": A, "B": B}
+    t = Table(columns=data)
+    import time
+    import random
+
+    loops = 100
+    random.seed(42)
+    start = time.time()
+    for i in range(loops):
+        a, b = random.randint(1, len(A)), random.randint(1, len(A))
+        a, b = min(a, b), max(a, b)
+        block = t["A"][a:b]  # pure numpy.
+        assert len(block) == b - a
+    end = time.time()
+    print(f"numpy array: {end-start}")
+
+    random.seed(42)
+    start = time.time()
+    for i in range(loops):
+        a, b = random.randint(1, len(A)), random.randint(1, len(A))
+        a, b = min(a, b), max(a, b)
+        block = t["A"][a:b].tolist()  # python.
+        assert len(block) == b - a
+    end = time.time()
+    print(f"python list: {end-start}")
+
+
+def test_immutability_of_pages():
+    A = list(range(1, 21))
+    B = [i * 10 for i in A]
+    C = [i * 10 for i in B]
+    data = {"A": A, "B": B, "C": C}
+    t = Table(columns=data)
+    change = t["A"][7:3:-1]
+    t["A"][3:7] = change
+
+
 if __name__ == "__main__":
     print("running unittest in main")
     """
@@ -578,7 +686,11 @@ if __name__ == "__main__":
 
     start = time.time()
     test_basics()
-    test_page_size()
-    test_cleaup()
-    save_and_load()
+    test_empty_table()
+    # test_page_size()
+    # test_cleaup()
+    # save_and_load()
+    # test_copy()
+    # test_speed()
+    # test_immutability_of_pages()
     print(f"duration: {time.time()-start}")  # duration: 5.388719081878662 with 30M elements.
