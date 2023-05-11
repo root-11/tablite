@@ -114,6 +114,31 @@ class Column(object):
         for array in self._paginate(value):
             self.pages.append(Page(path=self.path.parent, array=array))
 
+    def getpages(self, item):
+        # internal function
+        type_check(item, slice)
+        item = slice(*item.indices(len(self)))
+        range_item = range(*item.indices(len(self)))
+        pages = []
+        start, end = 0, 0
+        for page in self.pages:
+            start, end = end, end + page.len
+            if start > item.stop:
+                break
+            if end < item.start:
+                continue
+            ro = intercept(range(start, end), range_item)
+            if len(ro) == 0:
+                continue
+            elif len(ro) == page.len:  # share the whole immutable page
+                pages.append(page)
+            else:  # fetch the slice and filter it.
+                search_slice = slice(ro.start - start, ro.stop - start, ro.step)
+                np_arr = np.load(page.path, allow_pickle=True, fix_imports=False)
+                match = np_arr[search_slice]
+                pages.append(match)
+        return pages
+
     def __getitem__(self, item):  # USER FUNCTION.
         """gets numpy array.
 
@@ -139,31 +164,6 @@ class Column(object):
             for ix, arr in enumerate(result):
                 result[ix] = np.array(arr, dtype=object)
         return np.concatenate(result, dtype=dtype)
-
-    def getpages(self, item):
-        # internal function
-        type_check(item, slice)
-        item = slice(*item.indices(len(self)))
-        range_item = range(*item.indices(len(self)))
-        pages = []
-        start, end = 0, 0
-        for page in self.pages:
-            start, end = end, end + page.len
-            if start > item.stop:
-                break
-            if end < item.start:
-                continue
-            ro = intercept(range(start, end), range_item)
-            if len(ro) == 0:
-                continue
-            elif len(ro) == page.len:  # share the whole immutable page
-                pages.append(page)
-            else:  # fetch the slice and filter it.
-                search_slice = slice(ro.start - start, ro.stop - start, ro.step)
-                np_arr = np.load(page.path, allow_pickle=True, fix_imports=False)
-                match = np_arr[search_slice]
-                pages.append(match)
-        return pages
 
     def __iter__(self):  # USER FUNCTION.
         for page in self.pages:
@@ -692,5 +692,5 @@ if __name__ == "__main__":
     # save_and_load()
     # test_copy()
     # test_speed()
-    # test_immutability_of_pages()
+    test_immutability_of_pages()
     print(f"duration: {time.time()-start}")  # duration: 5.388719081878662 with 30M elements.
