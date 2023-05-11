@@ -68,6 +68,12 @@ class Page(object):
 
 class Column(object):
     def __init__(self, path, value=None) -> None:
+        """Create Column
+
+        Args:
+            path (Path): path of table.yml
+            value (Iterable, optional): Data to store. Defaults to None.
+        """
         self.path = path
         self.pages = []
         if value is not None:
@@ -75,9 +81,6 @@ class Column(object):
 
     def __len__(self):
         return sum(len(p) for p in self.pages)
-
-    def extend_from_pages(self, page):
-        self.pages.append(page)
 
     @staticmethod
     def _paginate(values, page_size=None):
@@ -106,15 +109,12 @@ class Column(object):
             start = end
         return arrays
 
-    def from_pages(self, iterable):
-        self.pages.extend(iterable)
-
-    def extend(self, value):
+    def extend(self, value):  # USER FUNCTION.
         type_check(value, np.ndarray)
         for array in self._paginate(value):
             self.pages.append(Page(path=self.path.parent, array=array))
 
-    def __getitem__(self, item):
+    def __getitem__(self, item):  # USER FUNCTION.
         # user function.
         pages = self.getpages(item)
         result = []
@@ -157,12 +157,12 @@ class Column(object):
                 pages.append(match)
         return pages
 
-    def __iter__(self):
+    def __iter__(self):  # USER FUNCTION.
         for page in self.pages:
             for value in page.get():
                 yield value
 
-    def __eq__(self, other):
+    def __eq__(self, other):  # USER FUNCTION.
         if len(self) != len(other):  # quick cheap check.
             return False
 
@@ -218,15 +218,15 @@ class Table(object):
                 self._pid_dir = Path(Config.workdir) / f"pid-{os.getpid()}"
                 if not self._pid_dir.exists():
                     self._pid_dir.mkdir()
-                    (self._pid_dir / "tables").mkdir()
-                    (self._pid_dir / "pages").mkdir()  # NOT USED.
+                    (self._pid_dir / "tables").mkdir()  # NOT USED.
+                    (self._pid_dir / "pages").mkdir()
                     (self._pid_dir / "index").mkdir()  # NOT USED.
                 register(self._pid_dir)
 
             _path = Path(self._pid_dir) / f"{next(self._ids)}.yml"
             # if it exists under the given PID it will be overwritten.
         type_check(_path, Path)
-        self.path = _path  # NOT USED.
+        self.path = _path
         self.columns = {}
 
         # user friendly features.
@@ -242,7 +242,7 @@ class Table(object):
             for k, v in columns.items():
                 self.__setitem__(k, v)
 
-    def __str__(self):
+    def __str__(self):  # USER FUNCTION.
         return f"{self.__class__.__name__}({len(self.columns):,} columns, {len(self):,} rows)"
 
     def __repr__(self):
@@ -322,7 +322,7 @@ class Table(object):
                     if isinstance(item, np.ndarray):
                         new_column.extend(item)  # extend subslice (expensive)
                     elif isinstance(item, Page):
-                        new_column.extend_from_pages(item)  # extend page (cheap)
+                        new_column.pages.append(item)  # extend page (cheap)
                     else:
                         raise TypeError(f"Bad item: {item}")
 
@@ -333,10 +333,10 @@ class Table(object):
 
             return t
 
-    def __len__(self):
+    def __len__(self):  # USER FUNCTION.
         return max(len(c) for c in self.columns.values())
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other) -> bool:  # USER FUNCTION.
         """
         Determines if two tables have identical content.
         """
@@ -357,7 +357,7 @@ class Table(object):
                 return False
         return True
 
-    def save(self, path):
+    def save(self, path):  # USER FUNCTION.
         """saves table to compressed tpz file.
 
         .tpz is a gzip archive with table metadata captured as table.yml
@@ -411,7 +411,7 @@ class Table(object):
             log.debug("write completed.")
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path):  # USER FUNCTION.
         """loads a table from .tpz file.
 
         Args:
