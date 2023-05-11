@@ -1,9 +1,11 @@
 import os
+import io
 import math
-
+import yaml
 import atexit
 import shutil
 import logging
+import zipfile
 import numpy as np
 from pathlib import Path
 from itertools import count, chain
@@ -345,6 +347,83 @@ class Table(object):
                 return False
         return True
 
+    def save(self, path):
+        """saves table to compressed tpz file.
+
+        .tpz is a gzip archive with table metadata captured as table.yml
+        and the necessary set of pages saved as .npy files.
+
+        --------------------------------------
+        %YAML 1.2                              yaml version
+        temp = false                           temp identifier.
+        columns:                               start of columns section.
+            name: “列 1”                       name of column 1.
+                pages: [p1b1, p1b2]            list of pages in column 1.
+                length: [1_000_000, 834_312]   list of page-lengths
+                types: [0,0]                   list of zeroes, so column 1 is a C-level data format.
+            name: “列 2”                       name of column 2
+                pages: [p2b1, p2b2]            list of pages in column 2.
+                length: [1_000_000, 834_312]   list of page-lengths
+                types: [p3b1, p3b2]            list of nonzero type codes, so column 2 is not a C-level data format.
+        ----------------------------------------
+
+        Args:
+            path (Path): workdir / PID / tables / <int>.yml
+            table (_type_): Table.
+        """
+        type_check(path, Path)
+        if path.is_dir():
+            raise TypeError(f"filename needed: {path}")
+        if path.suffix != ".tpz":
+            path += ".tpz"
+
+        d = {"temp": False}
+        cols = {}
+        for name, col in self.columns.items():
+            type_check(col, Column)
+            cols[name] = {
+                "pages": [p.path.name for p in col.pages],
+                "length": [p.len for p in col.pages],
+                "types": [0 for _ in col.pages],
+            }
+        d["columns"] = cols
+
+        yml = yaml.safe_dump(d, sort_keys=False, allow_unicode=True, default_flow_style=None)
+
+        with zipfile.ZipFile(path, "w") as f:  # raise if exists.
+            log.debug(f"writing .tpz to {path} with\n{yml}")
+            f.writestr("table.yml", yml)
+            for name, col in self.columns.items():
+                for page in col.pages:
+                    with open(page.path, "rb", buffering=0) as raw_io:
+                        f.writestr(page.path.name, raw_io.read())
+                    log.debug(f"adding Page {page.path}")
+            log.debug("write completed.")
+
+    @classmethod
+    def load(cls, path):
+        """loads a table from .tpz file.
+
+        Args:
+            path (Path): source file
+
+        Returns:
+            Table: table in read-only mode.
+        """
+        type_check(path, Path)
+        with zipfile.ZipFile(path, "r") as f:
+            yml = f.read("table.yml")
+            metadata = yaml.safe_load(yml)
+            t = cls()
+            for name, d in metadata["columns"].items():
+                column = Column(t.path)
+                for page in d["pages"]:
+                    bytestream = io.BytesIO(f.read(page))
+                    data = np.load(bytestream, allow_pickle=True, fix_imports=False)
+                    column.extend(data)
+                t.columns[name] = column
+        return t
+
 
 def test_basics():
     A = list(range(1, 21))
@@ -429,6 +508,46 @@ def test_cleaup():
     assert not _t_path.exists()  # should have been deleted
 
 
+def save_and_load():
+    A = list(range(1, 21))
+    B = [i * 10 for i in A]
+    C = [i * 10 for i in B]
+    data = {"A": A, "B": B, "C": C}
+
+    t = Table(columns=data)
+    assert isinstance(t, Table)
+    my_folder = Path(Config.workdir) / "data"
+    my_folder.mkdir(exist_ok=True)
+    my_file = my_folder / "my_first_file.tpz"
+    t.save(my_file)
+    assert my_file.exists()
+    assert os.path.getsize(my_file) > 0
+
+    del t
+    import gc
+
+    while gc.collect() > 0:
+        pass
+
+    assert my_file.exists()
+    t2 = Table.load(my_file)
+
+    t3 = Table(columns=data)
+    assert t2 == t3
+    assert t2.path.parent == t3.path.parent, "t2 must be loaded into same PID dir as t3"
+
+    del t2
+    while gc.collect() > 0:
+        pass
+
+    assert my_file.exists(), "deleting t2 MUST not affect the file saved by the user."
+    t4 = Table.load(my_file)
+    assert t4 == t3
+
+    os.remove(my_file)
+    os.rmdir(my_folder)
+
+
 if __name__ == "__main__":
     print("running unittest in main")
     """
@@ -447,3 +566,4 @@ if __name__ == "__main__":
     test_basics()
     test_page_size()
     test_cleaup()
+    save_and_load()
