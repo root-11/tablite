@@ -58,7 +58,8 @@ class Page(object):
 
     def __del__(self):
         # trigger explicitly during cleanup UNLESS it's a users explicit save.
-        os.remove(self.path)
+        if self.path.exists():
+            os.remove(self.path)
         log.debug(f"Page deleted: {self.path}")
 
     def get(self):
@@ -171,6 +172,15 @@ class Column(object):
         elif isinstance(other, Column):
             if self.pages == other.pages:  # special case.
                 return True
+
+            # are the pages of same size?
+            if len(self.pages) == len(other.pages):
+                if [p.len for p in self.pages] == [p.len for p in other.pages]:
+                    for a, b in zip(self.pages, other.pages):
+                        if not (a.get() == b.get()).all():
+                            return False
+                    return True
+            # to bad. Element comparison it is then:
             for a, b in zip(iter(self), iter(other)):
                 if a != b:
                     return False
@@ -411,6 +421,7 @@ class Table(object):
             Table: table in read-only mode.
         """
         type_check(path, Path)
+        log.debug(f"loading {path}")
         with zipfile.ZipFile(path, "r") as f:
             yml = f.read("table.yml")
             metadata = yaml.safe_load(yml)
@@ -563,7 +574,11 @@ if __name__ == "__main__":
     formatter = logging.Formatter("%(levelname)s : %(message)s")
     console.setFormatter(formatter)
     log.addHandler(console)
+    import time
+
+    start = time.time()
     test_basics()
     test_page_size()
     test_cleaup()
     save_and_load()
+    print(f"duration: {time.time()-start}")  # duration: 5.388719081878662 with 30M elements.
