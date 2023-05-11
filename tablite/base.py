@@ -3,12 +3,16 @@ import math
 
 import atexit
 import shutil
+import logging
 import numpy as np
 from pathlib import Path
 from itertools import count, chain
 
 from utils import type_check, intercept
 from config import Config
+
+log = logging.getLogger(__name__)
+
 
 file_registry = set()
 
@@ -21,6 +25,7 @@ def register(path):
 def shutdown():
     for path in file_registry:
         if str(os.getpid()) in str(path):  # safety feature to prevent rm -rf /
+            log.debug(f"shutdown: running rmtree({path})")
             shutil.rmtree(path)
 
 
@@ -44,13 +49,15 @@ class Page(object):
 
         self.len = len(array)
         np.save(self.path, array, allow_pickle=True, fix_imports=False)
+        log.debug(f"Page saved: {self.path}")
 
     def __len__(self):
         return self.len
 
-    def delete(self):
+    def __del__(self):
         # trigger explicitly during cleanup UNLESS it's a users explicit save.
         os.remove(self.path)
+        log.debug(f"Page deleted: {self.path}")
 
     def get(self):
         return np.load(self.path, allow_pickle=True, fix_imports=False)
@@ -200,14 +207,14 @@ class Table(object):
                 if not self._pid_dir.exists():
                     self._pid_dir.mkdir()
                     (self._pid_dir / "tables").mkdir()
-                    (self._pid_dir / "pages").mkdir()
-                    (self._pid_dir / "index").mkdir()
+                    (self._pid_dir / "pages").mkdir()  # NOT USED.
+                    (self._pid_dir / "index").mkdir()  # NOT USED.
                 register(self._pid_dir)
 
             _path = Path(self._pid_dir) / f"{next(self._ids)}.yml"
             # if it exists under the given PID it will be overwritten.
         type_check(_path, Path)
-        self.path = _path
+        self.path = _path  # NOT USED.
         self.columns = {}
 
         # user friendly features.
@@ -431,6 +438,12 @@ if __name__ == "__main__":
     it can be more efficient to maintain a list of tests locally in
     __main__ as it saves you from maintaining the imports.
     """
+    log.setLevel(logging.DEBUG)
+    console = logging.StreamHandler()
+    console.setLevel(level=logging.DEBUG)
+    formatter = logging.Formatter("%(levelname)s : %(message)s")
+    console.setFormatter(formatter)
+    log.addHandler(console)
     test_basics()
     test_page_size()
     test_cleaup()
