@@ -283,16 +283,16 @@ class Column(object):
         # determine unchanged pages
         head, changed, tail = [], [], []
         start, end = 0, 0
-        for index, page in enumerate(self.pages):
+        for page in self.pages:
             start, end = end, end + page.len
 
             if end <= key_start:
                 head.append(page)
             elif start <= key_start < end:
-                changed.append(index)
+                changed.append(page)
                 starts_on = start
             elif start <= key_stop < end:
-                changed.append(index)
+                changed.append(page)
             else:  # key_stop < start:
                 tail.append(page)
 
@@ -311,6 +311,61 @@ class Column(object):
             new[position] = value[index - starts_on]
         new_pages = self._paginate(new)
         # merge.
+        self.pages = head + new_pages + tail
+
+    def __delitem__(self, key):
+        if isinstance(key, int):
+            self._del_by_int(key)
+        elif isinstance(key, slice):
+            self._del_by_slice(key)
+        else:
+            raise KeyError(f"bad key: {key}")
+
+    def _del_by_int(self, key):
+        """del column[n]"""
+        start, end = 0, 0
+        for index, page in enumerate(self.pages):
+            start, end = end, end + page.len
+            if start <= key < end:
+                data = page.get()
+                new_data = np.delete(data, [key])
+                new_page = Page(self.path, new_data)
+                self.pages[index] = new_page
+
+    def _del_by_slice(self, key):
+        """del column[m:n:o]"""
+        key_start, key_stop, key_step = key.indices(self._len)
+        seq = range(key_start, key_stop, key_step)
+
+        # determine change
+        head, changed, tail = [], [], []
+        start, end = 0, 0
+        for page in self.pages:
+            start, end = end, end + page.len
+            if key_stop < start:
+                head.append(page)
+            elif start <= key_start < end:
+                starts_on = start
+                changed.append(page)
+            elif start <= key_stop <= end:
+                changed.append(page)
+            else:  # key_stop < start:
+                tail.append(page)
+
+        # create np array
+        changed_pages = [p.get() for p in changed]
+        dtypes = {arr.dtype for arr in changed_pages}
+
+        if len(dtypes) == 1:
+            dtype = dtypes.pop()
+        else:
+            for ix, arr in enumerate(changed_pages):
+                changed_pages[ix] = np.array(arr, dtype=object)
+        new = np.concatenate(changed_pages, dtype=dtype)
+        # create mask for np.delete.
+        filter = [i - starts_on for i in seq]
+        pruned = np.delete(new, filter)
+        new_pages = self._paginate(pruned)
         self.pages = head + new_pages + tail
 
     def __iter__(self):  # USER FUNCTION.
