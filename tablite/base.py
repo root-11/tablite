@@ -1,5 +1,6 @@
 import os
 import io
+import sys
 import math
 import yaml
 import atexit
@@ -10,7 +11,7 @@ import numpy as np
 from pathlib import Path
 from itertools import count, chain
 
-from utils import type_check, intercept
+from utils import type_check, intercept, np_type_unify
 from config import Config
 
 log = logging.getLogger(__name__)
@@ -157,13 +158,160 @@ class Column(object):
                 result.append(element)
         if not result:
             return np.array([])
-        dtypes = {arr.dtype: len(arr) for arr in result}
+        return np_type_unify(result)
+
+    def __setitem__(self, key, value):
+        if isinstance(key, int):
+            self._setitem_integer_key(key, value)
+
+        elif isinstance(key, slice):
+            type_check(value, np.ndarray)
+
+            if key.start is None and key.stop is None and key.step in (None, 1):
+                self._setitem_replace_all(key, value)
+            elif key.start is not None and key.stop is None and key.step in (None, 1):
+                self._setitem_extend(key, value)
+            elif key.stop is not None and key.start is None and key.step in (None, 1):
+                self._setitem_prextend(key, value)
+            elif key.step in (None, 1) and key.start is not None and key.stop is not None:
+                self._setitem_insert(key, value)
+            elif key.step not in (None, 1):
+                self._setitem_update(key, value)
+            else:
+                raise KeyError(f"bad key: {key}")
+        raise KeyError(f"bad key: {key}")
+
+    def _setitem_integer_key(self, key, value):
+        # documentation:
+        # example: L[3] = 27
+        if isinstance(value, (list, type, np.ndarray)):
+            raise TypeError(
+                f"your key is an integer, but your value is a {type(value)}. \
+                    Did you mean to insert? E.g. [{key}:{key+1}] = {value} ?"
+            )
+        length = len(self)
+        key = length + key if key < 0 else key
+        if not (0 <= key < length):
+            raise IndexError("list assignment index out of range")
+
+        # now there's a positive key and a single value.
+        start, end = 0, 0
+        for index, page in enumerate(self.pages):
+            start, end = end, end + page.len
+            if start <= key < end:
+                data = page.get()
+                data[key - start] = value
+                new_page = Page(self.path, data)
+                self.pages[index] = new_page
+                break
+
+    def _setitem_replace_all(self, key, value):
+        # documentation: new = list(value)
+        # example: L[:] = [1,2,3]
+        self.pages.clear()  # Page.__del__ will take care of removed pages.
+        self.extend(value)  # Column.extend handles pagination.
+
+    def _setitem_extend(self, key, value):
+        # documentation: new = old[:key.start] + list(value)
+        # example: L[0:] = [1,2,3]
+        start, end = 0, 0
+        for index, page in enumerate(self.pages):
+            start, end = end, end + page.len
+            if start <= key.start < end:  # find beginning
+                data = page.get()
+                keep = data[key.start - start :]
+                new = np_type_unify([keep, value])
+                self.pages = self.pages[:index]
+                self.extend(new)
+                break
+
+    def _setitem_prextend(self, key, value):
+        # documentation: new = list(value) + old[key.stop:]
+        # example: L[:3] = [1,2,3]
+        start, end = 0, 0
+        for index, page in enumerate(self.pages):
+            start, end = end, end + page.len
+            if start <= key.stop < end:  # find beginning
+                data = page.get()
+                keep = data[: key.stop - start]  # keeping up to key.stop
+                new = np_type_unify([value, keep])
+                tail = self.pages[index:]  # keep pointers to pages.
+                self.pages = []
+                self.extend(new)  # handles pagination.
+                self.pages.extend(tail)  # handles old pages.
+                break
+
+    def _setitem_insert(self, key, value):
+        # documentation: new = old[:start] + list(values) + old[stop:]
+        # L[3:5] = [1,2,3]
+        key_start, key_stop, _ = key.indices(self._len)
+        # create 3 partitions: A + B + C = head + new + tail
+
+        result_head, result_tail = [], []
+        # first partition:
+        start, end = 0, 0
+        for page in self.pages:
+            start, end = end, end + page.len
+            data = None
+            if end <= key_start:
+                result_head.append(page)
+
+            if start <= key_start < end:  # end of head
+                data = page.get()
+                head = data[: key_start - start]
+
+            if start <= key_stop < end:  # start of tail
+                data = page.get() if data is None else data  # don't load again if on same page.
+                tail = data[key_stop - start :]
+
+            if key_stop < start:
+                result_tail.append(page)
+
+        middle = np_type_unify([head, value, tail])
+        new_pages = self._paginate(middle)
+        self.pages = result_head + new_pages + result_tail
+
+    def _setitem_update(self, key, value):
+        # documentation: See also test_slice_rules.py/MyList for details
+        key_start, key_stop, key_step = key.indices(self._len)
+
+        seq = range(key_start, key_stop, key_step)
+        seq_size = len(seq)
+        if len(value) > seq_size:
+            raise ValueError(f"attempt to assign sequence of size {len(value)} to extended slice of size {seq_size}")
+
+        # determine unchanged pages
+        head, changed, tail = [], [], []
+        start, end = 0, 0
+        for index, page in enumerate(self.pages):
+            start, end = end, end + page.len
+
+            if end <= key_start:
+                head.append(page)
+            elif start <= key_start < end:
+                changed.append(index)
+                starts_on = start
+            elif start <= key_stop < end:
+                changed.append(index)
+            else:  # key_stop < start:
+                tail.append(page)
+
+        # determine changed pages.
+        changed_pages = [p.get() for p in changed]
+        dtypes = {arr.dtype for arr in (changed_pages + [value])}
+
         if len(dtypes) == 1:
-            dtype, _ = dtypes.popitem()
+            dtype = dtypes.pop()
         else:
-            for ix, arr in enumerate(result):
-                result[ix] = np.array(arr, dtype=object)
-        return np.concatenate(result, dtype=dtype)
+            for ix, arr in enumerate(changed_pages):
+                changed_pages[ix] = np.array(arr, dtype=object)
+        new = np.concatenate(changed_pages, dtype=dtype)
+
+        for index, position in zip(range(len(value)), seq):
+            new[position] = value[index - starts_on]
+        new_pages = self._paginate(new)
+        # merge.
+        self.pages = head + new_pages + tail
 
     def __iter__(self):  # USER FUNCTION.
         for page in self.pages:
@@ -687,10 +835,10 @@ if __name__ == "__main__":
     start = time.time()
     test_basics()
     test_empty_table()
-    # test_page_size()
-    # test_cleaup()
-    # save_and_load()
+    test_page_size()
+    test_cleaup()
+    save_and_load()
     # test_copy()
     # test_speed()
-    test_immutability_of_pages()
+    # test_immutability_of_pages()
     print(f"duration: {time.time()-start}")  # duration: 5.388719081878662 with 30M elements.
