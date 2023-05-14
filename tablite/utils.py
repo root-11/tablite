@@ -1,13 +1,24 @@
 from collections import defaultdict
+import numpy as np
 import math
 import ast
 from datetime import datetime, date, time, timedelta, timezone  # noqa
 from itertools import compress
 
 
-def type_check(var, type_):
-    if not isinstance(var, type):
-        raise TypeError(f"Expected {type_}, not {type(var)}")
+def type_check(var, kind):
+    if not isinstance(var, kind):
+        raise TypeError(f"Expected {kind}, not {type(var)}")
+
+
+def np_type_unify(arrays):
+    dtypes = {arr.dtype: len(arr) for arr in arrays}
+    if len(dtypes) == 1:
+        dtype, _ = dtypes.popitem()
+    else:
+        for ix, arr in enumerate(arrays):
+            arrays[ix] = np.array(arr, dtype=object)
+    return np.concatenate(arrays, dtype=dtype)
 
 
 def unique_name(wanted_name, set_of_names):
@@ -66,42 +77,66 @@ def intercept(A, B):
     Returns:
         range: The intercept of ranges A and B.
     """
-    if not isinstance(A, range):
-        raise TypeError
-    if A.step < 0:  # turn the range around
-        A = range(A.stop, A.start, abs(A.step))
+    type_check(A, range)
+    type_check(B, range)
 
-    if not isinstance(B, range):
-        raise TypeError
-    if B.step < 0:  # turn the range around
-        B = range(B.stop, B.start, abs(B.step))
+    if A.step < 1:
+        A = range(A.stop + 1, A.start + 1, 1)
+    if B.step < 1:
+        B = range(B.stop + 1, B.start + 1, 1)
 
-    boundaries = [A.start, A.stop, B.start, B.stop]
-    boundaries.sort()
-    a, b, c, d = boundaries
-    if [A.start, A.stop] in [[a, b], [c, d]]:
-        return range(0)  # then there is no intercept
-    # else: The inner range (subset) is b,c, limited by the first shared step.
-    A_start_steps = math.ceil((b - A.start) / A.step)
-    A_start = A_start_steps * A.step + A.start
+    if len(A) == 0:
+        return range(0)
+    if len(B) == 0:
+        return range(0)
 
-    B_start_steps = math.ceil((b - B.start) / B.step)
-    B_start = B_start_steps * B.step + B.start
+    if A.stop <= B.start:
+        return range(0)
+    if A.start >= B.stop:
+        return range(0)
+
+    if A.start <= B.start:
+        if A.stop <= B.stop:
+            start, end = B.start, A.stop
+        elif A.stop > B.stop:
+            start, end = B.start, B.stop
+        else:
+            raise ValueError("bad logic")
+    elif A.start < B.stop:
+        if A.stop <= B.stop:
+            start, end = A.start, A.stop
+        elif A.stop > B.stop:
+            start, end = A.start, B.stop
+        else:
+            raise ValueError("bad logic")
+    else:
+        raise ValueError("bad logic")
+
+    a_steps = math.ceil((start - A.start) / A.step)
+    a_start = (a_steps * A.step) + A.start
+
+    b_steps = math.ceil((start - B.start) / B.step)
+    b_start = (b_steps * B.step) + B.start
 
     if A.step == 1 or B.step == 1:
-        start = max(A_start, B_start)
-        step = B.step if A.step == 1 else A.step
-        end = c
-    else:
-        intersection = set(range(A_start, c, A.step)).intersection(set(range(B_start, c, B.step)))
-        if not intersection:
+        start = max(a_start, b_start)
+        step = max(A.step, B.step)
+        return range(start, end, step)
+    elif A.step == B.step:
+        a, b = min(A.start, B.start), max(A.start, B.start)
+        if (b - a) % A.step != 0:  # then the ranges are offset.
             return range(0)
-        start = min(intersection)
-        end = max(c, max(intersection))
-        intersection.remove(start)
-        step = min(intersection) - start
-
-    return range(start, end, step)
+        else:
+            return range(b, end, step)
+    else:
+        if A.step < B.step:
+            for n in range(a_start, end, A.step):  # increment in smallest step to identify the first common value.
+                if (n - b_start) % B.step == 0:
+                    return range(n, end, A.step * B.step)  # common value found.
+        else:
+            for n in range(b_start, end, B.step):
+                if (n - a_start) % B.step == 0:
+                    return range(n, end, A.step * B.step)
 
 
 def arg_to_slice(arg=None):
@@ -362,3 +397,31 @@ def date_range(start, stop, step):
         raise TypeError("step is not timedelta")
     n = (stop - start) // step
     return [start + step * i for i in range(n)]
+
+
+def test_intercept():
+    r = range
+
+    assert intercept(r(1, 3, 1), r(0, 4, 1)) == r(1, 3, 1)
+    assert intercept(r(0, 5, 1), r(3, 7, 1)) == r(3, 5, 1)
+    assert intercept(r(3, 7, 1), r(0, 5, 1)) == r(3, 5, 1)
+    assert intercept(r(0, 1, 1), r(0, 1, 1)) == r(0, 1, 1)
+
+    assert intercept(r(4, 20, 1), r(0, 16, 2)) == r(4, 16, 2)
+    assert intercept(r(4, 20, 1), r(0, 16, 1)) == r(4, 16, 1)
+    assert intercept(r(4, 20, 3), r(0, 16, 2)) == r(4, 16, 6)
+
+    assert intercept(r(9, 0, -1), r(7, 10, 1)) == r(7, 10, 1)
+
+    slc = slice(-1, 0, -1)
+    A = r(*slc.indices(10))
+    B = r(1, 11, 1)
+    assert intercept(A, B) == r(1, 10, 1)
+
+    A = range(-5, 5, 1)
+    B = range(6, -6, -1)
+    assert intercept(A, B) == range(-5, 5, 1)
+
+
+if __name__ == "__main__":
+    test_intercept()
