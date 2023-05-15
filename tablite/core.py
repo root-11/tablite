@@ -1962,6 +1962,10 @@ class Table(object):
                 false += tmp_false
             else:
                 pass
+
+        shm.close()
+        shm.unlink()
+
         return true, false
 
     def sort_index(self, sort_mode="excel", tqdm=_tqdm, pbar=None, **kwargs):
@@ -2100,12 +2104,14 @@ class Table(object):
         Table.sort('A'=True, 'B'=False) means sort 'A' in descending order, then (2nd priority)
         sort B in ascending order.
         """
+        cls = type(self)
+
         if (
             len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT
         ):  # the task is so small that multiprocessing doesn't make sense.
             sorted_index = self.sort_index(sort_mode=sort_mode, **kwargs)
 
-            t = Table()
+            t = cls()
             for col_name, col in self._columns.items():
                 data = list(col[:])
                 t.add_column(col_name, data=[data[ix] for ix in sorted_index])
@@ -2141,7 +2147,7 @@ class Table(object):
 
             shm.close()
             shm.unlink()
-            t = type(self).load(path=mem.path, key=table_key)
+            t = cls.load(path=mem.path, key=table_key)
             return t
 
     def is_sorted(self, **kwargs):
@@ -3132,6 +3138,8 @@ class Table(object):
         return result
     
     def _mp_lookup(self, other, result, results):
+        cls = type(self)
+
         # 1. create shared memory array.
         RIGHT_NONE_MASK = _maskify(results)
         right_arr, right_shm = _share_mem(results, np.int64)
@@ -3178,7 +3186,7 @@ class Table(object):
         right_msk_shm.unlink()
 
         # 6. reload the result table
-        t = Table.load(path=mem.path, key=result.key)
+        t = cls.load(path=mem.path, key=result.key)
 
         return t
 
@@ -4176,6 +4184,7 @@ def filter_evaluation_task(table_key, expression, shm_name, shm_index, shm_shape
     result_array = np.ndarray(shm_shape, dtype=np.bool, buffer=existing_shm.buf)
     result_array[shm_index][slice_] = np.array([f(a, b) for a, b in zip(dset_A, dset_B)])  # Evaluate
     existing_shm.close()  # disconnect
+    
 
 
 def filter_merge_task(table_key, true_key, false_key, shm_name, shm_shape, slice_, filter_type):
