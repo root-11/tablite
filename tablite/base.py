@@ -1,6 +1,5 @@
 import os
 import io
-import sys
 import math
 import yaml
 import atexit
@@ -117,17 +116,30 @@ class Column(object):
 
     def getpages(self, item):
         # internal function
+        if isinstance(item, int):
+            item = slice(item, item + 1, 1)
+
         type_check(item, slice)
-        item = slice(*item.indices(len(self)))
-        range_item = range(*item.indices(len(self)))
+        is_reversed = False if (item.step is None or item.step > 0) else True
+
+        length = len(self)
+        scan_item = slice(*item.indices(length))
+        range_item = range(*item.indices(length))
+
         pages = []
         start, end = 0, 0
         for page in self.pages:
             start, end = end, end + page.len
-            if start > item.stop:
-                break
-            if end < item.start:
-                continue
+            if is_reversed:
+                if start > scan_item.start:
+                    break
+                if end < scan_item.stop:
+                    continue
+            else:
+                if start > scan_item.stop:
+                    break
+                if end < scan_item.start:
+                    continue
             ro = intercept(range(start, end), range_item)
             if len(ro) == 0:
                 continue
@@ -138,27 +150,52 @@ class Column(object):
                 np_arr = np.load(page.path, allow_pickle=True, fix_imports=False)
                 match = np_arr[search_slice]
                 pages.append(match)
+
+        if is_reversed:
+            pages.reverse()
+            for ix, page in enumerate(pages):
+                if isinstance(page, Page):
+                    data = page.get()
+                    pages[ix] = np.flip(data)
+                else:
+                    pages[ix] = np.flip(page)
+
         return pages
 
     def __getitem__(self, item):  # USER FUNCTION.
         """gets numpy array.
 
         Args:
-            item (slice): slice of column
+            item (int OR slice): slice of column
 
         Returns:
             np.ndarray: results as numpy array.
+
+        Remember:
+        >>> R = np.array([0,1,2,3,4,5])
+        >>> R[3]
+        3
+        >>> R[3:4]
+        array([3])
         """
-        pages = self.getpages(item)
         result = []
-        for element in pages:
+        for element in self.getpages(item):
             if isinstance(element, Page):
                 result.append(element.get())
             else:
                 result.append(element)
-        if not result:
-            return np.array([])
-        return np_type_unify(result)
+
+        if result:
+            arr = np_type_unify(result)
+        else:
+            arr = np.array([])
+
+        if isinstance(item, int):
+            if not arr:
+                raise IndexError(f"index {item} is out of bounds for axis 0 with size {len(self)}")
+            return arr[0]
+        else:
+            return arr
 
     def __setitem__(self, key, value):
         if isinstance(key, int):
@@ -870,6 +907,37 @@ def test_immutability_of_pages():
     t["A"][3:7] = change
 
 
+def test_slice_functions():
+    Config.PAGE_SIZE = 3
+    t = Table(columns={"A": np.array([1, 2, 3, 4])})
+    L = t["A"]
+    assert list(L[:]) == [1, 2, 3, 4]  # slice(None,None,None)
+    assert list(L[:0]) == []  # slice(None,0,None)
+    assert list(L[0:]) == [1, 2, 3, 4]  # slice(0,None,None)
+
+    assert list(L[:2]) == [1, 2]  # slice(None,2,None)
+
+    assert list(L[-1:]) == [4]  # slice(-1,None,None)
+    assert list(L[-1::1]) == [4]
+    assert list(L[-1:None:1]) == [4]
+
+    # assert list(L[-1:4:1]) == [4]  # slice(-1,4,1)
+    # assert list(L[-1:0:-1]) == [4, 3, 2]  # slice(-1,0,-1) -->  slice(4,0,-1) --> for i in range(4,0,-1)
+    # assert list(L[-1:0:1]) == []  # slice(-1,0,1) --> slice(4,0,-1) --> for i in range(4,0,1)
+    # assert list(L[-3:-1:1]) == [2, 3]
+
+    data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    t = Table(columns={"A": np.array(data)})
+    L = t["A"]
+    assert list(L[-1:0:-1]) == data[-1:0:-1]
+    assert list(L[-1:0:1]) == data[-1:0:1]
+
+    data = list(range(100))
+    t2 = Table(columns={'A': np.array(data)})
+    L = t2['A']
+    assert list(L[51:40:-1]) == data[51:40:-1]
+
+
 if __name__ == "__main__":
     print("running unittest in main")
     """
@@ -893,7 +961,10 @@ if __name__ == "__main__":
     test_page_size()
     test_cleaup()
     save_and_load()
-    # test_copy()
-    # test_speed()
+    test_copy()
+    test_speed()
     # test_immutability_of_pages()
+
+    test_slice_functions()
+
     print(f"duration: {time.time()-start}")  # duration: 5.388719081878662 with 30M elements.
