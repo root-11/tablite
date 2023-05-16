@@ -442,10 +442,82 @@ class Column(object):
                     return False
             return True
         else:
-            raise TypeError
+            raise TypeError(f"Cannot compare {self.__class__} with {type(other)}")
+
+    def __ne__(self, other):
+        """
+        compares two columns. Like list1 != list2
+        """
+        if len(self) != len(other):  # quick cheap check.
+            return True
+
+        if isinstance(other, (list, tuple)):
+            return any(a != b for a, b in zip(self[:], other))
+
+        elif isinstance(other, Column):
+            if self.pages != other.pages:  # special case.
+                return True
+
+            # are the pages of same size?
+            if len(self.pages) == len(other.pages):
+                if [p.len for p in self.pages] == [p.len for p in other.pages]:
+                    for a, b in zip(self.pages, other.pages):
+                        if not (a.get() == b.get()).all():
+                            return True
+                    return False
+            # to bad. Element comparison it is then:
+            for a, b in zip(iter(self), iter(other)):
+                if a != b:
+                    return True
+            return False
+
+        elif isinstance(other, np.ndarray):
+            start, end = 0, 0
+            for p in self.pages:
+                start, end = end, end + p.len
+                if (p.get() != other[start:end]).any():
+                    return True
+            return False
+        else:
+            raise TypeError(f"Cannot compare {self.__class__} with {type(other)}")
 
     def copy(self):
-        raise AttributeError("Column requires path")
+        cp = Column(path=self.path)
+        cp.pages = self.pages[:]
+        return cp
+
+    def __copy__(self):
+        return self.copy()
+
+    def __imul__(self, other):
+        """
+        Repeats instance of column N times. Like list() * N
+
+        Example:
+        >>> one = Column(data=[1,2])
+        >>> one *= 5
+        >>> one
+        [1,2, 1,2, 1,2, 1,2, 1,2]
+
+        """
+        if not isinstance(other, int):
+            raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
+        self.pages = self.pages[:] * other
+        return self
+
+    def __mul__(self, other):
+        if not isinstance(other, int):
+            raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
+        cp = self.copy()
+        cp *= other
+        return cp
+
+    def remove_all(self, *values):
+        """
+        removes all values of `value`
+
+        To remove only one instance of `value` use .remove
+        """
 
 
 class Table(object):
@@ -933,10 +1005,36 @@ def test_slice_functions():
     assert list(L[-1:0:1]) == data[-1:0:1]
 
     data = list(range(100))
-    t2 = Table(columns={'A': np.array(data)})
-    L = t2['A']
+    t2 = Table(columns={"A": np.array(data)})
+    L = t2["A"]
     assert list(L[51:40:-1]) == data[51:40:-1]
     Config.reset()
+
+
+def test_various():
+    A = list(range(1, 11))
+    B = [i * 10 for i in A]
+    C = [i * 10 for i in B]
+    data = {"A": A, "B": B, "C": C}
+    t = Table(columns=data)
+    t *= 2
+    assert len(t) == len(A) * 2
+    x = t["x"]
+    assert len(x) == len(A) * 2
+
+    t2 = t.copy()
+    t2 += t
+    assert len(t2) == len(t) * 2
+    assert len(t2["A"]) == len(t["A"]) * 2
+    assert len(t2["B"]) == len(t["B"]) * 2
+    assert len(t2["C"]) == len(t["C"]) * 2
+
+    assert t != t2
+
+    orphaned_column = t["A"].copy()
+    orphaned_column_2 = orphaned_column * 2
+    t3 = Table()
+    t3["A"] = orphaned_column_2
 
 
 if __name__ == "__main__":
