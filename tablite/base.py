@@ -114,6 +114,12 @@ class Column(object):
         for array in self._paginate(value):
             self.pages.append(Page(path=self.path.parent, array=array))
 
+    def clear(self):
+        """
+        clears the column. Like list().clear()
+        """
+        self.pages.clear()
+
     def getpages(self, item):
         # internal function
         if isinstance(item, int):
@@ -455,8 +461,8 @@ class Column(object):
             return any(a != b for a, b in zip(self[:], other))
 
         elif isinstance(other, Column):
-            if self.pages != other.pages:  # special case.
-                return True
+            if self.pages == other.pages:  # special case.
+                return False
 
             # are the pages of same size?
             if len(self.pages) == len(other.pages):
@@ -500,7 +506,7 @@ class Column(object):
         [1,2, 1,2, 1,2, 1,2, 1,2]
 
         """
-        if not isinstance(other, int):
+        if not (isinstance(other, int) and other > 0):
             raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
         self.pages = self.pages[:] * other
         return self
@@ -514,10 +520,42 @@ class Column(object):
 
     def remove_all(self, *values):
         """
-        removes all values of `value`
-
-        To remove only one instance of `value` use .remove
+        removes all values of `values`
         """
+        type_check(values, tuple)
+        if isinstance(values[0], tuple):
+            values = values[0]
+        to_remove = np.array(values)
+        for index, page in enumerate(self.pages):
+            data = page.get()
+            bitmask = np.isin(data, to_remove)  # identify elements to remove.
+            if bitmask.any():
+                bitmask = np.invert(bitmask)  # turn bitmask around to keep.
+                new_data = np.compress(bitmask, data)
+                new_page = Page(self.path.parent, new_data)
+                self.pages[index] = new_page
+
+    def replace(self, mapping):
+        """
+        replaces values using mapping
+
+        example:
+        >>> t = Table(columns={'A': [1,2,3,4]})
+        >>> t['A'].replace({2:20,4:40})
+        >>> t[:]
+        np.ndarray([1,20,3,40])
+        """
+        type_check(mapping, dict)
+        to_replace = np.array(list(mapping.keys()))
+        for index, page in enumerate(self.pages):
+            data = page.get()
+            bitmask = np.isin(data, to_replace)  # identify elements to replace.
+            if bitmask.any():
+                warray = np.compress(bitmask, data)
+                for ix, v in enumerate(np.nditer(warray)):
+                    warray[ix] = mapping[v.item()]
+                data[bitmask] = warray
+                self.pages[index] = Page(path=self.path.parent, array=data)
 
 
 class Table(object):
@@ -601,9 +639,13 @@ class Table(object):
 
         This has the side-benefit that tuples now can be used as headers.
         """
-        if isinstance(value, (list, tuple)):
+        if isinstance(value, Column):
+            self.columns[key] = value
+        elif isinstance(value, (list, tuple, np.ndarray)):
             value = np.array(value)
-        self.columns[key] = Column(self.path, value)
+            self.columns[key] = Column(self.path, value)
+        else:
+            raise TypeError(f"{type(value)} not supported.")
 
     def __getitem__(self, *keys):  # USER FUNCTION
         """
@@ -696,9 +738,15 @@ class Table(object):
         if self.columns.keys() != other.columns.keys():
             return False
         for name, col in self.columns.items():
-            if col != other.columns[name]:
+            if not (col == other.columns[name]):
                 return False
         return True
+
+    def clear(self):
+        """
+        clears the table. Like dict().clear()
+        """
+        self.columns.clear()
 
     def save(self, path):  # USER FUNCTION.
         """saves table to compressed tpz file.
@@ -787,6 +835,37 @@ class Table(object):
             t.columns[name] = new
         return t
 
+    def __imul__(self, other):
+        """
+        Repeats instance of table N times.
+
+        Args:
+            other (int): integer
+        """
+        if not (isinstance(other, int) and other > 0):
+            raise TypeError(f"a table can be repeated an integer number of times, not {type(other)} number of times")
+        for col in self.columns.values():
+            col *= other
+        return self
+
+    def __mul__(self, other):
+        new = self.copy()
+        return new.__imul__(other)
+
+    def __iadd__(self, other):
+        type_check(other, Table)
+        for name in self.columns.keys():
+            if name not in other.columns:
+                raise ValueError(f"{name} not in other")
+        for name in other.columns.keys():
+            if name not in self.columns:
+                raise ValueError(f"{name} missing from self")
+
+        for name, column in self.columns.items():
+            other_col = other.columns.get(name, None)
+            column.pages.extend(other_col.pages[:])
+        return self
+
 
 def test_basics():
     A = list(range(1, 21))
@@ -852,6 +931,7 @@ def test_page_size():
     Config.PAGE_SIZE = 7
     t2 = Table(columns=data)
     assert t == t2
+    assert not t != t2
     x2 = t2["A"]
     assert isinstance(x2, Column)
     assert len(x2.pages) == math.ceil(len(A) / Config.PAGE_SIZE)
@@ -1019,7 +1099,7 @@ def test_various():
     t = Table(columns=data)
     t *= 2
     assert len(t) == len(A) * 2
-    x = t["x"]
+    x = t["A"]
     assert len(x) == len(A) * 2
 
     t2 = t.copy()
@@ -1035,6 +1115,39 @@ def test_various():
     orphaned_column_2 = orphaned_column * 2
     t3 = Table()
     t3["A"] = orphaned_column_2
+
+    orphaned_column.replace(mapping={2: 20, 3: 30, 4: 40})
+    z = set(orphaned_column[:].tolist())
+    assert {2, 3, 4}.isdisjoint(z)
+    assert {20, 30, 40}.issubset(z)
+
+
+def test_remove_all():
+    A = list(range(1, 11))
+    B = [i * 10 for i in A]
+    C = [i * 10 for i in B]
+    data = {"A": A, "B": B, "C": C}
+    t = Table(columns=data)
+
+    c = t["A"]
+    c.remove_all(3)
+    A.remove(3)
+    assert list(c) == A
+    c.remove_all(4, 5, 6)
+    A = [i for i in A if i not in {4, 5, 6}]
+    assert list(c) == A
+
+
+def test_replace():
+    A = list(range(1, 11))
+    B = [i * 10 for i in A]
+    C = [i * 10 for i in B]
+    data = {"A": A, "B": B, "C": C}
+    t = Table(columns=data)
+
+    c = t["A"]
+    c.replace({3: 30, 4: 40})
+    assert list(c) == [i if i not in {3, 4} else i * 10 for i in A]
 
 
 if __name__ == "__main__":
@@ -1063,7 +1176,9 @@ if __name__ == "__main__":
     test_copy()
     # test_speed()
     # test_immutability_of_pages()
-
     test_slice_functions()
+    test_various()
+    test_remove_all()
+    test_replace()
 
     print(f"duration: {time.time()-start}")  # duration: 5.388719081878662 with 30M elements.
