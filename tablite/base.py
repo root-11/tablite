@@ -9,8 +9,9 @@ import zipfile
 import numpy as np
 from pathlib import Path
 from itertools import count, chain
+from collections import defaultdict
 
-from utils import type_check, intercept, np_type_unify
+from utils import type_check, intercept, np_type_unify, numpy_types
 from config import Config
 
 log = logging.getLogger(__name__)
@@ -557,6 +558,26 @@ class Column(object):
                 data[bitmask] = warray
                 self.pages[index] = Page(path=self.path.parent, array=data)
 
+    def types(self):
+        """
+        returns dict with datatype: frequency of occurrence
+        """
+        d = defaultdict(int)
+        for page in self.pages:
+            data = page.get()
+            if data.dtype == "O":
+                L = [i.dtype for i in data]
+                for i in L:
+                    d[i] += 1
+            else:
+                d[page.dtype] += len(page)
+
+        for k, v in list(d.items()):
+            new_k = numpy_types[self.original_datatype]
+            del k
+            d[new_k] = v
+        return dict(d)
+
 
 class Table(object):
     _pid_dir = None  # workdir / gettpid /
@@ -613,10 +634,23 @@ class Table(object):
         """returns table as dict."""
         return {name: column[:].tolist() for name, column in self.columns.items()}.items()
 
+    def __delitem__(self, key):
+        """
+        del table['a']  removes column 'a'
+        del table[-3:] removes last 3 rows from all columns.
+        """
+        if key in self.columns:
+            del self.columns[key]
+        elif isinstance(key, (int, slice)):
+            for column in self.columns.values():
+                del column[key]
+        else:
+            raise KeyError(f"Key not found: {key}")
+
     def __setitem__(self, key, value):  # USER FUNCTION
         """table behaves like a dict.
         Args:
-            key (str): column name
+            key (str or hashable): column name
             value (iterable): list, tuple or nd.array with values.
 
         As Table now accepts the keyword `columns` as a dict:
@@ -865,6 +899,142 @@ class Table(object):
             other_col = other.columns.get(name, None)
             column.pages.extend(other_col.pages[:])
         return self
+
+    def __add__(self, other):
+        type_check(other, Table)
+        cp = self.copy()
+        cp += other
+        return cp
+
+    def add_rows(self, *args, **kwargs):
+        """its more efficient to add many rows at once.
+
+        supported cases:
+
+        t = Table()
+        t.add_columns('row','A','B','C')
+
+        (1) t.add_rows(1, 1, 2, 3)  # individual values as args
+        (2) t.add_rows([2, 1, 2, 3])  # list of values as args
+        (3) t.add_rows((3, 1, 2, 3))  # tuple of values as args
+        (4) t.add_rows(*(4, 1, 2, 3))  # unpacked tuple becomes arg like (1)
+        (5) t.add_rows(row=5, A=1, B=2, C=3)   # kwargs
+        (6) t.add_rows(**{'row': 6, 'A': 1, 'B': 2, 'C': 3})  # dict / json interpreted a kwargs
+        (7) t.add_rows((7, 1, 2, 3), (8, 4, 5, 6))  # two (or more) tuples as args
+        (8) t.add_rows([9, 1, 2, 3], [10, 4, 5, 6])  # two or more lists as rgs
+        (9) t.add_rows({'row': 11, 'A': 1, 'B': 2, 'C': 3},
+                       {'row': 12, 'A': 4, 'B': 5, 'C': 6})  # two (or more) dicts as args - roughly comma sep'd json.
+        (10) t.add_rows( *[ {'row': 13, 'A': 1, 'B': 2, 'C': 3},
+                            {'row': 14, 'A': 1, 'B': 2, 'C': 3} ])  # list of dicts as args
+        (11) t.add_rows(row=[15,16], A=[1,1], B=[2,2], C=[3,3])  # kwargs with lists as values
+
+        if both args and kwargs, then args are added first, followed by kwargs.
+        """
+        if args:
+            if not all(isinstance(i, (list, tuple, dict)) for i in args):  # 1,4
+                args = [args]
+
+            if all(isinstance(i, (list, tuple, dict)) for i in args):  # 2,3,7,8
+                # 1. turn the data into columns:
+                names = self.columns
+                d = {n: [] for n in self.columns}
+                for arg in args:
+                    if len(arg) != len(names):
+                        raise ValueError(f"len({arg})== {len(arg)}, but there are {len(self.columns)} columns")
+
+                    if isinstance(arg, dict):
+                        for k, v in arg.items():  # 7,8
+                            d[k].append(v)
+
+                    elif isinstance(arg, (list, tuple)):  # 2,3
+                        for n, v in zip(names, arg):
+                            d[n].append(v)
+
+                    else:
+                        raise TypeError(f"{arg}?")
+                # 2. extend the columns
+                for n, values in d.items():
+                    col = self.__getitem__(n)
+                    col.extend(values)
+
+        if kwargs:
+            if isinstance(kwargs, dict):
+                if all(isinstance(v, (list, tuple)) for v in kwargs.values()):
+                    for k, v in kwargs.items():
+                        col = self._columns[k]
+                        col.extend(v)
+                else:
+                    for k, v in kwargs.items():
+                        col = self._columns[k]
+                        col.extend([v])
+            else:
+                raise ValueError(f"format not recognised: {kwargs}")
+
+        return
+
+    def add_columns(self, *names):
+        for name in names:
+            self.columns[name] = Column(self.path)
+
+    def add_column(self, name, data=None):
+        """
+        verbose alias for table[name] = data, that checks if name already exists
+        """
+        if not isinstance(name, str):
+            raise TypeError()
+        if name in self.columns:
+            raise ValueError(f"{name} already in {self.columns}")
+        self.__setitem__(name, data)
+
+    def stack(self, other):
+        """
+        returns the joint stack of tables
+        Example:
+
+        | Table A|  +  | Table B| = |  Table AB |
+        | A| B| C|     | A| B| D|   | A| B| C| -|
+                                    | A| B| -| D|
+        """
+        if not isinstance(other, Table):
+            raise TypeError(f"stack only works for Table, not {type(other)}")
+
+        t = self.copy()
+        for name, col2 in other.columns.items():
+            if name in t.columns:
+                t[name].extend(col2)
+            elif len(self) > 0:
+                t[name] = [None] * len(self)
+            else:
+                t[name] = col2
+
+        for name, col in t.columns.items():
+            if name not in other.columns:
+                if len(other) > 0:
+                    if len(self) > 0:
+                        col.extend([None] * len(other))
+                    else:
+                        t[name] = [None] * len(other)
+        return t
+
+    def types(self):
+        """
+        returns nested dict of data types in the form:
+
+            {column name: {python type class: number of instances }, }
+
+        example:
+        >>> t.types()
+        {
+            'A': {<class 'str'>: 7},
+            'B': {<class 'int'>: 7}
+        }
+        """
+
+        d = {}
+        for name, col in self.columns.items():
+            assert isinstance(col, Column)
+            d[name] = col.types()
+        return d
 
 
 def test_basics():
