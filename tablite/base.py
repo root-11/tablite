@@ -8,10 +8,10 @@ import logging
 import zipfile
 import numpy as np
 from pathlib import Path
-from itertools import count, chain
+from itertools import count, chain, product
 from collections import defaultdict
 
-from utils import type_check, intercept, np_type_unify, numpy_types
+from utils import type_check, intercept, np_type_unify, numpy_types, dict_to_rows
 from config import Config
 
 log = logging.getLogger(__name__)
@@ -570,12 +570,13 @@ class Column(object):
                 for i in L:
                     d[i] += 1
             else:
-                d[page.dtype] += len(page)
+                d[str(data.dtype)] += len(page)
 
         for k, v in list(d.items()):
-            new_k = numpy_types[self.original_datatype]
-            del k
-            d[new_k] = v
+            if k in numpy_types:
+                new_k = numpy_types[k]
+                del d[k]
+                d[new_k] = v
         return dict(d)
 
 
@@ -673,7 +674,9 @@ class Table(object):
 
         This has the side-benefit that tuples now can be used as headers.
         """
-        if isinstance(value, Column):
+        if value is None:
+            self.columns[key] = Column(self.path, value=None)
+        elif isinstance(value, Column):
             self.columns[key] = value
         elif isinstance(value, (list, tuple, np.ndarray)):
             value = np.array(value)
@@ -936,10 +939,10 @@ class Table(object):
 
             if all(isinstance(i, (list, tuple, dict)) for i in args):  # 2,3,7,8
                 # 1. turn the data into columns:
-                names = self.columns
+
                 d = {n: [] for n in self.columns}
                 for arg in args:
-                    if len(arg) != len(names):
+                    if len(arg) != len(self.columns):
                         raise ValueError(f"len({arg})== {len(arg)}, but there are {len(self.columns)} columns")
 
                     if isinstance(arg, dict):
@@ -947,26 +950,26 @@ class Table(object):
                             d[k].append(v)
 
                     elif isinstance(arg, (list, tuple)):  # 2,3
-                        for n, v in zip(names, arg):
+                        for n, v in zip(self.columns, arg):
                             d[n].append(v)
 
                     else:
                         raise TypeError(f"{arg}?")
                 # 2. extend the columns
                 for n, values in d.items():
-                    col = self.__getitem__(n)
-                    col.extend(values)
+                    col = self.columns(n)
+                    col.extend(np.array(values))
 
         if kwargs:
             if isinstance(kwargs, dict):
                 if all(isinstance(v, (list, tuple)) for v in kwargs.values()):
                     for k, v in kwargs.items():
-                        col = self._columns[k]
-                        col.extend(v)
+                        col = self.columns[k]
+                        col.extend(np.array(v))
                 else:
                     for k, v in kwargs.items():
-                        col = self._columns[k]
-                        col.extend([v])
+                        col = self.columns[k]
+                        col.extend(np.array([v]))
             else:
                 raise ValueError(f"format not recognised: {kwargs}")
 
@@ -998,23 +1001,17 @@ class Table(object):
         if not isinstance(other, Table):
             raise TypeError(f"stack only works for Table, not {type(other)}")
 
-        t = self.copy()
+        cp = self.copy()
         for name, col2 in other.columns.items():
-            if name in t.columns:
-                t[name].extend(col2)
-            elif len(self) > 0:
-                t[name] = [None] * len(self)
-            else:
-                t[name] = col2
+            if name not in cp.columns:
+                cp[name] = [None] * len(self)
+            cp[name].pages.extend(col2.pages[:])
 
-        for name, col in t.columns.items():
+        for name in self.columns:
             if name not in other.columns:
-                if len(other) > 0:
-                    if len(self) > 0:
-                        col.extend([None] * len(other))
-                    else:
-                        t[name] = [None] * len(other)
-        return t
+                if len(self) > 0:
+                    cp[name].extend(np.array([None] * len(other)))
+        return cp
 
     def types(self):
         """
@@ -1035,6 +1032,122 @@ class Table(object):
             assert isinstance(col, Column)
             d[name] = col.types()
         return d
+
+    def display_dict(self, *args, blanks=None, dtype=False):
+        """
+        param: args:
+          - slice
+        blanks: fill value for `None`
+        dtype: add datatype for each column
+        """
+        if not self.columns:
+            print("Empty Table")
+            return
+
+        def datatype(col):
+            types = col.types()
+            if len(types) == 1:
+                dt, _ = types.popitem()
+                typ = dt.__name__
+            else:
+                typ = "mixed"
+            return typ
+
+        row_count_tags = ["#", "~", "*"]
+        cols = set(self.columns)
+        for n, tag in product(range(1, 6), row_count_tags):
+            if n * tag not in cols:
+                tag = n * tag
+                break
+        slc = slice(0, 20, 1) if len(self) <= 20 else None
+        if args:
+            for arg in args:
+                if isinstance(arg, slice):
+                    slc = arg
+                    break
+
+        if slc:
+            row_no = list(range(*slc.indices(len(self))))
+            data = {tag: [f"{i:,}".rjust(2) for i in row_no]}
+            for name, col in self.columns.items():
+                data[name] = col[slc].tolist()
+        else:
+            data = {}
+            n = len(self)
+            j = int(math.ceil(math.log10(n)) / 3) + len(str(n))
+
+            row_no = [f"{i:,}".rjust(j) for i in range(7)] + ["..."] + [f"{i:,}".rjust(j) for i in range(n - 7, n)]
+            data = {tag: row_no}
+
+            for name, col in self.columns.items():
+                row = col[:7].tolist() + ["..."] + col[-7:].tolist()
+                data[name] = row
+
+        if dtype:
+            for name, values in data.items():
+                if name in self.columns:
+                    col = self.columns[name]
+                    values.insert(0, datatype(col))
+                else:
+                    values.insert(0, "row")
+
+        return data
+
+    def to_ascii(self, *args, blanks=None, dtype=False):
+        def adjust(v, length):
+            if v is None:
+                return str(blanks).ljust(length)
+            elif isinstance(v, str):
+                return v.ljust(length)
+            else:
+                return str(v).rjust(length)
+
+        d = {}
+        for name, values in self.display_dict(*args, blanks=blanks, dtype=dtype).items():
+            as_text = [str(v) for v in values]
+            width = max(len(i) for i in as_text)
+            new_name = name.center(width, " ")
+            d[new_name] = [adjust(v, width) for v in values]
+
+        rows = dict_to_rows(d)
+        s = []
+        s.append("+" + "+".join(["=" * len(n) for n in rows[0]]) + "+")
+        s.append("|" + "|".join(rows[0]) + "|")  # column names
+        start = 1
+        if dtype:
+            s.append("|" + "|".join(rows[1]) + "|")  # datatypes
+            start = 2
+
+        s.append("+" + "+".join(["-" * len(n) for n in rows[0]]) + "+")
+        for row in rows[start:]:
+            s.append("|" + "|".join(row) + "|")
+        s.append("+" + "+".join(["=" * len(n) for n in rows[0]]) + "+")
+
+        if len(set(len(c) for c in self.columns.values())) != 1:
+            warning = f"Warning: Columns have different lengths. {blanks} is used as fill value."
+            s.append(warning)
+
+        return "\n".join(s)
+
+    def show(self, *args, blanks=None, dtype=False):
+        print(self.to_ascii(*args, blanks=blanks, dtype=dtype))
+
+    def _repr_html_(self, *args, blanks=None, dtype=False):
+        """Ipython display compatible format
+        https://ipython.readthedocs.io/en/stable/api/generated/IPython.display.html#IPython.display.display
+        """
+        start, end = "<div><table border=1>", "</table></div>"
+
+        if not self.columns:
+            return f"{start}<tr>Empty Table</tr>{end}"
+        rows = dict_to_rows(self.display_dict(*args, blanks=blanks, dtype=dtype))
+        html = "".join(["<tr>" + "".join(f"<th>{cn}</th>" for cn in row) + "</tr>" for row in rows])
+
+        warning = ""
+        if len(set(len(c) for c in self.columns.values())) != 1:
+            warning = f"Warning: Columns have different lengths. {blanks} is used as fill value."
+
+        return start + "".join(html) + end + warning
 
 
 def test_basics():
@@ -1318,9 +1431,14 @@ def test_table_row_functions():
     t2 = Table()
     t2.add_column("A")
     t2.add_columns("B", "C")
-    t2.add_rows({"A": [i + max(A) for i in A], "B": [i + max(A) for i in A], "C": [i + max(C) for i in C]})
-    t3 = t2.stack(t1)
+    t2.add_rows(**{"A": [i + max(A) for i in A], "B": [i + max(A) for i in A], "C": [i + max(C) for i in C]})
+    t3 = t2.stack(t)
     assert len(t3) == len(t2) + len(t)
+
+    t4 = Table(columns={"B": [-1, -2], "D": [0, 1]})
+    t5 = t2.stack(t4)
+    assert len(t5) == len(t2) + len(t4)
+    assert list(t5.columns) == ["A", "B", "C", "D"]
 
 
 def test_remove_all():
@@ -1349,6 +1467,110 @@ def test_replace():
     c = t["A"]
     c.replace({3: 30, 4: 40})
     assert list(c) == [i if i not in {3, 4} else i * 10 for i in A]
+
+
+def test_display_options():
+    A = list(range(1, 11))
+    B = [i * 10 for i in A]
+    C = [i * 10 for i in B]
+    data = {"A": A, "B": B, "C": C}
+    t = Table(columns=data)
+
+    d = t.display_dict()
+    assert d == {
+        "#": [" 0", " 1", " 2", " 3", " 4", " 5", " 6", " 7", " 8", " 9"],
+        "A": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        "B": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+        "C": [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000],
+    }
+
+    txt = t.to_ascii()
+    assert (
+        txt
+        == """\
++==+==+===+====+
+|# |A | B | C  |
++--+--+---+----+
+| 0| 1| 10| 100|
+| 1| 2| 20| 200|
+| 2| 3| 30| 300|
+| 3| 4| 40| 400|
+| 4| 5| 50| 500|
+| 5| 6| 60| 600|
+| 6| 7| 70| 700|
+| 7| 8| 80| 800|
+| 8| 9| 90| 900|
+| 9|10|100|1000|
++==+==+===+====+"""
+    )
+    txt2 = t.to_ascii(dtype=True)
+    assert (
+        txt2
+        == """\
++===+===+===+====+
+| # | A | B | C  |
+|row|int|int|int |
++---+---+---+----+
+| 0 |  1| 10| 100|
+| 1 |  2| 20| 200|
+| 2 |  3| 30| 300|
+| 3 |  4| 40| 400|
+| 4 |  5| 50| 500|
+| 5 |  6| 60| 600|
+| 6 |  7| 70| 700|
+| 7 |  8| 80| 800|
+| 8 |  9| 90| 900|
+| 9 | 10|100|1000|
++===+===+===+====+"""
+    )
+
+    html = t._repr_html_()
+
+    assert (
+        html
+        == """<div><table border=1>\
+<tr><th>#</th><th>A</th><th>B</th><th>C</th></tr>\
+<tr><th> 0</th><th>1</th><th>10</th><th>100</th></tr>\
+<tr><th> 1</th><th>2</th><th>20</th><th>200</th></tr>\
+<tr><th> 2</th><th>3</th><th>30</th><th>300</th></tr>\
+<tr><th> 3</th><th>4</th><th>40</th><th>400</th></tr>\
+<tr><th> 4</th><th>5</th><th>50</th><th>500</th></tr>\
+<tr><th> 5</th><th>6</th><th>60</th><th>600</th></tr>\
+<tr><th> 6</th><th>7</th><th>70</th><th>700</th></tr>\
+<tr><th> 7</th><th>8</th><th>80</th><th>800</th></tr>\
+<tr><th> 8</th><th>9</th><th>90</th><th>900</th></tr>\
+<tr><th> 9</th><th>10</th><th>100</th><th>1000</th></tr>\
+</table></div>"""
+    )
+
+    A = list(range(1, 51))
+    B = [i * 10 for i in A]
+    C = [i * 1000 for i in B]
+    data = {"A": A, "B": B, "C": C}
+    t2 = Table(columns=data)
+    d2 = t2.display_dict()
+    assert d2 == {
+        "#": [" 0", " 1", " 2", " 3", " 4", " 5", " 6", "...", "43", "44", "45", "46", "47", "48", "49"],
+        "A": [1, 2, 3, 4, 5, 6, 7, "...", 44, 45, 46, 47, 48, 49, 50],
+        "B": [10, 20, 30, 40, 50, 60, 70, "...", 440, 450, 460, 470, 480, 490, 500],
+        "C": [
+            10000,
+            20000,
+            30000,
+            40000,
+            50000,
+            60000,
+            70000,
+            "...",
+            440000,
+            450000,
+            460000,
+            470000,
+            480000,
+            490000,
+            500000,
+        ],
+    }
 
 
 if __name__ == "__main__":
@@ -1383,5 +1605,6 @@ if __name__ == "__main__":
     test_table_row_functions()
     test_remove_all()
     test_replace()
+    test_display_options()
 
     print(f"duration: {time.time()-start}")  # duration: 5.388719081878662 with 30M elements.
