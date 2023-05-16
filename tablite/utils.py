@@ -399,6 +399,18 @@ def date_range(start, stop, step):
     return [start + step * i for i in range(n)]
 
 
+def dict_to_rows(d):
+    type_check(d, dict)
+    rows = []
+    max_length = max(len(i) for i in d.values())
+    order = list(d.keys())
+    rows.append(order)
+    for i in range(max_length):
+        row = [d[k][i] for k in order]
+        rows.append(row)
+    return rows
+
+
 numpy_types = {
     # The mapping below can be generated using:
     #     d = {}
@@ -478,5 +490,12 @@ def test_intercept():
     assert intercept(A, B) == range(-5, 5, 1)
 
 
+def test_dict_to_rows():
+    d = {"A": [1, 2, 3], "B": [10, 20, 30], "C": [100, 200, 300]}
+    rows = dict_to_rows(d)
+    assert rows == [["A", "B", "C"], [1, 10, 100], [2, 20, 200], [3, 30, 300]]
+
+
 if __name__ == "__main__":
     test_intercept()
+    test_dict_to_rows()
