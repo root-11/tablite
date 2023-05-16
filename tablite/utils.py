@@ -399,6 +399,61 @@ def date_range(start, stop, step):
     return [start + step * i for i in range(n)]
 
 
+numpy_types = {
+    # The mapping below can be generated using:
+    #     d = {}
+    #     for name in dir(np):
+    #         obj = getattr(np,name)
+    #         if hasattr(obj, 'dtype'):
+    #             try:
+    #                 if 'time' in name:
+    #                     npn = obj(0, 'D')
+    #                 else:
+    #                     npn = obj(0)
+    #                 nat = npn.item()
+    #                 d[name] = type(nat)
+    #                 d[npn.dtype.char] = type(nat)
+    #             except:
+    #                 pass
+    #     return d
+    "bool": bool,
+    "bool_": bool,  # ('?') -> <class 'bool'>
+    "byte": int,  # ('b') -> <class 'int'>
+    "bytes0": bytes,  # ('S') -> <class 'bytes'>
+    "bytes_": bytes,  # ('S') -> <class 'bytes'>
+    "cdouble": complex,  # ('D') -> <class 'complex'>
+    "cfloat": complex,  # ('D') -> <class 'complex'>
+    "clongdouble": float,  # ('G') -> <class 'numpy.clongdouble'>
+    "clongfloat": float,  # ('G') -> <class 'numpy.clongdouble'>
+    "complex128": complex,  # ('D') -> <class 'complex'>
+    "complex64": complex,  # ('F') -> <class 'complex'>
+    "complex_": complex,  # ('D') -> <class 'complex'>
+    "csingle": complex,  # ('F') -> <class 'complex'>
+    "datetime64": date,  # ('M') -> <class 'datetime.date'>
+    "double": float,  # ('d') -> <class 'float'>
+    "float16": float,  # ('e') -> <class 'float'>
+    "float32": float,  # ('f') -> <class 'float'>
+    "float64": float,  # ('d') -> <class 'float'>
+    "float_": float,  # ('d') -> <class 'float'>
+    "half": float,  # ('e') -> <class 'float'>
+    "int0": int,  # ('q') -> <class 'int'>
+    "int16": int,  # ('h') -> <class 'int'>
+    "int32": int,  # ('l') -> <class 'int'>
+    "int64": int,  # ('q') -> <class 'int'>
+    "int8": int,  # ('b') -> <class 'int'>
+    "int_": int,  # ('l') -> <class 'int'>
+    "intc": int,  # ('i') -> <class 'int'>
+    "intp": int,  # ('q') -> <class 'int'>
+    "longcomplex": float,  # ('G') -> <class 'numpy.clongdouble'>
+    "longdouble": float,  # ('g') -> <class 'numpy.longdouble'>
+    "longfloat": float,  # ('g') -> <class 'numpy.longdouble'>
+    "longlong": int,  # ('q') -> <class 'int'>
+    "matrix": int,  # ('l') -> <class 'int'>
+    "record": bytes,  # ('V') -> <class 'bytes'>
+    "short": int,  # ('h') -> <class 'int'>
+}
+
+
 def test_intercept():
     r = range
 
