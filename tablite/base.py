@@ -11,8 +11,10 @@ from pathlib import Path
 from itertools import count, chain, product
 from collections import defaultdict
 
-from utils import type_check, intercept, np_type_unify, numpy_types, dict_to_rows
+from datatypes import DataTypes
+from utils import type_check, intercept, np_type_unify, numpy_types, dict_to_rows, unique_name
 from config import Config
+
 
 log = logging.getLogger(__name__)
 
@@ -1149,6 +1151,91 @@ class Table(object):
 
         return start + "".join(html) + end + warning
 
+    def to_dict(self, columns=None, slice_=None):
+        """
+        columns: list of column names. Default is None == all columns.
+        slice_: slice. Default is None == all rows.
+
+        returns: dict with columns as keys and lists of values.
+
+        Example:
+        >>> t.show()
+        +===+===+===+
+        | # | a | b |
+        |row|int|int|
+        +---+---+---+
+        | 0 |  1|  3|
+        | 1 |  2|  4|
+        +===+===+===+
+        >>> t.to_dict()
+        {'a':[1,2], 'b':[3,4]}
+
+        """
+        if slice_ is None:
+            slice_ = slice(0, len(self))
+        assert isinstance(slice_, slice)
+
+        if columns is None:
+            columns = list(self.columns.keyS())
+        if not isinstance(columns, list):
+            raise TypeError("expected columns as list of strings")
+
+        return {name: list(self.columns[name][slice_]) for name in columns}
+
+    def as_json_serializable(self, row_count="row id", start_on=1, columns=None, slice_=None):
+        if slice_ is None:
+            slice_ = slice(0, len(self))
+
+        assert isinstance(slice_, slice)
+        new = {"columns": {}, "total_rows": len(self)}
+        if row_count is not None:
+            new["columns"][row_count] = [i + start_on for i in range(*slice_.indices(len(self)))]
+
+        d = self.to_dict(columns, slice_=slice_)
+        for k, data in d.items():
+            new_k = unique_name(k, new["columns"])  # used to avoid overwriting the `row id` key.
+            new["columns"][new_k] = [DataTypes.to_json(v) for v in data]  # deal with non-json datatypes.
+        return new
+
+    def index(self, *args):
+        """
+        param: *args: column names
+        returns multikey index on the columns as d[(key tuple, )] = {index1, index2, ...}
+
+        Examples:
+        >>> table6 = Table()
+        >>> table6['A'] = ['Alice', 'Bob', 'Bob', 'Ben', 'Charlie', 'Ben','Albert']
+        >>> table6['B'] = ['Alison', 'Marley', 'Dylan', 'Affleck', 'Hepburn', 'Barnes', 'Einstein']
+
+        >>> table6.index('A')  # single key.
+        {('Alice',): {0},
+         ('Bob',): {1, 2},
+         ('Ben',): {3, 5},
+         ('Charlie',): {4},
+         ('Albert',): {6}})
+
+        >>> table6.index('A', 'B')  # multiple keys.
+        {('Alice', 'Alison'): {0},
+         ('Bob', 'Marley'): {1},
+         ('Bob', 'Dylan'): {2},
+         ('Ben', 'Affleck'): {3},
+         ('Charlie', 'Hepburn'): {4},
+         ('Ben', 'Barnes'): {5},
+         ('Albert', 'Einstein'): {6}})
+
+        """
+        idx = defaultdict(set)
+        tbl = self.__getitem__(*args)
+        g = tbl.rows if isinstance(tbl, Table) else iter(tbl)
+        for ix, key in enumerate(g):
+            if isinstance(key, list):
+                key = tuple(key)
+            else:
+                key = (key,)
+            idx[key].add(ix)
+        return idx
+   
+
 
 def test_basics():
     A = list(range(1, 21))
@@ -1571,6 +1658,12 @@ def test_display_options():
             500000,
         ],
     }
+
+
+def test_performance_on_index():
+    raise NotImplemented
+    # there must be a better way.
+    
 
 
 if __name__ == "__main__":
