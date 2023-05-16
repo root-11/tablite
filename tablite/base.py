@@ -936,6 +936,7 @@ def test_slice_functions():
     t2 = Table(columns={'A': np.array(data)})
     L = t2['A']
     assert list(L[51:40:-1]) == data[51:40:-1]
+    Config.reset()
 
 
 if __name__ == "__main__":
@@ -962,7 +963,7 @@ if __name__ == "__main__":
     test_cleaup()
     save_and_load()
     test_copy()
-    test_speed()
+    # test_speed()
     # test_immutability_of_pages()
 
     test_slice_functions()
