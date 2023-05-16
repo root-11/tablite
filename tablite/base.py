@@ -1291,6 +1291,37 @@ def test_various():
     assert {2, 3, 4}.isdisjoint(z)
     assert {20, 30, 40}.issubset(z)
 
+    t4 = t + t2
+    assert len(t4) == len(t) + len(t2)
+
+
+def test_types():
+    A = list(range(1, 11))
+    B = [i * 10 for i in A]
+    C = [i * 10 for i in B]
+    data = {"A": A, "B": B, "C": C}
+    t = Table(columns=data)
+
+    c = t["A"]
+    assert c.types() == {int: len(A)}
+
+    assert t.types() == {"A": {int: len(A)}, "B": {int: len(A)}, "C": {int: len(A)}}
+
+
+def test_table_row_functions():
+    A = list(range(1, 11))
+    B = [i * 10 for i in A]
+    C = [i * 10 for i in B]
+    data = {"A": A, "B": B, "C": C}
+    t = Table(columns=data)
+
+    t2 = Table()
+    t2.add_column("A")
+    t2.add_columns("B", "C")
+    t2.add_rows({"A": [i + max(A) for i in A], "B": [i + max(A) for i in A], "C": [i + max(C) for i in C]})
+    t3 = t2.stack(t1)
+    assert len(t3) == len(t2) + len(t)
+
 
 def test_remove_all():
     A = list(range(1, 11))
@@ -1348,6 +1379,8 @@ if __name__ == "__main__":
     # test_immutability_of_pages()
     test_slice_functions()
     test_various()
+    test_types()
+    test_table_row_functions()
     test_remove_all()
     test_replace()
 
