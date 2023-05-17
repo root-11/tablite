@@ -1,47 +1,37 @@
+import json
+import logging
+import numpy as np
 import math
 import pathlib
-import json
+from pathlib import Path
 import sys
 import difflib
 import itertools
 import operator
 import warnings
-import logging
 
 from collections import defaultdict
+from string import digits
+from time import sleep, time as now
 from multiprocessing import shared_memory
 
-import pyexcel
-import pyperclip
-from tqdm import tqdm as _tqdm
-import numpy as np
-import tablite.h5py as h5py
 import psutil
+import pyexcel
+from tqdm import tqdm as _tqdm
+
 from mplite import TaskManager, Task
-from functools import reduce
 
-import atexit
-
-
-from tablite.memory_manager import MemoryManager, Page, Pages
+from tablite.config import Config
+from tablite.datatypes import DataTypes
+from tablite.base import Table as BaseTable
+from tablite.base import Column
 from tablite.file_reader_utils import TextEscape, get_headers, get_encoding, get_delimiter
-from tablite.utils import summary_statistics, unique_name, expression_interpreter
-from tablite.utils import arg_to_slice
+from tablite.utils import unique_name, expression_interpreter
+from tablite.utils import type_check
 from tablite import sortation
 from tablite.groupby_utils import GroupBy, GroupbyFunction
-import tablite.config as tcfg
-from tablite.config import SINGLE_PROCESSING_LIMIT, TEMPDIR, H5_ENCODING
-from tablite.datatypes import DataTypes
 
-PYTHON_EXIT = False  # exit handler so that Table.__del__ doesn't run into import error during exit.
-
-
-def exiting():
-    global PYTHON_EXIT
-    PYTHON_EXIT = True
-
-
-atexit.register(exiting)
+TIMEOUT_MS = 60 * 1000  # maximum msec tolerance waiting for OS to release hdf5 write lock
 
 
 logging.getLogger("lml").propagate = False
@@ -49,12 +39,7 @@ logging.getLogger("pyexcel_io").propagate = False
 logging.getLogger("pyexcel").propagate = False
 
 log = logging.getLogger(__name__)
-
-
-mem = MemoryManager()
-
-_all = all
-_any = any
+DIGITS = set(digits)
 
 
 def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
@@ -92,9 +77,9 @@ def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, sta
 
     used_columns_names = set()
     t = Table(save=True)
-    for idx, column in enumerate(ws.columns()):
+    for idx, col in enumerate(ws.columns()):
         if first_row_has_headers:
-            header, start_row_pos = str(column[0]), max(1, start)
+            header, start_row_pos = str(col[0]), max(1, start)
         else:
             header, start_row_pos = str(idx), max(0, start)
 
@@ -104,7 +89,7 @@ def excel_reader(path, first_row_has_headers=True, sheet=None, columns=None, sta
         unique_column_name = unique_name(str(header), used_columns_names)
         used_columns_names.add(unique_column_name)
 
-        t[unique_column_name] = [v for v in column[start_row_pos : start_row_pos + limit]]
+        t[unique_column_name] = [v for v in col[start_row_pos : start_row_pos + limit]]
     return t
 
 
@@ -181,16 +166,13 @@ def text_reader_task(
     """
     if isinstance(source, str):
         source = pathlib.Path(source)
-    if not isinstance(source, pathlib.Path):
-        raise TypeError()
+    type_check(source, pathlib.Path)
     if not source.exists():
         raise FileNotFoundError(f"File not found: {source}")
 
-    if not isinstance(table_key, str):
-        raise TypeError()
+    type_check(table_key, str)
+    type_check(columns, list)
 
-    if not isinstance(columns, list):
-        raise TypeError
     if not all(isinstance(name, str) for name in columns):
         raise TypeError("All column names were not str")
 
@@ -442,8 +424,8 @@ def text_reader(
 
                 parts.append(line)
                 if ix != 0 and ix % lines_per_task == 0:
-                    p = TEMPDIR / (path.stem + f"{ix}" + path.suffix)
-                    with p.open("w", encoding=H5_ENCODING) as fo:
+                    p = config.TEMPDIR / (path.stem + ENCODINGpath.suffix)
+                    with p.open("w", encoding=config.ENCODING) as fo:
                         parts.insert(0, header_line)
                         fo.write("".join(parts))
                     pbar.update((len(parts) / newlines) * process_stage)
@@ -459,8 +441,8 @@ def text_reader(
                     )
 
             if parts:  # any remaining parts at the end of the loop.
-                p = TEMPDIR / (path.stem + f"{ix}" + path.suffix)
-                with p.open("w", encoding=H5_ENCODING) as fo:
+                p = config.TEMPDIR / (path.stem + ENCODINGpath.suffix)
+                with p.open("w", encoding=config.ENCODING) as fo:
                     parts.insert(0, header_line)
                     fo.write("".join(parts))
                 pbar.update((len(parts) / newlines) * process_stage)
@@ -542,878 +524,22 @@ file_readers = {  # dict of file formats and functions used during Table.import_
 }
 
 
-class Table(object):
-    def __init__(self, key=None, save=False, _create=True, config=None) -> None:
-        if key is None:
-            key = mem.new_id("/table")
-        elif not isinstance(key, str):
-            raise TypeError
-        self.key = key
+class Table(BaseTable):
+    _pid_dir = None  # workdir / gettpid /
 
-        self.group = f"/table/{self.key}"
-        self._columns = {}  # references for virtual datasets that behave like lists.
-        if _create:
-            if config is not None:
-                if isinstance(config, dict):
-                    logging.info(
-                        f"import config for {config['path']}:\n" + "\n".join(f"{k}:{v}" for k, v in config.items())
-                    )
-                    config = json.dumps(config)
-                if not isinstance(config, str):
-                    raise TypeError("expected config as utf-8 encoded json")
-            mem.create_table(key=key, save=save, config=config)  # attrs. 'columns'
-        self._saved = save
+    def __init__(self, columns=None, headers=None, rows=None, _path=None) -> None:
+        """creates Table
 
-    @property
-    def save(self):
-        return self._saved
-
-    @save.setter
-    def save(self, value):
-        """
-        Makes the table persistent on disk in HDF5 storage.
-        """
-        if not isinstance(value, bool):
-            raise TypeError(f"expected bool, got: {type(value)}")
-        if self._saved != value:
-            self._saved = value
-            mem.set_saved_flag(self.group, value)
-
-    def __del__(self):
-        if PYTHON_EXIT:
-            return
-
-        for key in list(self._columns):
-            try:
-                del self[key]
-            except KeyError:
-                log.info("del self[key] suppressed.")
-
-        try:
-            mem.delete_table(self.group)
-        except KeyError:
-            log.info("Table.__del__ suppressed.")
-
-    def __str__(self):
-        return f"{self.__class__.__name__}({len(self._columns):,} columns, {len(self):,} rows)"
-
-    def __repr__(self):
-        return self.__str__()
-
-    @property
-    def columns(self):
-        """
-        returns list of column names.
-        """
-        return list(self._columns.keys())
-
-    @property
-    def rows(self):
-        """
-        enables iteration
-
-        for row in Table.rows:
-            print(row)
-        """
-
-        n_max = len(self)
-        generators = []
-        for name, mc in self._columns.items():
-            if len(mc) < n_max:
-                warnings.warn(f"Column {name} has length {len(mc)} / {n_max}. None will appear as fill value.")
-            generators.append(itertools.chain(iter(mc), itertools.repeat(None, times=n_max - len(mc))))
-
-        for _ in range(len(self)):
-            yield [next(i) for i in generators]
-
-    def __iter__(self):
-        """
-        Disabled. Users should use Table.rows or Table.columns
-
-        Why? See [1,2,3] below.
-
-        >>> import this
-        The Zen of Python, by Tim Peters
-
-        Beautiful is better than ugly.
-        Explicit is better than implicit.                          <---- [1]
-        Simple is better than complex.
-        Complex is better than complicated.
-        Flat is better than nested.
-        Sparse is better than dense.
-        Readability counts.                                        <---- [2]
-        Special cases aren't special enough to break the rules.
-        Although practicality beats purity.
-        Errors should never pass silently.
-        Unless explicitly silenced.
-        In the face of ambiguity, refuse the temptation to guess.  <---- [3]
-        There should be one-- and preferably only one --obvious way to do it.
-        Although that way may not be obvious at first unless you're Dutch.
-        Now is better than never.
-        Although never is often better than *right* now.
-        If the implementation is hard to explain, it's a bad idea.
-        If the implementation is easy to explain, it may be a good idea.
-        Namespaces are one honking great idea -- let's do more of those!
-        """
-        raise AttributeError("use Table.rows or Table.columns")
-
-    def __len__(self):
-        """
-        returns length of table.
-        """
-        if self._columns:
-            return max(len(c) for c in self._columns.values())
-        return 0  # if there are no columns.
-
-    def __setitem__(self, keys, values):
-        """
         Args:
-            keys (str, tuple of str's): keys
-            values (Column or Iterable): values
-
-        Examples:
-            t = Table()
-            t['a'] = [1,2,3]  - column 'a' contains values [1,2,3]
-            t[('b','c')] = [ [4,5,6], [7,8,9] ]
-            # column 'b' contains values [4,5,6]
-            # column 'c' contains values [7,8,9]
-
+            EITHER:
+                columns (dict, optional): dict with column names as keys, values as lists.
+                Example: t = Table(columns={"a": [1, 2], "b": [3, 4]})
+            OR
+                headers (list of strings, optional): list of column names.
+                rows (list of tuples or lists, optional): values for columns
+                Example: t = Table(headers=["a", "b"], rows=[[1,3], [2,4]])
         """
-        if isinstance(keys, str):
-            if isinstance(values, (tuple, list, np.ndarray)):
-                if len(values) == 0:
-                    values = None
-                self._columns[keys] = column = Column(values)  # overwrite if exists.
-                mem.create_column_reference(self.key, column_name=keys, column_key=column.key)
-            elif isinstance(values, Column):
-                col = self._columns.get(keys, None)
-                if col is None:  # it's a column from another table.
-                    self._columns[keys] = col = values.copy()
-                elif values.key == col.key:  # it's update from += or similar
-                    self._columns[keys] = values
-                else:  # we're likely creating a new table using `from_dict` without pulling in data to memory
-                    self._columns[keys] = col = values.copy()
-                mem.create_column_reference(self.key, column_name=keys, column_key=col.key)
-
-            elif values is None:  # it's an empty dataset.
-                self._columns[keys] = col = Column(values)
-                mem.create_column_reference(self.key, column_name=keys, column_key=col.key)
-            else:
-                raise NotImplementedError(f"No method for values of type {type(values)}")
-        elif isinstance(keys, tuple) and len(keys) == len(values):
-            for key, value in zip(keys, values):
-                self.__setitem__(key, value)
-        else:
-            raise NotImplementedError(f"No method for keys of type {type(keys)}")
-
-    def __getitem__(self, *keys):
-        """
-        Enables selection of columns and rows
-        Examples:
-
-            table['a']   # selects column 'a'
-            table[3]  # selects row 3 as a tuple.
-            table[:10]   # selects first 10 rows from all columns
-            table['a','b', slice(3,20,2)]  # selects a slice from columns 'a' and 'b'
-            table['b', 'a', 'a', 'c', 2:20:3]  # selects column 'b' and 'c' and 'a' twice for a slice.
-
-        returns values in same order as selection.
-        """
-        if not isinstance(keys, tuple):
-            keys = (keys,)
-        if len(keys) == 1 and all(isinstance(i, tuple) for i in keys):
-            keys = keys[0]
-
-        if len(keys) == 1:
-            if isinstance(keys[0], int):
-                keys = (slice(keys[0]),)
-
-        slices = [i for i in keys if isinstance(i, slice)]
-        if len(slices) > 1:
-            raise KeyError(f"multiple slices is not accepted: {slices}")
-
-        cols = [i for i in keys if not isinstance(i, slice)]
-        if cols:
-            key_errors = [cname for cname in filter(lambda cname: cname not in self.columns, cols)]
-            if any(key_errors):
-                raise KeyError(f"keys not found: {', '.join(key_errors)}")
-            if len(set(cols)) != len(cols):
-                raise KeyError(f"duplicated keys in {cols}")
-        else:  # e.g. tbl[:10]
-            cols = self.columns
-
-        if len(cols) == 1:  # e.g. tbl['a'] or tbl['a'][:10]
-            col = self._columns[cols[0]]
-            if slices:
-                return col[slices[0]]
-            else:
-                return col
-        elif slices:
-            slc = slices[0]
-            t = Table()
-            for name in cols:
-                t[name] = self._columns[name][slc]
-            return t
-        else:
-            t = Table()
-            for name in cols:
-                t[name] = self._columns[name]
-            return t
-
-    def __delitem__(self, key):
-        """
-        del table['a']  removes column 'a'
-        del table[-3:] removes last 3 rows from all columns.
-        """
-        if isinstance(key, str) and key in self._columns:
-            col = self._columns[key]
-            mem.delete_column_reference(self.group, key, col.key)
-            del self._columns[key]  # dereference the Column
-        elif isinstance(key, slice):
-            for col in self._columns.values():
-                del col[key]
-        else:
-            raise NotImplementedError()
-
-    def copy(self):
-        """
-        Returns a copy of the table.
-        """
-        cls = type(self)
-        t = cls()
-        for name, col in self._columns.items():
-            t[name] = col.copy()
-        return t
-
-    def clear(self):
-        """
-        removes all rows and columns from a table.
-        """
-        for name in self.columns:
-            self.__delitem__(name)
-
-    def __eq__(self, __o: object) -> bool:
-        """
-        Determines if two tables have identical content.
-        """
-        if not isinstance(__o, Table):
-            return False
-        if id(self) == id(__o):
-            return True
-        if len(self) != len(__o):
-            return False
-        if len(self) == len(__o) == 0:
-            return True
-        if self.columns != __o.columns:
-            return False
-        for name, col in self._columns.items():
-            if col != __o._columns[name]:
-                return False
-        return True
-
-    def __add__(self, other):
-        """
-        enables concatenation for tables with the same column names.
-        """
-        c = self.copy()
-        c += other
-        return c
-
-    def __iadd__(self, other):
-        """
-        enables extension with other tables with the same column names.
-        """
-        if not isinstance(other, Table):
-            raise TypeError(f"no method for {type(other)}")
-        if set(self.columns) != set(other.columns) or len(self.columns) != len(other.columns):
-            raise ValueError("Columns names are not the same. Use table.stack instead.")
-        for name, col in self._columns.items():
-            col += other[name]
-            mem.create_column_reference(self.key, column_name=name, column_key=col.key)
-        return self
-
-    def __mul__(self, other):
-        """
-        enables repetition of a table
-        Example: Table_x_10 = table * 10
-        """
-        if not isinstance(other, int):
-            raise TypeError(f"can't multiply Table with {type(other)}")
-        t = self.copy()
-        for col in t._columns.values():
-            col *= other
-        return t
-
-    def __imul__(self, other):
-        """
-        extends a table N times onto using itself as source.
-        """
-        if not isinstance(other, int):
-            raise TypeError(f"can't multiply Table with {type(other)}")
-
-        for col in self._columns.values():
-            col *= other
-        return self
-
-    @classmethod
-    def reload_saved_tables(cls, path=None):
-        """
-        Loads saved tables from a hdf5 storage.
-
-        The default storage locations is:
-        >>> from tablite.config import HDF5_Config
-        >>> print(Config.H5_STORAGE)
-
-        To import without changing the default location use:
-        tables = reload_saved_tables("c:/another/location.hdf5)
-        """
-        tables = []
-        if path is None:
-            path = mem.path
-        unsaved = 0
-        with h5py.File(path, "r+") as h5:
-            if "/table" not in h5.keys():
-                return []
-
-            for table_key in h5["/table"].keys():
-                dset = h5[f"/table/{table_key}"]
-                if dset.attrs["saved"] is False:
-                    unsaved += 1
-                else:
-                    t = Table.load(path, key=table_key)
-                    tables.append(t)
-        if unsaved:
-            warnings.warn(f"Dropping {unsaved} tables from cache where save==False.")
-        return tables
-
-    @classmethod
-    def load(cls, path, key):
-        """
-        Special classmethod to load saved tables stored in hdf5 storage.
-        Used by reload_saved_tables
-        """
-        assert issubclass(cls, Table), f"'{cls.__name__}' must be a subclass of '{Table.__module__}.{Table.__name__}'"
-
-        with h5py.File(path, "r+") as h5:
-            group = f"/table/{key}"
-            dset = h5[group]
-            saved = dset.attrs["saved"]
-            t = cls(key=key, save=saved, _create=False)
-            columns = json.loads(dset.attrs["columns"])
-            for col_name, column_key in columns.items():
-                c = Column.load(key=column_key)
-                col_dset = h5[f"/column/{column_key}"]
-                c._len = col_dset.attrs["length"]
-                t[col_name] = c
-            return t
-
-    @classmethod
-    def reset_storage(cls, include_imports=True):
-        """Resets all stored tables.
-
-        include_imports: bool
-            True: imports will be removed (default)
-            False: imports will be kept.
-        """
-        mem.reset_storage(include_imports)
-
-    def add_rows(self, *args, **kwargs):
-        """its more efficient to add many rows at once.
-
-        supported cases:
-
-        t = Table()
-        t.add_columns('row','A','B','C')
-
-        (1) t.add_rows(1, 1, 2, 3)  # individual values as args
-        (2) t.add_rows([2, 1, 2, 3])  # list of values as args
-        (3) t.add_rows((3, 1, 2, 3))  # tuple of values as args
-        (4) t.add_rows(*(4, 1, 2, 3))  # unpacked tuple becomes arg like (1)
-        (5) t.add_rows(row=5, A=1, B=2, C=3)   # kwargs
-        (6) t.add_rows(**{'row': 6, 'A': 1, 'B': 2, 'C': 3})  # dict / json interpreted a kwargs
-        (7) t.add_rows((7, 1, 2, 3), (8, 4, 5, 6))  # two (or more) tuples as args
-        (8) t.add_rows([9, 1, 2, 3], [10, 4, 5, 6])  # two or more lists as rgs
-        (9) t.add_rows({'row': 11, 'A': 1, 'B': 2, 'C': 3},
-                       {'row': 12, 'A': 4, 'B': 5, 'C': 6})  # two (or more) dicts as args - roughly comma sep'd json.
-        (10) t.add_rows( *[ {'row': 13, 'A': 1, 'B': 2, 'C': 3},
-                            {'row': 14, 'A': 1, 'B': 2, 'C': 3} ])  # list of dicts as args
-        (11) t.add_rows(row=[15,16], A=[1,1], B=[2,2], C=[3,3])  # kwargs with lists as values
-
-        if both args and kwargs, then args are added first, followed by kwargs.
-        """
-        if args:
-            if not all(isinstance(i, (list, tuple, dict)) for i in args):  # 1,4
-                args = [args]
-
-            if all(isinstance(i, (list, tuple, dict)) for i in args):  # 2,3,7,8
-                # 1. turn the data into columns:
-                names = self.columns
-                d = {n: [] for n in self.columns}
-                for arg in args:
-                    if len(arg) != len(names):
-                        raise ValueError(f"len({arg})== {len(arg)}, but there are {len(self.columns)} columns")
-
-                    if isinstance(arg, dict):
-                        for k, v in arg.items():  # 7,8
-                            d[k].append(v)
-
-                    elif isinstance(arg, (list, tuple)):  # 2,3
-                        for n, v in zip(names, arg):
-                            d[n].append(v)
-
-                    else:
-                        raise TypeError(f"{arg}?")
-                # 2. extend the columns
-                for n, values in d.items():
-                    col = self.__getitem__(n)
-                    col.extend(values)
-
-        if kwargs:
-            if isinstance(kwargs, dict):
-                if all(isinstance(v, (list, tuple)) for v in kwargs.values()):
-                    for k, v in kwargs.items():
-                        col = self._columns[k]
-                        col.extend(v)
-                else:
-                    for k, v in kwargs.items():
-                        col = self._columns[k]
-                        col.extend([v])
-            else:
-                raise ValueError(f"format not recognised: {kwargs}")
-
-        return
-
-    def add_columns(self, *names):
-        """
-        same as:
-        for name in names:
-            table[name] = None
-        """
-        for name in names:
-            self.__setitem__(name, None)
-
-    def add_column(self, name, data=None):
-        """
-        verbose alias for table[name] = data, that checks if name already exists
-        """
-        if not isinstance(name, str):
-            raise TypeError()
-        if name in self.columns:
-            raise ValueError(f"{name} already in {self.columns}")
-
-        self.__setitem__(name, data)
-
-    def stack(self, other):
-        """
-        returns the joint stack of tables
-        Example:
-
-        | Table A|  +  | Table B| = |  Table AB |
-        | A| B| C|     | A| B| D|   | A| B| C| -|
-                                    | A| B| -| D|
-        """
-        if not isinstance(other, Table):
-            raise TypeError(f"stack only works for Table, not {type(other)}")
-
-        t = self.copy()
-        for name, col2 in other._columns.items():
-            if name in t.columns:
-                t[name].extend(col2)
-            elif len(self) > 0:
-                t[name] = [None] * len(self)
-            else:
-                t[name] = col2
-
-        for name, col in t._columns.items():
-            if name not in other.columns:
-                if len(other) > 0:
-                    if len(self) > 0:
-                        col.extend([None] * len(other))
-                    else:
-                        t[name] = [None] * len(other)
-        return t
-
-    def types(self):
-        """
-        returns nested dict of data types in the form:
-
-            {column name: {python type class: number of instances }, }
-
-        example:
-        >>> t.types()
-        {
-            'A': {<class 'str'>: 7},
-            'B': {<class 'int'>: 7}
-        }
-        """
-
-        d = {}
-        for name, col in self._columns.items():
-            assert isinstance(col, Column)
-            d[name] = col.types()
-        return d
-
-    def to_ascii(self, blanks=None, row_counts=None, split_after=None):
-        """
-        enables viewing in terminals
-        returns the table as ascii string
-
-        blanks: any stringable item.
-        row_counts: declares the column with row counts, so it is presented as the first column.
-        split_after: integer: inserts "..." to highlight split of rows
-        """
-        widths = {}
-        column_types = {}
-        names = list(self.columns)
-        if not names:
-            return "Empty table"
-        column_lengths = set()
-        for name, col in self._columns.items():
-            types = col.types()
-            if name == row_counts:
-                column_types[name] = "row"
-            elif len(types) == 1:
-                dt, _ = types.popitem()
-                column_types[name] = dt.__name__
-            else:
-                column_types[name] = "mixed"
-            dots = len("...") if split_after is not None else 0
-            widths[name] = max(
-                len(column_types[name]),
-                len(name),
-                dots,
-                len(str(None)) if len(col) != len(self) else 0,
-                *[len(str(v)) if not isinstance(v, str) else len(str(v)) for v in col],
-            )
-            column_lengths.add(len(col))
-
-        def adjust(v, length):
-            if v is None:
-                return str(blanks).ljust(length)
-            elif isinstance(v, str):
-                return v.ljust(length)
-            else:
-                return str(v).rjust(length)
-
-        s = []
-        s.append("+" + "+".join(["=" * widths[n] for n in names]) + "+")
-        s.append("|" + "|".join([n.center(widths[n], " ") for n in names]) + "|")
-        s.append("|" + "|".join([column_types[n].center(widths[n], " ") for n in names]) + "|")
-        s.append("+" + "+".join(["-" * widths[n] for n in names]) + "+")
-        for ix, row in enumerate(self.rows):
-            s.append("|" + "|".join([adjust(v, widths[n]) for v, n in zip(row, names)]) + "|")
-            if ix == split_after:
-                s.append("|" + "|".join([adjust("...", widths[n]) for _, n in zip(row, names)]) + "|")
-
-        s.append("+" + "+".join(["=" * widths[h] for h in names]) + "+")
-
-        if len(column_lengths) != 1:
-            s.append("Warning: Columns have different lengths. None is used as fill value.")
-
-        return "\n".join(s)
-
-    def show(self, *args, blanks=None):
-        """
-        param: args:
-          - slice
-        blanks: fill value for `None`
-        """
-        if not self.columns:
-            print("Empty Table")
-            return
-
-        row_count_tags = ["#", "~", "*"]
-        cols = set(self.columns)
-        for n, tag in itertools.product(range(1, 6), row_count_tags):
-            if n * tag not in cols:
-                tag = n * tag
-                break
-
-        t = Table()
-        split_after = None
-        if args:
-            for arg in args:
-                if isinstance(arg, slice):
-                    ro = range(*arg.indices(len(self)))
-                    if len(ro) != 0:
-                        t[tag] = [f"{i:,}" for i in ro]  # add rowcounts as first column.
-                        for name, col in self._columns.items():
-                            t[name] = col[arg]  # copy to match slices
-                    else:
-                        t.add_columns(*[tag] + self.columns)
-
-        elif len(self) < 20:
-            t[tag] = [f"{i:,}".rjust(2) for i in range(len(self))]  # add rowcounts to copy
-            for name, col in self._columns.items():
-                t[name] = col
-
-        else:  # take first and last 7 rows.
-            n = len(self)
-            j = int(math.ceil(math.log10(n)) / 3) + len(str(n))
-            split_after = 6
-            t[tag] = [f"{i:,}".rjust(j) for i in range(7)] + [f"{i:,}".rjust(j) for i in range(n - 7, n)]
-            for name, col in self._columns.items():
-                t[name] = [i for i in col[:7]] + [i for i in col[-7:]]
-
-        print(t.to_ascii(blanks=blanks, row_counts=tag, split_after=split_after))
-
-    def _repr_html_(self):
-        """Ipython display compatible format
-        https://ipython.readthedocs.io/en/stable/api/generated/IPython.display.html#IPython.display.display
-        """
-        start, end = "<div><table border=1>", "</table></div>"
-
-        if not self.columns:
-            return f"{start}<tr>Empty Table</tr>{end}"
-
-        row_count_tags = ["#", "~", "*"]
-        cols = set(self.columns)
-        for n, tag in itertools.product(range(1, 6), row_count_tags):
-            if n * tag not in cols:
-                tag = n * tag
-                break
-
-        html = ["<tr>" + f"<th>{tag}</th>" + "".join(f"<th>{cn}</th>" for cn in self.columns) + "</tr>"]
-
-        column_types = {}
-        column_lengths = set()
-        for name, col in self._columns.items():
-            types = col.types()
-            if len(types) == 1:
-                dt, _ = types.popitem()
-                column_types[name] = dt.__name__
-            else:
-                column_types[name] = "mixed"
-            column_lengths.add(len(col))
-
-        html.append(
-            "<tr>" + "<th>row</th>" + "".join(f"<th>{column_types[name]}</th>" for name in self.columns) + "</tr>"
-        )
-
-        if len(self) < 20:
-            for ix, row in enumerate(self.rows):
-                html.append("<tr>" + f"<td>{ix}</td>" + "".join(f"<td>{v}</td>" for v in row) + "</tr>")
-        else:
-            t = Table()
-            for name, col in self._columns.items():
-                t[name] = [i for i in col[:7]] + [i for i in col[-7:]]
-
-            c = len(self) - 7
-            for ix, row in enumerate(t.rows):
-                if ix < 7:
-                    html.append("<tr>" + f"<td>{ix}</td>" + "".join(f"<td>{v}</td>" for v in row) + "</tr>")
-                if ix == 7:
-                    html.append("<tr>" + "<td>...</td>" + "".join("<td>...</td>" for _ in self._columns) + "</tr>")
-                if ix >= 7:
-                    html.append("<tr>" + f"<td>{c}</td>" + "".join(f"<td>{v}</td>" for v in row) + "</tr>")
-                    c += 1
-
-        warning = (
-            "Warning: Columns have different lengths. None is used as fill value." if len(column_lengths) != 1 else ""
-        )
-
-        return start + "".join(html) + end + warning
-
-    def index(self, *args):
-        """
-        param: *args: column names
-        returns multikey index on the columns as d[(key tuple, )] = {index1, index2, ...}
-
-        Examples:
-        >>> table6 = Table()
-        >>> table6['A'] = ['Alice', 'Bob', 'Bob', 'Ben', 'Charlie', 'Ben','Albert']
-        >>> table6['B'] = ['Alison', 'Marley', 'Dylan', 'Affleck', 'Hepburn', 'Barnes', 'Einstein']
-
-        >>> table6.index('A')  # single key.
-        {('Alice',): {0},
-         ('Bob',): {1, 2},
-         ('Ben',): {3, 5},
-         ('Charlie',): {4},
-         ('Albert',): {6}})
-
-        >>> table6.index('A', 'B')  # multiple keys.
-        {('Alice', 'Alison'): {0},
-         ('Bob', 'Marley'): {1},
-         ('Bob', 'Dylan'): {2},
-         ('Ben', 'Affleck'): {3},
-         ('Charlie', 'Hepburn'): {4},
-         ('Ben', 'Barnes'): {5},
-         ('Albert', 'Einstein'): {6}})
-
-        """
-        idx = defaultdict(set)
-        tbl = self.__getitem__(*args)
-        g = tbl.rows if isinstance(tbl, Table) else iter(tbl)
-        for ix, key in enumerate(g):
-            if isinstance(key, list):
-                key = tuple(key)
-            else:
-                key = (key,)
-            idx[key].add(ix)
-        return idx
-
-    def copy_to_clipboard(self):
-        """copy data from a Table into clipboard."""
-        try:
-            s = ["\t".join([f"{name}" for name in self.columns])]
-            for row in self.rows:
-                s.append("\t".join((str(i) for i in row)))
-            s = "\n".join(s)
-            pyperclip.copy(s)
-        except MemoryError:
-            raise MemoryError("Cannot copy to clipboard. Select slice instead.")
-
-    @staticmethod
-    def copy_from_clipboard():
-        """copy data from clipboard into Table."""
-        t = Table()
-        txt = pyperclip.paste().split("\n")
-        t.add_columns(*txt[0].split("\t"))
-
-        for row in txt[1:]:
-            data = row.split("\t")
-            t.add_rows(data)
-        return t
-
-    @classmethod
-    def from_dict(cls, d):
-        """
-        creates new Table instance from dict
-
-        Example:
-        >>> from tablite import Table
-        >>> t = Table.from_dict({'a':[1,2], 'b':[3,4]})
-        >>> t
-        Table(2 columns, 2 rows)
-        >>> t.show()
-        +===+===+===+
-        | # | a | b |
-        |row|int|int|
-        +---+---+---+
-        | 0 |  1|  3|
-        | 1 |  2|  4|
-        +===+===+===+
-        >>>
-
-        """
-        t = cls()
-        for k, v in d.items():
-            if not isinstance(k, str):
-                raise TypeError("expected keys as str")
-            if not isinstance(v, (list, tuple, Column)):
-                raise TypeError("expected values as list or tuple")
-            t[k] = list(v)
-        return t
-
-    def to_dict(self, columns=None, slice_=None):
-        """
-        columns: list of column names. Default is None == all columns.
-        slice_: slice. Default is None == all rows.
-
-        Example:
-        >>> t.show()
-        +===+===+===+
-        | # | a | b |
-        |row|int|int|
-        +---+---+---+
-        | 0 |  1|  3|
-        | 1 |  2|  4|
-        +===+===+===+
-        >>> t.to_dict()
-        {'a':[1,2], 'b':[3,4]}
-
-        """
-        if slice_ is None:
-            slice_ = slice(0, len(self))
-        assert isinstance(slice_, slice)
-
-        if columns is None:
-            columns = self.columns
-        if not isinstance(columns, list):
-            raise TypeError("expected columns as list of strings")
-
-        column_selection, own_cols = [], set(self.columns)
-        for name in columns:
-            if name in own_cols:
-                column_selection.append(name)
-            else:
-                raise ValueError(f"column({name}) not found")
-
-        cols = {}
-        for name in column_selection:
-            col = self._columns[name]
-            row_slice = col[slice_]
-            cols[name] = (
-                row_slice.tolist() if not isinstance(row_slice, list) else row_slice
-            )  # pure python objects. No numpy.
-        return cols
-
-    def as_json_serializable(self, row_count="row id", start_on=1, columns=None, slice_=None):
-        """
-        returns json friendly format.
-
-        For data conversion rules see DataTypes.to_json
-        """
-        if slice_ is None:
-            slice_ = slice(0, len(self))
-        assert isinstance(slice_, slice)
-
-        new = {"columns": {}, "total_rows": len(self)}
-        if row_count is not None:
-            new["columns"][row_count] = [i + start_on for i in range(*slice_.indices(len(self)))]
-
-        d = self.to_dict(columns, slice_=slice_)
-        for k, data in d.items():
-            new_k = unique_name(k, new["columns"])  # used to avoid overwriting the `row id` key.
-            new["columns"][new_k] = [DataTypes.to_json(v) for v in data]  # deal with non-json datatypes.
-        return new
-
-    def to_json(self, *args, **kwargs):
-        return json.dumps(self.as_json_serializable(*args, **kwargs))
-
-    @classmethod
-    def from_json(cls, jsn):
-        """
-        Imports tables exported using .to_json
-        """
-        d = json.loads(jsn)
-        t = cls()
-        for name, data in d["columns"].items():
-            if not isinstance(name, str):
-                raise TypeError(f"expect {name} as a string")
-            if not isinstance(data, list):
-                raise TypeError(f"expected {data} as list")
-            t[name] = data
-        return t
-
-    def to_hdf5(self, path, tqdm=_tqdm):
-        """
-        creates a copy of the table as hdf5
-        """
-        if isinstance(path, str):
-            path = pathlib.Path(path)
-
-        total = ":,".format(len(self.columns) * len(self))  # noqa
-        print(f"writing {total} records to {path}")
-
-        with h5py.File(path, "a") as f:
-            with tqdm(total=len(self.columns), unit="columns") as pbar:
-                n = 0
-                for name, mc in self.columns.values():
-                    f.create_dataset(name, data=mc[:])  # stored in hdf5 as '/name'
-                    n += 1
-                    pbar.update(n)
-        print(f"writing {path} to HDF5 done")
-
-    def to_pandas(self):
-        """
-        returns pandas.DataFrame
-        """
-        try:
-            return pd.DataFrame(self.to_dict())  # noqa
-        except ImportError:
-            import pandas as pd  # noqa
-        return pd.DataFrame(self.to_dict())  # noqa
+        super().__init__(_path)
 
     @classmethod
     def from_pandas(cls, df):
@@ -1442,16 +568,16 @@ class Table(object):
             | 2 |  3|  6|
             +===+===+===+
         """
-        return cls.from_dict(df.to_dict("list"))  # noqa
+        return cls(columns=df.to_dict("list"))  # noqa
 
     @classmethod
     def from_hdf5(cls, path):
         """
         imports an exported hdf5 table.
         """
-        if isinstance(path, str):
-            path = pathlib.Path(path)
+        import h5py
 
+        type_check(path, Path)
         t = cls()
         with h5py.File(path, "r") as h5:
             for col_name in h5.keys():
@@ -1459,36 +585,39 @@ class Table(object):
                 t[col_name] = dset[:]
         return t
 
+    @classmethod
+    def from_json(cls, jsn):
+        """
+        Imports tables exported using .to_json
+        """
+        import json
+
+        type_check(jsn, bytes)
+        return cls(columns=json.loads(jsn))
+
+    def to_hdf5(self, path, tqdm=_tqdm):
+        """
+        creates a copy of the table as hdf5
+        """
+        import export_utils
+
+        export_utils.to_hdf5(self, path)
+
+    def to_pandas(self):
+        """
+        returns pandas.DataFrame
+        """
+        import export_utils
+
+        return export_utils.to_pandas(self)
+
     def to_sql(self):
         """
         generates ANSI-92 compliant SQL.
         """
-        prefix = "Table"
-        create_table = """CREATE TABLE {}{} ({})"""
-        columns = []
-        for name, col in self._columns.items():
-            dtype = col.types()
-            if len(dtype) == 1:
-                dtype, _ = dtype.popitem()
-                if dtype is int:
-                    dtype = "INTEGER"
-                elif dtype is float:
-                    dtype = "REAL"
-                else:
-                    dtype = "TEXT"
-            else:
-                dtype = "TEXT"
-            definition = f"{name} {dtype}"
-            columns.append(definition)
+        from tablite.export_utils import to_sql
 
-        create_table = create_table.format(prefix, self.key, ", ".join(columns))
-
-        # return create_table
-        row_inserts = []
-        for row in self.rows:
-            row_inserts.append(str(tuple([i if i is not None else "NULL" for i in row])))
-        row_inserts = f"INSERT INTO {prefix}{self.key} VALUES " + ",".join(row_inserts)
-        return "begin; {}; {}; commit;".format(create_table, row_inserts)
+        return to_sql(self)  # remove after update to test suite.
 
     def export(self, path):
         """
@@ -1498,10 +627,8 @@ class Table(object):
 
         for list of supported formats, see `exporters`
         """
-        if isinstance(path, str):
-            path = pathlib.Path(path)
-        if not isinstance(path, pathlib.Path):
-            raise TypeError(f"expected pathlib.Path, not {type(path)}")
+        type_check(path, pathlib.Path)
+        from export_utils import exporters
 
         ext = path.suffix[1:]  # .xlsx --> xlsx
 
@@ -1511,11 +638,11 @@ class Table(object):
         handler = exporters.get(ext)
         handler(table=self, path=path)
 
-        log.info(f"exported {self.key} to {path}")
-        print(f"exported {self.key} to {path}")
+        log.info(f"exported {self} to {path}")
+        print(f"exported {self} to {path}")
 
-    @classmethod
-    def head(cls, path, linecount=5, delimiter=None):
+    @staticmethod
+    def head(path, linecount=5, delimiter=None):
         """
         Gets the head of any supported file format.
         """
@@ -1802,7 +929,7 @@ class Table(object):
         bitmap = [bool(_f(*r)) for r in self.__getitem__(*req_columns).rows]
         inverse_bitmap = [not i for i in bitmap]
 
-        if len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT:
+        if len(self) * len(self.columns) < config.SINGLE_PROCESSING_LIMIT:
             true, false = Table(), Table()
             for col_name in self.columns:
                 data = self[col_name][:]
@@ -1880,9 +1007,8 @@ class Table(object):
 
         # the task manager enables evaluation of a column per core,
         # which is assembled in the shared array.
-        max_task_size = math.floor(
-            SINGLE_PROCESSING_LIMIT / len(self.columns)
-        )  # 1 million fields per core (best guess!)
+        max_task_size = math.floor(Config.SINGLE_PROCESSING_LIMIT / len(self.columns))
+        # 1 million fields per core (best guess!)
 
         filter_tasks = []
         for ix, expression in enumerate(expressions):
@@ -1917,7 +1043,7 @@ class Table(object):
         )  # revise for case where memory footprint is limited to include zero subprocesses.
 
         with tqdm(total=len(filter_tasks) + len(merge_tasks), desc="filter") as pbar:
-            if len(self) * (len(filter_tasks) + len(merge_tasks)) >= SINGLE_PROCESSING_LIMIT:
+            if len(self) * (len(filter_tasks) + len(merge_tasks)) >= config.SINGLE_PROCESSING_LIMIT:
                 with TaskManager(n_cpus) as tm:
                     # EVALUATE
                     errs = tm.execute(filter_tasks, pbar=pbar)
@@ -2034,7 +1160,7 @@ class Table(object):
                 raise TypeError
 
         if (
-            len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT
+            len(self) * len(self.columns) < Config.SINGLE_PROCESSING_LIMIT
         ):  # the task is so small that multiprocessing doesn't make sense.
             t = Table()
             for col_name, col in self._columns.items():  # this LOOP can be done with TaskManager
@@ -2101,7 +1227,7 @@ class Table(object):
         sort B in ascending order.
         """
         if (
-            len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT
+            len(self) * len(self.columns) < Config.SINGLE_PROCESSING_LIMIT
         ):  # the task is so small that multiprocessing doesn't make sense.
             sorted_index = self.sort_index(sort_mode=sort_mode, **kwargs)
 
@@ -2257,7 +1383,7 @@ class Table(object):
             if not ixs:  # There are no matches.
                 break
 
-        if len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT:
+        if len(self) * len(self.columns) < config.SINGLE_PROCESSING_LIMIT:
             cls = type(self)
             t = cls()
             for col_name in self.columns:
@@ -2312,9 +1438,9 @@ class Table(object):
                 ix2 = {ix for ix, r in enumerate(col) if v == r}
             ixs.update(ix2)
 
-        if len(self) * len(self.columns) < SINGLE_PROCESSING_LIMIT:
+        if len(self) * len(self.columns) < config.SINGLE_PROCESSING_LIMIT:
             cls = type(self)
-            
+
             t = cls()
             for col_name in self.columns:
                 data = self[col_name][:]
@@ -2666,7 +1792,7 @@ class Table(object):
 
         return result
 
-    def _join_type_check(self, other, left_keys, right_keys, left_columns, right_columns):
+    def _jointype_check(self, other, left_keys, right_keys, left_columns, right_columns):
         if not isinstance(other, Table):
             raise TypeError(f"other expected other to be type Table, not {type(other)}")
 
@@ -2787,7 +1913,6 @@ class Table(object):
                 if final_len == 0:
                     break
 
-
         for name in right_columns:
             revised_name = unique_name(name, columns_refs.keys())
             col = other[name]
@@ -2827,10 +1952,7 @@ class Table(object):
             if any(i is not None for i in results):
                 raise Exception("\n".join(filter(lambda x: x is not None, results)))
 
-        merged_column_refs = {
-            k: mem.mp_merge_columns(v)
-            for k, v in columns_refs.items()
-        }
+        merged_column_refs = {k: mem.mp_merge_columns(v) for k, v in columns_refs.items()}
 
         with h5py.File(mem.path, "r+") as h5:
             table_key = mem.new_id("/table")
@@ -2851,9 +1973,7 @@ class Table(object):
         t = Table.load(path=mem.path, key=table_key)
         return t
 
-    def left_join(
-        self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None
-    ):
+    def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -2872,7 +1992,7 @@ class Table(object):
         if right_columns is None:
             right_columns = list(other.columns)
 
-        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+        self._jointype_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
 
         left_index = self.index(*left_keys)
         right_index = other.index(*right_keys)
@@ -2889,14 +2009,12 @@ class Table(object):
         elif tcfg.PROCESSING_PRIORITY == "mp":
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:
-            if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
+            if len(LEFT) * len(left_columns + right_columns) < config.SINGLE_PROCESSING_LIMIT:
                 return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
             else:  # use multi processing
                 return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
-    def inner_join(
-        self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None
-    ):
+    def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -2915,7 +2033,7 @@ class Table(object):
         if right_columns is None:
             right_columns = list(other.columns)
 
-        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+        self._jointype_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
 
         left_index = self.index(*left_keys)
         right_index = other.index(*right_keys)
@@ -2934,7 +2052,7 @@ class Table(object):
         elif tcfg.PROCESSING_PRIORITY == "mp":
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:
-            if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
+            if len(LEFT) * len(left_columns + right_columns) < config.SINGLE_PROCESSING_LIMIT:
                 return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
             else:  # use multi processing
                 return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
@@ -2960,7 +2078,7 @@ class Table(object):
         if right_columns is None:
             right_columns = list(other.columns)
 
-        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+        self._jointype_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
 
         left_index = self.index(*left_keys)
         right_index = other.index(*right_keys)
@@ -2983,7 +2101,7 @@ class Table(object):
         elif tcfg.PROCESSING_PRIORITY == "mp":
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:
-            if len(LEFT) * len(left_columns + right_columns) < SINGLE_PROCESSING_LIMIT:
+            if len(LEFT) * len(left_columns + right_columns) < config.SINGLE_PROCESSING_LIMIT:
                 return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
             else:  # use multi processing
                 return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
@@ -2999,16 +2117,16 @@ class Table(object):
         if right_columns is None:
             right_columns = list(other.columns)
 
-        self._join_type_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+        self._jointype_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
 
         LEFT, RIGHT = zip(*itertools.product(range(len(self)), range(len(other))))
-        
+
         if tcfg.PROCESSING_PRIORITY == "sp":
             return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         elif tcfg.PROCESSING_PRIORITY == "mp":
             return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
         else:
-            if len(LEFT) < SINGLE_PROCESSING_LIMIT:
+            if len(LEFT) < Config.SINGLE_PROCESSING_LIMIT:
                 return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
             else:  # use multi processing
                 return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
@@ -3037,22 +2155,7 @@ class Table(object):
         all = all
         any = not all
 
-        def not_in(a, b):
-            return not operator.contains(str(a), str(b))
-
-        def _in(a, b):
-            return operator.contains(str(a), str(b))
-
-        ops = {
-            "in": _in,
-            "not in": not_in,
-            "<": operator.lt,
-            "<=": operator.le,
-            ">": operator.gt,
-            ">=": operator.ge,
-            "!=": operator.ne,
-            "==": operator.eq,
-        }
+        ops = lookup_ops
 
         functions, left_criteria, right_criteria = [], set(), set()
 
@@ -3119,18 +2222,18 @@ class Table(object):
         elif tcfg.PROCESSING_PRIORITY == "mp":
             return self._mp_lookup(other, result, results)
         else:
-            if len(self) * len(other.columns) < SINGLE_PROCESSING_LIMIT:
+            if len(self) * len(other.columns) < Config.SINGLE_PROCESSING_LIMIT:
                 return self._sp_lookup(other, result, results)
             else:
                 return self._mp_lookup(other, result, results)
-        
+
     def _sp_lookup(self, other, result, results):
         for col_name in other.columns:
             col_data = other[col_name][:]
             revised_name = unique_name(col_name, result.columns)
             result[revised_name] = [col_data[k] if k is not None else None for k in results]
         return result
-    
+
     def _mp_lookup(self, other, result, results):
         # 1. create shared memory array.
         RIGHT_NONE_MASK = _maskify(results)
@@ -3159,7 +2262,7 @@ class Table(object):
         # 3. let task manager handle the tasks
         with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
             errs = tm.execute(tasks)
-            if _any(errs):
+            if any(errs):
                 raise Exception("\n".join(filter(lambda x: x is not None, errs)))
 
         # 4. update the result table.
@@ -3455,7 +2558,7 @@ class Table(object):
                     news[column_name].append(name)
                     news[value_name].append(value)
 
-                if ix % SINGLE_PROCESSING_LIMIT == 0:
+                if ix % config.SINGLE_PROCESSING_LIMIT == 0:
                     for name, values in news.items():
                         new[name].extend(values)
                         values.clear()
@@ -3547,583 +2650,31 @@ class Table(object):
         return new
 
 
-class Column(object):
-    def __init__(self, data=None, key=None) -> None:
-        """
-        data: list of values
-        key: (default None) id used during Table.load to instantiate the column.
-        """
-        if key is None:
-            self.key = mem.new_id("/column")
-        else:
-            self.key = key
-        self.group = f"/column/{self.key}"
-        if key is None:
-            self._len = 0
-            self.extend(data)
-
-        else:
-            length, _ = mem.load_column_attrs(self.group)
-            self._len = length
-
-    def __str__(self) -> str:
-        return f"<{self.__class__.__name__}>({self._len} values | key={self.key})"
-
-    def __repr__(self) -> str:
-        return self.__str__()
-
-    def types(self):
-        """
-        returns dict with datatype: frequency of occurrence
-        """
-        return mem.get_pages(self.group).get_types()
-
-    @classmethod
-    def load(cls, key):
-        """
-        loads a column using it hdf5 storage key.
-        """
-        return Column(key=key)
-
-    def __iter__(self):
-        return (v for v in self.__getitem__())
-
-    def __getitem__(self, item=None):
-        """The __getitem__ operator. Behaves like getitem on a list.
-
-        Args:
-            item (slice, optional): The slice. Defaults to None (all records)
-
-        Returns:
-            list: list of python types.
-        """
-        slc = arg_to_slice(item)
-
-        result = mem.get_data(self.group, slc)
-
-        if isinstance(item, int) and len(result) == 1:
-            return result[0]
-        else:
-            if isinstance(result, np.ndarray):
-                return result.tolist()
-            else:
-                return result
-
-    def to_numpy(self, item=None):
-        """
-        returns nympy.ndarray
-
-        *item: (slice): None (default) returns all records.
-        """
-        slc = arg_to_slice(item)
-        return mem.get_data(self.group, slc)
-
-    def clear(self):
-        """
-        clears the column. Like list().clear()
-        """
-        old_pages = mem.get_pages(self.group)
-        self._len = mem.create_virtual_dataset(self.group, pages_before=old_pages, pages_after=[])
-
-    def append(self, value):
-        """
-        addends value. Like list().append(value)
-
-        Note: Slower than .extend( many values ) as each append is written to disk
-        """
-        self.__setitem__(key=slice(self._len, None, None), value=[value])
-
-    def insert(self, index, value):
-        """
-        inserts values. Like list().insert(index, value)
-        """
-        old_pages = mem.get_pages(self.group)
-        new_pages = old_pages[:]
-
-        ix, start, _, page = old_pages.get_page_by_index(index)
-
-        if mem.get_ref_count(page) == 1:
-            new_page = page  # ref count match. Now let the page class do the insert.
-            new_page.insert(index - start, value)
-        else:
-            data = page[:].tolist()
-            data.insert(index - start, value)
-            new_page = Page(data)  # copy the existing page so insert can be done below
-
-        new_pages[ix] = new_page  # insert the changed page.
-        self._len = mem.create_virtual_dataset(self.group, pages_before=old_pages, pages_after=new_pages)
-
-    def extend(self, values):
-        """
-        extends the list. Like list().extend( many values )
-
-        Note: Faster than .append as all values are written to disk at once.
-        """
-        self.__setitem__(slice(self._len, None, None), values)  # self._extend_from_column(values)
-
-    def remove(self, value):
-        """
-        removes a single value.
-
-        To remove all instances of `value` use .remove_all( value )
-        """
-        pages = mem.get_pages(self.group)
-        for ix, page in enumerate(pages):
-            if value not in page[:]:
-                continue
-            if mem.get_ref_count(page) == 1:
-                page.remove(value)
-                new_pages = pages[:]
-            else:
-                data = page[:]  # copy the data.
-                data = data.tolist()
-                data.remove(value)  # remove from the copy.
-                new_page = page(data)  # create new page from copy
-                new_pages = pages[:]
-                new_pages[ix] = new_page  # register the newly copied page.
-            self._len = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=new_pages)
-            return
-        raise ValueError(f"value not found: {value}")
-
-    def remove_all(self, value):
-        """
-        removes all values of `value`
-
-        To remove only one instance of `value` use .remove ( value )
-        """
-        pages = mem.get_pages(self.group)
-        new_pages = pages[:]
-        for ix, page in enumerate(pages):
-            if value not in page[:]:
-                continue
-            new_data = [v for v in page[:] if v != value]
-            new_page = Page(new_data)
-            new_pages[ix] = new_page
-        self._len = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=new_pages)
-
-    def pop(self, index):
-        """
-        removes value at index. Like list().pop( index )
-        """
-        index = self._len + index if index < 0 else index
-        if index > self._len:
-            raise IndexError(f"can't reach index {index} when length is {self._len}")
-
-        pages = mem.get_pages(self.group)
-        ix, start, _, page = pages.get_page_by_index(index)
-        if mem.get_ref_count(page) == 1:
-            value = page.pop(index - start)
-        else:
-            data = page[:]
-            value = data.pop(index - start)
-            new_page = Page(data)
-            new_pages = pages[:]
-            new_pages[ix] = new_page
-        shape = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=new_pages)
-        self._len = shape
-        return value
-
-    def __setitem__(self, key, value):
-        """
-        Column.__setitem__(key,value) behaves just like a list
-        """
-        if isinstance(key, int):
-            if isinstance(value, (list, tuple)):
-                raise TypeError(
-                    f"your key is an integer, but your value is a {type(value)}. \
-                        Did you mean to insert? F.x. [{key}:{key+1}] = {value} ?"
-                )
-            if -self._len - 1 < key < self._len:
-                key = self._len + key if key < 0 else key
-                pages = mem.get_pages(self.group)
-                ix, start, _, page = pages.get_page_by_index(key)
-                if mem.get_ref_count(page) == 1:
-                    page[key - start] = value
-                else:
-                    data = page[:].tolist()
-                    data[key - start] = value
-                    new_page = Page(data)
-                    new_pages = pages[:]
-                    new_pages[ix] = new_page
-                    self._len = mem.create_virtual_dataset(self.group, pages_before=pages, pages_after=new_pages)
-            else:
-                raise IndexError("list assignment index out of range")
-
-        elif isinstance(key, slice):
-            start, stop, step = key.indices(self._len)
-            if key.start is None and key.stop is None and key.step in (None, 1):
-                # documentation: new = list(value)
-                # example: L[:] = [1,2,3]
-                before = mem.get_pages(self.group)
-                if isinstance(value, Column):
-                    after = mem.get_pages(value.group)
-                elif isinstance(value, (list, tuple, np.ndarray)):
-                    new_page = Page(value)
-                    after = Pages([new_page])
-                else:
-                    raise TypeError
-                self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
-
-            elif key.start is not None and key.stop is None and key.step is None:
-                # documentation: new = old[:key.start] + list(value)
-                # example: L[0:] = [1,2,3]
-                before = mem.get_pages(self.group)
-                before_slice = before.getslice(0, start)
-                if value is None:  # path used by add_columns and t['c'] = None e.g. reset to empty table.
-                    after = Pages()
-                elif isinstance(value, Column):
-                    after = before_slice + mem.get_pages(value.group)
-                elif isinstance(value, (list, tuple, np.ndarray)):
-                    if not before_slice:
-                        after = Pages((Page(value),))
-                    else:
-                        last_page = before_slice[-1]
-                        if mem.get_ref_count(last_page) == 1:
-                            before_copy = mem.get_pages(self.group)  # this is required because .extend is polymorphic
-                            last_page.extend(value)
-                            after = before_slice
-                            before = before_copy  # to overcome polymorphism.
-                        else:  # ref count > 1
-                            new_page = Page(value)
-                            after = before_slice + Pages([new_page])
-                else:
-                    raise TypeError
-                self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
-
-            elif key.stop is not None and key.start is None and key.step is None:
-                # documentation: new = list(value) + old[key.stop:]
-                # example: L[:3] = [1,2,3]
-                before = mem.get_pages(self.group)
-                before_slice = before.getslice(stop, self._len)
-                if isinstance(value, Column):
-                    after = mem.get_pages(value.group) + before_slice
-                elif isinstance(value, (list, tuple, np.ndarray)):
-                    new_page = Page(value)
-                    after = Pages([new_page]) + before_slice
-                else:
-                    raise TypeError
-                self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
-
-            elif key.step is None and key.start is not None and key.stop is not None:  # L[3:5] = [1,2,3]
-                # documentation: new = old[:start] + list(values) + old[stop:]
-
-                stop = max(start, stop)  # one of python's archaic rules.
-
-                before = mem.get_pages(self.group)
-                A, B = before.getslice(0, start), before.getslice(stop, self._len)
-                if isinstance(value, Column):
-                    after = A + mem.get_pages(value.group) + B
-                elif isinstance(value, (list, tuple, np.ndarray)):
-                    if value:
-                        new_page = Page(value)
-                        after = (
-                            A + Pages([new_page]) + B
-                        )  # new = old._getslice_(0,start) + list(value) + old._getslice_(stop,len(self.items))
-                    else:
-                        after = A + B
-                else:
-                    raise TypeError
-                self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
-
-            elif key.step is not None:
-                seq = range(start, stop, step)
-                seq_size = len(seq)
-                if len(value) > seq_size:
-                    raise ValueError(
-                        f"attempt to assign sequence of size {len(value)} to extended slice of size {seq_size}"
-                    )
-
-                # documentation: See also test_slice_rules.py/MyList for details
-                before = mem.get_pages(self.group)
-                new = mem.get_data(
-                    self.group, slice(None)
-                ).tolist()  # new = old[:]  # cheap shallow pointer copy in case anything goes wrong.
-                for new_index, position in zip(range(len(value)), seq):
-                    new[position] = value[new_index]
-                # all went well. No exceptions. Now update self.
-                after = Pages([Page(new)])  # This may seem redundant, but is in fact is good as the user may
-                # be cleaning up the dataset, so that we end up with a simple datatype instead of mixed.
-                self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
-            else:
-                raise KeyError(f"bad key: {key}")
-        else:
-            raise TypeError(f"bad key: {key}")
-
-    def __delitem__(self, key):
-        if isinstance(key, int):
-            if -self._len - 1 < key < self._len:
-                before = mem.get_pages(self.group)
-                after = before[:]
-                ix, start, _, page = before.get_page_by_index(key)
-                if mem.get_ref_count(page) == 1:
-                    del page[key - start]
-                else:
-                    data = mem.get_data(page.group)
-                    mask = np.ones(shape=data.shape)
-                    new_data = np.compress(mask, data, axis=0)
-                    after[ix] = Page(new_data)
-            else:
-                raise IndexError("list assignment index out of range")
-
-            self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
-
-        elif isinstance(key, slice):
-            start, stop, step = key.indices(self._len)
-            before = mem.get_pages(self.group)
-            if key.start is None and key.stop is None and key.step in (None, 1):  # del L[:] == L.clear()
-                self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=[])
-            elif key.start is not None and key.stop == key.step is None:  # del L[0:]
-                after = before.getslice(0, start)
-                self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
-            elif key.stop is not None and key.start == key.step is None:  # del L[:3]
-                after = before.getslice(stop, self._len)
-                self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
-            elif key.step is None and key.start is not None and key.stop is not None:  # del L[3:5]
-                after = before.getslice(0, start) + before.getslice(stop, self._len)
-                self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
-            elif key.step is not None:
-                before = mem.get_pages(self.group)
-                data = mem.get_data(self.group, slice(None))
-                mask = np.ones(shape=data.shape)
-                for i in range(start, stop, step):
-                    mask[i] = 0
-                new = np.compress(mask, data, axis=0)
-                # all went well. No exceptions.
-                after = Pages([Page(new)])  # This may seem redundant, but is in fact is good as the user may
-                # be cleaning up the dataset, so that we end up with a simple datatype instead of mixed.
-                self._len = mem.create_virtual_dataset(self.group, pages_before=before, pages_after=after)
-            else:
-                raise TypeError(f"bad key: {key}")
-        else:
-            raise TypeError(f"bad key: {key}")
-
-    def __len__(self):
-        """
-        returns number of entries in the Column. Like len(list())
-        """
-        return self._len
-
-    def __eq__(self, other):
-        if len(self) != len(other):  # quick cheap check.
-            return False
-
-        if isinstance(other, (list, tuple)):
-            return all(a == b for a, b in zip(self[:], other))
-
-        elif isinstance(other, Column):
-            if mem.get_pages(self.group) == mem.get_pages(other.group):  # special case.
-                return True
-            return (self.to_numpy() == other.to_numpy()).all()
-
-        elif isinstance(other, np.ndarray):
-            return (self.to_numpy() == other).all()
-        else:
-            raise TypeError
-
-    def copy(self):
-        return Column(data=self)
-
-    def __copy__(self):
-        return self.copy()
-
-    def index(self):
-        """
-        returns dict with { unique entry : list of indices }
-
-        example:
-        >>> c = Column(data=['a','b','a','c','b'])
-        >>> c.index()
-        {'a':[0,2], 'b': [1,4], 'c': [3]}
-
-        """
-        data = self.__getitem__()
-        d = {k: [] for k in np.unique(data)}
-        for ix, k in enumerate(data):
-            d[k].append(ix)
-        return d
-
-    def unique(self):
-        """
-        returns unique list of values.
-
-        example:
-        >>> c = Column(data=['a','b','a','c','b'])
-        >>> c.unqiue()
-        ['a','b','c']
-        """
-        try:
-            return np.unique(self.__getitem__())
-        except TypeError:  # np arrays can't handle dtype='O':
-            return np.array({i for i in self.__getitem__()})
-
-    def histogram(self):
-        """
-        returns 2 arrays: unique elements and count of each element
-
-        example:
-        >>> c = Column(data=['a','b','a','c','b'])
-        >>> c.unqiue()
-        ['a','b','c'],[2,2,1]
-        """
-        try:
-            uarray, carray = np.unique(self.__getitem__(), return_counts=True)
-            uarray, carray = uarray.tolist(), carray.tolist()
-        except TypeError:  # np arrays can't handle dtype='O':
-            d = defaultdict(int)
-            for i in self.__getitem__():
-                d[i] += 1
-            uarray, carray = [], []
-            for k, v in d.items():
-                uarray.append(k), carray.append(v)
-        return uarray, carray
-
-    def count(self, item):
-        return sum(1 for i in self.__getitem__() if i == item)
-
-    def replace(self, target, replacement):
-        """
-        replaces target with replacement
-        """
-        old_pages = mem.get_pages(self.group)
-        new_pages = old_pages[:]
-
-        for ix, page in enumerate(old_pages):
-            if type(target) not in page.datatypes():
-                continue  # quick scan.
-
-            data = page[:].tolist()
-            if target in data:
-                data = [i if i != target else replacement for i in page[:]]
-                new_pages[ix] = Page(data)
-        self._len = mem.create_virtual_dataset(self.group, pages_before=old_pages, pages_after=new_pages)
-
-    def statistics(self):
-        """
-        returns dict with:
-        - min (int/float, length of str, date)
-        - max (int/float, length of str, date)
-        - mean (int/float, length of str, date)
-        - median (int/float, length of str, date)
-        - stdev (int/float, length of str, date)
-        - mode (int/float, length of str, date)
-        - distinct (int/float, length of str, date)
-        - iqr (int/float, length of str, date)
-        - sum (int/float, length of str, date)
-        - histogram (see .histogram)
-        """
-        return summary_statistics(*self.histogram())
-
-    def __add__(self, other):
-        """
-        Concatenates to Columns. Like list() + list()
-
-        Example:
-        >>> one,two = Column(data=[1,2]), Column(data=[3,4])
-        >>> both = one+two
-        >>> both[:]
-        [1,2,3,4]
-        """
-        c = self.copy()
-        c.extend(other)
-        return c
-
-    def __contains__(self, item):
-        """
-        determines if item is in the Column. Similar to 'x' in ['a','b','c']
-        returns boolean
-        """
-        return item in self.__getitem__()
-
-    def __iadd__(self, other):
-        """
-        Extends instance of Column with another Column
-
-        Example:
-        >>> one,two = Column(data=[1,2]), Column(data=[3,4])
-        >>> one += two
-        >>> one[:]
-        [1,2,3,4]
-
-        """
-        self.extend(other)
-        return self
-
-    def __imul__(self, other):
-        """
-        Repeats instance of column N times. Like list() * N
-
-        Example:
-        >>> one = Column(data=[1,2])
-        >>> one *= 5
-        >>> one
-        [1,2, 1,2, 1,2, 1,2, 1,2]
-
-        """
-        if not isinstance(other, int):
-            raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
-        old_pages = mem.get_pages(self.group)
-        new_pages = old_pages * other
-        self._len = mem.create_virtual_dataset(self.group, old_pages, new_pages)
-        return self
-
-    def __mul__(self, other):
-        """
-        Repeats instance of column N times. Like list() * N
-
-        Example:
-        >>> one = Column(data=[1,2])
-        >>> five = one * 5
-        >>> five
-        [1,2, 1,2, 1,2, 1,2, 1,2]
-
-        """
-        if not isinstance(other, int):
-            raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
-        new = Column()
-        old_pages = mem.get_pages(self.group)
-        new_pages = old_pages * other
-        new._len = mem.create_virtual_dataset(new.group, old_pages, new_pages)
-        return new
-
-    def __ne__(self, other):
-        """
-        compares two columns. Like list1 != list2
-        """
-        if len(self) != len(other):  # quick cheap check.
-            return True
-
-        if isinstance(other, (list, tuple)):
-            return any(a != b for a, b in zip(self[:], other))
-
-        if isinstance(other, Column):
-            if mem.get_pages(self.group) == mem.get_pages(other.group):  # special case.
-                return False
-            return (self.to_numpy() != other.to_numpy()).any()
-
-        elif isinstance(other, np.ndarray):
-            return (self.to_numpy() != other).any()
-        else:
-            raise TypeError
-
-    def __le__(self, other):
-        raise NotImplementedError("vectorised operation A <= B is type-ambiguous")
-
-    def __lt__(self, other):
-        raise NotImplementedError("vectorised operation A < B is type-ambiguous")
-
-    def __ge__(self, other):
-        raise NotImplementedError("vectorised operation A >= B is type-ambiguous")
-
-    def __gt__(self, other):
-        raise NotImplementedError("vectorised operation A > B is type-ambiguous")
-
-
 # -------------- MULTI PROCESSING TASKS -----------------
+
+
+def not_in(a, b):
+    return not operator.contains(str(a), str(b))
+
+
 def _in(a, b):
     """
     enables filter function 'in'
     """
     return str(a) in str(b)
+    return operator.contains(str(a), str(b))  # TODO : check which method is faster
+
+
+lookup_ops = {
+    "in": _in,
+    "not in": not_in,
+    "<": operator.lt,
+    "<=": operator.le,
+    ">": operator.gt,
+    ">=": operator.ge,
+    "!=": operator.ne,
+    "==": operator.eq,
+}
 
 
 filter_ops = {
@@ -4199,7 +2750,7 @@ def filter_merge_task(table_key, true_key, false_key, shm_name, shm_shape, slice
     true_columns, false_columns = {}, {}
     for col_name, column_key in columns.items():
         col = Column(key=column_key)
-        slize = col.to_numpy(slice_)
+        slize = col.get_numpy(slice_)
         true_values = slize[true_mask]
         if np.any(true_mask):
             true_columns[col_name] = mem.mp_write_column(true_values)
@@ -4274,127 +2825,13 @@ def compress_task(source_key, destination_key, shm_index_name, shape):
     mem.mp_write_column(values, column_key=destination_key)  # --- WRITE!
 
 
-# ---------- FILE WRITERS ------------
-def _check_input(table, path):
-    if not isinstance(table, Table):
-        raise TypeError
-    if not isinstance(path, pathlib.Path):
-        raise TypeError
-
-
-def excel_writer(table, path):
-    """
-    writer for excel files.
-
-    This can create xlsx files beyond Excels.
-    If you're using pyexcel to read the data, you'll see the data is there.
-    If you're using Excel, Excel will stop loading after 1,048,576 rows.
-
-    See pyexcel for more details:
-    http://docs.pyexcel.org/
-    """
-    _check_input(table, path)
-
-    def gen(table):  # local helper
-        yield table.columns
-        for row in table.rows:
-            yield row
-
-    data = list(gen(table))
-    if path.suffix in [".xls", ".ods"]:
-        data = [
-            [str(v) if (isinstance(v, (int, float)) and abs(v) > 2**32 - 1) else DataTypes.to_json(v) for v in row]
-            for row in data
-        ]
-
-    pyexcel.save_as(array=data, dest_file_name=str(path))
-
-
-def text_writer(table, path, tqdm=_tqdm):
-    """exports table to csv, tsv or txt dependening on path suffix.
-    follows the JSON norm. text escape is ON for all strings.
-
-    Note:
-    ----------------------
-    If the delimiter is present in a string when the string is exported,
-    text-escape is required, as the format otherwise is corrupted.
-    When the file is being written, it is unknown whether any string in
-    a column contrains the delimiter. As text escaping the few strings
-    that may contain the delimiter would lead to an assymmetric format,
-    the safer guess is to text escape all strings.
-    """
-    _check_input(table, path)
-
-    def txt(value):  # helper for text writer
-        if value is None:
-            return ""  # A column with 1,None,2 must be "1,,2".
-        elif isinstance(value, str):
-            # if not (value.startswith('"') and value.endswith('"')):
-            #     return f'"{value}"'  # this must be escape: "the quick fox, jumped over the comma"
-            # else:
-                return value  # this would for example be an empty string: ""
-        else:
-            return str(DataTypes.to_json(value))  # this handles datetimes, timedelta, etc.
-
-    delimiters = {".csv": ",", ".tsv": "\t", ".txt": "|"}
-    delimiter = delimiters.get(path.suffix)
-
-    with path.open("w", encoding="utf-8") as fo:
-        fo.write(delimiter.join(c for c in table.columns) + "\n")
-        for row in tqdm(table.rows, total=len(table)):
-            fo.write(delimiter.join(txt(c) for c in row) + "\n")
-
-
-def sql_writer(table, path):
-    _check_input(table, path)
-    with path.open("w", encoding="utf-8") as fo:
-        fo.write(table.to_sql())
-
-
-def json_writer(table, path):
-    _check_input(table, path)
-    with path.open("w") as fo:
-        fo.write(table.to_json())
-
-
-def h5_writer(table, path):
-    _check_input(table, path)
-    table.to_hdf5(path)
-
-
-def html_writer(table, path):
-    _check_input(table, path)
-    with path.open("w", encoding="utf-8") as fo:
-        fo.write(table._repr_html_())
-
-
-exporters = {  # the commented formats are not yet supported by the pyexcel plugins:
-    # 'fods': excel_writer,
-    "json": json_writer,
-    "html": html_writer,
-    # 'simple': excel_writer,
-    # 'rst': excel_writer,
-    # 'mediawiki': excel_writer,
-    "xlsx": excel_writer,
-    "xls": excel_writer,
-    # 'xlsm': excel_writer,
-    "csv": text_writer,
-    "tsv": text_writer,
-    "txt": text_writer,
-    "ods": excel_writer,
-    "sql": sql_writer,
-    # 'hdf5': h5_writer,
-    # 'h5': h5_writer
-}
-
-
 def _maskify(arr):
-    none_mask = [False] * len(arr) # Setting the default
+    none_mask = [False] * len(arr)  # Setting the default
 
     for i in range(len(arr)):
-        if arr[i] is None:         # Check if our value is None
+        if arr[i] is None:  # Check if our value is None
             none_mask[i] = True
-            arr[i] = 0             # Remove None from the original array
+            arr[i] = 0  # Remove None from the original array
 
     return none_mask
 
