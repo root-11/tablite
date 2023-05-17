@@ -12,7 +12,7 @@ from itertools import count, chain, product
 from collections import defaultdict
 
 from datatypes import DataTypes
-from utils import type_check, intercept, np_type_unify, numpy_types, dict_to_rows, unique_name
+from utils import type_check, intercept, np_type_unify, numpy_types, dict_to_rows, unique_name, summary_statistics
 from config import Config
 
 
@@ -521,6 +521,16 @@ class Column(object):
         cp *= other
         return cp
 
+    def __contains__(self, item):
+        """
+        determines if item is in the Column. Similar to 'x' in ['a','b','c']
+        returns boolean
+        """
+        for page in self.pages:
+            if item in page.get():
+                return True
+        return False
+
     def remove_all(self, *values):
         """
         removes all values of `values`
@@ -580,6 +590,90 @@ class Column(object):
                 del d[k]
                 d[new_k] = v
         return dict(d)
+
+    def index(self):
+        """
+        returns dict with { unique entry : list of indices }
+
+        example:
+        >>> c = Column(data=['a','b','a','c','b'])
+        >>> c.index()
+        {'a':[0,2], 'b': [1,4], 'c': [3]}
+
+        """
+        d = defaultdict(list)
+        for ix, v in enumerate(self.__iter__()):
+            d[v].append(ix)
+
+    def unique(self):
+        """
+        returns unique list of values.
+
+        example:
+        >>> c = Column(data=['a','b','a','c','b'])
+        >>> c.unqiue()
+        ['a','b','c']
+        """
+        arrays = []
+        for page in self.pages:
+            arrays.append(np.unique(page.get()))
+        return np.unique(np_type_unify(arrays))
+
+    def histogram(self):
+        """
+        returns 2 arrays: unique elements and count of each element
+
+        example:
+        >>> c = Column(data=['a','b','a','c','b'])
+        >>> c.histogram()
+        {'a':2,'b':2,'c':1}
+        """
+        items, counts = [], []
+        for page in self.pages:
+            uarray, carray = np.unique(page.get(), return_counts=True)
+            items.append(uarray)
+            counts.append(carray)
+
+        d = defaultdict(int)
+        for i, c in zip(items, counts):
+            d[i] += c
+        return d
+
+    def statistics(self):
+        """
+        returns dict with:
+        - min (int/float, length of str, date)
+        - max (int/float, length of str, date)
+        - mean (int/float, length of str, date)
+        - median (int/float, length of str, date)
+        - stdev (int/float, length of str, date)
+        - mode (int/float, length of str, date)
+        - distinct (int/float, length of str, date)
+        - iqr (int/float, length of str, date)
+        - sum (int/float, length of str, date)
+        - histogram (see .histogram)
+        """
+        htg = self.histogram()
+        values, counts = list(htg.keys()), list(htg.values())
+        return summary_statistics(values, counts)
+
+    def count(self, item):
+        result = 0
+        for page in self.pages:
+            result += np.nonzero(page.get() == item)[0].shape()[0]
+            # what happens here ---^ below:
+            # arr = page.get()
+            # (arr == 3)
+            # >>> array([False, False,  True, False,  True])
+            # np.nonzero(arr==3)
+            # >>> (array([2,4], dtype=int64), )  <-- tuple!
+            # np.nonzero(page.get() == item)[0]
+            # >>> array([2,4])
+            # np.nonzero(page.get() == item)[0].shape()
+            # >>> (2, )
+            # np.nonzero(page.get() == item)[0].shape()[0]
+            # >>> 2
+        return result
 
 
 class Table(object):
@@ -1225,16 +1319,10 @@ class Table(object):
 
         """
         idx = defaultdict(set)
-        tbl = self.__getitem__(*args)
-        g = tbl.rows if isinstance(tbl, Table) else iter(tbl)
-        for ix, key in enumerate(g):
-            if isinstance(key, list):
-                key = tuple(key)
-            else:
-                key = (key,)
+        iterators = [iter(self.columns[c]) for c in args]
+        for ix, key in enumerate(zip(*iterators)):
             idx[key].add(ix)
         return idx
-   
 
 
 def test_basics():
@@ -1496,6 +1584,7 @@ def test_various():
 
 
 def test_types():
+    # SINGLE TYPES.
     A = list(range(1, 11))
     B = [i * 10 for i in A]
     C = [i * 10 for i in B]
@@ -1506,6 +1595,20 @@ def test_types():
     assert c.types() == {int: len(A)}
 
     assert t.types() == {"A": {int: len(A)}, "B": {int: len(A)}, "C": {int: len(A)}}
+
+    # MIXED DATATYPES
+    A = list(range(5))
+    B = list("abcde")
+    data = {"A": A, "B": B}
+    t = Table(columns=data)
+    typ1 = t.types()
+    expected = {"A": {int: 5}, "B": {str: 5}}
+    assert typ1 == expected
+    more = {"A": B, "B": A}
+    t += Table(columns=more)
+    typ2 = t.types()
+    expected2 = {"A": {int: 5, str: 5}, "B": {str: 5, int: 5}}
+    assert typ2 == expected2
 
 
 def test_table_row_functions():
@@ -1572,9 +1675,7 @@ def test_display_options():
     }
 
     txt = t.to_ascii()
-    assert (
-        txt
-        == """\
+    expected = """\
 +==+==+===+====+
 |# |A | B | C  |
 +--+--+---+----+
@@ -1589,11 +1690,9 @@ def test_display_options():
 | 8| 9| 90| 900|
 | 9|10|100|1000|
 +==+==+===+====+"""
-    )
+    assert txt == expected
     txt2 = t.to_ascii(dtype=True)
-    assert (
-        txt2
-        == """\
+    expected2 = """\
 +===+===+===+====+
 | # | A | B | C  |
 |row|int|int|int |
@@ -1609,13 +1708,11 @@ def test_display_options():
 | 8 |  9| 90| 900|
 | 9 | 10|100|1000|
 +===+===+===+====+"""
-    )
+    assert txt2 == expected2
 
     html = t._repr_html_()
 
-    assert (
-        html
-        == """<div><table border=1>\
+    expected3 = """<div><table border=1>\
 <tr><th>#</th><th>A</th><th>B</th><th>C</th></tr>\
 <tr><th> 0</th><th>1</th><th>10</th><th>100</th></tr>\
 <tr><th> 1</th><th>2</th><th>20</th><th>200</th></tr>\
@@ -1628,7 +1725,7 @@ def test_display_options():
 <tr><th> 8</th><th>9</th><th>90</th><th>900</th></tr>\
 <tr><th> 9</th><th>10</th><th>100</th><th>1000</th></tr>\
 </table></div>"""
-    )
+    assert html == expected3
 
     A = list(range(1, 51))
     B = [i * 10 for i in A]
@@ -1660,10 +1757,44 @@ def test_display_options():
     }
 
 
-def test_performance_on_index():
-    raise NotImplemented
-    # there must be a better way.
-    
+def test_index():
+    A = [1, 1, 2, 2, 3, 3, 4]
+    B = list("asdfghjkl"[: len(A)])
+    data = {"A": A, "B": B}
+    t = Table(columns=data)
+    t.index("A")
+    t.index("A", "B")
+
+
+def test_to_dict():
+    # to_dict and as_json_serializable
+    A = list(range(1, 11))
+    B = [i * 10 for i in A]
+    C = [i * 10 for i in B]
+    data = {"A": A, "B": B, "C": C}
+    t = Table(columns=data)
+    assert t.to_dict() == data
+
+
+def test_unique():
+    t = Table({"A": [1, 1, 1, 2, 2, 2, 3, 3, 4]})
+    assert t["A"].unique() == np.array([1, 2, 3, 4])
+
+
+def test_histogram():
+    t = Table({"A": [1, 1, 1, 2, 2, 2, 3, 3, 4]})
+    assert t["A"].histogram() == {1: 3, 2: 3, 3: 2, 4: 1}
+
+
+def test_count():
+    t = Table({"A": [1, 1, 1, 2, 2, 2, 3, 3, 4]})
+    assert t["A"].count(2) == 3
+
+
+def test_contains():
+    t = Table({"A": [1, 1, 1, 2, 2, 2, 3, 3, 4]})
+    assert 3 in t["A"]
+    assert 7 not in t["A"]
 
 
 if __name__ == "__main__":
@@ -1699,5 +1830,10 @@ if __name__ == "__main__":
     test_remove_all()
     test_replace()
     test_display_options()
+    test_index()
+    test_to_dict()
+    test_unique()
+    test_histogram()
+    test_count()
 
     print(f"duration: {time.time()-start}")  # duration: 5.388719081878662 with 30M elements.
