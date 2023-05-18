@@ -1,5 +1,5 @@
 from tqdm import tqdm
-from utils import type_check
+from utils import sub_cls_check, type_check
 from table import Table
 from datatypes import DataTypes
 from pathlib import Path
@@ -9,7 +9,7 @@ def to_sql(table):
     """
     generates ANSI-92 compliant SQL.
     """
-    type_check(table, Table)
+    sub_cls_check(table, Table)
 
     prefix = "Table"
     create_table = """CREATE TABLE {}{} ({})"""
@@ -43,7 +43,7 @@ def to_pandas(table):
     """
     returns pandas.DataFrame
     """
-    type_check(table, Table)
+    sub_cls_check(table, Table)
     try:
         return pd.DataFrame(table.to_dict())  # noqa
     except ImportError:
@@ -57,10 +57,10 @@ def to_hdf5(table, path):
     """
     import h5py
 
-    type_check(table, Table)
+    sub_cls_check(table, Table)
     type_check(path, Path)
 
-    total = ":,".format(len(self.columns) * len(table))  # noqa
+    total = ":,".format(len(table.columns) * len(table))  # noqa
     print(f"writing {total} records to {path}")
 
     with h5py.File(path, "a") as f:
@@ -86,7 +86,7 @@ def excel_writer(table, path):
     """
     import pyexcel
 
-    type_check(table, Table)
+    sub_cls_check(table, Table)
     type_check(path, Path)
 
     def gen(table):  # local helper
@@ -97,7 +97,12 @@ def excel_writer(table, path):
     data = list(gen(table))
     if path.suffix in [".xls", ".ods"]:
         data = [
-            [str(v) if (isinstance(v, (int, float)) and abs(v) > 2**32 - 1) else DataTypes.to_json(v) for v in row]
+            [
+                str(v)
+                if (isinstance(v, (int, float)) and abs(v) > 2**32 - 1)
+                else DataTypes.to_json(v)
+                for v in row
+            ]
             for row in data
         ]
 
@@ -105,7 +110,7 @@ def excel_writer(table, path):
 
 
 def to_json(table, *args, **kwargs):
-    type_check(table, Table)
+    sub_cls_check(table, Table)
     return table.to_json(*args, **kwargs)
 
 
@@ -122,7 +127,7 @@ def text_writer(table, path, tqdm=_tqdm):
     that may contain the delimiter would lead to an assymmetric format,
     the safer guess is to text escape all strings.
     """
-    type_check(table, Table)
+    sub_cls_check(table, Table)
     type_check(path, Path)
 
     def txt(value):  # helper for text writer
@@ -134,7 +139,9 @@ def text_writer(table, path, tqdm=_tqdm):
             # else:
             return value  # this would for example be an empty string: ""
         else:
-            return str(DataTypes.to_json(value))  # this handles datetimes, timedelta, etc.
+            return str(
+                DataTypes.to_json(value)
+            )  # this handles datetimes, timedelta, etc.
 
     delimiters = {".csv": ",", ".tsv": "\t", ".txt": "|"}
     delimiter = delimiters.get(path.suffix)
@@ -190,3 +197,5 @@ exporters = {  # the commented formats are not yet supported by the pyexcel plug
     # 'hdf5': h5_writer,
     # 'h5': h5_writer
 }
+
+supported_formats = list(exporters.keys())
