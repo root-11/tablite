@@ -5,6 +5,7 @@ from pathlib import Path
 
 ENCODING_GUESS_BYTES = 10000
 
+
 def split_by_sequence(text, sequence):
     """helper to split text according to a split sequence."""
     chunks = tuple()
@@ -71,29 +72,32 @@ class TextEscape(object):
             self.qoute = text_qualifier
 
         if not text_qualifier:
-            self.c = self._call1
+            if not self.strip_leading_and_tailing_whitespace:
+                self.c = self._call_1
+            else:
+                self.c = self._call_2
         elif not any(openings + closures):
-            self.c = self._call2
+            self.c = self._call_3
         else:
             try:
                 # TODO: The regex below needs to be constructed dynamically depending on the inputs.
                 # fmt: off
                 self.re = re.compile('([\d\w\s\u4e00-\u9fff]+)(?=,|$)|((?<=\A)|(?<=,))(?=,|$)|(\(.+\)|".+")', "gmu")  # noqa <-- Disclaimer: Audrius wrote this.
                 # fmt: on
-                self.c = self._call3
+                self.c = self._call_4
             except TypeError:
-                self.c = self._call3_slow
+                self.c = self._call_4_slow
 
     def __call__(self, s):
-        s2 = self.c(s)
-        if self.strip_leading_and_tailing_whitespace:
-            s2 = [w.rstrip(" ").lstrip(" ") for w in s2]
-        return s2
+        return self.c(s)
 
-    def _call1(self, s):  # just looks for delimiter.
+    def _call_1(self, s):  # just looks for delimiter.
         return s.split(self.delimiter)
 
-    def _call2(self, s):  # looks for qoutes.
+    def _call_2(self, s):
+        return [w.rstrip(" ").lstrip(" ") for w in self._call_1(s)]
+
+    def _call_3(self, s):  # looks for qoutes.
         words = []
         qoute = False
         ix = 0
@@ -115,10 +119,10 @@ class TextEscape(object):
             words.append(s)
         return words
 
-    def _call3(self, s):  # looks for qoutes, openings and closures.
+    def _call_4(self, s):  # looks for qoutes, openings and closures.
         return self.re.match(s)  # TODO - TEST!
 
-    def _call3_slow(self, s):
+    def _call_4_slow(self, s):
         words = []
         qoute = False
         ix, depth = 0, 0
@@ -226,10 +230,10 @@ def get_headers(path, linecount=10, delimiter=None):
                     container = [None] * max_rows
                     padding_ends = 0
                     max_column = sheet.max_column
-                    
+
                     for i, row_data in enumerate(sheet.iter_rows(0, max_rows, values_only=True)):
                         container[i] = list(row_data)
-                        
+
                         for j, cell in enumerate(reversed(row_data)):
                             if cell is None:
                                 continue
