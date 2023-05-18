@@ -183,7 +183,9 @@ class Table(BaseTable):
                   if the format cannot be achieved the read type is kept.
             Excess column names are ignored.
 
-            HINT: To the head of file use: Table.head(path)
+            HINT: To get the head of file use: 
+            >>> from tablite.tools import head
+            >>> head = head(path)
 
         first_row_has_headers: boolean
             True: (default) first row is used as column names.
