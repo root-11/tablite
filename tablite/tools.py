@@ -26,6 +26,7 @@ xround = DataTypes.round
 assert callable(guess)
 assert callable(xround)
 
+
 def head(path, linecount=5, delimiter=None):
     """
     Gets the head of any supported file format.
