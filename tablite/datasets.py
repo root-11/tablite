@@ -1,10 +1,10 @@
 import random
 from datetime import datetime
 from string import ascii_uppercase
-from tablite import Table
+from base import Table
 
 
-def synthetic_order_data_csv(rows=100_000):
+def synthetic_order_data(rows=100_000):
     """Creates a synthetic dataset for testing that looks like this:
     (depending on number of rows)
 
@@ -66,3 +66,86 @@ def synthetic_order_data_csv(rows=100_000):
     t["11"] = [f"{random.uniform(0.1, 25)}" for _ in range(1, rows + 1)]
 
     return t
+
+
+if __name__ == "__main__":
+    import logging
+
+    log = logging.getLogger(__name__)
+    log.setLevel(logging.DEBUG)
+    console = logging.StreamHandler()
+    console.setLevel(level=logging.DEBUG)
+    formatter = logging.Formatter("%(levelname)s : %(message)s")
+    console.setFormatter(formatter)
+    log.addHandler(console)
+    import time, os, gc, psutil
+    from pathlib import Path
+    from tempfile import tempdir
+
+    process = psutil.Process(os.getpid())
+    baseline_memory = process.memory_info().rss
+
+    length = 2_000_000
+    fn = Path(tempdir) / "synth data.tpz"
+    start = time.process_time()
+    t = synthetic_order_data(length)
+    created = time.process_time()
+    while gc.collect():
+        pass
+
+    memory_after_table_creation = process.memory_info().rss
+    memory_for_t = memory_after_table_creation - baseline_memory
+
+    print(f"creating {t} took {created-start} sec")
+    print(f"current RAM for table: {memory_for_t}")
+    print(t.show())
+
+    t.save(fn)
+    saved = time.process_time()
+    print(f"saving {t} took {saved-created} sec  {os.path.getsize(fn)//1000:,}kb")
+
+    t2 = t.load(fn)
+    loaded = time.process_time()
+    print(f"loading {t} took {loaded-saved} sec")
+
+    del t2
+    while gc.collect():
+        pass
+    os.remove(fn)
+
+    copy_1 = time.process_time()
+    t3 = t.copy()
+    copy_2 = time.process_time()
+    print(f"t.copy took {copy_2-copy_1} sec")
+    del t3
+
+    check_1 = time.process_time()
+    assert 1 in t["#"]
+    check_2 = time.process_time()
+    assert length in t["#"]
+    check_3 = time.process_time()
+    print(f"t.__contains__ took {check_2-check_1} / {check_3-check_2} (best-/worst case) sec")
+
+    types_1 = time.process_time()
+    d = t.types()
+    types_2 = time.process_time()
+    print(f"t.types() took {types_2-types_2} sec")
+
+    for name in t.columns:
+        unique_1 = time.process_time()
+        L = t[name].unique()
+        unique_2 = time.process_time()
+        print(f"t.unique({name}) took {unique_2-unique_1} sec.")
+
+    for name in t.columns:
+        index_1 = time.process_time()
+        d = t.index(name)
+        index_2 = time.process_time()
+        print(f"t.index({name}) took {index_2-index_1} sec.")
+
+    names = ["4", "7", "8", "9"]
+    for ix in range(1, 5):
+        tix_1 = time.process_time()
+        t.index(*names[:ix])
+        tix_2 = time.process_time()
+        print(f"t.index({names[:ix]}) took {tix_2-tix_1}")
