@@ -25,6 +25,7 @@ from base import Column
 from file_reader_utils import get_headers
 from utils import unique_name, expression_interpreter, type_check
 import import_utils
+import export_utils
 
 import sortation
 from groupby_utils import GroupBy, GroupbyFunction
@@ -84,56 +85,39 @@ class Table(BaseTable):
             | 2 |  3|  6|
             +===+===+===+
         """
-        return cls(columns=df.to_dict("list"))  # noqa
+        return import_utils.from_pandas(cls, df)
 
     @classmethod
     def from_hdf5(cls, path):
         """
         imports an exported hdf5 table.
         """
-        import h5py
-
-        type_check(path, Path)
-        t = cls()
-        with h5py.File(path, "r") as h5:
-            for col_name in h5.keys():
-                dset = h5[col_name]
-                t[col_name] = dset[:]
-        return t
+        return import_utils.from_hdf5(cls, path)
 
     @classmethod
     def from_json(cls, jsn):
         """
         Imports tables exported using .to_json
         """
-        import json
-
-        type_check(jsn, bytes)
-        return cls(columns=json.loads(jsn))
+        return import_utils.from_json(cls, jsn)
 
     def to_hdf5(self, path):
         """
         creates a copy of the table as hdf5
         """
-        import export_utils
-
         export_utils.to_hdf5(self, path)
 
     def to_pandas(self):
         """
         returns pandas.DataFrame
         """
-        import export_utils
-
         return export_utils.to_pandas(self)
 
     def to_sql(self):
         """
         generates ANSI-92 compliant SQL.
         """
-        from tablite.export_utils import to_sql
-
-        return to_sql(self)  # remove after update to test suite.
+        return export_utils.to_sql(self)  # remove after update to test suite.
 
     def export(self, path):
         """
@@ -144,25 +128,17 @@ class Table(BaseTable):
         for list of supported formats, see `exporters`
         """
         type_check(path, Path)
-        from export_utils import exporters
 
         ext = path.suffix[1:]  # .xlsx --> xlsx
 
-        if ext not in exporters:
-            raise TypeError(f"{ext} not in list of supported formats\n{list(file_readers.keys())}")
+        if ext not in export_utils.exporters:
+            raise TypeError(f"{ext} not a supported formats:{export_utils.supported_formats}")
 
-        handler = exporters.get(ext)
+        handler = export_utils.exporters.get(ext)
         handler(table=self, path=path)
 
         log.info(f"exported {self} to {path}")
         print(f"exported {self} to {path}")
-
-    @staticmethod
-    def head(path, linecount=5, delimiter=None):
-        """
-        Gets the head of any supported file format.
-        """
-        return get_headers(path, linecount=linecount, delimiter=delimiter)
 
     @classmethod
     def import_file(
