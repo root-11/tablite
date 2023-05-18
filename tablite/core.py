@@ -183,7 +183,7 @@ class Table(BaseTable):
                   if the format cannot be achieved the read type is kept.
             Excess column names are ignored.
 
-            HINT: To get the head of file use: 
+            HINT: To get the head of file use:
             >>> from tablite.tools import head
             >>> head = head(path)
 
@@ -263,7 +263,11 @@ class Table(BaseTable):
         additional_configs = {}
         if reader == import_utils.text_reader:
             # here we inject tqdm, if tqdm is not provided, use generic iterator
-            config = import_utils.make_text_reader_config(**locals())
+            # fmt:off
+            config = import_utils.text_reader(path, columns, first_row_has_headers, encoding, start, limit, newline,
+                                              guess_datatypes, text_qualifier, strip_leading_and_tailing_whitespace,
+                                              delimiter, text_escape_openings, text_escape_closures, tqdm=tqdm)
+            # fmt:on
 
         elif reader == import_utils.excel_reader:
             # config = path, first_row_has_headers, sheet, columns, start, limit
