@@ -22,7 +22,6 @@ from mplite import TaskManager, Task
 from config import Config
 from base import Table as BaseTable
 from base import Column
-from file_reader_utils import get_headers
 from utils import unique_name, expression_interpreter, type_check
 import import_utils
 import export_utils
