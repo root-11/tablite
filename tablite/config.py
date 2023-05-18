@@ -23,6 +23,8 @@ class Config(object):
 
     PROCESSING_PRIORITY = "auto"
 
+    MULTIPROCESSING_ENABLED = True
+
     @classmethod
     def reset(cls):
         for k, v in _default_values.items():
