@@ -3,7 +3,7 @@ import math
 import logging
 import pytest
 from tablite import Table, get_headers
-from tablite.datasets import synthetic_order_data_csv, remove_synthetic_data
+from tablite.datasets import synthetic_order_data, remove_synthetic_data
 
 
 log = logging.getLogger()
@@ -41,7 +41,7 @@ def test01_timing():
 @pytest.mark.timesensitive  # to include run: pytest tests --timesensitive . See tests/conftest.py for details.
 def test01():
     rows = 8e6
-    path = synthetic_order_data_csv(rows)
+    path = synthetic_order_data(rows)
     if not path.exists():
         raise FileNotFoundError(path)
 
