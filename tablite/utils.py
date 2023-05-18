@@ -11,6 +11,11 @@ def type_check(var, kind):
         raise TypeError(f"Expected {kind}, not {type(var)}")
 
 
+def sub_cls_check(c, kind):
+    if not issubclass(c, kind):
+        raise TypeError(f"Expected {kind}, not {type(c)}")
+
+
 def np_type_unify(arrays):
     dtypes = {arr.dtype: len(arr) for arr in arrays}
     if len(dtypes) == 1:
@@ -475,6 +480,18 @@ def test_dict_to_rows():
     assert rows == [["A", "B", "C"], [1, 10, 100], [2, 20, 200], [3, 30, 300]]
 
 
+def test_subcls_check():
+    class MyList(list):
+        pass
+
+    sub_cls_check(MyList, list)
+    try:
+        sub_cls_check(MyList, int)
+    except TypeError:
+        pass
+
+
 if __name__ == "__main__":
     test_intercept()
     test_dict_to_rows()
+    test_subcls_check()
