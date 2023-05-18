@@ -38,7 +38,7 @@ atexit.register(shutdown)
 
 
 class Page(object):
-    _ids = count(start=1)
+    ids = count(start=1)
 
     def __init__(self, path, array) -> None:
         """
@@ -46,7 +46,7 @@ class Page(object):
             path (Path): working directory.
             array (np.array): data
         """
-        self.id = next(self._ids)
+        self.id = next(self.ids)
         type_check(path, Path)
         self.path = path / "pages" / f"{self.id}.npy"
 
