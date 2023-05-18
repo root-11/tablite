@@ -78,7 +78,10 @@ if __name__ == "__main__":
     formatter = logging.Formatter("%(levelname)s : %(message)s")
     console.setFormatter(formatter)
     log.addHandler(console)
-    import time, os, gc, psutil
+    import time
+    import os
+    import gc
+    import psutil
     from pathlib import Path
     from tempfile import tempdir
 
