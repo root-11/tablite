@@ -29,8 +29,6 @@ log = logging.getLogger(__name__)
 
 
 class Table(BaseTable):
-    _pid_dir = None  # workdir / gettpid /
-
     def __init__(self, columns=None, headers=None, rows=None, _path=None) -> None:
         """creates Table
 
@@ -663,7 +661,7 @@ class Table(BaseTable):
             self, other, left_keys, right_keys, left_columns, right_columns, tqdm=_tqdm, pbar=None
         )
 
-    def lookup(self, other, *criteria, all=True, tqdm=_tqdm):  # TODO: This is single core code.
+    def lookup(self, other, *criteria, all=True, tqdm=_tqdm):
         """function for looking up values in `other` according to criteria in ascending order.
         :param: other: Table sorted in ascending search order.
         :param: criteria: Each criteria must be a tuple with value comparisons in the form:
