@@ -991,8 +991,14 @@ class Table(object):
         """
         self.columns.clear()
 
-    def save(self, path):  # USER FUNCTION.
+    def save(self, path, compression_method=zipfile.ZIP_STORED, compression_level=None):  # USER FUNCTION.
         """saves table to compressed tpz file.
+
+        Args:
+            path (Path): workdir / PID / tables / <int>.yml
+            compression_method: See zipfile compression methods. Default no compression.
+            compression_level: See zipfile compression levels. Defaults to None.
+            The defaults are the fastest mode of operation.
 
         .tpz is a gzip archive with table metadata captured as table.yml
         and the necessary set of pages saved as .npy files.
@@ -1014,9 +1020,6 @@ class Table(object):
                                                  in datatypes.Datatypes as _type_codes
         ----------------------------------------
 
-        Args:
-            path (Path): workdir / PID / tables / <int>.yml
-            table (_type_): Table.
         """
         type_check(path, Path)
         if path.is_dir():
@@ -1037,7 +1040,9 @@ class Table(object):
 
         yml = yaml.safe_dump(d, sort_keys=False, allow_unicode=True, default_flow_style=None)
 
-        with zipfile.ZipFile(path, "w") as f:  # raise if exists.
+        with zipfile.ZipFile(
+            path, "w", compression=compression_method, compresslevel=compression_level
+        ) as f:  # raise if exists.
             log.debug(f"writing .tpz to {path} with\n{yml}")
             f.writestr("table.yml", yml)
             for name, col in self.columns.items():
