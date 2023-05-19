@@ -346,7 +346,8 @@ def text_reader(
         raise ValueError("expected limit as an integer > 0")
 
     # fmt:off
-    with tqdm(total=100, desc=f"importing: reading '{pbar_fname}' bytes", unit="%", bar_format="{desc}: {percentage:3.2f}%|{bar}| [{elapsed}<{remaining}]") as pbar:
+    with tqdm(total=100, desc=f"importing: reading '{pbar_fname}' bytes", unit="%",
+              bar_format="{desc}: {percentage:3.2f}%|{bar}| [{elapsed}<{remaining}]") as pbar:
         # fmt:on
         with path.open("r", encoding=encoding, errors="ignore") as fi:
             # task: find chunk ...
@@ -383,7 +384,7 @@ def text_reader(
 
             if newlines <= start + (1 if first_row_has_headers else 0):  # Then start > end: Return EMPTY TABLE.
                 return Table(columns={n : [] for n in columns})
-            
+
         line_reader = TextEscape(
             openings=text_escape_openings,
             closures=text_escape_closures,
@@ -452,7 +453,8 @@ def text_reader(
         len_tasks = len(tasks)
         dump_size = dump_stage / len_tasks
 
-        class PatchTqdm:  # we need to re-use the tqdm pbar, this will patch the tqdm to update existing pbar instead of creating a new one
+        class PatchTqdm:  # we need to re-use the tqdm pbar, this will patch
+            # the tqdm to update existing pbar instead of creating a new one
             def update(self, n=1):
                 pbar.update(n * dump_size)
 
