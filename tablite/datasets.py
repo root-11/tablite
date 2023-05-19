@@ -116,39 +116,39 @@ if __name__ == "__main__":
         pass
     os.remove(fn)
 
-    copy_1 = time.process_time()
+    start = time.process_time()
     t3 = t.copy()
-    copy_2 = time.process_time()
-    print(f"t.copy took {copy_2-copy_1} sec")
+    end = time.process_time()
+    print(f"t.copy took {end-start} sec")
     del t3
 
-    check_1 = time.process_time()
+    start = time.process_time()
     assert 1 in t["#"]
-    check_2 = time.process_time()
+    short = time.process_time()
     assert length in t["#"]
-    check_3 = time.process_time()
-    print(f"t.__contains__ took {check_2-check_1} / {check_3-check_2} (best-/worst case) sec")
+    long = time.process_time()
+    print(f"t.__contains__ took {short-start} / {long-short} (best-/worst case) sec")
 
-    types_1 = time.process_time()
+    start = time.process_time()
     d = t.types()
-    types_2 = time.process_time()
-    print(f"t.types() took {types_2-types_2} sec")
+    end = time.process_time()
+    print(f"t.types() took {end-start} sec")
 
     for name in t.columns:
-        unique_1 = time.process_time()
+        start = time.process_time()
         L = t[name].unique()
-        unique_2 = time.process_time()
-        print(f"t.unique({name}) took {unique_2-unique_1} sec.")
+        end = time.process_time()
+        print(f"t.unique({name}) took {end-start} sec.")
 
     for name in t.columns:
-        index_1 = time.process_time()
+        start = time.process_time()
         d = t.index(name)
-        index_2 = time.process_time()
-        print(f"t.index({name}) took {index_2-index_1} sec.")
+        end = time.process_time()
+        print(f"t.index({name}) took {end-start} sec.")
 
     names = ["4", "7", "8", "9"]
     for ix in range(1, 5):
-        tix_1 = time.process_time()
+        start = time.process_time()
         t.index(*names[:ix])
-        tix_2 = time.process_time()
-        print(f"t.index({names[:ix]}) took {tix_2-tix_1}")
+        end = time.process_time()
+        print(f"t.index({names[:ix]}) took {end-start}")
