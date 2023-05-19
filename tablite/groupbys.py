@@ -1,8 +1,11 @@
-from base import Table
-from groupby_utils import GroupBy, GroupbyFunction
+from collections import defaultdict
 
-    
-def groupby(self, keys, functions, tqdm=_tqdm, pbar=None):  # TODO: This is single core code.
+from base import Table, Column
+from groupby_utils import GroupBy, GroupbyFunction
+from utils import unique_name
+
+
+def groupby(T, keys, functions, tqdm=_tqdm, pbar=None):  # TODO: This is single core code.
     """
     keys: column names for grouping.
     functions: [optional] list of column names and group functions (See GroupyBy class)
@@ -116,7 +119,7 @@ def groupby(self, keys, functions, tqdm=_tqdm, pbar=None):  # TODO: This is sing
 
     # only keys will produce unique values for each key group.
     if keys and not functions:
-        cols = list(zip(*self.index(*keys)))
+        cols = list(zip(*T.index(*keys)))
         result = Table()
 
         pbar = tqdm(total=len(keys), desc="groupby") if pbar is None else pbar
@@ -138,7 +141,7 @@ def groupby(self, keys, functions, tqdm=_tqdm, pbar=None):  # TODO: This is sing
             L.append(c)
 
     # there's a table of values.
-    data = self.__getitem__(*L)
+    data = T.__getitem__(*L)
     if isinstance(data, Column):
         tbl = Table()
         tbl[L[0]] = data
