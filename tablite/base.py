@@ -23,11 +23,20 @@ file_registry = set()
 
 
 def register(path):
+    """registers path in file_registry
+
+    The method is used by Table during init when the working directory path
+    is set, so that python can clean all temporary files up at exit.
+
+    Args:
+        path (Path): typically tmp/tablite-tmp/PID-{os.getpid()}
+    """
     global file_registry
     file_registry.add(path)
 
 
 def shutdown():
+    """method to clean up temporary files triggered at shutdown."""
     for path in file_registry:
         if str(os.getpid()) in str(path):  # safety feature to prevent rm -rf /
             log.debug(f"shutdown: running rmtree({path})")
@@ -60,12 +69,22 @@ class Page(object):
         return self.len
 
     def __del__(self):
-        # trigger explicitly during cleanup UNLESS it's a users explicit save.
+        """When python's reference count for an object is 0, python uses
+        it's garbage collector to remove the object and free the memory.
+        As tablite tables have columns and columns have page and pages have
+        data stored on disk, the space on disk must be freed up as well.
+        This __del__ override assures the cleanup of stored data.
+        """
         if self.path.exists():
             os.remove(self.path)
         log.debug(f"Page deleted: {self.path}")
 
     def get(self):
+        """loads stored data
+
+        Returns:
+            np.ndarray: stored data.
+        """
         return np.load(self.path, allow_pickle=True, fix_imports=False)
 
 
@@ -113,6 +132,11 @@ class Column(object):
         return arrays
 
     def extend(self, value):  # USER FUNCTION.
+        """extends the column.
+
+        Args:
+            value (np.ndarray): data
+        """
         type_check(value, np.ndarray)
         for array in self._paginate(value):
             self.pages.append(Page(path=self.path.parent, array=array))
@@ -124,6 +148,20 @@ class Column(object):
         self.pages.clear()
 
     def getpages(self, item):
+        """public non-user function to identify any pages + slices
+        of data to be retrieved given a slice (item)
+
+        Args:
+            item (int,slice): target slice of data
+
+        Returns:
+            list of pages/np.ndarrays.
+
+        Example: [Page(1), Page(2), np.ndarray([4,5,6], int64)]
+        This helps, for example when creating a copy, as the copy
+        can reference the pages 1 and 2 and only need to store
+        the np.ndarray that is unique to it.
+        """
         # internal function
         if isinstance(item, int):
             item = slice(item, item + 1, 1)
@@ -206,7 +244,16 @@ class Column(object):
         else:
             return arr
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key, value):  # USER FUNCTION.
+        """sets values.
+
+        Args:
+            key (int,slice): selector
+            value (any): values to insert
+
+        Raises:
+            KeyError: Following normal slicing rules
+        """
         if isinstance(key, int):
             self._setitem_integer_key(key, value)
 
@@ -227,7 +274,7 @@ class Column(object):
                 raise KeyError(f"bad key: {key}")
         raise KeyError(f"bad key: {key}")
 
-    def _setitem_integer_key(self, key, value):
+    def _setitem_integer_key(self, key, value):  # PRIVATE FUNCTION
         # documentation:
         # example: L[3] = 27
         if isinstance(value, (list, type, np.ndarray)):
@@ -251,15 +298,19 @@ class Column(object):
                 self.pages[index] = new_page
                 break
 
-    def _setitem_replace_all(self, key, value):
-        # documentation: new = list(value)
-        # example: L[:] = [1,2,3]
+    def _setitem_replace_all(self, key, value):  # PRIVATE FUNCTION
+        """handles the following case:
+        new = list(value)
+        example: L[:] = [1,2,3]
+        """
         self.pages.clear()  # Page.__del__ will take care of removed pages.
         self.extend(value)  # Column.extend handles pagination.
 
-    def _setitem_extend(self, key, value):
-        # documentation: new = old[:key.start] + list(value)
-        # example: L[0:] = [1,2,3]
+    def _setitem_extend(self, key, value):  # PRIVATE FUNCTION
+        """handles the following case:
+        new = old[:key.start] + list(value)
+        example: L[0:] = [1,2,3]
+        """
         start, end = 0, 0
         for index, page in enumerate(self.pages):
             start, end = end, end + page.len
@@ -271,9 +322,11 @@ class Column(object):
                 self.extend(new)
                 break
 
-    def _setitem_prextend(self, key, value):
-        # documentation: new = list(value) + old[key.stop:]
-        # example: L[:3] = [1,2,3]
+    def _setitem_prextend(self, key, value):  # PRIVATE FUNCTION
+        """handles the following case:
+        new = list(value) + old[key.stop:]
+        example: L[:3] = [1,2,3]
+        """
         start, end = 0, 0
         for index, page in enumerate(self.pages):
             start, end = end, end + page.len
@@ -287,9 +340,11 @@ class Column(object):
                 self.pages.extend(tail)  # handles old pages.
                 break
 
-    def _setitem_insert(self, key, value):
-        # documentation: new = old[:start] + list(values) + old[stop:]
-        # L[3:5] = [1,2,3]
+    def _setitem_insert(self, key, value):  # PRIVATE FUNCTION
+        """handles the following case:
+        new = old[:start] + list(values) + old[stop:]
+        L[3:5] = [1,2,3]
+        """
         key_start, key_stop, _ = key.indices(self._len)
         # create 3 partitions: A + B + C = head + new + tail
 
@@ -318,7 +373,9 @@ class Column(object):
         self.pages = result_head + new_pages + result_tail
 
     def _setitem_update(self, key, value):
-        # documentation: See also test_slice_rules.py/MyList for details
+        """
+        See test_slice_rules.py/MyList for detailed behaviour
+        """
         key_start, key_stop, key_step = key.indices(self._len)
 
         seq = range(key_start, key_stop, key_step)
@@ -359,7 +416,15 @@ class Column(object):
         # merge.
         self.pages = head + new_pages + tail
 
-    def __delitem__(self, key):
+    def __delitem__(self, key):  # USER FUNCTION
+        """deletes items selected by key
+
+        Args:
+            key (int,slice): selector
+
+        Raises:
+            KeyError: following normal slicing rules.
+        """
         if isinstance(key, int):
             self._del_by_int(key)
         elif isinstance(key, slice):
@@ -367,8 +432,10 @@ class Column(object):
         else:
             raise KeyError(f"bad key: {key}")
 
-    def _del_by_int(self, key):
-        """del column[n]"""
+    def _del_by_int(self, key):  # PRIVATE FUNCTION
+        """handles the following case:
+        del column[n]
+        """
         start, end = 0, 0
         for index, page in enumerate(self.pages):
             start, end = end, end + page.len
@@ -379,7 +446,9 @@ class Column(object):
                 self.pages[index] = new_page
 
     def _del_by_slice(self, key):
-        """del column[m:n:o]"""
+        """handles the following case:
+        del column[m:n:o]
+        """
         key_start, key_stop, key_step = key.indices(self._len)
         seq = range(key_start, key_stop, key_step)
 
@@ -420,6 +489,9 @@ class Column(object):
                 yield value
 
     def __eq__(self, other):  # USER FUNCTION.
+        """
+        compares two columns. Like list1 == list2
+        """
         if len(self) != len(other):  # quick cheap check.
             return False
 
@@ -453,7 +525,7 @@ class Column(object):
         else:
             raise TypeError(f"Cannot compare {self.__class__} with {type(other)}")
 
-    def __ne__(self, other):
+    def __ne__(self, other):  # USER FUNCTION
         """
         compares two columns. Like list1 != list2
         """
@@ -491,11 +563,17 @@ class Column(object):
             raise TypeError(f"Cannot compare {self.__class__} with {type(other)}")
 
     def copy(self):
+        """returns deep=copy of Column
+
+        Returns:
+            Column
+        """
         cp = Column(path=self.path)
         cp.pages = self.pages[:]
         return cp
 
     def __copy__(self):
+        """ see copy """
         return self.copy()
 
     def __imul__(self, other):
@@ -515,6 +593,16 @@ class Column(object):
         return self
 
     def __mul__(self, other):
+        """
+        Repeats instance of column N times. Like list() * N
+
+        Example:
+        >>> one = Column(data=[1,2])
+        >>> two = one * 5
+        >>> two
+        [1,2, 1,2, 1,2, 1,2, 1,2]
+
+        """
         if not isinstance(other, int):
             raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
         cp = self.copy()
@@ -527,7 +615,7 @@ class Column(object):
         returns boolean
         """
         for page in self.pages:
-            if item in page.get():
+            if item in page.get():  # x in np.ndarray([...]) uses np.any(arr, value)
                 return True
         return False
 
@@ -572,7 +660,7 @@ class Column(object):
 
     def types(self):
         """
-        returns dict with datatype: frequency of occurrence
+        returns dict with python datatypes: frequency of occurrence
         """
         d = defaultdict(int)
         for page in self.pages:
@@ -663,21 +751,23 @@ class Column(object):
             result += np.nonzero(page.get() == item)[0].shape()[0]
             # what happens here ---^ below:
             # arr = page.get()
-            # (arr == 3)
-            # >>> array([False, False,  True, False,  True])
-            # np.nonzero(arr==3)
-            # >>> (array([2,4], dtype=int64), )  <-- tuple!
-            # np.nonzero(page.get() == item)[0]
-            # >>> array([2,4])
-            # np.nonzero(page.get() == item)[0].shape()
-            # >>> (2, )
-            # np.nonzero(page.get() == item)[0].shape()[0]
-            # >>> 2
+            # >>> arr
+            # array([1,2,3,4,3], int64)
+            # >>> (arr == 3)
+            # array([False, False,  True, False,  True])
+            # >>> np.nonzero(arr==3)
+            # (array([2,4], dtype=int64), )  <-- tuple!
+            # >>> np.nonzero(page.get() == item)[0]
+            # array([2,4])
+            # >>> np.nonzero(page.get() == item)[0].shape()
+            # (2, )
+            # >>> np.nonzero(page.get() == item)[0].shape()[0]
+            # 2
         return result
 
 
 class Table(object):
-    _pid_dir = None  # workdir / gettpid /
+    _pid_dir = None  # typically Path(Config.workdir) / f"pid-{os.getpid()}"
     _ids = count()
 
     def __init__(self, columns=None, headers=None, rows=None, _path=None) -> None:
@@ -703,7 +793,8 @@ class Table(object):
                 register(self._pid_dir)
 
             _path = Path(self._pid_dir) / f"{next(self._ids)}.yml"
-            # if it exists under the given PID it will be overwritten.
+            # if path exists under the given PID it will be overwritten.
+            # this can only happen if the process previously was SIGKILLed.
         type_check(_path, Path)
         self.path = _path  # filename used during multiprocessing.
         self.columns = {}  # maps colunn names to instances of Column.
@@ -731,7 +822,7 @@ class Table(object):
         """returns table as dict."""
         return {name: column[:].tolist() for name, column in self.columns.items()}.items()
 
-    def __delitem__(self, key):
+    def __delitem__(self, key):  # USER FUNCTION.
         """
         del table['a']  removes column 'a'
         del table[-3:] removes last 3 rows from all columns.
@@ -875,7 +966,7 @@ class Table(object):
                 return False
         return True
 
-    def clear(self):
+    def clear(self):  # USER FUNCTION.
         """
         clears the table. Like dict().clear()
         """
@@ -887,6 +978,7 @@ class Table(object):
         .tpz is a gzip archive with table metadata captured as table.yml
         and the necessary set of pages saved as .npy files.
 
+        The zip contains table.yml which provides an overview of the data:
         --------------------------------------
         %YAML 1.2                              yaml version
         temp = false                           temp identifier.
@@ -898,7 +990,9 @@ class Table(object):
             name: “列 2”                       name of column 2
                 pages: [p2b1, p2b2]            list of pages in column 2.
                 length: [1_000_000, 834_312]   list of page-lengths
-                types: [p3b1, p3b2]            list of nonzero type codes, so column 2 is not a C-level data format.
+                types: [p3b1, p3b2]            list of nonzero type codes, so column 2 is not a C
+                                                 -level data format. The type codes are available
+                                                 in datatypes.Datatypes as _type_codes
         ----------------------------------------
 
         Args:
@@ -937,6 +1031,7 @@ class Table(object):
     @classmethod
     def load(cls, path):  # USER FUNCTION.
         """loads a table from .tpz file.
+        See also Table.save for details on the file format.
 
         Args:
             path (Path): source file
@@ -969,11 +1064,11 @@ class Table(object):
         return t
 
     def __imul__(self, other):
-        """
-        Repeats instance of table N times.
+        """Repeats instance of table N times.
+        Like list: t = t * N
 
         Args:
-            other (int): integer
+            other (int): multiplier
         """
         if not (isinstance(other, int) and other > 0):
             raise TypeError(f"a table can be repeated an integer number of times, not {type(other)} number of times")
@@ -982,10 +1077,32 @@ class Table(object):
         return self
 
     def __mul__(self, other):
+        """Repeat table N times.
+        Like list: new = old * N
+
+        Args:
+            other (int): multiplier
+
+        Returns:
+            Table
+        """
         new = self.copy()
         return new.__imul__(other)
 
     def __iadd__(self, other):
+        """Concatenates tables with same column names.
+
+        Liek list: table_1 += table_2
+
+        Args:
+            other (Table) 
+
+        Raises:
+            ValueError: If column names don't match.
+
+        Returns:
+            None: self is updated.
+        """
         type_check(other, Table)
         for name in self.columns.keys():
             if name not in other.columns:
@@ -1000,6 +1117,19 @@ class Table(object):
         return self
 
     def __add__(self, other):
+        """Concatenates tables with same column names.
+
+        Liek list: table_3 = table_1 + table_2
+
+        Args:
+            other (Table) 
+
+        Raises:
+            ValueError: If column names don't match.
+
+        Returns:
+            Table
+        """
         type_check(other, Table)
         cp = self.copy()
         cp += other
@@ -1072,6 +1202,7 @@ class Table(object):
         return
 
     def add_columns(self, *names):
+        """Adds column names to table."""
         for name in names:
             self.columns[name] = Column(self.path)
 
@@ -1140,7 +1271,8 @@ class Table(object):
             print("Empty Table")
             return
 
-        def datatype(col):
+        def datatype(col):  # PRIVATE
+            """ creates label for column datatype."""
             types = col.types()
             if len(types) == 1:
                 dt, _ = types.popitem()
@@ -1190,7 +1322,15 @@ class Table(object):
         return data
 
     def to_ascii(self, *args, blanks=None, dtype=False):
-        def adjust(v, length):
+        """returns ascii view of table as string.
+
+        Args:
+            blanks (str, optional): value for whitespace. Defaults to None.
+            dtype (bool, optional): adds subheader with datatype for column. Defaults to False.
+        """
+
+        def adjust(v, length):  # PRIVATE FUNCTION
+            """ whitespace justifies field values based on datatype """
             if v is None:
                 return str(blanks).ljust(length)
             elif isinstance(v, str):
@@ -1226,6 +1366,12 @@ class Table(object):
         return "\n".join(s)
 
     def show(self, *args, blanks=None, dtype=False):
+        """prints ascii view of table.
+
+        Args:
+            blanks (str, optional): value for whitespace. Defaults to None.
+            dtype (bool, optional): adds subheader with datatype for column. Defaults to False.
+        """
         print(self.to_ascii(*args, blanks=blanks, dtype=dtype))
 
     def _repr_html_(self, *args, blanks=None, dtype=False):
@@ -1277,6 +1423,18 @@ class Table(object):
         return {name: list(self.columns[name][slice_]) for name in columns}
 
     def as_json_serializable(self, row_count="row id", start_on=1, columns=None, slice_=None):
+        """provides a JSON compatible format of the table.
+
+        Args:
+            row_count (str, optional): Label for row counts. Defaults to "row id".
+            start_on (int, optional): row counts starts by default on 1.
+            columns (list of str, optional): Column names. 
+                Defaults to None which returns all columns.
+            slice_ (slice, optional): selector. Defaults to None which returns [:]
+
+        Returns:
+            JSON serializable dict: All python datatypes have been converted to JSON compliant data.
+        """
         if slice_ is None:
             slice_ = slice(0, len(self))
 
