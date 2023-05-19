@@ -346,7 +346,7 @@ class Table(BaseTable):
             result: ['a','c','e','g','b','d','f','h']
 
         """
-        return sorts.reindex(self, index)
+        return reorder.reindex(self, index)
 
     def drop_duplicates(self, *args):
         """
