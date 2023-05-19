@@ -1,7 +1,10 @@
-from base import Table
+from base import Table, Column
+from utils import sub_cls_check
+import sortation
+import math
 
 
-def imputation(self, targets, missing=None, method="carry forward", sources=None, tqdm=_tqdm):
+def imputation(T, targets, missing=None, method="carry forward", sources=None, tqdm=_tqdm):
     """
     In statistics, imputation is the process of replacing missing data with substituted values.
 
@@ -48,38 +51,40 @@ def imputation(self, targets, missing=None, method="carry forward", sources=None
     Returns:
         table: table with replaced values.
     """
-    if isinstance(targets, str) and targets not in self.columns:
+    sub_cls_check(T, Table)
+
+    if isinstance(targets, str) and targets not in T.columns:
         targets = [targets]
     if isinstance(targets, list):
         for name in targets:
             if not isinstance(name, str):
                 raise TypeError(f"expected str, not {type(name)}")
-            if name not in self.columns:
-                raise ValueError(f"target item {name} not a column name in self.columns:\n{self.columns}")
+            if name not in T.columns:
+                raise ValueError(f"target item {name} not a column name in T.columns:\n{T.columns}")
     else:
         raise TypeError("Expected source as list of column names")
 
     if method == "nearest neighbour":
         if sources in (None, []):
-            sources = self.columns
+            sources = T.columns
         if isinstance(sources, str):
             sources = [sources]
         if isinstance(sources, list):
             for name in sources:
                 if not isinstance(name, str):
                     raise TypeError(f"expected str, not {type(name)}")
-                if name not in self.columns:
-                    raise ValueError(f"source item {name} not a column name in self.columns:\n{self.columns}")
+                if name not in T.columns:
+                    raise ValueError(f"source item {name} not a column name in T.columns:\n{T.columns}")
         else:
             raise TypeError("Expected source as list of column names")
 
     methods = ["nearest neighbour", "mean", "mode", "carry forward"]
 
     if method == "carry forward":
-        new = Table()
-        for name in self.columns:
+        new = type(T)()
+        for name in T.columns:
             if name in targets:
-                data = self[name][:]  # create copy
+                data = T[name][:]  # create copy
                 last_value = None
                 for ix, v in enumerate(data):
                     if v == missing:  # perform replacement
@@ -88,31 +93,31 @@ def imputation(self, targets, missing=None, method="carry forward", sources=None
                         last_value = v
                 new[name] = data
             else:
-                new[name] = self[name]
+                new[name] = T[name]
 
         return new
 
     elif method in {"mean", "mode"}:
-        new = Table()
-        for name in self.columns:
+        new = type(T)()
+        for name in T.columns:
             if name in targets:
-                col = self[name].copy()
+                col = T.columns[name]
                 assert isinstance(col, Column)
                 stats = col.statistics()
                 new_value = stats[method]
-                col.replace(target=missing, replacement=new_value)
+                col.replace(mapping={missing: new_value})
                 new[name] = col
             else:
-                new[name] = self[name]  # no entropy, keep as is.
+                new[name] = T[name]  # no entropy, keep as is.
 
         return new
 
     elif method == "nearest neighbour":
-        new = self.copy()
+        new = T.copy()
         norm_index = {}
         normalised_values = Table()
         for name in sources:
-            values = self[name].unique().tolist()
+            values = T[name].unique().tolist()
             values = sortation.unix_sort(values, reverse=False)
             values = [(v, k) for k, v in values.items()]
             values.sort()
@@ -120,11 +125,11 @@ def imputation(self, targets, missing=None, method="carry forward", sources=None
 
             n = len([v for v in values if v != missing])
             d = {v: i / n if v != missing else math.inf for i, v in enumerate(values)}
-            normalised_values[name] = [d[v] for v in self[name]]
+            normalised_values[name] = [d[v] for v in T[name]]
             norm_index[name] = d
             values.clear()
 
-        missing_value_index = self.index(*targets)
+        missing_value_index = T.index(*targets)
         missing_value_index = {
             k: v for k, v in missing_value_index.items() if missing in k
         }  # strip out all that do not have missings.
@@ -137,10 +142,9 @@ def imputation(self, targets, missing=None, method="carry forward", sources=None
         with tqdm(unit="missing values", total=sum(len(v) for v in missing_value_index.values())) as pbar:
             for _, key in sorted(new_order.items(), reverse=True):  # Fewest None's are at the front of the list.
                 for row_id in missing_value_index[key]:
-                    err_map = [0.0 for _ in range(len(self))]
-                    for n, v in self.to_dict(
-                        columns=sources, slice_=slice(row_id, row_id + 1, 1)
-                    ).items():  # self.to_dict doesn't go to disk as hence saves an IOP.
+                    err_map = [0.0 for _ in range(len(T))]
+                    for n, v in T.to_dict(columns=sources, slice_=slice(row_id, row_id + 1, 1)).items():
+                        # ^--- T.to_dict doesn't go to disk as hence saves an IOP.
                         v = v[0]
                         norm_value = norm_index[n][v]
                         if norm_value != math.inf:
