@@ -573,7 +573,7 @@ class Column(object):
         return cp
 
     def __copy__(self):
-        """ see copy """
+        """see copy"""
         return self.copy()
 
     def __imul__(self, other):
@@ -673,10 +673,15 @@ class Column(object):
                 d[str(data.dtype)] += len(page)
 
         for k, v in list(d.items()):
-            if k in numpy_types:
+            if k.startswith("<U"):  # it's a numpy str.
+                new_k = str
+                del d[k]
+            elif k in numpy_types:
                 new_k = numpy_types[k]
                 del d[k]
-                d[new_k] = v
+            else:
+                new_k = v
+            d[new_k] = v
         return dict(d)
 
     def index(self):
@@ -716,15 +721,11 @@ class Column(object):
         >>> c.histogram()
         {'a':2,'b':2,'c':1}
         """
-        items, counts = [], []
+        d = defaultdict(int)
         for page in self.pages:
             uarray, carray = np.unique(page.get(), return_counts=True)
-            items.append(uarray)
-            counts.append(carray)
-
-        d = defaultdict(int)
-        for i, c in zip(items, counts):
-            d[i] += c
+            for i, c in zip(uarray, carray):
+                d[i] += c
         return d
 
     def statistics(self):
@@ -748,7 +749,7 @@ class Column(object):
     def count(self, item):
         result = 0
         for page in self.pages:
-            result += np.nonzero(page.get() == item)[0].shape()[0]
+            result += np.nonzero(page.get() == item)[0].shape[0]
             # what happens here ---^ below:
             # arr = page.get()
             # >>> arr
@@ -759,9 +760,9 @@ class Column(object):
             # (array([2,4], dtype=int64), )  <-- tuple!
             # >>> np.nonzero(page.get() == item)[0]
             # array([2,4])
-            # >>> np.nonzero(page.get() == item)[0].shape()
+            # >>> np.nonzero(page.get() == item)[0].shape
             # (2, )
-            # >>> np.nonzero(page.get() == item)[0].shape()[0]
+            # >>> np.nonzero(page.get() == item)[0].shape[0]
             # 2
         return result
 
@@ -1095,7 +1096,7 @@ class Table(object):
         Liek list: table_1 += table_2
 
         Args:
-            other (Table) 
+            other (Table)
 
         Raises:
             ValueError: If column names don't match.
@@ -1122,7 +1123,7 @@ class Table(object):
         Liek list: table_3 = table_1 + table_2
 
         Args:
-            other (Table) 
+            other (Table)
 
         Raises:
             ValueError: If column names don't match.
@@ -1272,7 +1273,7 @@ class Table(object):
             return
 
         def datatype(col):  # PRIVATE
-            """ creates label for column datatype."""
+            """creates label for column datatype."""
             types = col.types()
             if len(types) == 1:
                 dt, _ = types.popitem()
@@ -1330,7 +1331,7 @@ class Table(object):
         """
 
         def adjust(v, length):  # PRIVATE FUNCTION
-            """ whitespace justifies field values based on datatype """
+            """whitespace justifies field values based on datatype"""
             if v is None:
                 return str(blanks).ljust(length)
             elif isinstance(v, str):
@@ -1416,7 +1417,7 @@ class Table(object):
         assert isinstance(slice_, slice)
 
         if columns is None:
-            columns = list(self.columns.keyS())
+            columns = list(self.columns.keys())
         if not isinstance(columns, list):
             raise TypeError("expected columns as list of strings")
 
@@ -1428,7 +1429,7 @@ class Table(object):
         Args:
             row_count (str, optional): Label for row counts. Defaults to "row id".
             start_on (int, optional): row counts starts by default on 1.
-            columns (list of str, optional): Column names. 
+            columns (list of str, optional): Column names.
                 Defaults to None which returns all columns.
             slice_ (slice, optional): selector. Defaults to None which returns [:]
 
@@ -1936,7 +1937,7 @@ def test_to_dict():
 
 def test_unique():
     t = Table({"A": [1, 1, 1, 2, 2, 2, 3, 3, 4]})
-    assert t["A"].unique() == np.array([1, 2, 3, 4])
+    assert np.all(t["A"].unique() == np.array([1, 2, 3, 4]))
 
 
 def test_histogram():
