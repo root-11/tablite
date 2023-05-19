@@ -5,10 +5,11 @@ import yaml
 import atexit
 import shutil
 import logging
+import warnings
 import zipfile
 import numpy as np
 from pathlib import Path
-from itertools import count, chain, product
+from itertools import count, chain, product, repeat
 from collections import defaultdict
 
 from datatypes import DataTypes
@@ -945,6 +946,23 @@ class Table(object):
 
     def __len__(self):  # USER FUNCTION.
         return max(len(c) for c in self.columns.values())
+
+    def rows(self):
+        """
+        enables row based iteration
+
+        for row in Table.rows:
+            print(row)
+        """
+        n_max = len(self)
+        generators = []
+        for name, column in self.columns.items():
+            if len(column) < n_max:
+                warnings.warn(f"Column {name} has length {len(column)} / {n_max}. None will appear as fill value.")
+            generators.append(chain(iter(column), repeat(None, times=n_max - len(column))))
+
+        for _ in range(len(self)):
+            yield [next(i) for i in generators]
 
     def __eq__(self, other) -> bool:  # USER FUNCTION.
         """
