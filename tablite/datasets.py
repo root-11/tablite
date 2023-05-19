@@ -100,7 +100,7 @@ if __name__ == "__main__":
     memory_for_t = memory_after_table_creation - baseline_memory
 
     print(f"creating {t} took {created-start} sec")
-    print(f"current RAM for table: {memory_for_t}")
+    print(f"current RAM for table: {memory_for_t//1_000_000}Mb")
     print(t.show())
 
     t.save(fn)
