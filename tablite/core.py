@@ -43,7 +43,7 @@ class Table(BaseTable):
                 rows (list of tuples or lists, optional): values for columns
                 Example: t = Table(headers=["a", "b"], rows=[[1,3], [2,4]])
         """
-        super().__init__(_path)
+        super().__init__(columns, headers, rows, _path)
 
     @classmethod
     def from_pandas(cls, df):
