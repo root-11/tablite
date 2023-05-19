@@ -1,7 +1,10 @@
+from config import Config
 from base import Table
+from utils import type_check, sub_cls_check, unique_name
+import difflib
 
 
-def diff(self, other, columns=None):
+def diff(T, other, columns=None):
     """compares table self with table other
 
     Args:
@@ -12,35 +15,37 @@ def diff(self, other, columns=None):
     Returns:
         Table: diff of self and other with diff in columns 1st and 2nd.
     """
+    sub_cls_check(T, Table)
+    sub_cls_check(other, Table)
     if columns is None:
-        columns = [name for name in self.columns if name in other.columns]
+        columns = [name for name in T.columns if name in other.columns]
     elif isinstance(columns, list) and all(isinstance(i, str) for i in columns):
         for name in columns:
-            if name not in self.columns:
+            if name not in T.columns:
                 raise ValueError(f"column '{name}' not found")
             if name not in other.columns:
                 raise ValueError(f"column '{name}' not found")
     else:
         raise TypeError("Expected list of column names")
 
-    t1 = self.__getitem__(*columns)
-    if isinstance(t1, Table):
-        t1 = [tuple(r) for r in self.rows]
+    t1 = T.__getitem__(*columns)
+    if issubclass(t1, Table):
+        t1 = [tuple(r) for r in T.rows]
     else:
-        t1 = list(self)
+        t1 = list(T)
     t2 = other.__getitem__(*columns)
-    if isinstance(t2, Table):
+    if issubclass(t2, Table):
         t2 = [tuple(r) for r in other.rows]
     else:
         t2 = list(other)
 
     sm = difflib.SequenceMatcher(None, t1, t2)
-    new = Table()
+    new = type(T)()
     first = unique_name("1st", columns)
     second = unique_name("2nd", columns)
     new.add_columns(*columns + [first, second])
 
-    news = {n: [] for n in new.columns}
+    news = {n: [] for n in new.columns}  # Cache for Work in progress.
 
     for opc, t1a, t1b, t2a, t2b in sm.get_opcodes():
         if opc == "insert":
@@ -70,7 +75,8 @@ def diff(self, other, columns=None):
         else:
             pass
 
-        if len(news[first]) % 1_000_000 == 0:
+        # Clear cache to free up memory.
+        if len(news[first]) % Config.PAGE_SIZE == 0:
             for name, L in news.items():
                 new[name].extend(L)
                 L.clear()
@@ -79,4 +85,3 @@ def diff(self, other, columns=None):
         new[name].extend(L)
         L.clear()
     return new
-
