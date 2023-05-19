@@ -4,15 +4,13 @@ from pathlib import Path
 
 from tqdm import tqdm as _tqdm
 
-from config import Config
 from base import Table as BaseTable
-from base import Column
 from utils import type_check
 import import_utils
 import export_utils
 import redux
 import joins
-import lookups
+import lookup
 import reorder
 import groupbys
 import pivots
@@ -683,7 +681,7 @@ class Table(BaseTable):
               ('text 1', f, 'text 2')
               value from column 'text 1' is compared with value from column 'text 2'
         """
-        return lookups.lookup(self, other, *criteria, all, tqdm=_tqdm)
+        return lookup.lookup(self, other, *criteria, all, tqdm=_tqdm)
 
     def replace_missing_values(self, *args, **kwargs):
         raise AttributeError("See imputation")
@@ -787,6 +785,4 @@ class Table(BaseTable):
         """
         return diff.diff(self, other, columns)
 
-
-# -------------- MULTI PROCESSING TASKS -----------------
 
