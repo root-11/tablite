@@ -4,14 +4,34 @@ import tempfile
 
 
 class Config(object):
-    # The default location for the storage
+    """Config class for Tablite Tables.
+
+    The default location for the storage is loaded as
+
+    Config.workdir = pathlib.Path(os.environ.get("TABLITE_TMPDIR", f"{tempfile.gettempdir()}/tablite-tmp"))
+
+    to overwrite, first import the config class, then set the new workdir.
+    >>> from tablite import config
+    >>> from pathlib import Path
+    >>> config.workdir = Path("/this/new/location")
+    for every new table or record this path will be used.
+
+    PAGE_SIZE = 1_000_000 sets the page size limit.
+
+    Multiprocessing is enabled in one of three modes:
+    AUTO = "auto"
+    FALSE = "sp"
+    FORCE = "mp"
+
+    MULTIPROCESSING_MODE = AUTO  is default.
+
+    SINGLE_PROCESSING_LIMIT = 1_000_000
+    when the number of fields (rows x columns) exceed this value,
+    multiprocessing is used.
+    """
+
     workdir = pathlib.Path(os.environ.get("TABLITE_TMPDIR", f"{tempfile.gettempdir()}/tablite-tmp"))
     workdir.mkdir(parents=True, exist_ok=True)
-    # to overwrite first import the config class:
-    # >>> from tablite import config
-    # >>> from pathlib import Path
-    # >>> config.workdir = Path("/this/new/location")
-    # for every new table or record this path will be used.
 
     PAGE_SIZE = 1_000_000  # sets the page size limit.
     ENCODING = "UTF-8"  # sets the page encoding when using bytes
@@ -21,9 +41,20 @@ class Config(object):
     # when the number of fields (rows x columns)
     # exceed this value, multiprocessing is used.
 
-    PROCESSING_PRIORITY = "auto"
-
-    MULTIPROCESSING_ENABLED = True
+    AUTO = "auto"
+    FALSE = "sp"
+    FORCE = "mp"
+    MULTIPROCESSING_MODE = AUTO
+    # Usage example (from import_utils in text_reader)
+    # if cpu_count < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
+    #         for task in tasks:
+    #             task.execute()
+    #             pbar.update(dump_size)
+    #     else:
+    #         with TaskManager(cpu_count - 1) as tm:
+    #             errors = tm.execute(tasks, pbar=PatchTqdm())  # I expects a list of None's if everything is ok.
+    #             if any(errors):
+    #                 raise Exception("\n".join(e for e in errors if e))
 
     @classmethod
     def reset(cls):
