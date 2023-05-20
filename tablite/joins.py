@@ -1,8 +1,17 @@
+import numpy as np
 from base import Table
+from itertools import product
+from utils import sub_cls_check, unique_name
+from config import Config
+from mp_utils import share_mem, maskify, indexing_task
+from mplite import TaskManager, Task
+import psutil
 
 
-def _jointype_check(self, other, left_keys, right_keys, left_columns, right_columns):
-    if not isinstance(other, Table):
+def _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns):
+    sub_cls_check(T, Table)
+
+    if not issubclass(other, Table):
         raise TypeError(f"other expected other to be type Table, not {type(other)}")
 
     if not isinstance(left_keys, list) and all(isinstance(k, str) for k in left_keys):
@@ -10,8 +19,8 @@ def _jointype_check(self, other, left_keys, right_keys, left_columns, right_colu
     if not isinstance(right_keys, list) and all(isinstance(k, str) for k in right_keys):
         raise TypeError(f"Expected keys as list of strings, not {type(right_keys)}")
 
-    if any(key not in self.columns for key in left_keys):
-        raise ValueError(f"left key(s) not found: {[k for k in left_keys if k not in self.columns]}")
+    if any(key not in T.columns for key in left_keys):
+        raise ValueError(f"left key(s) not found: {[k for k in left_keys if k not in T.columns]}")
     if any(key not in other.columns for key in right_keys):
         raise ValueError(f"right key(s) not found: {[k for k in right_keys if k not in other.columns]}")
 
@@ -19,7 +28,7 @@ def _jointype_check(self, other, left_keys, right_keys, left_columns, right_colu
         raise ValueError(f"Keys do not have same length: \n{left_keys}, \n{right_keys}")
 
     for L, R in zip(left_keys, right_keys):
-        Lcol, Rcol = self[L], other[R]
+        Lcol, Rcol = T[L], other[R]
         if not set(Lcol.types()).intersection(set(Rcol.types())):
             left_types = tuple(t.__name__ for t in list(Lcol.types().keys()))
             right_types = tuple(t.__name__ for t in list(Rcol.types().keys()))
@@ -27,8 +36,8 @@ def _jointype_check(self, other, left_keys, right_keys, left_columns, right_colu
 
     if not isinstance(left_columns, list) or not left_columns:
         raise TypeError("left_columns (list of strings) are required")
-    if any(column not in self.columns for column in left_columns):
-        raise ValueError(f"Column not found: {[c for c in left_columns if c not in self.columns]}")
+    if any(column not in T.columns for column in left_columns):
+        raise ValueError(f"Column not found: {[c for c in left_columns if c not in T.columns]}")
 
     if not isinstance(right_columns, list) or not right_columns:
         raise TypeError("right_columns (list or strings) are required")
@@ -36,34 +45,36 @@ def _jointype_check(self, other, left_keys, right_keys, left_columns, right_colu
         raise ValueError(f"Column not found: {[c for c in right_columns if c not in other.columns]}")
     # Input is now guaranteed to be valid.
 
-def join(self, other, left_keys, right_keys, left_columns, right_columns, kind="inner", tqdm=_tqdm, pbar=None):
+
+def join(T, other, left_keys, right_keys, left_columns, right_columns, kind="inner", tqdm=_tqdm, pbar=None):
     """
     short-cut for all join functions.
     kind: 'inner', 'left', 'outer', 'cross'
     """
     kinds = {
-        "inner": self.inner_join,
-        "left": self.left_join,
-        "outer": self.outer_join,
-        "cross": self.cross_join,
+        "inner": T.inner_join,
+        "left": T.left_join,
+        "outer": T.outer_join,
+        "cross": T.cross_join,
     }
     if kind not in kinds:
         raise ValueError(f"join type unknown: {kind}")
     f = kinds.get(kind, None)
     return f(other, left_keys, right_keys, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
-def _sp_join(self, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None):
+
+def _sp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None):
     """
     private helper for single processing join
     """
-    result = Table()
+    result = T()
 
     if pbar is None:
         total = len(left_columns) + len(right_columns)
         pbar = tqdm(total=total, desc="join")
 
     for col_name in left_columns:
-        col_data = self[col_name][:]
+        col_data = T[col_name][:]
         result[col_name] = [col_data[k] if k is not None else None for k in LEFT]
         pbar.update(1)
     for col_name in right_columns:
@@ -73,17 +84,18 @@ def _sp_join(self, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, 
         pbar.update(1)
     return result
 
-def _mp_join(self, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None):
+
+def _mp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None):
     """
     private helper for multiprocessing join
     TODO: better memory management when processes share column chunks (requires masking Nones)
     """
-    LEFT_NONE_MASK, RIGHT_NONE_MASK = (_maskify(arr) for arr in (LEFT, RIGHT))
+    LEFT_NONE_MASK, RIGHT_NONE_MASK = (maskify(arr) for arr in (LEFT, RIGHT))
 
-    left_arr, left_shm = _share_mem(LEFT, np.int64)
-    right_arr, right_shm = _share_mem(RIGHT, np.int64)
-    left_msk_arr, left_msk_shm = _share_mem(LEFT_NONE_MASK, np.bool8)
-    right_msk_arr, right_msk_shm = _share_mem(RIGHT_NONE_MASK, np.bool8)
+    left_arr, left_shm = share_mem(LEFT, np.int64)
+    right_arr, right_shm = share_mem(RIGHT, np.int64)
+    left_msk_arr, left_msk_shm = share_mem(LEFT_NONE_MASK, np.bool8)
+    right_msk_arr, right_msk_shm = share_mem(RIGHT_NONE_MASK, np.bool8)
 
     final_len = len(LEFT)
 
@@ -92,10 +104,10 @@ def _mp_join(self, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, 
     tasks = []
     columns_refs = {}
 
-    rows_per_page = tcfg.H5_PAGE_SIZE
+    rows_per_page = Config.PAGE_SIZE
 
     for name in left_columns:
-        col = self[name]
+        col = T[name]
         container = columns_refs[name] = []
 
         offset = 0
@@ -182,9 +194,23 @@ def _mp_join(self, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, 
     t = Table.load(path=mem.path, key=table_key)
     return t
 
-def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
+
+def _select_processing_method(fields):
+    assert isinstance(fields, int)
+    if Config.MULTIPROCESSING_MODE == Config.FALSE:  # tcfg.PROCESSING_PRIORITY == "sp":
+        f = _sp_join
+    elif Config.MULTIPROCESSING_MODE == Config.FORCE:  # tcfg.PROCESSING_PRIORITY == "mp":
+        f = _mp_join
+    elif fields < Config.SINGLE_PROCESSING_LIMIT:
+        f = _sp_join
+    else:  # use_mp:
+        f = _mp_join
+    return f
+
+
+def left_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
     """
-    :param other: self, other = (left, right)
+    :param other: T, other = (left, right)
     :param left_keys: list of keys for the join
     :param right_keys: list of keys for the join
     :param left_columns: list of left columns to retain, if None, all are retained.
@@ -197,13 +223,13 @@ def left_join(self, other, left_keys, right_keys, left_columns=None, right_colum
     )
     """
     if left_columns is None:
-        left_columns = list(self.columns)
+        left_columns = list(T.columns)
     if right_columns is None:
         right_columns = list(other.columns)
 
-    self._jointype_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+    _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
 
-    left_index = self.index(*left_keys)
+    left_index = T.index(*left_keys)
     right_index = other.index(*right_keys)
     LEFT, RIGHT = [], []
     for left_key, left_ixs in left_index.items():
@@ -213,19 +239,13 @@ def left_join(self, other, left_keys, right_keys, left_columns=None, right_colum
                 LEFT.append(left_ix)
                 RIGHT.append(right_ix)
 
-    if tcfg.PROCESSING_PRIORITY == "sp":
-        return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-    elif tcfg.PROCESSING_PRIORITY == "mp":
-        return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-    else:
-        if len(LEFT) * len(left_columns + right_columns) < config.SINGLE_PROCESSING_LIMIT:
-            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-        else:  # use multi processing
-            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+    f = _select_processing_method(fields=len(LEFT) * len(left_columns + right_columns))
+    return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
-def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
+
+def inner_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
     """
-    :param other: self, other = (left, right)
+    :param other: T, other = (left, right)
     :param left_keys: list of keys for the join
     :param right_keys: list of keys for the join
     :param left_columns: list of left columns to retain, if None, all are retained.
@@ -238,13 +258,13 @@ def inner_join(self, other, left_keys, right_keys, left_columns=None, right_colu
         )
     """
     if left_columns is None:
-        left_columns = list(self.columns)
+        left_columns = list(T.columns)
     if right_columns is None:
         right_columns = list(other.columns)
 
-    self._jointype_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+    _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
 
-    left_index = self.index(*left_keys)
+    left_index = T.index(*left_keys)
     right_index = other.index(*right_keys)
     LEFT, RIGHT = [], []
     for left_key, left_ixs in left_index.items():
@@ -256,21 +276,13 @@ def inner_join(self, other, left_keys, right_keys, left_columns=None, right_colu
                 LEFT.append(left_ix)
                 RIGHT.append(right_ix)
 
-    if tcfg.PROCESSING_PRIORITY == "sp":
-        return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-    elif tcfg.PROCESSING_PRIORITY == "mp":
-        return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-    else:
-        if len(LEFT) * len(left_columns + right_columns) < config.SINGLE_PROCESSING_LIMIT:
-            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-        else:  # use multi processing
-            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+    f = _select_processing_method(fields=len(LEFT) * len(left_columns + right_columns))
+    return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
-def outer_join(
-    self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None
-):  # TODO: This is single core code.
+
+def outer_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
     """
-    :param other: self, other = (left, right)
+    :param other: T, other = (left, right)
     :param left_keys: list of keys for the join
     :param right_keys: list of keys for the join
     :param left_columns: list of left columns to retain, if None, all are retained.
@@ -283,13 +295,13 @@ def outer_join(
         )
     """
     if left_columns is None:
-        left_columns = list(self.columns)
+        left_columns = list(T.columns)
     if right_columns is None:
         right_columns = list(other.columns)
 
-    self._jointype_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+    _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
 
-    left_index = self.index(*left_keys)
+    left_index = T.index(*left_keys)
     right_index = other.index(*right_keys)
     LEFT, RIGHT, RIGHT_UNUSED = [], [], set(right_index.keys())
     for left_key, left_ixs in left_index.items():
@@ -305,38 +317,24 @@ def outer_join(
             LEFT.append(None)
             RIGHT.append(right_ix)
 
-    if tcfg.PROCESSING_PRIORITY == "sp":
-        return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-    elif tcfg.PROCESSING_PRIORITY == "mp":
-        return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-    else:
-        if len(LEFT) * len(left_columns + right_columns) < config.SINGLE_PROCESSING_LIMIT:
-            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-        else:  # use multi processing
-            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+    f = _select_processing_method(fields=len(LEFT) * len(left_columns + right_columns))
+    return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
-def cross_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
+
+def cross_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
     """
     CROSS JOIN returns the Cartesian product of rows from tables in the join.
     In other words, it will produce rows which combine each row from the first table
     with each row from the second table
     """
     if left_columns is None:
-        left_columns = list(self.columns)
+        left_columns = list(T.columns)
     if right_columns is None:
         right_columns = list(other.columns)
 
-    self._jointype_check(other, left_keys, right_keys, left_columns, right_columns)  # raises if error
+    _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
 
-    LEFT, RIGHT = zip(*itertools.product(range(len(self)), range(len(other))))
+    LEFT, RIGHT = zip(*product(range(len(T)), range(len(other))))
 
-    if tcfg.PROCESSING_PRIORITY == "sp":
-        return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-    elif tcfg.PROCESSING_PRIORITY == "mp":
-        return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-    else:
-        if len(LEFT) < Config.SINGLE_PROCESSING_LIMIT:
-            return self._sp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-        else:  # use multi processing
-            return self._mp_join(other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-
+    f = _select_processing_method(fields=len(LEFT))
+    return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
