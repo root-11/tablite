@@ -11,7 +11,7 @@ import export_utils
 import redux
 import joins
 import lookup
-import reorder
+import sortation
 import groupbys
 import pivots
 import imputation
@@ -329,7 +329,7 @@ class Table(BaseTable):
         param: sort_mode: str: "alphanumeric", "unix", or, "excel" (default)
         param: **kwargs: sort criteria. See Table.sort()
         """
-        return reorder.sort_index(self, sort_mode, tqdm=_tqdm, pbar=None, **kwargs)
+        return sortation.sort_index(self, sort_mode, tqdm=_tqdm, pbar=None, **kwargs)
 
     def reindex(self, index):
         """
@@ -346,7 +346,7 @@ class Table(BaseTable):
             result: ['a','c','e','g','b','d','f','h']
 
         """
-        return reorder.reindex(self, index)
+        return sortation.reindex(self, index)
 
     def drop_duplicates(self, *args):
         """
@@ -372,14 +372,14 @@ class Table(BaseTable):
         Table.sort('A'=True, 'B'=False) means sort 'A' in descending order, then (2nd priority)
         sort B in ascending order.
         """
-        return reorder.sort(self, sort_mode, **kwargs)
+        return sortation.sort(self, sort_mode, **kwargs)
 
     def is_sorted(self, **kwargs):
         """Performs multi-pass sorting check with precedence given order of column names.
         **kwargs: optional: sort criteria. See Table.sort()
         :return bool
         """
-        return reorder.is_sorted(self, **kwargs)
+        return sortation.is_sorted(self, **kwargs)
 
     def all(self, **kwargs):
         """
@@ -611,9 +611,7 @@ class Table(BaseTable):
             letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter']
         )
         """
-        return joins.left_join(
-            self, other, left_keys, right_keys, left_columns, right_columns, tqdm=_tqdm, pbar=None
-        )
+        return joins.left_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=_tqdm, pbar=None)
 
     def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
         """
@@ -629,9 +627,7 @@ class Table(BaseTable):
             letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter']
             )
         """
-        return joins.inner_join(
-            self, other, left_keys, right_keys, left_columns, right_columns, tqdm=_tqdm, pbar=None
-        )
+        return joins.inner_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=_tqdm, pbar=None)
 
     def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
         """
@@ -647,9 +643,7 @@ class Table(BaseTable):
             letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter']
             )
         """
-        return joins.outer_join(
-            self, other, left_keys, right_keys, left_columns, right_columns, tqdm=_tqdm, pbar=None
-        )
+        return joins.outer_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=_tqdm, pbar=None)
 
     def cross_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
         """
@@ -657,9 +651,7 @@ class Table(BaseTable):
         In other words, it will produce rows which combine each row from the first table
         with each row from the second table
         """
-        return joins.cross_join(
-            self, other, left_keys, right_keys, left_columns, right_columns, tqdm=_tqdm, pbar=None
-        )
+        return joins.cross_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=_tqdm, pbar=None)
 
     def lookup(self, other, *criteria, all=True, tqdm=_tqdm):
         """function for looking up values in `other` according to criteria in ascending order.
@@ -782,5 +774,3 @@ class Table(BaseTable):
             Table: diff of self and other with diff in columns 1st and 2nd.
         """
         return diff.diff(self, other, columns)
-
-
