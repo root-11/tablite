@@ -12,7 +12,7 @@ def _in(a, b):
     enables filter function 'in'
     """
     return str(a) in str(b)
-    #return operator.contains(str(a), str(b))  # TODO : check which method is faster
+    # return operator.contains(str(a), str(b))  # TODO : check which method is faster
 
 
 lookup_ops = {
@@ -74,3 +74,14 @@ def map_task(data, index, destination, start, end):
     shared_data.close()
     shared_index.close()
     shared_target.close()
+
+
+def reindex_task(src, dst, index_shm, start, end):
+    # connect
+    shared_index = shared_memory.SharedMemory(name=index_shm)
+    # work
+    array = np.load(src, allow_pickle=True, fix_imports=False)
+    new = np.take(array, shared_index[start:end])
+    np.save(dst, new, allow_pickle=True, fix_imports=False)
+    # disconnect
+    shared_index.close()
