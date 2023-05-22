@@ -1,7 +1,14 @@
+import math
+import numpy as np
+from base import Table, Column
+from utils import sub_cls_check, unique_name
+from mplite import Task, TaskManager
+from mp_utils import lookup_ops, share_mem, map_task
+from config import Config
+import psutil
 
 
-
-def lookup(self, other, *criteria, all=True, tqdm=_tqdm):  # TODO: This is single core code.
+def lookup(T, other, *criteria, all=True, tqdm=_tqdm):
     """function for looking up values in `other` according to criteria in ascending order.
     :param: other: Table sorted in ascending search order.
     :param: criteria: Each criteria must be a tuple with value comparisons in the form:
@@ -19,8 +26,8 @@ def lookup(self, other, *criteria, all=True, tqdm=_tqdm):  # TODO: This is singl
             ('text 1', f, 'text 2')
             value from column 'text 1' is compared with value from column 'text 2'
     """
-    assert isinstance(self, Table)
-    assert isinstance(other, Table)
+    sub_cls_check(T, Table)
+    sub_cls_check(other, Table)
 
     all = all
     any = not all
@@ -40,12 +47,12 @@ def lookup(self, other, *criteria, all=True, tqdm=_tqdm):  # TODO: This is singl
                 raise ValueError(f"{op} not a recognised operator for comparison.")
 
         functions.append((op, left, right))
-    left_columns = [n for n in left_criteria if n in self.columns]
+    left_columns = [n for n in left_criteria if n in T.columns]
     right_columns = [n for n in right_criteria if n in other.columns]
 
-    results = []
-    lru_cache = {}
-    left = self.__getitem__(*left_columns)
+    result_index = np.empty(shape=(len(T)), dtype=np.int64)
+    cache = {}
+    left = T.__getitem__(*left_columns)
     if isinstance(left, Column):
         tmp, left = left, Table()
         left[left_columns[0]] = tmp
@@ -56,12 +63,12 @@ def lookup(self, other, *criteria, all=True, tqdm=_tqdm):  # TODO: This is singl
     assert isinstance(left, Table)
     assert isinstance(right, Table)
 
-    for row1 in tqdm(left.rows, total=self.__len__()):
+    for row1 in tqdm(left.rows, total=len(T)):
         row1_tup = tuple(row1)
         row1d = {name: value for name, value in zip(left_columns, row1)}
         row1_hash = hash(row1_tup)
 
-        match_found = True if row1_hash in lru_cache else False
+        match_found = True if row1_hash in cache else False
 
         if not match_found:  # search.
             for row2ix, row2 in enumerate(right.rows):
@@ -77,81 +84,90 @@ def lookup(self, other, *criteria, all=True, tqdm=_tqdm):  # TODO: This is singl
                 B = any and True in evaluations
                 if A or B:
                     match_found = True
-                    lru_cache[row1_hash] = row2ix
+                    cache[row1_hash] = row2ix
                     break
 
         if not match_found:  # no match found.
-            lru_cache[row1_hash] = None
+            cache[row1_hash] = -1  # -1 is replacement for None in the index as numpy can't handle Nones.
 
-        results.append(lru_cache[row1_hash])
+        result_index.append(cache[row1_hash])
 
-    result = self.copy()
+    f = _select_processing_method(2 * max(len(T), len(other)))
+    return f(T, other, result_index)
 
-    if tcfg.PROCESSING_PRIORITY == "sp":
-        return self._sp_lookup(other, result, results)
-    elif tcfg.PROCESSING_PRIORITY == "mp":
-        return self._mp_lookup(other, result, results)
-    else:
-        if len(self) * len(other.columns) < Config.SINGLE_PROCESSING_LIMIT:
-            return self._sp_lookup(other, result, results)
-        else:
-            return self._mp_lookup(other, result, results)
 
-def _sp_lookup(self, other, result, results):
+def _select_processing_method(fields):
+    """selects method for processing the join
+
+    Args:
+        fields (int): number of fields in the join.
+
+    Returns:
+        callable: _sp or _mp join.
+    """
+    assert isinstance(fields, int)
+    if psutil.cpu_count() <= 1:
+        f = _sp_lookup
+    elif Config.MULTIPROCESSING_MODE == Config.FALSE:
+        f = _sp_lookup
+    elif Config.MULTIPROCESSING_MODE == Config.FORCE:
+        f = _mp_lookup
+    elif fields < Config.SINGLE_PROCESSING_LIMIT:
+        f = _sp_lookup
+    else:  # use_mp:
+        f = _mp_lookup
+    return f
+
+
+def _sp_lookup(T, other, index):
+    result = T.copy()
     for col_name in other.columns:
         col_data = other[col_name][:]
         revised_name = unique_name(col_name, result.columns)
-        result[revised_name] = [col_data[k] if k is not None else None for k in results]
+        result[revised_name] = [col_data[k] if k != -1 else None for k in index]
     return result
 
-def _mp_lookup(self, other, result, results):
-    # 1. create shared memory array.
-    RIGHT_NONE_MASK = _maskify(results)
-    right_arr, right_shm = _share_mem(results, np.int64)
-    _, right_msk_shm = _share_mem(RIGHT_NONE_MASK, np.bool8)
 
-    # 2. create tasks
-    tasks = []
-    columns_refs = {}
+def _mp_lookup(T, other, index):
+    result = T.copy()
+    cpus = max(psutil.cpu_count(), 2)
+    step_size = math.ceil(len(T) / cpus)
 
-    for name in other.columns:
-        revised_name = unique_name(name, result.columns + list(columns_refs.keys()))
-        col = other[name]
-        columns_refs[revised_name] = d_key = mem.new_id("/column")
-        tasks.append(
-            Task(
-                indexing_task,
-                source_key=col.key,
-                destination_key=d_key,
-                shm_name_for_sort_index=right_shm.name,
-                shm_name_for_sort_index_mask=right_msk_shm.name,
-                shape=right_arr.shape,
-            )
-        )
+    with TaskManager(cpu_count=cpus) as tm:  # keeps the CPU pool alive during the whole join.
+        # for table, columns, side in ([T, left_columns, LEFT], [other, right_columns, RIGHT]):
 
-    # 3. let task manager handle the tasks
-    with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
-        errs = tm.execute(tasks)
-        if any(errs):
-            raise Exception("\n".join(filter(lambda x: x is not None, errs)))
+        index, index_shm = share_mem(index, np.int64)  # <-- this is index
+        # As all indices in `index` are positive, -1 is used as replacement for None.
 
-    # 4. update the result table.
-    with h5py.File(mem.path, "r+") as h5:
-        dset = h5[f"/table/{result.key}"]
-        columns = json.loads(dset.attrs["columns"])
-        columns.update(columns_refs)
-        dset.attrs["columns"] = json.dumps(columns)
-        dset.attrs["saved"] = False
+        for name in other.columns:
+            data = other[name][:]
+            # TODO         ^---- determine how much memory is free and then decide
+            # either to mmap the source or keep it in RAM.
 
-    # 5. close the share memory and deallocate
-    right_shm.close()
-    right_shm.unlink()
+            data, data_shm = share_mem(data, data.dtype)  # <-- this is source
+            destination, dest_shm = share_mem(np.empty(shape=(len(T),)), data.dtype)  # <--this is destination.
 
-    right_msk_shm.close()
-    right_msk_shm.unlink()
+            tasks = []
+            start, end = 0, step_size
+            for _ in range(cpus):
+                tasks.append(Task(map_task, data_shm, index_shm, dest_shm, start, end))
+                start, end = end, end + step_size
+            # All CPUS now work on the same column and memory footprint is predetermined.
+            results = tm.execute(tasks)
+            if any(i is not None for i in results):
+                raise Exception("\n".join(filter(lambda x: x is not None, results)))
 
-    # 6. reload the result table
-    t = Table.load(path=mem.path, key=result.key)
+            # As the data and index no longer is needed, then can be closed.
+            index_shm.close()
+            data_shm.close()
 
-    return t
+            # As all the tasks have been completed, the Column can handle the pagination at once.
+            name = unique_name(name, set(result.columns))
 
+            # deal with Nones, before storing.
+            nones = np.empty(shape=destination.shape, dtype=object)
+            result[name] = np.where(index == -1, nones, destination)
+
+            dest_shm.close()  # finally close dest.
+
+    return result
