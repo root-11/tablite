@@ -1,6 +1,6 @@
 from base import Table, Column
 from utils import sub_cls_check
-import sortation
+import tablite.sort_utils as sort_utils
 import math
 
 
@@ -130,7 +130,7 @@ def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm):
     normalised_values = Table()
     for name in sources:
         values = T[name].unique().tolist()
-        values = sortation.unix_sort(values, reverse=False)
+        values = sort_utils.unix_sort(values, reverse=False)
         values = [(v, k) for k, v in values.items()]
         values.sort()
         values = [k for _, k in values]
@@ -148,7 +148,7 @@ def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm):
     ranks = set()
     for k, v in missing_value_index.items():
         ranks.update(set(k))
-    item_order = sortation.unix_sort(list(ranks))
+    item_order = sort_utils.unix_sort(list(ranks))
     new_order = {tuple(item_order[i] for i in k): k for k in missing_value_index.keys()}
 
     with tqdm(unit="missing values", total=sum(len(v) for v in missing_value_index.values())) as pbar:
