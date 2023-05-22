@@ -1,5 +1,11 @@
 from base import Table
+import numpy as np
+import psutil
+import itertools
+from config import Config
 from utils import sub_cls_check, type_check, expression_interpreter
+from mp_utils import filter_ops, shared_memory
+from mplite import Task, TaskManager
 
 
 def _filter(T, expression):
@@ -21,23 +27,82 @@ def _filter(T, expression):
     except Exception as e:
         raise ValueError(f"Expression could not be compiled: {expression}:\n{e}")
 
-    req_columns = [i for i in self.columns if i in expression]
-    bitmap = [bool(_f(*r)) for r in self.__getitem__(*req_columns).rows]
+    req_columns = [i for i in T.columns if i in expression]
+    bitmap = [bool(_f(*r)) for r in T.__getitem__(*req_columns).rows]
     inverse_bitmap = [not i for i in bitmap]
 
-    if len(self) * len(self.columns) < config.SINGLE_PROCESSING_LIMIT:
-        true, false = Table(), Table()
-        for col_name in self.columns:
-            data = self[col_name][:]
+    cls = type(T)
+    if len(T) * len(T.columns) < Config.SINGLE_PROCESSING_LIMIT:
+        true, false = cls(), cls()
+        for col_name in T.columns:
+            data = T[col_name][:]
             true[col_name] = list(itertools.compress(data, bitmap))
             false[col_name] = list(itertools.compress(data, inverse_bitmap))
         return true, false
     else:
         mask = np.array(bitmap, dtype=bool)
-        return self._mp_compress(mask), self._mp_compress(np.invert(mask))  # true, false
+        return _mp_compress(T, mask), _mp_compress(T, np.invert(mask))  # true, false
 
 
-def filter(self, expressions, filter_type="all", tqdm=_tqdm):
+def _mp_filter_evaluation_task(c1, c2, bitmap_shm, bitmap_shape, bitmap_ix, start, end, expression):
+    """evaluation tasks.
+
+    Args:
+        c1 (str): path of a page from column1
+        c2 (str): path of a page from column2
+        bitmap_shm (shared_memory name): _description_
+        bitmap_ix (int): bitmap column index - the index to which the
+                         evaluation of expression should be written.
+        start (int): bitmap start index
+        end (int): bitmap end index
+        expression: expression to evaluate
+    """
+    assert isinstance(expression, dict)
+    assert len(expression) == 3
+    c1 = expression.get("column1", None)
+    c2 = expression.get("column2", None)
+    expr = expression.get("criteria", None)
+    assert expr in filter_ops
+
+    v1 = expression.get("value1", None)
+    v2 = expression.get("value2", None)
+
+    if c1 is not None:
+        dset_A = np.load(c1, allow_pickle=True, fix_imports=False)
+    else:  # v1 is active:
+        dset_A = np.array([v1] * (end - start))
+
+    if c2 is not None:
+        dset_B = np.load(c2, allow_pickle=True, fix_imports=False)
+    else:  # v2 is active:
+        dset_B = np.array([v2] * (end - start))
+
+    # Connect
+    existing_shm = shared_memory.SharedMemory(name=bitmap_shm)
+    result_array = np.ndarray(bitmap_shape, dtype=np.bool, buffer=existing_shm.buf)
+    # Evaluate
+    if expr == ">":
+        result = dset_A > dset_B
+    elif expr == ">=":
+        result = dset_A >= dset_B
+    elif expr == "==":
+        result = dset_A == dset_B
+    elif expr == "<":
+        result = dset_A < dset_B
+    elif expr == "<=":
+        result = dset_A <= dset_B
+    elif expr == "!=":
+        result = dset_A != dset_B
+    else:  # it's a python evaluations (slow)
+        f = filter_ops.get(expr)
+        assert callable(f)
+        result = np.array([f(a, b) for a, b in zip(dset_A, dset_B)])
+    result_array[bitmap_ix][start:end] = result
+    # Disconnect
+    existing_shm.close()
+
+
+def filter(T, expressions, filter_type="all", tqdm=_tqdm):
     """
     enables filtering across columns for multiple criteria.
 
@@ -58,14 +123,15 @@ def filter(self, expressions, filter_type="all", tqdm=_tqdm):
 
     filter_type: 'all' or 'any'
     """
+    sub_cls_check(T, Table)
     if isinstance(expressions, str):
-        return self._filter(expressions)
+        return _filter(expressions)
 
     if not isinstance(expressions, list) and not isinstance(expressions, tuple):
         raise TypeError
 
-    if len(self) == 0:
-        return self.copy(), self.copy()
+    if len(T) == 0:
+        return T.copy(), T.copy()
 
     for expression in expressions:
         if not isinstance(expression, dict):
@@ -75,19 +141,22 @@ def filter(self, expressions, filter_type="all", tqdm=_tqdm):
         x = {"column1", "column2", "criteria", "value1", "value2"}
         if not set(expression.keys()).issubset(x):
             raise ValueError(f"got unknown key: {set(expression.keys()).difference(x)}")
+
         if expression["criteria"] not in filter_ops:
             raise ValueError(f"criteria missing from {expression}")
 
         c1 = expression.get("column1", None)
-        if c1 is not None and c1 not in self.columns:
+        if c1 is not None and c1 not in T.columns:
             raise ValueError(f"no such column: {c1}")
+
         v1 = expression.get("value1", None)
         if v1 is not None and c1 is not None:
             raise ValueError("filter can only take 1 left expr element. Got 2.")
 
         c2 = expression.get("column2", None)
-        if c2 is not None and c2 not in self.columns:
+        if c2 is not None and c2 not in T.columns:
             raise ValueError(f"no such column: {c2}")
+
         v2 = expression.get("value2", None)
         if v2 is not None and c2 is not None:
             raise ValueError("filter can only take 1 right expression element. Got 2.")
@@ -97,98 +166,86 @@ def filter(self, expressions, filter_type="all", tqdm=_tqdm):
     if filter_type not in {"all", "any"}:
         raise ValueError(f"filter_type: {filter_type} not in ['all', 'any']")
 
-    # the results are to be gathered here:
-    arr = np.zeros(shape=(len(expressions), len(self)), dtype=bool)
-    shm = shared_memory.SharedMemory(create=True, size=arr.nbytes)
+    # EVALUATION....
+    # 1. setup a rectangular bitmap for evaluations
+    shape = (len(expressions), len(T))
+    arr = np.zeros(shape=shape, dtype=bool)
+    shm = shared_memory.SharedMemory(create=True, size=arr.nbytes)  # shm name
     _ = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
 
-    # the task manager enables evaluation of a column per core,
-    # which is assembled in the shared array.
-    max_task_size = math.floor(Config.SINGLE_PROCESSING_LIMIT / len(self.columns))
-    # 1 million fields per core (best guess!)
+    # 2. create tasks for evaluations
+    table = {}
+    for name, col in T.columns.items():
+        table[name] = {}
+        for ix, page in enumerate(col.pages):
+            table[name][ix] = str(page.path)
 
-    filter_tasks = []
-    for ix, expression in enumerate(expressions):
-        for step in range(0, len(self), max_task_size):
-            config = {
-                "table_key": self.key,
-                "expression": expression,
-                "shm_name": shm.name,
-                "shm_index": ix,
-                "shm_shape": arr.shape,
-                "slice_": slice(step, min(step + max_task_size, len(self))),
-            }
-            task = Task(f=filter_evaluation_task, **config)
-            filter_tasks.append(task)
+    tasks = []
+    for bitmap_ix, expression in enumerate(expressions):
+        # one expression can AT MOST contain 2 columns.
+        c1 = expression.get("column1", None)
+        c2 = expression.get("column2", None)
+        start = 0
+        for end in range(Config.PAGE_SIZE, len(T) + 1, Config.PAGE_SIZE):
+            eval_task = Task(_mp_filter_evaluation_task, shm, shape, bitmap_ix, start, end, c1, c2, expression)
+            tasks.append(eval_task)
+            end = start
 
-    merge_tasks = []
-    for step in range(0, len(self), max_task_size):
-        config = {
-            "table_key": self.key,
-            "true_key": mem.new_id("/table"),
-            "false_key": mem.new_id("/table"),
-            "shm_name": shm.name,
-            "shm_shape": arr.shape,
-            "slice_": slice(step, min(step + max_task_size, len(self)), 1),
-            "filter_type": filter_type,
-        }
-        task = Task(f=filter_merge_task, **config)
-        merge_tasks.append(task)
+    # 3. execute tasks.
+    cpus = max(psutil.cpu_count(), 1)
+    if cpus < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
+        for t in tasks:
+            r = t.execute()
+            if r is not None:
+                raise r
+            pbar.update(1)
+    else:
+        with TaskManager(cpus) as tm:
+            errs = tm.execute(tasks, pbar=pbar)
+            if any(errs):
+                raise Exception(errs)
 
-    n_cpus = min(
-        max(len(filter_tasks), len(merge_tasks)), psutil.cpu_count()
-    )  # revise for case where memory footprint is limited to include zero subprocesses.
+    f = np.all if filter_type == "all" else np.any
+    mask = f(arr, axis=1)
+    # 4. The mask is now created and is no longer needed.
+    shm.close()
 
-    with tqdm(total=len(filter_tasks) + len(merge_tasks), desc="filter") as pbar:
-        if len(self) * (len(filter_tasks) + len(merge_tasks)) >= config.SINGLE_PROCESSING_LIMIT:
-            with TaskManager(n_cpus) as tm:
-                # EVALUATE
-                errs = tm.execute(filter_tasks, pbar=pbar)
-                # tm.execute returns the tasks with results, but we don't
-                # really care as the result is in the result array.
-                if any(errs):
-                    raise Exception(errs)
-                # MERGE RESULTS
-                errs = tm.execute(merge_tasks, pbar=pbar)
-                # tm.execute returns the tasks with results, but we don't
-                # really care as the result is in the result array.
-                if any(errs):
-                    raise Exception(errs)
-        else:
-            for t in filter_tasks:
-                r = t.f(*t.args, **t.kwargs)
-                if r is not None:
-                    raise r
-                pbar.update(1)
+    # 5. MERGE...
+    trues = type(T)()
+    for name in T.columns:
+        trues[name] = np.compress(mask, T[name][:])
 
-            for t in merge_tasks:
-                r = t.f(*t.args, **t.kwargs)
-                if r is not None:
-                    raise r
-                pbar.update(1)
-
-    cls = type(self)
-
-    true = cls()
-    true.add_columns(*self.columns)
-    false = true.copy()
-
-    for task in merge_tasks:
-        tmp_true = cls.load(mem.path, key=task.kwargs["true_key"])
-        if len(tmp_true):
-            true += tmp_true
-        else:
-            pass
-
-        tmp_false = cls.load(mem.path, key=task.kwargs["false_key"])
-        if len(tmp_false):
-            false += tmp_false
-        else:
-            pass
-    return true, false
+    falses = type(T)()
+    for name in T.columns:
+        falses[name] = np.compress(np.invert(mask), T[name][:])
+    # 6. RETURN
+    return trues, falses
 
 
-def all(self, **kwargs):
+def _select_compress_method(fields):
+    """selects method for processing the join
+
+    Args:
+        fields (int): number of fields in the join.
+
+    Returns:
+        callable: _sp or _mp join.
+    """
+    type_check(fields, int)
+    if psutil.cpu_count() <= 1:
+        f = _sp_compress
+    elif Config.MULTIPROCESSING_MODE == Config.FALSE:
+        f = _sp_compress
+    elif Config.MULTIPROCESSING_MODE == Config.FORCE:
+        f = _mp_compress
+    elif fields < Config.SINGLE_PROCESSING_LIMIT:
+        f = _sp_compress
+    else:  # use_mp:
+        f = _mp_compress
+    return f
+
+
+def all(T, **kwargs):
     """
     returns Table for rows where ALL kwargs match
     :param kwargs: dictionary with headers and values / boolean callable
@@ -221,14 +278,16 @@ def all(self, **kwargs):
 
 
     """
+    sub_cls_check(T, Table)
+
     if not isinstance(kwargs, dict):
         raise TypeError("did you forget to add the ** in front of your dict?")
-    if not all(k in self.columns for k in kwargs):
-        raise ValueError(f"Unknown column(s): {[k for k in kwargs if k not in self.columns]}")
+    if not all(k in T.columns for k in kwargs):
+        raise ValueError(f"Unknown column(s): {[k for k in kwargs if k not in T.columns]}")
 
     ixs = None
     for k, v in kwargs.items():
-        col = self._columns[k][:]
+        col = T[k][:]
         if ixs is None:  # first header generates base set.
             if callable(v):
                 ix2 = {ix for ix, i in enumerate(col) if v(i)}
@@ -249,86 +308,51 @@ def all(self, **kwargs):
         if not ixs:  # There are no matches.
             break
 
-    if len(self) * len(self.columns) < config.SINGLE_PROCESSING_LIMIT:
-        cls = type(self)
-        t = cls()
-        for col_name in self.columns:
-            data = self[col_name][:]
-            t[col_name] = [data[i] for i in ixs]
-        return t
-    else:
-        mask = np.array([True if i in ixs else False for i in range(len(self))], dtype=bool)
-        return self._mp_compress(mask)
+    mask = np.array([True if i in ixs else False for i in range(len(T))], dtype=bool)
+    ixs.clear()
+    f = _select_compress_method(len(T) * len(T.columns))
+    return f(T, mask)
 
 
-def any(self, **kwargs):
+def any(T, **kwargs):
     """
     returns Table for rows where ANY kwargs match
     :param kwargs: dictionary with headers and values / boolean callable
     """
-    redux.any(self, **kwargs)
+    sub_cls_check(T, Table)
     if not isinstance(kwargs, dict):
         raise TypeError("did you forget to add the ** in front of your dict?")
 
     ixs = set()
     for k, v in kwargs.items():
-        col = self._columns[k][:]
+        col = T[k][:]
         if callable(v):
             ix2 = {ix for ix, r in enumerate(col) if v(r)}
         else:
             ix2 = {ix for ix, r in enumerate(col) if v == r}
         ixs.update(ix2)
 
-    if len(self) * len(self.columns) < config.SINGLE_PROCESSING_LIMIT:
-        cls = type(self)
-
-        t = cls()
-        for col_name in self.columns:
-            data = self[col_name][:]
-            t[col_name] = [data[i] for i in ixs]
-        return t
-    else:
-        mask = np.array([i in ixs for i in range(len(self))], dtype=bool)
-        return self._mp_compress(mask)
+    mask = np.array([True if i in ixs else False for i in range(len(T))], dtype=bool)
+    ixs.clear()
+    f = _select_compress_method(len(T) * len(T.columns))
+    return f(T, mask)
 
 
-def _mp_compress(self, mask):
+def _sp_compress(T, mask):
+    sub_cls_check(T, Table)
+    type_check(mask, np.ndarray)
+
+    t = type(T)()
+    for col_name in T.columns:
+        t[col_name] = np.compress(mask, T[col_name][:])
+    return t
+
+
+def _mp_compress(T, mask):
     """
     helper for `any` and `all` that performs compression of the table self according to mask
     using multiprocessing.
     """
-    arr = np.zeros(shape=(len(self),), dtype=bool)
-    shm = shared_memory.SharedMemory(create=True, size=arr.nbytes)  # the co_processors will read this.
-    compresssion_mask = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
-    compresssion_mask[:] = mask
-
-    t = Table()
-    tasks = []
-    columns_refs = {}
-    for name in self.columns:
-        col = self[name]
-        d_key = mem.new_id("/column")
-        columns_refs[name] = d_key
-        t = Task(compress_task, source_key=col.key, destination_key=d_key, shm_index_name=shm.name, shape=arr.shape)
-        tasks.append(t)
-
-    with TaskManager(cpu_count=min(psutil.cpu_count(), len(tasks))) as tm:
-        results = tm.execute(tasks)
-        if any(r is not None for r in results):
-            for r in results:
-                print(r)
-            raise Exception("!")
-
-    with h5py.File(mem.path, "r+") as h5:
-        table_key = mem.new_id("/table")
-        dset = h5.create_dataset(name=f"/table/{table_key}", dtype=h5py.Empty("f"))
-        dset.attrs["columns"] = json.dumps(columns_refs)
-        dset.attrs["saved"] = False
-
-    shm.close()
-    shm.unlink()
-
-    cls = type(self)
-
-    t = cls.load(path=mem.path, key=table_key)
-    return t
+    # NOTE FOR DEVELOPERS:
+    # _sp_compress is so fast that the overhead of multiprocessing doesn't pay off.
+    return _sp_compress(T, mask)
