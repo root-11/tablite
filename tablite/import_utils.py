@@ -458,7 +458,7 @@ def text_reader(
             def update(self, n=1):
                 pbar.update(n * dump_size)
 
-        if cpu_count < 2 or Config.MULTIPROCESSING_ENABLED is False:
+        if cpu_count < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
             for task in tasks:
                 task.execute()
                 pbar.update(dump_size)
