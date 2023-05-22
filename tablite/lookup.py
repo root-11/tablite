@@ -124,7 +124,14 @@ def _sp_lookup(T, other, index):
     for col_name in other.columns:
         col_data = other[col_name][:]
         revised_name = unique_name(col_name, result.columns)
-        result[revised_name] = [col_data[k] if k != -1 else None for k in index]
+        # 1/3 reindex but well knowing that -1 in the index will be wrong.
+        reindexed = np.take(col_data, index)
+        # 2/3 prepare an array of nones
+        nones = np.empty(shape=col_data.shape, dtype=object)
+        # 3/3 merge reindexed array with None, whenever the original index is -1.
+        result[revised_name] = np.where(index == -1, nones, reindexed)
+        # the result of the three steps above are the same as in python below:
+        # result[revised_name] = [col_data[k] if k != -1 else None for k in index]
     return result
 
 
