@@ -4,10 +4,9 @@ from base import Table
 from itertools import product
 from utils import sub_cls_check, unique_name
 from config import Config
-from mp_utils import share_mem
+from mp_utils import share_mem, map_task
 from mplite import TaskManager, Task
 import psutil
-from multiprocessing import shared_memory
 
 
 def _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns):
@@ -78,12 +77,12 @@ def _sp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pba
 
     for col_name in left_columns:
         col_data = T[col_name][:]
-        result[col_name] = [col_data[k] if k is not None else None for k in LEFT]
+        result[col_name] = [col_data[k] if k != -1 else None for k in LEFT]
         pbar.update(1)
     for col_name in right_columns:
         col_data = other[col_name][:]
         revised_name = unique_name(col_name, result.columns)
-        result[revised_name] = [col_data[k] if k is not None else None for k in RIGHT]
+        result[revised_name] = [col_data[k] if k != -1 else None for k in RIGHT]
         pbar.update(1)
     return result
 
@@ -99,7 +98,6 @@ def _mp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pba
     with TaskManager(cpu_count=cpus) as tm:  # keeps the CPU pool alive during the whole join.
         for table, columns, side in ([T, left_columns, LEFT], [other, right_columns, RIGHT]):
             for name in columns:
-
                 data = table[name][:]
                 # TODO         ^---- determine how much memory is free and then decide
                 # either to mmap the source or keep it in RAM.
@@ -133,19 +131,6 @@ def _mp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pba
                 dest_shm.close()  # finally close dest.
 
     return result
-
-
-def map_task(data, index, destination, start, end):
-    # connect
-    shared_data = shared_memory.SharedMemory(name=data)
-    shared_index = shared_memory.SharedMemory(name=index)
-    shared_target = shared_memory.SharedMemory(name=destination)
-    # work
-    shared_target[start:end] = np.take(shared_data[start:end], shared_index[start:end])
-    # disconnect
-    shared_data.close()
-    shared_index.close()
-    shared_target.close()
 
 
 def _select_processing_method(fields):

@@ -175,7 +175,7 @@ def compress_task(source_key, destination_key, shm_index_name, shape):
     mem.mp_write_column(values, column_key=destination_key)  # --- WRITE!
 
 
-def _maskify(arr):
+def maskify(arr):
     none_mask = [False] * len(arr)  # Setting the default
 
     for i in range(len(arr)):
@@ -186,7 +186,7 @@ def _maskify(arr):
     return none_mask
 
 
-def _share_mem(inp_arr, dtype):
+def share_mem(inp_arr, dtype):
     len_ = len(inp_arr)
     size = np.dtype(dtype).itemsize * len_
     shape = (len_,)
@@ -196,3 +196,16 @@ def _share_mem(inp_arr, dtype):
     out_arr_index[:] = inp_arr
 
     return out_arr_index, out_shm
+
+
+def map_task(data, index, destination, start, end):
+    # connect
+    shared_data = shared_memory.SharedMemory(name=data)
+    shared_index = shared_memory.SharedMemory(name=index)
+    shared_target = shared_memory.SharedMemory(name=destination)
+    # work
+    shared_target[start:end] = np.take(shared_data[start:end], shared_index[start:end])
+    # disconnect
+    shared_data.close()
+    shared_index.close()
+    shared_target.close()
