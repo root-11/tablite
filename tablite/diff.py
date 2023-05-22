@@ -1,6 +1,6 @@
 from config import Config
 from base import Table
-from utils import type_check, sub_cls_check, unique_name
+from utils import sub_cls_check, unique_name
 import difflib
 
 
@@ -76,7 +76,7 @@ def diff(T, other, columns=None):
             pass
 
         # Clear cache to free up memory.
-        if len(news[first]) % Config.PAGE_SIZE == 0:
+        if len(news[first]) > Config.PAGE_SIZE == 0:
             for name, L in news.items():
                 new[name].extend(L)
                 L.clear()
