@@ -170,7 +170,7 @@ def groupby(T, keys, functions, tqdm=_tqdm, pbar=None):  # TODO: This is single 
             cols[ix].append(f.value)
 
     new_names = keys + [f"{f.__name__}({col_name})" for col_name, f in functions]
-    result = Table()
+    result = type(T)()  # New Table.
     for ix, (col_name, data) in enumerate(zip(new_names, cols)):
         revised_name = unique_name(col_name, result.columns)
         result[revised_name] = data
