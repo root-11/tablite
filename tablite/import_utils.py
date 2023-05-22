@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import math
 import psutil
 from pathlib import Path
@@ -429,10 +430,16 @@ def text_reader(
             strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
             encoding=encoding,
         )
+
+        # make sure the tempdir is ready.
+        workdir = Path(Config.workdir) / f"pid-{os.getpid()}"
+        if not workdir.exists():
+            workdir.mkdir()
+            (workdir / "pages").mkdir()
+
         tasks, configs = [], {}
         for ix, field_name in enumerate(fields):
-            subconfig = [field_name]
-            configs.append(subconfig)
+            configs[field_name] = []
 
             start = end = 1 if first_row_has_headers else 0
             for end in range(start + Config.PAGE_SIZE, newlines + 1, Config.PAGE_SIZE):
@@ -440,10 +447,10 @@ def text_reader(
                 cfg = task_config.copy()
                 cfg.start = start
                 cfg.end = min(end, newlines)
-                cfg.destination = next(Page.ids)
+                cfg.destination = workdir / "pages" / f"{next(Page.ids)}.npy"
                 cfg.column_index = ix
                 tasks.append(Task(f=text_reader_task, **cfg.dict()))
-                subconfig.append(cfg)
+                configs.append(cfg)
 
                 start = end
 
@@ -475,14 +482,14 @@ def text_reader(
 
         # consolidate the task results
         t = T()
-        for subconfig in configs:
-            name, pages = subconfig[0], subconfig[1:]
+        for name, cfgs in configs.items():
             if name in t.columns:
                 name = unique_name(name, set(t.columns))
-            col = Column(t.path)
-            col.pages.extend(pages[:])
-            t.columns[name] = col
-
+            t[name] = Column(t.path)
+            for cfg in cfgs:
+                data = np.load(cfg.destination, allow_pickle=True, fix_imports=False)
+                t[name].extend(data)
+                os.remove(cfg.destination)
             pbar.update(consolidation_size)
 
         pbar.update(100 - pbar.n)
