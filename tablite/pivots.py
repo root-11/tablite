@@ -1,7 +1,11 @@
 from base import Table
+from collections import defaultdict
+from utils import unique_name, sub_cls_check
+from groupbys import groupby
+from config import Config
 
 
-def pivot(self, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=None):
+def pivot(T, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=None):
     """
     param: rows: column names to keep as rows
     param: columns: column names to keep as columns
@@ -43,12 +47,12 @@ def pivot(self, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=
     # +===+===+========+=====+=====+=====+
 
     """
+    sub_cls_check(T, Table)
+
     if isinstance(rows, str):
         rows = [rows]
     if not all(isinstance(i, str) for i in rows):
-        raise TypeError(
-            f"Expected rows as a list of column names, not {[i for i in rows if not isinstance(i,str)]}"
-        )
+        raise TypeError(f"Expected rows as a list of column names, not {[i for i in rows if not isinstance(i,str)]}")
 
     if isinstance(columns, str):
         columns = [columns]
@@ -71,11 +75,11 @@ def pivot(self, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=
         if len(functions) == 0:
             total = total + len(keys)
         else:
-            total = total + len(self)
+            total = total + len(T)
 
         pbar = tqdm(total=total, desc="pivot")
 
-    grpby = self.groupby(keys, functions, tqdm=tqdm, pbar=pbar)
+    grpby = groupby(T, keys, functions, tqdm=tqdm, pbar=pbar)
 
     if len(grpby) == 0:  # return empty table. This must be a test?
         pbar.update(extra_steps)
@@ -110,7 +114,7 @@ def pivot(self, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=
         records[cix][rix] = func_key
 
     pbar.update(1)
-    result = Table()
+    result = type(T)()
 
     if values_as_rows:  # ---> leads to more rows.
         # first create all columns left to right
@@ -173,33 +177,32 @@ def pivot(self, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=
     return result
 
 
+def transpose(T, tqdm=_tqdm):
+    sub_cls_check(T, Table)
 
-def transpose(self, tqdm=_tqdm):
-    if len(self.columns) == 0:
-        return Table()
+    if len(T.columns) == 0:
+        return type(T)()
 
-    rows = [[] for _ in range(len(self) + 1)]
-    rows[0] = self.columns[1:]
+    rows = [[] for _ in range(len(T) + 1)]
+    rows[0] = T.columns[1:]
 
-    for x in tqdm(range(0, len(self)), desc="table transpose"):
+    for x in tqdm(range(0, len(T)), desc="table transpose"):
         for y in rows[0]:
-            value = self[y][x]
+            value = T[y][x]
             rows[x + 1].append(value)
 
     unique_names = []
-    table = Table()
+    t = type(T)()
 
-    for column_name, values in zip(
-        (unique_name(str(c), unique_names) for c in ([self.columns[0]] + list(self[self.columns[0]]))), rows
-    ):
+    new_names = (unique_name(str(c), unique_names) for c in ([T.columns[0]] + list(T[T.columns[0]])))
+    for column_name, values in zip(new_names, rows):
         unique_names.append(column_name)
+        t[column_name] = values
 
-        table[column_name] = values
-
-    return table
+    return t
 
 
-def pivot_transpose(self, columns, keep=None, column_name="transpose", value_name="value", tqdm=_tqdm):
+def pivot_transpose(T, columns, keep=None, column_name="transpose", value_name="value", tqdm=_tqdm):
     """Transpose a selection of columns to rows.
 
     Args:
@@ -231,12 +234,14 @@ def pivot_transpose(self, columns, keep=None, column_name="transpose", value_nam
     |1244| 2445| 4456| mon      |     7|
 
     """
+    sub_cls_check(T, Table)
+
     if not isinstance(columns, list):
         raise TypeError
     for i in columns:
         if not isinstance(i, str):
             raise TypeError
-        if i not in self.columns:
+        if i not in T.columns:
             raise ValueError
 
     if keep is None:
@@ -244,7 +249,7 @@ def pivot_transpose(self, columns, keep=None, column_name="transpose", value_nam
     for i in keep:
         if not isinstance(i, str):
             raise TypeError
-        if i not in self.columns:
+        if i not in T.columns:
             raise ValueError
 
     if column_name in keep + columns:
@@ -252,14 +257,14 @@ def pivot_transpose(self, columns, keep=None, column_name="transpose", value_nam
     if value_name in keep + columns + [column_name]:
         value_name = unique_name(value_name, set_of_names=keep + columns)
 
-    new = Table()
+    new = type(T)()
     new.add_columns(*keep + [column_name, value_name])
     news = {name: [] for name in new.columns}
 
     n = len(keep)
 
-    with tqdm(total=len(self), desc="transpose") as pbar:
-        for ix, row in enumerate(self.__getitem__(*keep + columns).rows, start=1):
+    with tqdm(total=len(T), desc="transpose") as pbar:
+        for ix, row in enumerate(T.__getitem__(*keep + columns).rows, start=1):
             keeps = row[:n]
             transposes = row[n:]
 
@@ -269,7 +274,7 @@ def pivot_transpose(self, columns, keep=None, column_name="transpose", value_nam
                 news[column_name].append(name)
                 news[value_name].append(value)
 
-            if ix % config.SINGLE_PROCESSING_LIMIT == 0:
+            if ix % Config.SINGLE_PROCESSING_LIMIT == 0:
                 for name, values in news.items():
                     new[name].extend(values)
                     values.clear()
