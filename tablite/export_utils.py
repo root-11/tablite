@@ -1,8 +1,9 @@
-from tqdm import tqdm
-from utils import sub_cls_check, type_check
-from table import Table
-from datatypes import DataTypes
+from tablite.utils import sub_cls_check, type_check
+from tablite.base import Table
+from tablite.datatypes import DataTypes
 from pathlib import Path
+
+from tqdm import tqdm as _tqdm
 
 
 def to_sql(table):
@@ -97,12 +98,7 @@ def excel_writer(table, path):
     data = list(gen(table))
     if path.suffix in [".xls", ".ods"]:
         data = [
-            [
-                str(v)
-                if (isinstance(v, (int, float)) and abs(v) > 2**32 - 1)
-                else DataTypes.to_json(v)
-                for v in row
-            ]
+            [str(v) if (isinstance(v, (int, float)) and abs(v) > 2**32 - 1) else DataTypes.to_json(v) for v in row]
             for row in data
         ]
 
@@ -139,9 +135,7 @@ def text_writer(table, path, tqdm=_tqdm):
             # else:
             return value  # this would for example be an empty string: ""
         else:
-            return str(
-                DataTypes.to_json(value)
-            )  # this handles datetimes, timedelta, etc.
+            return str(DataTypes.to_json(value))  # this handles datetimes, timedelta, etc.
 
     delimiters = {".csv": ",", ".tsv": "\t", ".txt": "|"}
     delimiter = delimiters.get(path.suffix)

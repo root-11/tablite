@@ -10,11 +10,11 @@ import logging
 
 from mplite import TaskManager, Task
 
-from datatypes import DataTypes
-from config import Config
-from file_reader_utils import TextEscape, get_encoding, get_delimiter
-from utils import type_check, unique_name, sub_cls_check
-from base import Table, Page, Column
+from tablite.datatypes import DataTypes
+from tablite.config import Config
+from tablite.file_reader_utils import TextEscape, get_encoding, get_delimiter
+from tablite.utils import type_check, unique_name, sub_cls_check
+from tablite.base import Table, Page, Column
 
 from tqdm import tqdm as _tqdm
 

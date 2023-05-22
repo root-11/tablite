@@ -5,7 +5,7 @@ import tempfile
 import shutil
 
 from tablite import Table
-from tablite.core import exporters
+from tablite.export_utils import exporters
 
 
 import pytest

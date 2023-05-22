@@ -1,11 +1,13 @@
-from base import Table
+from tablite.base import Table
 import numpy as np
 import psutil
 import itertools
-from config import Config
-from utils import sub_cls_check, type_check, expression_interpreter
-from mp_utils import filter_ops, shared_memory
+from tablite.config import Config
+from tablite.utils import sub_cls_check, type_check, expression_interpreter
+from tablite.mp_utils import filter_ops, shared_memory
 from mplite import Task, TaskManager
+
+from tqdm import tqdm as _tqdm
 
 
 def _filter(T, expression):

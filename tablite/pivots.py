@@ -1,8 +1,11 @@
-from base import Table
 from collections import defaultdict
-from utils import unique_name, sub_cls_check
-from groupbys import groupby
-from config import Config
+
+from tablite.base import Table
+from tablite.utils import unique_name, sub_cls_check
+from tablite.groupbys import groupby
+from tablite.config import Config
+
+from tqdm import tqdm as _tqdm
 
 
 def pivot(T, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=None):

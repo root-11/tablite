@@ -4,18 +4,19 @@ from pathlib import Path
 
 from tqdm import tqdm as _tqdm
 
-from base import Table as BaseTable
-from utils import type_check
-import import_utils
-import export_utils
-import redux
-import joins
-import lookup
-import sortation
-import groupbys
-import pivots
-import imputation
-import diff
+from tablite.base import Table as BaseTable
+from tablite.base import Column  # noqa
+from tablite.utils import type_check
+from tablite import import_utils
+from tablite import export_utils
+from tablite import redux
+from tablite import joins
+from tablite import lookup
+from tablite import sortation
+from tablite import groupbys
+from tablite import pivots
+from tablite import imputation
+from tablite import diff
 
 
 TIMEOUT_MS = 60 * 1000  # maximum msec tolerance waiting for OS to release hdf5 write lock

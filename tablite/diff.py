@@ -1,6 +1,6 @@
-from config import Config
-from base import Table
-from utils import sub_cls_check, unique_name
+from tablite.config import Config
+from tablite.base import Table
+from tablite.utils import sub_cls_check, unique_name
 import difflib
 
 
