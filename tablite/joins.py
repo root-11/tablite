@@ -1,12 +1,14 @@
 import math
 import numpy as np
-from base import Table
+from tablite.base import Table
 from itertools import product
-from utils import sub_cls_check, unique_name
-from config import Config
-from mp_utils import share_mem, map_task
+from tablite.utils import sub_cls_check, unique_name
+from tablite.config import Config
+from tablite.mp_utils import share_mem, map_task
 from mplite import TaskManager, Task
 import psutil
+
+from tqdm import tqdm as _tqdm
 
 
 def _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns):

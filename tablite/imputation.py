@@ -1,7 +1,10 @@
-from base import Table, Column
-from utils import sub_cls_check
-import tablite.sort_utils as sort_utils
 import math
+
+from tablite.base import Table, Column
+from tablite.utils import sub_cls_check
+from tablite import sort_utils
+
+from tqdm import tqdm as _tqdm
 
 
 def imputation(T, targets, missing=None, method="carry forward", sources=None, tqdm=_tqdm):

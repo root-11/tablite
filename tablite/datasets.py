@@ -1,7 +1,7 @@
 import random
 from datetime import datetime
 from string import ascii_uppercase
-from base import Table
+from tablite.base import Table
 
 
 def synthetic_order_data(rows=100_000):

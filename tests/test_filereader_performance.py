@@ -3,7 +3,7 @@ import math
 import logging
 import pytest
 from tablite import Table, get_headers
-from tablite.datasets import synthetic_order_data, remove_synthetic_data
+from tablite.datasets import synthetic_order_data
 
 
 log = logging.getLogger()

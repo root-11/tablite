@@ -1,11 +1,14 @@
+import psutil
 import math
 import numpy as np
-from base import Table, Column
-from utils import sub_cls_check, unique_name
+from tablite.base import Table, Column
+from tablite.utils import sub_cls_check, unique_name
+from tablite.mp_utils import lookup_ops, share_mem, map_task
+from tablite.config import Config
 from mplite import Task, TaskManager
-from mp_utils import lookup_ops, share_mem, map_task
-from config import Config
-import psutil
+
+
+from tqdm import tqdm as _tqdm
 
 
 def lookup(T, other, *criteria, all=True, tqdm=_tqdm):

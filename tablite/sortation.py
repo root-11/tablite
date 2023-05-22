@@ -1,13 +1,15 @@
 import os
-from config import Config
 import numpy as np
 import psutil
 from mplite import Task, TaskManager
-from mp_utils import shared_memory, reindex_task
-from sort_utils import modes as sort_modes
-from sort_utils import rank as sort_rank
-from base import Table, Column, Page
-from utils import sub_cls_check, type_check
+from tablite.config import Config
+from tablite.mp_utils import shared_memory, reindex_task
+from tablite.sort_utils import modes as sort_modes
+from tablite.sort_utils import rank as sort_rank
+from tablite.base import Table, Column, Page
+from tablite.utils import sub_cls_check, type_check
+
+from tqdm import tqdm as _tqdm
 
 
 def sort_index(T, sort_mode="excel", tqdm=_tqdm, pbar=None, **kwargs):

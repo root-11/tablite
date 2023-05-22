@@ -1,8 +1,10 @@
 from collections import defaultdict
 
-from base import Table, Column
-from groupby_utils import GroupBy, GroupbyFunction
-from utils import unique_name
+from tablite.base import Table, Column
+from tablite.groupby_utils import GroupBy, GroupbyFunction
+from tablite.utils import unique_name
+
+from tqdm import tqdm as _tqdm
 
 
 def groupby(T, keys, functions, tqdm=_tqdm, pbar=None):  # TODO: This is single core code.

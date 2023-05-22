@@ -1,5 +1,5 @@
 from tablite.core import Table
-from tablite.core import GroupBy as gb
+from tablite.groupbys import GroupBy as gb
 from random import seed, choice
 import pytest
 

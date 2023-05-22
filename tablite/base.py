@@ -12,9 +12,17 @@ from pathlib import Path
 from itertools import count, chain, product, repeat
 from collections import defaultdict
 
-from datatypes import DataTypes
-from utils import type_check, intercept, np_type_unify, numpy_types, dict_to_rows, unique_name, summary_statistics
-from config import Config
+from tablite.datatypes import DataTypes
+from tablite.utils import (
+    type_check,
+    intercept,
+    np_type_unify,
+    numpy_types,
+    dict_to_rows,
+    unique_name,
+    summary_statistics,
+)
+from tablite.config import Config
 
 
 log = logging.getLogger(__name__)
