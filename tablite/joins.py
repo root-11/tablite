@@ -1,11 +1,13 @@
+import math
 import numpy as np
 from base import Table
 from itertools import product
 from utils import sub_cls_check, unique_name
 from config import Config
-from mp_utils import share_mem, maskify, indexing_task
+from mp_utils import share_mem
 from mplite import TaskManager, Task
 import psutil
+from multiprocessing import shared_memory
 
 
 def _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns):
@@ -67,7 +69,8 @@ def _sp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pba
     """
     private helper for single processing join
     """
-    result = T()
+    assert len(LEFT) == len(RIGHT)
+    result = type(T)()
 
     if pbar is None:
         total = len(left_columns) + len(right_columns)
@@ -86,120 +89,80 @@ def _sp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pba
 
 
 def _mp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None):
-    """
-    private helper for multiprocessing join
-    TODO: better memory management when processes share column chunks (requires masking Nones)
-    """
-    LEFT_NONE_MASK, RIGHT_NONE_MASK = (maskify(arr) for arr in (LEFT, RIGHT))
-
-    left_arr, left_shm = share_mem(LEFT, np.int64)
-    right_arr, right_shm = share_mem(RIGHT, np.int64)
-    left_msk_arr, left_msk_shm = share_mem(LEFT_NONE_MASK, np.bool8)
-    right_msk_arr, right_msk_shm = share_mem(RIGHT_NONE_MASK, np.bool8)
-
-    final_len = len(LEFT)
-
     assert len(LEFT) == len(RIGHT)
+    assert isinstance(LEFT, np.ndarray) and isinstance(RIGHT, np.ndarray)
 
-    tasks = []
-    columns_refs = {}
+    result = type(T)()
+    cpus = max(psutil.cpu_count(), 2)
+    step_size = math.ceil(len(LEFT) / cpus)
 
-    rows_per_page = Config.PAGE_SIZE
+    with TaskManager(cpu_count=cpus) as tm:  # keeps the CPU pool alive during the whole join.
+        for table, columns, side in ([T, left_columns, LEFT], [other, right_columns, RIGHT]):
+            for name in columns:
 
-    for name in left_columns:
-        col = T[name]
-        container = columns_refs[name] = []
+                data = table[name][:]
+                # TODO         ^---- determine how much memory is free and then decide
+                # either to mmap the source or keep it in RAM.
 
-        offset = 0
+                data, data_shm = share_mem(data, data.dtype)  # <-- this is source
+                index, index_shm = share_mem(side, np.int64)  # <-- this is index
+                # As all indices in `index` are positive, -1 is used as replacement for None.
+                destination, dest_shm = share_mem(np.empty(shape=(len(side),)), data.dtype)  # <--this is destination.
 
-        while offset < final_len or final_len == 0:  # create an empty page
-            new_offset = min(offset + rows_per_page, final_len)
-            slice_ = slice(offset, new_offset)
-            d_key = mem.new_id("/column")
-            container.append(d_key)
-            tasks.append(
-                Task(
-                    indexing_task,
-                    source_key=col.key,
-                    destination_key=d_key,
-                    shm_name_for_sort_index=left_shm.name,
-                    shm_name_for_sort_index_mask=left_msk_shm.name,
-                    shape=left_arr.shape,
-                    slice_=slice_,
-                )
-            )
+                tasks = []
+                start, end = 0, step_size
+                for _ in range(cpus):
+                    tasks.append(Task(map_task, data_shm, index_shm, dest_shm, start, end))
+                    start, end = end, end + step_size
+                # All CPUS now work on the same column and memory footprint is predetermined.
+                results = tm.execute(tasks)
+                if any(i is not None for i in results):
+                    raise Exception("\n".join(filter(lambda x: x is not None, results)))
 
-            offset = new_offset
+                # As the data and index no longer is needed, then can be closed.
+                index_shm.close()
+                data_shm.close()
 
-            if final_len == 0:
-                break
+                # As all the tasks have been completed, the Column can handle the pagination at once.
+                name = unique_name(name, set(result.columns))
 
-    for name in right_columns:
-        revised_name = unique_name(name, columns_refs.keys())
-        col = other[name]
-        container = columns_refs[revised_name] = []
+                # deal with Nones, before storing.
+                nones = np.empty(shape=destination.shape, dtype=object)
+                result[name] = np.where(index == -1, nones, destination)
 
-        offset = 0
+                dest_shm.close()  # finally close dest.
 
-        while offset < final_len or final_len == 0:  # create an empty page
-            new_offset = min(offset + rows_per_page, final_len)
-            slice_ = slice(offset, new_offset)
-            d_key = mem.new_id("/column")
-            container.append(d_key)
-            tasks.append(
-                Task(
-                    indexing_task,
-                    source_key=col.key,
-                    destination_key=d_key,
-                    shm_name_for_sort_index=right_shm.name,
-                    shm_name_for_sort_index_mask=right_msk_shm.name,
-                    shape=right_arr.shape,
-                    slice_=slice_,
-                )
-            )
+    return result
 
-            offset = new_offset
 
-            if final_len == 0:
-                break
-
-    if pbar is None:
-        total = len(tasks)
-        pbar = tqdm(total=total, desc="join")
-
-    with TaskManager(cpu_count=min(psutil.cpu_count(), total)) as tm:
-        results = tm.execute(tasks, tqdm=tqdm, pbar=pbar)
-
-        if any(i is not None for i in results):
-            raise Exception("\n".join(filter(lambda x: x is not None, results)))
-
-    merged_column_refs = {k: mem.mp_merge_columns(v) for k, v in columns_refs.items()}
-
-    with h5py.File(mem.path, "r+") as h5:
-        table_key = mem.new_id("/table")
-        dset = h5.create_dataset(name=f"/table/{table_key}", dtype=h5py.Empty("f"))
-        dset.attrs["columns"] = json.dumps(merged_column_refs)
-        dset.attrs["saved"] = False
-
-    left_shm.close()
-    left_shm.unlink()
-    right_shm.close()
-    right_shm.unlink()
-
-    left_msk_shm.close()
-    left_msk_shm.unlink()
-    right_msk_shm.close()
-    right_msk_shm.unlink()
-
-    t = Table.load(path=mem.path, key=table_key)
-    return t
+def map_task(data, index, destination, start, end):
+    # connect
+    shared_data = shared_memory.SharedMemory(name=data)
+    shared_index = shared_memory.SharedMemory(name=index)
+    shared_target = shared_memory.SharedMemory(name=destination)
+    # work
+    shared_target[start:end] = np.take(shared_data[start:end], shared_index[start:end])
+    # disconnect
+    shared_data.close()
+    shared_index.close()
+    shared_target.close()
 
 
 def _select_processing_method(fields):
+    """selects method for processing the join
+
+    Args:
+        fields (int): number of fields in the join.
+
+    Returns:
+        callable: _sp or _mp join.
+    """
     assert isinstance(fields, int)
-    if Config.MULTIPROCESSING_MODE == Config.FALSE:  # tcfg.PROCESSING_PRIORITY == "sp":
+    if psutil.cpu_count() <= 1:
         f = _sp_join
-    elif Config.MULTIPROCESSING_MODE == Config.FORCE:  # tcfg.PROCESSING_PRIORITY == "mp":
+    elif Config.MULTIPROCESSING_MODE == Config.FALSE:
+        f = _sp_join
+    elif Config.MULTIPROCESSING_MODE == Config.FORCE:
         f = _mp_join
     elif fields < Config.SINGLE_PROCESSING_LIMIT:
         f = _sp_join
@@ -210,12 +173,14 @@ def _select_processing_method(fields):
 
 def left_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
     """
-    :param other: T, other = (left, right)
+    :param T: Table (left)
+    :param other: Table (right)
     :param left_keys: list of keys for the join
     :param right_keys: list of keys for the join
     :param left_columns: list of left columns to retain, if None, all are retained.
     :param right_columns: list of right columns to retain, if None, all are retained.
     :return: new Table
+
     Example:
     SQL:   SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
     Tablite: left_join = numbers.left_join(
@@ -233,19 +198,21 @@ def left_join(T, other, left_keys, right_keys, left_columns=None, right_columns=
     right_index = other.index(*right_keys)
     LEFT, RIGHT = [], []
     for left_key, left_ixs in left_index.items():
-        right_ixs = right_index.get(left_key, (None,))
+        right_ixs = right_index.get(left_key, (-1,))
         for left_ix in left_ixs:
             for right_ix in right_ixs:
                 LEFT.append(left_ix)
                 RIGHT.append(right_ix)
 
+    LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)  # compress memory of python list to array.
     f = _select_processing_method(fields=len(LEFT) * len(left_columns + right_columns))
     return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
 
 def inner_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
     """
-    :param other: T, other = (left, right)
+    :param T: Table (left)
+    :param other: Table (right)
     :param left_keys: list of keys for the join
     :param right_keys: list of keys for the join
     :param left_columns: list of left columns to retain, if None, all are retained.
@@ -276,13 +243,15 @@ def inner_join(T, other, left_keys, right_keys, left_columns=None, right_columns
                 LEFT.append(left_ix)
                 RIGHT.append(right_ix)
 
+    LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)
     f = _select_processing_method(fields=len(LEFT) * len(left_columns + right_columns))
     return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
 
 def outer_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
     """
-    :param other: T, other = (left, right)
+    :param T: Table (left)
+    :param other: Table (right)
     :param left_keys: list of keys for the join
     :param right_keys: list of keys for the join
     :param left_columns: list of left columns to retain, if None, all are retained.
@@ -305,7 +274,7 @@ def outer_join(T, other, left_keys, right_keys, left_columns=None, right_columns
     right_index = other.index(*right_keys)
     LEFT, RIGHT, RIGHT_UNUSED = [], [], set(right_index.keys())
     for left_key, left_ixs in left_index.items():
-        right_ixs = right_index.get(left_key, (None,))
+        right_ixs = right_index.get(left_key, (-1,))
         for left_ix in left_ixs:
             for right_ix in right_ixs:
                 LEFT.append(left_ix)
@@ -314,15 +283,24 @@ def outer_join(T, other, left_keys, right_keys, left_columns=None, right_columns
 
     for right_key in RIGHT_UNUSED:
         for right_ix in right_index[right_key]:
-            LEFT.append(None)
+            LEFT.append(-1)
             RIGHT.append(right_ix)
 
+    LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)
     f = _select_processing_method(fields=len(LEFT) * len(left_columns + right_columns))
     return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
 
 def cross_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
     """
+    :param T: Table (left)
+    :param other: Table (right)
+    :param left_keys: list of keys for the join
+    :param right_keys: list of keys for the join
+    :param left_columns: list of left columns to retain, if None, all are retained.
+    :param right_columns: list of right columns to retain, if None, all are retained.
+    :return: new Table
+
     CROSS JOIN returns the Cartesian product of rows from tables in the join.
     In other words, it will produce rows which combine each row from the first table
     with each row from the second table
@@ -336,5 +314,6 @@ def cross_join(T, other, left_keys, right_keys, left_columns=None, right_columns
 
     LEFT, RIGHT = zip(*product(range(len(T)), range(len(other))))
 
+    LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)
     f = _select_processing_method(fields=len(LEFT))
     return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
