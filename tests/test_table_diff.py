@@ -6,8 +6,8 @@ def test_diff():
     s2 = [2, 2, 2, 2, 3, 3, 3, 3, 4, 4]
     s3 = [1, 1, 1, 1, 1, 1, 1]
 
-    t1 = Table.from_dict({"A": s1, "B": s2})
-    t2 = Table.from_dict({"A": s3 + s1 + s3, "B": s3 + s2 + s3})
+    t1 = Table(columns={"A": s1, "B": s2})
+    t2 = Table(columns={"A": s3 + s1 + s3, "B": s3 + s2 + s3})
 
     t3 = t1.diff(t2)
     t3.show(slice(None))
