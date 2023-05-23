@@ -750,6 +750,13 @@ def numpy_to_python(obj):  # TODO: Apply this instead of numpy_types.
     return obj
 
 
+def coerce_to_pytype(obj):  # TODO: Apply this instead of numpy_types.
+    """Returns the python type of any object"""
+    if isinstance(obj, np.generic):
+        return type(obj.item())
+    return type(obj)
+
+
 class Rank(object):
     def __init__(self, *items):
         self.items = {i: ix for i, ix in zip(items, range(len(items)))}
