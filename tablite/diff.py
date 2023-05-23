@@ -1,3 +1,4 @@
+import numpy as np
 from tablite.config import Config
 from tablite.base import Table
 from tablite.utils import sub_cls_check, unique_name
@@ -28,13 +29,13 @@ def diff(T, other, columns=None):
     else:
         raise TypeError("Expected list of column names")
 
-    t1 = T.__getitem__(*columns)
-    if issubclass(t1, Table):
+    t1 = T[columns]
+    if issubclass(type(t1), Table):
         t1 = [tuple(r) for r in T.rows]
     else:
         t1 = list(T)
-    t2 = other.__getitem__(*columns)
-    if issubclass(t2, Table):
+    t2 = other[columns]
+    if issubclass(type(t2), Table):
         t2 = [tuple(r) for r in other.rows]
     else:
         t2 = list(other)
@@ -78,10 +79,10 @@ def diff(T, other, columns=None):
         # Clear cache to free up memory.
         if len(news[first]) > Config.PAGE_SIZE == 0:
             for name, L in news.items():
-                new[name].extend(L)
+                new[name].extend(np.array(L))
                 L.clear()
 
     for name, L in news.items():
-        new[name].extend(L)
+        new[name].extend(np.array(L))
         L.clear()
     return new
