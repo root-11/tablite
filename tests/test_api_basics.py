@@ -4,7 +4,8 @@ from datetime import datetime, timedelta
 import pyperclip
 import pytest
 import gc
-
+from pathlib import Path
+import os
 # DESCRIPTION
 # The basic tests seeks to cover list like functionality:
 # If a table is created, saved, copied, updated or deleted.
@@ -17,7 +18,6 @@ import gc
 
 @pytest.fixture(autouse=True)  # this resets the HDF5 file for every test.
 def refresh():
-    Table.reset_storage()
     yield
 
 
@@ -38,15 +38,16 @@ def test01_compatible_datatypes():
     table4["K"] = ["b", "嗨"]  # utf-32
     table4["L"] = [-(10**23), 10**23]  # int > int64.
     table4["M"] = [float("inf"), float("-inf")]
-    assert table4.columns == ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M"]
+    assert list(table4.columns) == ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M"]
     # testing .columns property.
 
-    table4.save = True  # testing that save keeps the data in HDF5.
+    path = Path(__file__).parent / "data/myfile.tpz"
+    table4.save(path)  # testing that save keeps the data in HDF5.
     del table4
 
     # recover all active tables from HDF5.
-    tables = Table.reload_saved_tables()
-    table5 = tables[0]  # this is the content of table4
+    
+    table5 = Table.load(path)  # this is the content of table4
     assert table5["A"] == [-1, 1]  # list test
     assert table5["A"] == np.array([-1, 1])  # numpy test
     assert table5["A"] == (-1, 1)  # tuple test
@@ -68,17 +69,14 @@ def test01_compatible_datatypes():
     assert rows[0][0] == -1
     assert rows[1][0] == 1
 
+    os.remove(path)
+
 
 def test_add_rows():
     t = Table()
     t["A"] = [1]
     t.add_rows(*[1.1])
     assert t["A"] == [1, 1.1]
-
-
-def test01_confirm_storage_reset():
-    tables = Table.reload_saved_tables()
-    assert tables == []
 
 
 def test02_verify_garbage_collection():
@@ -89,8 +87,7 @@ def test02_verify_garbage_collection():
     table5["A"] = table4["A"]
 
     del table4["A"]
-    assert table4.columns == []
-
+    
     assert table5["A"] == [-1, 1]
 
     del table4
@@ -101,9 +98,6 @@ def test02_verify_garbage_collection():
     # alternatively the explicit call to .__del__ could be made.
     # table4.__del__()
     # table5.__del__()
-
-    tables = Table.reload_saved_tables()
-    assert tables == []
 
 
 class Quarternion(object):  # I'm pretty sure these are not in the standard library...
@@ -196,7 +190,7 @@ def test03_verify_list_like_operations():
     assert len(table5) == 2 * len(table4)
 
     table5.clear()
-    assert table5.columns == []
+    assert list(table5.columns) == []
 
 
 # fmt: off
