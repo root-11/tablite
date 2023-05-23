@@ -1,31 +1,34 @@
 import sqlite3
 from tablite import Table
-import tablite.config as tcfg
+from tablite.config import Config
 import pytest
 
 
 @pytest.fixture(autouse=True)  # this resets the HDF5 file for every test.
 def refresh():
-    Table.reset_storage()
     try:
         yield
     finally:
-        tcfg.PROCESSING_PRIORITY = "auto"
+        Config.PROCESSING_PRIORITY = Config.AUTO
 
 
 def do_left_join(always_mp):
     """joining a table on itself. Wierd but possible."""
-    
-    tcfg.PROCESSING_PRIORITY = "mp" if always_mp else "sp"
-    
+    if always_mp:
+        Config.MULTIPROCESSING_MODE = Config.FORCE
+    else:
+        Config.MULTIPROCESSING_MODE = Config.FALSE
+
     numbers = Table()
     numbers.add_column("number", data=[1, 2, 3, 4, None])
     numbers.add_column("colour", data=["black", "blue", "white", "white", "blue"])
 
     numbers2 = Table()
     numbers2.add_column("number", data=[1, 2, 3, 4, None, 6, 6, 6, 6, 6, 6])
-    numbers2.add_column("colour", data=["black", "blue", "white", "white", "blue", "purple", "purple", "purple", "purple", "purple", "purple"])
-
+    numbers2.add_column(
+        "colour",
+        data=["black", "blue", "white", "white", "blue", "purple", "purple", "purple", "purple", "purple", "purple"],
+    )
 
     left_join = numbers.left_join(numbers2, left_keys=["colour"], right_keys=["colour"])
     left_join.show()
@@ -42,14 +45,20 @@ def do_left_join(always_mp):
         [4, "white", 4, "white"],
     ]
 
+
 def test_left_join_sp():
     do_left_join(False)
+
 
 def test_left_join_mp():
     do_left_join(True)
 
+
 def do_left_join2(always_mp):
-    tcfg.PROCESSING_PRIORITY = "mp" if always_mp else "sp"
+    if always_mp:
+        Config.MULTIPROCESSING_MODE = Config.FORCE
+    else:
+        Config.MULTIPROCESSING_MODE = Config.FALSE
 
     """joining a table on itself. Wierd but possible."""
     numbers = Table()
@@ -61,7 +70,7 @@ def do_left_join2(always_mp):
         left_keys=["colour"],
         right_keys=["colour"],
         left_columns=["colour", "number"],
-        right_columns=["number", "colour"]
+        right_columns=["number", "colour"],
     )
     left_join.show()
 
@@ -77,11 +86,14 @@ def do_left_join2(always_mp):
         ["white", 4, 4, "white"],
     ]
 
+
 def test_left_join2_sp():
     do_left_join2(False)
 
+
 def test_left_join2_mp():
     do_left_join2(True)
+
 
 def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2, always_mp):
     """
@@ -90,7 +102,10 @@ def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2, always_mp):
       LEFT JOIN `tbl2`
         ON tbl1.color = tbl2.color;
     """
-    tcfg.PROCESSING_PRIORITY = "mp" if always_mp else "sp"
+    if always_mp:
+        Config.MULTIPROCESSING_MODE = Config.FORCE
+    else:
+        Config.MULTIPROCESSING_MODE = Config.FALSE
 
     numbers_1 = Table()
     numbers_1.add_column("number", data=[p[0] for p in pairs_1])
@@ -105,7 +120,7 @@ def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2, always_mp):
         left_keys=[column_1],
         right_keys=[column_2],
         left_columns=["number", "colour"],
-        right_columns=["number", "colour"]
+        right_columns=["number", "colour"],
     )
 
     assert len(pairs_ans) == len(left_join)
@@ -180,8 +195,10 @@ def do_same_join_1(always_mp):
 def test_same_join_1_sp():
     do_same_join_1(False)
 
+
 def test_same_join_1_mp():
     do_same_join_1(True)
+
 
 def do_left_join_2(always_mp):
     """FIDDLE: http://sqlfiddle.com/#!9/986b2a/3"""
@@ -200,15 +217,21 @@ def do_left_join_2(always_mp):
     ]
     _join_left(pairs_1, pairs_1, pairs_ans, "colour", "colour", always_mp)
 
+
 def test_left_join_2_sp():
     do_left_join_2(False)
+
 
 def test_left_join_2_mp():
     do_left_join_2(True)
 
+
 # https://en.wikipedia.org/wiki/Join_(SQL)#Inner_join
 def do_wiki_joins(always_mp):
-    tcfg.PROCESSING_PRIORITY = "mp" if always_mp else "sp"
+    if always_mp:
+        Config.MULTIPROCESSING_MODE = Config.FORCE
+    else:
+        Config.MULTIPROCESSING_MODE = Config.FALSE
 
     employees = Table()
     employees["last name"] = ["Rafferty", "Jones", "Heisenberg", "Robinson", "Smith", "Williams"]
@@ -402,8 +425,10 @@ def do_wiki_joins(always_mp):
         (None, None, 35, "Marketing"),
     ]  # <-- result from https://en.wikipedia.org/wiki/Join_(SQL)#Full_outer_join
 
+
 def test_wiki_joins_sp():
     do_wiki_joins(False)
+
 
 def test_wiki_joins_mp():
     do_wiki_joins(True)
