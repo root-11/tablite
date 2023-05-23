@@ -12,7 +12,7 @@ def type_check(var, kind):
 
 
 def sub_cls_check(c, kind):
-    if not issubclass(c, kind):
+    if not issubclass(type(c), kind):
         raise TypeError(f"Expected {kind}, not {type(c)}")
 
 
@@ -134,14 +134,25 @@ def intercept(A, B):
         else:
             return range(b, end, step)
     else:
+        # determine common step size:
+        step = max(A.step, B.step) if math.gcd(A.step, B.step) != 1 else A.step * B.step
+        # examples:
+        # 119 <-- 17 if 1 != 1 else 119 <-- max(7, 17) if math.gcd(7, 17) != 1 else 7 * 17
+        #  30 <-- 30 if 3 != 1 else 90 <-- max(3, 30) if math.gcd(3, 30) != 1 else 3*30
         if A.step < B.step:
             for n in range(a_start, end, A.step):  # increment in smallest step to identify the first common value.
-                if (n - b_start) % B.step == 0:
-                    return range(n, end, A.step * B.step)  # common value found.
+                if n < b_start:
+                    continue
+                elif (n - b_start) % B.step == 0:
+                    return range(n, end, step)  # common value found.
         else:
             for n in range(b_start, end, B.step):
-                if (n - a_start) % B.step == 0:
-                    return range(n, end, A.step * B.step)
+                if n < a_start:
+                    continue
+                elif (n - a_start) % A.step == 0:
+                    return range(n, end, step)
+
+        return range(0)
 
 
 # This list is the contract:
