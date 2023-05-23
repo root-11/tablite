@@ -14,9 +14,10 @@ def to_sql(table):
     sub_cls_check(table, Table)
 
     prefix = "Table"
+    name = "T1"
     create_table = """CREATE TABLE {}{} ({})"""
     columns = []
-    for name, col in table.items():
+    for name, col in table.columns.items():
         dtype = col.types()
         if len(dtype) == 1:
             dtype, _ = dtype.popitem()
@@ -31,13 +32,13 @@ def to_sql(table):
         definition = f"{name} {dtype}"
         columns.append(definition)
 
-    create_table = create_table.format(prefix, table.id, ", ".join(columns))
+    create_table = create_table.format(prefix, name, ", ".join(columns))
 
     # return create_table
     row_inserts = []
     for row in table.rows:
         row_inserts.append(str(tuple([i if i is not None else "NULL" for i in row])))
-    row_inserts = f"INSERT INTO {prefix}{table.id} VALUES " + ",".join(row_inserts)
+    row_inserts = f"INSERT INTO {prefix}{name} VALUES " + ",".join(row_inserts)
     return "begin; {}; {}; commit;".format(create_table, row_inserts)
 
 
@@ -108,6 +109,7 @@ def excel_writer(table, path):
 
 def to_json(table, *args, **kwargs):
     import json
+
     sub_cls_check(table, Table)
     return json.dumps(table.as_json_serializable())
 
