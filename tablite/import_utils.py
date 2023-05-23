@@ -279,7 +279,7 @@ def text_reader_task(
                 continue
             if ix >= end:
                 break
-            L = text_escape(line)
+            L = text_escape(line.rstrip('\n'))
             try:
                 values.append(L[column_index])
             except IndexError:
