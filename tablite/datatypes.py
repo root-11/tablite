@@ -355,7 +355,7 @@ class DataTypes(object):
             if v.dtype.name in numpy_types:
                 pytype = numpy_types[v.dtype.name]
                 v = pytype(v)
-            elif v.dtype.name.startswith('str'):
+            elif v.dtype.name.startswith("str"):
                 v = str(v)
         if v is None:
             return v
@@ -741,6 +741,13 @@ def _get_numpy_types():
 
 
 numpy_types = _get_numpy_types()
+
+
+def numpy_to_python(obj):  # TODO: Apply this instead of numpy_types.
+    """See https://numpy.org/doc/stable/reference/arrays.scalars.html"""
+    if isinstance(obj, np.generic):
+        return obj.item()
+    return obj
 
 
 class Rank(object):
