@@ -3,6 +3,7 @@ from tablite.base import Table
 from tablite.datatypes import DataTypes
 from pathlib import Path
 
+
 from tqdm import tqdm as _tqdm
 
 
@@ -106,8 +107,9 @@ def excel_writer(table, path):
 
 
 def to_json(table, *args, **kwargs):
+    import json
     sub_cls_check(table, Table)
-    return table.to_json(*args, **kwargs)
+    return json.dumps(table.as_json_serializable())
 
 
 def text_writer(table, path, tqdm=_tqdm):
