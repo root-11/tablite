@@ -1,14 +1,7 @@
 from tablite import Table
 import random
 from random import randint
-import pytest
 import time
-
-
-@pytest.fixture(autouse=True)  # this resets the HDF5 file for every test.
-def refresh():
-    Table.reset_storage()
-    yield
 
 
 def test_any():
