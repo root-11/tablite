@@ -12,7 +12,7 @@ from pathlib import Path
 from itertools import count, chain, product, repeat
 from collections import defaultdict
 
-from tablite.datatypes import DataTypes
+from tablite.datatypes import DataTypes, numpy_to_python, coerce_to_pytype
 from tablite.utils import (
     type_check,
     intercept,
@@ -77,6 +77,9 @@ class Page(object):
     def __len__(self):
         return self.len
 
+    def __hash__(self) -> int:
+        return self.id
+
     def __del__(self):
         """When python's reference count for an object is 0, python uses
         it's garbage collector to remove the object and free the memory.
@@ -127,8 +130,7 @@ class Column(object):
             list of ndarrays
         """
         type_check(values, np.ndarray)
-        if page_size is None:
-            page_size = Config.PAGE_SIZE
+        page_size = Config.PAGE_SIZE if page_size is None else page_size
         type_check(page_size, int)
 
         arrays = []
@@ -247,7 +249,7 @@ class Column(object):
             arr = np.array([])
 
         if isinstance(item, int):
-            if not arr:
+            if len(arr) == 0:
                 raise IndexError(f"index {item} is out of bounds for axis 0 with size {len(self)}")
             return arr[0]
         else:
@@ -281,7 +283,8 @@ class Column(object):
                 self._setitem_update(key, value)
             else:
                 raise KeyError(f"bad key: {key}")
-        raise KeyError(f"bad key: {key}")
+        else:
+            raise KeyError(f"bad key: {key}")
 
     def _setitem_integer_key(self, key, value):  # PRIVATE FUNCTION
         # documentation:
@@ -303,7 +306,7 @@ class Column(object):
             if start <= key < end:
                 data = page.get()
                 data[key - start] = value
-                new_page = Page(self.path, data)
+                new_page = Page(self.path.parent, data)
                 self.pages[index] = new_page
                 break
 
@@ -458,7 +461,7 @@ class Column(object):
         """handles the following case:
         del column[m:n:o]
         """
-        key_start, key_stop, key_step = key.indices(self._len)
+        key_start, key_stop, key_step = key.indices(len(self))
         seq = range(key_start, key_stop, key_step)
 
         # determine change
@@ -485,12 +488,13 @@ class Column(object):
         else:
             for ix, arr in enumerate(changed_pages):
                 changed_pages[ix] = np.array(arr, dtype=object)
+            dtype = object
         new = np.concatenate(changed_pages, dtype=dtype)
         # create mask for np.delete.
         filter = [i - starts_on for i in seq]
         pruned = np.delete(new, filter)
-        new_pages = self._paginate(pruned)
-        self.pages = head + new_pages + tail
+        new_arrays = self._paginate(pruned)
+        self.pages = head + [Page(self.path.parent, arr) for arr in new_arrays] + tail
 
     def __iter__(self):  # USER FUNCTION.
         for page in self.pages:
@@ -618,6 +622,16 @@ class Column(object):
         cp *= other
         return cp
 
+    def __iadd__(self, other):
+        if isinstance(other, (list, tuple)):
+            other = np.array(other)
+            self.extend(other)
+        elif isinstance(other, Column):
+            self.pages.extend(other.pages[:])
+        else:
+            raise TypeError(f"{type(other)} not supported.")
+        return self
+
     def __contains__(self, item):
         """
         determines if item is in the Column. Similar to 'x' in ['a','b','c']
@@ -675,22 +689,29 @@ class Column(object):
         for page in self.pages:
             data = page.get()
             if data.dtype == "O":
-                L = [i.dtype for i in data]
-                for i in L:
-                    d[i] += 1
+                for i in data:
+                    dtype = coerce_to_pytype(i)
+                    # dtype = str(i.dtype) if hasattr(i, "dtype") else type(i)
+                    d[dtype] += 1
             else:
-                d[str(data.dtype)] += len(page)
+                sample = coerce_to_pytype(data[0])
+                d[sample] += len(page)
+                # d[str(data.dtype)] += len(page)
 
-        for k, v in list(d.items()):
-            if k.startswith("<U"):  # it's a numpy str.
-                new_k = str
-                del d[k]
-            elif k in numpy_types:
-                new_k = numpy_types[k]
-                del d[k]
-            else:
-                new_k = v
-            d[new_k] = v
+        # for k, v in list(d.items()):
+        #     if not isinstance(k, str):
+        #         continue
+        #     else:
+        #         if k.startswith("<U"):  # it's a numpy str.
+        #             new_k = str
+        #             del d[k]
+        #             d[new_k] = v
+        #         elif k in numpy_types:
+        #             new_k = numpy_types[k]
+        #             del d[k]
+        #             d[new_k] = v
+        #         else:
+        #             pass
         return dict(d)
 
     def index(self):
@@ -718,8 +739,15 @@ class Column(object):
         """
         arrays = []
         for page in self.pages:
-            arrays.append(np.unique(page.get()))
-        return np.unique(np_type_unify(arrays))
+            try:
+                arrays.append(np.unique(page.get()))
+            except TypeError:  # np.unique cannot handle Nones.
+                arrays.append(list(set(page.get())))
+        union = np_type_unify(arrays)
+        try:
+            return np.unique(union)
+        except TypeError:
+            return np.array(list(set(union)))
 
     def histogram(self):
         """
@@ -837,11 +865,11 @@ class Table(object):
         del table['a']  removes column 'a'
         del table[-3:] removes last 3 rows from all columns.
         """
-        if key in self.columns:
-            del self.columns[key]
-        elif isinstance(key, (int, slice)):
+        if isinstance(key, (int, slice)):
             for column in self.columns.values():
                 del column[key]
+        elif key in self.columns:
+            del self.columns[key]
         else:
             raise KeyError(f"Key not found: {key}")
 
@@ -1038,6 +1066,7 @@ class Table(object):
         if path.suffix != ".tpz":
             path += ".tpz"
 
+        _page_counter = 0
         d = {"temp": False}
         cols = {}
         for name, col in self.columns.items():
@@ -1047,21 +1076,27 @@ class Table(object):
                 "length": [p.len for p in col.pages],
                 "types": [0 for _ in col.pages],
             }
+            _page_counter += len(col.pages)
         d["columns"] = cols
 
         yml = yaml.safe_dump(d, sort_keys=False, allow_unicode=True, default_flow_style=None)
 
+        _file_counter = 0
         with zipfile.ZipFile(
             path, "w", compression=compression_method, compresslevel=compression_level
         ) as f:  # raise if exists.
             log.debug(f"writing .tpz to {path} with\n{yml}")
             f.writestr("table.yml", yml)
             for name, col in self.columns.items():
-                for page in col.pages:
+                for page in set(col.pages):  # set of pages! remember t *= 1000 repeats t 1000x
                     with open(page.path, "rb", buffering=0) as raw_io:
                         f.writestr(page.path.name, raw_io.read())
+                    _file_counter += 1
                     log.debug(f"adding Page {page.path}")
-            log.debug("write completed.")
+
+            _fields = len(self) * len(self.columns)
+            _avg = _fields // _page_counter
+            log.debug(f"Wrote {_fields} on {_page_counter} pages in {_file_counter} files: {_avg} fields/page")
 
     @classmethod
     def load(cls, path):  # USER FUNCTION.
@@ -1218,7 +1253,7 @@ class Table(object):
                         raise TypeError(f"{arg}?")
                 # 2. extend the columns
                 for n, values in d.items():
-                    col = self.columns(n)
+                    col = self.columns[n]
                     col.extend(np.array(values))
 
         if kwargs:
@@ -1373,11 +1408,16 @@ class Table(object):
             else:
                 return str(v).rjust(length)
 
+        if not self.columns:
+            return str(self)
+
         d = {}
         for name, values in self.display_dict(*args, blanks=blanks, dtype=dtype).items():
             as_text = [str(v) for v in values]
             width = max(len(i) for i in as_text)
             new_name = name.center(width, " ")
+            if dtype:
+                values[0] = values[0].center(width, " ")
             d[new_name] = [adjust(v, width) for v in values]
 
         rows = dict_to_rows(d)
@@ -1514,6 +1554,7 @@ class Table(object):
         idx = defaultdict(set)
         iterators = [iter(self.columns[c]) for c in args]
         for ix, key in enumerate(zip(*iterators)):
+            key = tuple(numpy_to_python(k) for k in key)
             idx[key].add(ix)
         return idx
 
