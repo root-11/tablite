@@ -218,7 +218,7 @@ class TRconfig(object):
         return TRconfig(**self.dict())
 
     def dict(self):
-        return {k: v for k, v in self.__dict__() if not (k.startswith("_") or callable(v))}
+        return {k: v for k, v in self.__dict__.items() if not (k.startswith("_") or callable(v))}
 
 
 def text_reader_task(
@@ -312,7 +312,6 @@ def text_reader(
 
     excess kwargs are ignored.
     """
-
     if not isinstance(path, Path):
         path = Path(path)
     if not path.exists():
@@ -413,8 +412,7 @@ def text_reader(
                 # header_line = delimiter.join(new_fields) + newline
                 fields = new_fields
 
-        cpu_count = max(psutil.cpu_count(logical=True), 1)  # there's always at least one core!
-        tasks = math.ceil(newlines / Config.PAGE_SIZE) * len(columns)
+        tasks = math.ceil(newlines / Config.PAGE_SIZE) * len(fields)
 
         task_config = TRconfig(
             source=str(path),
@@ -441,16 +439,17 @@ def text_reader(
         for ix, field_name in enumerate(fields):
             configs[field_name] = []
 
-            start = end = 1 if first_row_has_headers else 0
-            for end in range(start + Config.PAGE_SIZE, newlines + 1, Config.PAGE_SIZE):
+            begin = 1 if first_row_has_headers else 0
+            for start in range(begin, newlines + 1, Config.PAGE_SIZE):
+                end = min(start + Config.PAGE_SIZE, newlines)
 
                 cfg = task_config.copy()
                 cfg.start = start
-                cfg.end = min(end, newlines)
+                cfg.end = end
                 cfg.destination = workdir / "pages" / f"{next(Page.ids)}.npy"
                 cfg.column_index = ix
                 tasks.append(Task(f=text_reader_task, **cfg.dict()))
-                configs.append(cfg)
+                configs[field_name].append(cfg)
 
                 start = end
 
@@ -460,17 +459,19 @@ def text_reader(
         len_tasks = len(tasks)
         dump_size = dump_stage / len_tasks
 
+        # TODO: Move external.
         class PatchTqdm:  # we need to re-use the tqdm pbar, this will patch
             # the tqdm to update existing pbar instead of creating a new one
             def update(self, n=1):
                 pbar.update(n * dump_size)
 
-        if cpu_count < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
+        cpus = max(psutil.cpu_count(logical=True), 1)  # there's always at least one core!
+        if cpus < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
             for task in tasks:
                 task.execute()
                 pbar.update(dump_size)
         else:
-            with TaskManager(cpu_count - 1) as tm:
+            with TaskManager(cpus - 1) as tm:
                 errors = tm.execute(tasks, pbar=PatchTqdm())  # I expects a list of None's if everything is ok.
                 if any(errors):
                     raise Exception("\n".join(e for e in errors if e))
