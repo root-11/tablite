@@ -1,7 +1,8 @@
 from collections import defaultdict
+import numpy as np
 
 from tablite.base import Table
-from tablite.utils import unique_name, sub_cls_check
+from tablite.utils import unique_name, sub_cls_check, dict_to_rows
 from tablite.groupbys import groupby
 from tablite.config import Config
 
@@ -181,28 +182,19 @@ def pivot(T, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=Non
 
 
 def transpose(T, tqdm=_tqdm):
+    """performs a CCW matrix rotation of the table."""
     sub_cls_check(T, Table)
 
     if len(T.columns) == 0:
         return type(T)()
 
-    rows = [[] for _ in range(len(T) + 1)]
-    rows[0] = T.columns[1:]
-
-    for x in tqdm(range(0, len(T)), desc="table transpose"):
-        for y in rows[0]:
-            value = T[y][x]
-            rows[x + 1].append(value)
-
-    unique_names = []
-    t = type(T)()
-
-    new_names = (unique_name(str(c), unique_names) for c in ([T.columns[0]] + list(T[T.columns[0]])))
-    for column_name, values in zip(new_names, rows):
-        unique_names.append(column_name)
-        t[column_name] = values
-
-    return t
+    assert isinstance(T, Table)
+    new = type(T)()
+    L = list(T.columns)
+    new[L[0]] = L[1:]
+    for row in tqdm(T.rows, desc="table transpose"):
+        new[row[0]] = row[1:]
+    return new
 
 
 def pivot_transpose(T, columns, keep=None, column_name="transpose", value_name="value", tqdm=_tqdm):
@@ -267,7 +259,7 @@ def pivot_transpose(T, columns, keep=None, column_name="transpose", value_name="
     n = len(keep)
 
     with tqdm(total=len(T), desc="transpose") as pbar:
-        for ix, row in enumerate(T.__getitem__(*keep + columns).rows, start=1):
+        for ix, row in enumerate(T[keep + columns].rows, start=1):
             keeps = row[:n]
             transposes = row[n:]
 
@@ -285,6 +277,6 @@ def pivot_transpose(T, columns, keep=None, column_name="transpose", value_name="
             pbar.update(1)
 
     for name, values in news.items():
-        new[name].extend(values)
+        new[name].extend(np.array(values))
         values.clear()
     return new
