@@ -47,7 +47,7 @@ def test_03():
 
     new = t.transpose()
 
-    assert new.columns == ["a", "1", "10"]
+    assert list(new.columns) == ["a", 1, 10]
     assert [r for r in new.rows] == [
         ["b", 2, 20],
         ["c", 3, 30],
@@ -74,7 +74,7 @@ def test_05():
 
     new = t.transpose()
 
-    assert new.columns == ["a"]
+    assert list(new.columns) == ["a"]
     assert [r for r in new.rows] == [
         ["b"],
         ["c"],
