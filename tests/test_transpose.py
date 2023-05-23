@@ -37,6 +37,7 @@ def test02():
         [10, 20, "e", 50],
     ]
 
+
 def test_03():
     t = Table()
     t["a"] = [1, 10]
@@ -52,8 +53,9 @@ def test_03():
         ["b", 2, 20],
         ["c", 3, 30],
         ["d", 4, 40],
-        ["e", 5, 50]
+        ["e", 5, 50],
     ]
+
 
 def test_04():
     t = Table()
@@ -75,9 +77,4 @@ def test_05():
     new = t.transpose()
 
     assert list(new.columns) == ["a"]
-    assert [r for r in new.rows] == [
-        ["b"],
-        ["c"],
-        ["d"],
-        ["e"]
-    ]
+    assert [r for r in new.rows] == [["b"], ["c"], ["d"], ["e"]]
