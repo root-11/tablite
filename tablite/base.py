@@ -953,8 +953,11 @@ class Table(object):
             return t
 
     def __len__(self):  # USER FUNCTION.
+        if not self.columns:
+            return 0
         return max(len(c) for c in self.columns.values())
 
+    @property
     def rows(self):
         """
         enables row based iteration
