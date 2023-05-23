@@ -8,15 +8,6 @@ from tablite import Table
 from tablite.export_utils import exporters
 
 
-import pytest
-
-
-@pytest.fixture(autouse=True)  # this resets the HDF5 file for every test.
-def refresh():
-    Table.reset_storage()
-    yield
-
-
 def test_exporters():
     now = datetime.now().replace(microsecond=0)
 
