@@ -352,8 +352,11 @@ class DataTypes(object):
             json compatible value from v
         """
         if hasattr(v, "dtype"):
-            pytype = numpy_types[v.dtype.name]
-            v = pytype(v)
+            if v.dtype.name in numpy_types:
+                pytype = numpy_types[v.dtype.name]
+                v = pytype(v)
+            elif v.dtype.name.startswith('str'):
+                v = str(v)
         if v is None:
             return v
         elif v is False:  # using isinstance(v, bool): won't work as False also is int of zero.
