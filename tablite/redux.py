@@ -247,7 +247,7 @@ def _select_compress_method(fields):
     return f
 
 
-def all(T, **kwargs):
+def filter_all(T, **kwargs):
     """
     returns Table for rows where ALL kwargs match
     :param kwargs: dictionary with headers and values / boolean callable
@@ -284,7 +284,7 @@ def all(T, **kwargs):
 
     if not isinstance(kwargs, dict):
         raise TypeError("did you forget to add the ** in front of your dict?")
-    if not all(k in T.columns for k in kwargs):
+    if not all([k in T.columns for k in kwargs]):
         raise ValueError(f"Unknown column(s): {[k for k in kwargs if k not in T.columns]}")
 
     ixs = None
@@ -316,7 +316,7 @@ def all(T, **kwargs):
     return f(T, mask)
 
 
-def any(T, **kwargs):
+def filter_any(T, **kwargs):
     """
     returns Table for rows where ANY kwargs match
     :param kwargs: dictionary with headers and values / boolean callable
