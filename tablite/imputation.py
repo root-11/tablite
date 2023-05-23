@@ -69,7 +69,7 @@ def imputation(T, targets, missing=None, method="carry forward", sources=None, t
 
     if method == "nearest neighbour":
         if sources in (None, []):
-            sources = T.columns
+            sources = list(T.columns)
         if isinstance(sources, str):
             sources = [sources]
         if isinstance(sources, list):

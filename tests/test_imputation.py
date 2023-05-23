@@ -1,11 +1,4 @@
 from tablite import Table
-import pytest
-
-
-@pytest.fixture(autouse=True)  # this resets the HDF5 file for every test.
-def refresh():
-    Table.reset_storage()
-    yield
 
 
 def test_replace_missing_values_00():
@@ -33,7 +26,7 @@ def test_replace_missing_values_01():
     expected = [r[:] for r in sample]
     expected[2][1] = 2
     expected[2][2] = 3
-    
+
     result = t.imputation(sources=["a", "b"], targets=["b", "c"], method="nearest neighbour", missing=None)
     assert [r for r in result.rows] == expected
 
