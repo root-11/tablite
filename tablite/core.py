@@ -105,6 +105,12 @@ class Table(BaseTable):
         """
         return export_utils.to_sql(self)  # remove after update to test suite.
 
+    def to_json(self):
+        """
+        returns JSON
+        """
+        return export_utils.to_json(self)
+
     def export(self, path):
         """
         exports table to path in format given by path suffix
