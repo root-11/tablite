@@ -23,6 +23,7 @@ def np_type_unify(arrays):
     else:
         for ix, arr in enumerate(arrays):
             arrays[ix] = np.array(arr, dtype=object)
+        dtype = object
     return np.concatenate(arrays, dtype=dtype)
 
 
