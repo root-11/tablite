@@ -387,6 +387,13 @@ class Table(BaseTable):
         """
         return sortation.is_sorted(self, **kwargs)
 
+    def any(self, **kwargs):
+        """
+        returns Table for rows where ANY kwargs match
+        :param kwargs: dictionary with headers and values / boolean callable
+        """
+        return redux.filter_any(self, **kwargs)
+
     def all(self, **kwargs):
         """
         returns Table for rows where ALL kwargs match
@@ -420,7 +427,7 @@ class Table(BaseTable):
 
 
         """
-        return redux.all(self, **kwargs)
+        return redux.filter_all(self, **kwargs)
 
     def drop(self, *args):
         """
@@ -454,13 +461,6 @@ class Table(BaseTable):
         for name in columns:
             col = self.columns[name]
             col.replace(mapping)
-
-    def any(self, **kwargs):
-        """
-        returns Table for rows where ANY kwargs match
-        :param kwargs: dictionary with headers and values / boolean callable
-        """
-        redux.any(self, **kwargs)
 
     def groupby(self, keys, functions, tqdm=_tqdm, pbar=None):
         """
