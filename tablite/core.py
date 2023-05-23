@@ -247,45 +247,44 @@ class Table(BaseTable):
         if reader is None:
             raise ValueError(f"{import_as} is not in supported format: {import_utils.valid_readers}")
 
-        additional_configs = {}
+        additional_configs = {"tqdm": tqdm}
         if reader == import_utils.text_reader:
             # here we inject tqdm, if tqdm is not provided, use generic iterator
             # fmt:off
-            config = import_utils.text_reader(path, columns, first_row_has_headers, encoding, start, limit, newline,
-                                              guess_datatypes, text_qualifier, strip_leading_and_tailing_whitespace,
-                                              delimiter, text_escape_openings, text_escape_closures, tqdm=tqdm)
+            config = (path, columns, first_row_has_headers, encoding, start, limit, newline,
+                      guess_datatypes, text_qualifier, strip_leading_and_tailing_whitespace,
+                      delimiter, text_escape_openings, text_escape_closures)
             # fmt:on
 
         elif reader == import_utils.excel_reader:
             # config = path, first_row_has_headers, sheet, columns, start, limit
-            config = {
-                "path": str(path),
-                "first_row_has_headers": first_row_has_headers,
-                "sheet": sheet,
-                "columns": columns,
-                "start": start,
-                "limit": limit,
-                "filesize": path.stat().st_size,  # if file length changes - re-import.
-            }
+            config = (
+                str(path),
+                first_row_has_headers,
+                sheet,
+                columns,
+                start,
+                limit,
+                path.stat().st_size,
+            )  # if file length changes - re-import.
 
         if reader == import_utils.ods_reader:
             # path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize,
-            config = {
-                "path": str(path),
-                "first_row_has_headers": first_row_has_headers,
-                "sheet": sheet,
-                "columns": columns,
-                "start": start,
-                "limit": limit,
-                "filesize": path.stat().st_size,  # if file length changes - re-import.
-            }
+            config = (
+                str(path),
+                first_row_has_headers,
+                sheet,
+                columns,
+                start,
+                limit,
+                path.stat().st_size,
+            )  # if file length changes - re-import.
 
         # At this point the import config seems valid.
         # Now we check if the file already has been imported.
 
         # publish the settings
-        logging.info("import config:\n" + "\n".join(f"{k}:{v}" for k, v in config.items()))
-        return reader(cls, **config, **additional_configs)
+        return reader(cls, *config, **additional_configs)
 
     def _filter(self, expression):
         """
