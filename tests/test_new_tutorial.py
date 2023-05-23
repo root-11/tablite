@@ -1,33 +1,23 @@
+import os
 import math
 import time as cputime
-import pytest
 import random
 import pathlib
-import tablite.config as tcfg
+from tablite.config import Config
 
 from datetime import datetime, date, time, timedelta
 from tablite import Table, DataTypes, GroupBy, get_headers
 
-
-@pytest.fixture(autouse=True)  # this resets the HDF5 file for every test.
-def refresh():
-    Table.reset_storage()
-    try:
-        yield
-    finally:
-        tcfg.PROCESSING_PRIORITY = "auto"
+Config.MULTIPROCESSING_MODE = Config.FALSE
 
 
 def test_the_basics():
-
     # THE BASICS
     # -----------------------------------------
     # there are three ways to create tables:
 
     # one column at a time (faster)
-    t = Table()
-    t["A"] = [1, 2, 3]
-    t["B"] = ["a", "b", "c"]
+    t = Table(columns={"A": [1, 2, 3], "B": ["a", "b", "c"]})
 
     # all columns at once (slower)
     t2 = Table()
@@ -135,13 +125,26 @@ def test_the_basics():
     # <class 'datetime.date'> 1
     # <class 'datetime.time'> 1
     # <class 'datetime.timedelta'> 1
+    expected = {
+        int: 4,
+        type(None): 1,
+        str: 2,
+        bool: 2,
+        float: 2,
+        date: 1,
+        datetime: 1,
+        time: 1,
+        timedelta: 1,
+    }
+    assert type_dict == expected
 
     # you may notice that all datatypes in t3 are str. To convert to the most probable
     # datatype used the datatype modules .guess function on each column
     t3["a"] = DataTypes.guess(t3["a"])
     # You can also convert the datatype using a list comprehension
     t3["b"] = [float(v) for v in t3["b"]]
-    t3.show()
+    assert isinstance(t3, Table)
+    t3.show(dtype=True)
 
     # APPEND
     # -----------------------------------------
@@ -160,7 +163,7 @@ def test_the_basics():
     # if your are in doubt whether your tables will be the same you can use .stack(other)
     assert t.columns != t2.columns  # compares list of column names.
     t6 = t.stack(t2)
-    t6.show()
+    t6.show(dtype=True)
     # +===+===+=====+
     # | A | B |  C  |
     # |int|str|mixed|
@@ -193,7 +196,7 @@ def test_the_basics():
     assert t3_copy == t3
     # you can also perform multi criteria selections using getitem [ ... ]
     t3_slice = t3["a", "b", "d", 5:25:5]
-    t3_slice.show()
+    t3_slice.show(dtype=True)
     # +===+===========+===========+
     # | a |     b     |     d     |
     # |str|    str    |    str    |
@@ -206,7 +209,7 @@ def test_the_basics():
 
     # deleting items also works the same way:
     del t3_slice[1:3]  # delete row number 2 & 3
-    t3_slice.show()
+    t3_slice.show(dtype=True)
     # +===+===========+===========+
     # | a |     b     |     d     |
     # |str|    str    |    str    |
@@ -222,19 +225,18 @@ def test_the_basics():
 
     # SAVE
     # -----------------------------------------
-    # tablite uses HDF5 as the backend storage because it is fast.
+    # tablite uses numpy's fileformat because it is fast.
     # this means you can make a table persistent using .save
-    t5.save = True
-    key = t5.key
+    t5path = pathlib.Path("tests/data/myfile.tpz")
+    assert not t5path.exists()
+    t5.save(t5path)
+    print("old t5")
+    t5.show()
     del t5
-    stored_tables = Table.reload_saved_tables()
-    old_t5 = [t for t in stored_tables if t.key == key][0]
-    print("the t5 table had", len(old_t5), "rows")  # the t5 table had 135000 rows
-
-    # to clear out all stored tables, use .reset_storage
-    Table.reset_storage()
-    assert Table.reload_saved_tables() == []
-    # this can be useful when writing tests!
+    t5_reloaded = Table.load(t5path)
+    print("reloaded t5")
+    t5_reloaded.show()
+    os.remove(t5path)
 
 
 def test_sort():
@@ -437,7 +439,10 @@ def test_join_logic():
 
 
 def do_lookup_logic(always_mp):
-    tcfg.PROCESSING_PRIORITY = "mp" if always_mp else "sp"
+    if always_mp:
+        Config.MULTIPROCESSING_MODE = Config.FORCE
+    else:
+        Config.MULTIPROCESSING_MODE = Config.FALSE
 
     friends = Table()
     friends.add_column("name", data=["Alice", "Betty", "Charlie", "Dorethy", "Edward", "Fred"])
@@ -485,8 +490,12 @@ def do_lookup_logic(always_mp):
     ]
     assert expected == [r for r in lookup1_sorted.rows]
 
+    Config.MULTIPROCESSING_MODE = Config.AUTO
+
+
 def test_lookup_logic_sp():
     do_lookup_logic(False)
+
 
 def test_lookup_logic_mp():
     do_lookup_logic(True)
