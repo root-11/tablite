@@ -1,6 +1,6 @@
+import statistics
 from tablite.utils import intercept, summary_statistics, date_range
 from tablite.utils import expression_interpreter
-import statistics
 from datetime import date, time, datetime, timedelta
 from itertools import chain
 
