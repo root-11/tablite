@@ -1,16 +1,10 @@
 from tablite import Table
 from pathlib import Path
-import pytest
-
-
-@pytest.fixture(autouse=True)  # this resets the HDF5 file for every test.
-def refresh():
-    Table.reset_storage()
-    yield
 
 
 def test_defaults():
     tbl = Table.import_file(Path(__file__).parent / "data" / "ols.csv")
+    assert len(tbl) > 0, "data wasn't loaded"
     d = tbl.to_dict()  # defaults.
     for name in tbl.columns:
         assert name in d
