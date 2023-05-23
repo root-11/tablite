@@ -49,7 +49,9 @@ def from_pandas(T, df):
         | 2 |  3|  6|
         +===+===+===+
     """
-    sub_cls_check(T, Table)
+    if not isinstance(T, type):
+        raise TypeError("Expected subclass of Table")
+
     return T(columns=df.to_dict("list"))  # noqa
 
 
@@ -57,7 +59,8 @@ def from_hdf5(T, path):
     """
     imports an exported hdf5 table.
     """
-    sub_cls_check(T, Table)
+    if not isinstance(T, type):
+        raise TypeError("Expected subclass of Table")
 
     import h5py
 
@@ -74,11 +77,13 @@ def from_json(T, jsn):
     """
     Imports tables exported using .to_json
     """
-    sub_cls_check(T, Table)
+    if not isinstance(T, type):
+        raise TypeError("Expected subclass of Table")
     import json
 
-    type_check(jsn, bytes)
-    return T(columns=json.loads(jsn))
+    type_check(jsn, str)
+    d = json.loads(jsn)
+    return T(columns=d['columns'])
 
 
 def excel_reader(T, path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
@@ -87,7 +92,8 @@ def excel_reader(T, path, first_row_has_headers=True, sheet=None, columns=None, 
 
     **kwargs are excess arguments that are ignored.
     """
-    sub_cls_check(T, Table)
+    if not isinstance(T, type):
+        raise TypeError("Expected subclass of Table")
 
     book = pyexcel.get_book(file_name=str(path))
 
@@ -138,7 +144,9 @@ def ods_reader(T, path, first_row_has_headers=True, sheet=None, columns=None, st
     """
     returns Table from .ODS
     """
-    sub_cls_check(T, Table)
+    if not isinstance(T, type):
+        raise TypeError("Expected subclass of Table")
+
     sheets = pyexcel.get_book_dict(file_name=str(path))
 
     if sheet is None or sheet not in sheets:
@@ -279,7 +287,7 @@ def text_reader_task(
                 continue
             if ix >= end:
                 break
-            L = text_escape(line.rstrip('\n'))
+            L = text_escape(line.rstrip("\n"))
             try:
                 values.append(L[column_index])
             except IndexError:
