@@ -2,7 +2,6 @@ import random
 from datetime import datetime
 from string import ascii_uppercase
 from tablite import Table
-from tablite.base import Table as BaseTable
 
 
 def synthetic_order_data(rows=100_000):
@@ -43,7 +42,6 @@ def synthetic_order_data(rows=100_000):
 
     t = Table()
     assert isinstance(t, Table)
-    assert not isinstance(t, BaseTable)
     t["#"] = list(range(1, rows + 1))
     # 1 - mock orderid
     t["1"] = [random.randint(18_778_628_504, 2277_772_117_504) for i in range(1, rows + 1)]
@@ -69,5 +67,3 @@ def synthetic_order_data(rows=100_000):
     t["11"] = [f"{random.uniform(0.1, 25)}" for _ in range(1, rows + 1)]
 
     return t
-
-
