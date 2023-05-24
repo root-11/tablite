@@ -138,3 +138,15 @@ def test3():
     end = time.process_time()
     print(f"all took {end-start}, {len(f)}")
     print(f.to_ascii())
+
+
+def test4():
+    start = time.process_time()
+    t = synthetic_order_data(2_000_000)
+    print(f"table ready: {time.process_time()-start}")
+    print(t.to_ascii())
+    start = time.process_time()
+    for ix, row in enumerate(t.rows):
+        pass
+    end = time.process_time()
+    print(f"t.rows took {end-start}, {ix}")
