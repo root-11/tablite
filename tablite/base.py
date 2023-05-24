@@ -17,7 +17,6 @@ from tablite.utils import (
     type_check,
     intercept,
     np_type_unify,
-    numpy_types,
     dict_to_rows,
     unique_name,
     summary_statistics,
@@ -141,6 +140,16 @@ class Column(object):
             arrays.append(x)
             start = end
         return arrays
+
+    def repaginate(self):
+        """resizes pages to Config.PAGE_SIZE"""
+        new_pages = []
+        start, end = 0, 0
+        for _ in range(0, len(self) + 1, Config.PAGE_SIZE):
+            start, end = end, end + Config.PAGE_SIZE
+            array = self[slice(start, end, step=1)]
+            new_pages.extend(Page(self.path.parent, array))
+        self.pages = new_pages
 
     def extend(self, value):  # USER FUNCTION.
         """extends the column.
@@ -269,6 +278,8 @@ class Column(object):
             self._setitem_integer_key(key, value)
 
         elif isinstance(key, slice):
+            if not isinstance(value, np.ndarray):
+                value = np.array(value)
             type_check(value, np.ndarray)
 
             if key.start is None and key.stop is None and key.step in (None, 1):
@@ -333,6 +344,9 @@ class Column(object):
                 self.pages = self.pages[:index]
                 self.extend(new)
                 break
+        else:
+            new = Page(self.path.parent, value)
+            self.pages.append(new)
 
     def _setitem_prextend(self, key, value):  # PRIVATE FUNCTION
         """handles the following case:
@@ -357,17 +371,17 @@ class Column(object):
         new = old[:start] + list(values) + old[stop:]
         L[3:5] = [1,2,3]
         """
-        key_start, key_stop, _ = key.indices(self._len)
+        key_start, key_stop, _ = key.indices(len(self))
         # create 3 partitions: A + B + C = head + new + tail
 
-        result_head, result_tail = [], []
+        unchanged_head, unchanged_tail = [], []
         # first partition:
         start, end = 0, 0
         for page in self.pages:
             start, end = end, end + page.len
             data = None
             if end <= key_start:
-                result_head.append(page)
+                unchanged_head.append(page)
 
             if start <= key_start < end:  # end of head
                 data = page.get()
@@ -378,17 +392,17 @@ class Column(object):
                 tail = data[key_stop - start :]
 
             if key_stop < start:
-                result_tail.append(page)
+                unchanged_tail.append(page)
 
-        middle = np_type_unify([head, value, tail])
-        new_pages = self._paginate(middle)
-        self.pages = result_head + new_pages + result_tail
+        new_middle = np_type_unify([head, value, tail])
+        new_pages = [Page(self.path.parent, arr) for arr in self._paginate(new_middle)]
+        self.pages = unchanged_head + new_pages + unchanged_tail
 
     def _setitem_update(self, key, value):
         """
         See test_slice_rules.py/MyList for detailed behaviour
         """
-        key_start, key_stop, key_step = key.indices(self._len)
+        key_start, key_stop, key_step = key.indices(len(self))
 
         seq = range(key_start, key_stop, key_step)
         seq_size = len(seq)
@@ -413,18 +427,11 @@ class Column(object):
 
         # determine changed pages.
         changed_pages = [p.get() for p in changed]
-        dtypes = {arr.dtype for arr in (changed_pages + [value])}
+        new = np_type_unify(changed_pages)
 
-        if len(dtypes) == 1:
-            dtype = dtypes.pop()
-        else:
-            for ix, arr in enumerate(changed_pages):
-                changed_pages[ix] = np.array(arr, dtype=object)
-        new = np.concatenate(changed_pages, dtype=dtype)
-
-        for index, position in zip(range(len(value)), seq):
-            new[position] = value[index - starts_on]
-        new_pages = self._paginate(new)
+        for index, val in zip(range(key_start, key_stop, key_step), value):
+            new[index - starts_on] = val
+        new_pages = [Page(self.path.parent, arr) for arr in self._paginate(new)]
         # merge.
         self.pages = head + new_pages + tail
 
@@ -481,15 +488,7 @@ class Column(object):
 
         # create np array
         changed_pages = [p.get() for p in changed]
-        dtypes = {arr.dtype for arr in changed_pages}
-
-        if len(dtypes) == 1:
-            dtype = dtypes.pop()
-        else:
-            for ix, arr in enumerate(changed_pages):
-                changed_pages[ix] = np.array(arr, dtype=object)
-            dtype = object
-        new = np.concatenate(changed_pages, dtype=dtype)
+        new = np_type_unify(changed_pages)
         # create mask for np.delete.
         filter = [i - starts_on for i in seq]
         pruned = np.delete(new, filter)
@@ -498,7 +497,8 @@ class Column(object):
 
     def __iter__(self):  # USER FUNCTION.
         for page in self.pages:
-            for value in page.get():
+            data = page.get()
+            for value in data:
                 yield value
 
     def __eq__(self, other):  # USER FUNCTION.
@@ -691,27 +691,10 @@ class Column(object):
             if data.dtype == "O":
                 for i in data:
                     dtype = coerce_to_pytype(i)
-                    # dtype = str(i.dtype) if hasattr(i, "dtype") else type(i)
                     d[dtype] += 1
             else:
                 sample = coerce_to_pytype(data[0])
                 d[sample] += len(page)
-                # d[str(data.dtype)] += len(page)
-
-        # for k, v in list(d.items()):
-        #     if not isinstance(k, str):
-        #         continue
-        #     else:
-        #         if k.startswith("<U"):  # it's a numpy str.
-        #             new_k = str
-        #             del d[k]
-        #             d[new_k] = v
-        #         elif k in numpy_types:
-        #             new_k = numpy_types[k]
-        #             del d[k]
-        #             d[new_k] = v
-        #         else:
-        #             pass
         return dict(d)
 
     def index(self):
@@ -739,9 +722,9 @@ class Column(object):
         """
         arrays = []
         for page in self.pages:
-            try:
+            try:  # when it works, numpy is fast...
                 arrays.append(np.unique(page.get()))
-            except TypeError:  # np.unique cannot handle Nones.
+            except TypeError:  # ...but np.unique cannot handle Nones.
                 arrays.append(list(set(page.get())))
         union = np_type_unify(arrays)
         try:
