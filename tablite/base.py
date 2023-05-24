@@ -1289,7 +1289,7 @@ class Table(object):
 
         for name in self.columns:
             if name not in other.columns:
-                if len(self) > 0:
+                if len(cp) > 0:
                     cp[name].extend(np.array([None] * len(other)))
         return cp
 
@@ -1347,21 +1347,26 @@ class Table(object):
                     slc = arg
                     break
 
+        n = len(self)
         if slc:
             row_no = list(range(*slc.indices(len(self))))
             data = {tag: [f"{i:,}".rjust(2) for i in row_no]}
             for name, col in self.columns.items():
-                data[name] = col[slc].tolist()
+                data[name] = list(chain(iter(col), repeat(blanks, times=n - len(col))))
         else:
             data = {}
-            n = len(self)
             j = int(math.ceil(math.log10(n)) / 3) + len(str(n))
-
             row_no = [f"{i:,}".rjust(j) for i in range(7)] + ["..."] + [f"{i:,}".rjust(j) for i in range(n - 7, n)]
             data = {tag: row_no}
 
             for name, col in self.columns.items():
-                row = col[:7].tolist() + ["..."] + col[-7:].tolist()
+                if len(col) == n:
+                    row = col[:7].tolist() + ["..."] + col[-7:].tolist()
+                else:
+                    empty = [blanks] * 7
+                    head = (col[:7].tolist() + empty)[:7]
+                    tail = (col[n - 7 :].tolist() + empty)[-7:]
+                    row = head + ["..."] + tail
                 data[name] = row
 
         if dtype:
@@ -1396,7 +1401,7 @@ class Table(object):
 
         d = {}
         for name, values in self.display_dict(*args, blanks=blanks, dtype=dtype).items():
-            as_text = [str(v) for v in values]
+            as_text = [str(v) for v in values] + [str(name)]
             width = max(len(i) for i in as_text)
             new_name = name.center(width, " ")
             if dtype:
