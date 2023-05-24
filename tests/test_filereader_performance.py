@@ -1,10 +1,11 @@
 import time
+import os
 import math
 import logging
 import pytest
+from pathlib import Path
 from tablite import Table, get_headers
 from tablite.datasets import synthetic_order_data
-
 
 log = logging.getLogger()
 log.setLevel(logging.INFO)
@@ -12,7 +13,6 @@ log.setLevel(logging.INFO)
 
 @pytest.fixture(autouse=True)  # this resets the HDF5 file for every test.
 def refresh():
-    Table.reset_storage()
     yield
 
 
@@ -41,9 +41,9 @@ def test01_timing():
 @pytest.mark.timesensitive  # to include run: pytest tests --timesensitive . See tests/conftest.py for details.
 def test01():
     rows = 8e6
-    path = synthetic_order_data(rows)
-    if not path.exists():
-        raise FileNotFoundError(path)
+    source_data = synthetic_order_data(rows)
+    path = Path(__file__) / "data/myfile.tsv"
+    source_data.export(path)
 
     headers = get_headers(path)
     columns = headers[path.name][0]
@@ -59,14 +59,17 @@ def test01():
     start = time.time()
     t1 = Table.import_file(path, **config)
     end = time.time()
-    print(f"import of {rows:,} rows took {round(end-start, 4)} secs.")  # import took 135.534 secs.
+    print(f"import of {rows:,} rows took {round(end-start, 4)} secs.")
+    # import took 135.534 secs.
+
+    # clean up the filesystem as the data is now in /tmp.
+    os.remove(path)
 
     start = time.time()
-    t2 = Table.import_file(path, **config)
+    t2 = t1.copy()
     end = time.time()
-    print(
-        f"reloading an imported table took {round(end-start, 4)} secs."
-    )  # reloading an imported table took 0.177 secs.
+    print(f"copying an imported table took {round(end-start, 4)} secs.")
+    # reloading an imported table took 0.177 secs.
     t1.show()
     print("-" * 120)
     t2.show()
@@ -94,12 +97,10 @@ def test01():
     # fmt: on
     # re-import bypass check
     start = time.time()
-    t3 = Table.import_file(path, **config)
+    t1.show(slice(3, 100, 17))
     end = time.time()
-    print(
-        f"reloading an already imported table took {round(end-start, 4)} secs."
-    )  # reloading an already imported table took 0.179 secs.
-    t3.show(slice(3, 100, 17))
+    print(f"performing a random slice took {round(end-start, 4)} secs.")
+    # reloading an already imported table took 0.179 secs.
 
     # 1 TB file test
     file_size = path.stat().st_size
@@ -112,5 +113,28 @@ def test01():
     print(f"1 TB of data == {len(t4)} rows ({round(end-start,4)} secs)")
     t4.show()
 
-    # finally clean up the drive:
-    remove_synthetic_data()
+
+@pytest.mark.timesensitive  # to include run: pytest tests --timesensitive . See tests/conftest.py for details.
+def test2():
+    start = time.process_time()
+    t = synthetic_order_data(1_000_000)
+    print(f"table ready: {time.process_time()-start}")
+    start = time.process_time()
+    f = t.all(**{"8": "6°"})
+    # f = t.filter([{"column1": "8", "criteria": "==", "value2": "6°"}])
+    # {'column1':'8', 'criteria': "==", 'column2': '6°'},
+    end = time.process_time()
+    print(f"all took {end-start}, {len(f)}")
+    print(f.to_ascii())
+
+
+@pytest.mark.timesensitive  # to include run: pytest tests --timesensitive . See tests/conftest.py for details.
+def test3():
+    start = time.process_time()
+    t = synthetic_order_data(1_000_000)
+    print(f"table ready: {time.process_time()-start}")
+    start = time.process_time()
+    f = t.filter([{"column1": "8", "criteria": "==", "value2": "6°"}])
+    end = time.process_time()
+    print(f"all took {end-start}, {len(f)}")
+    print(f.to_ascii())
