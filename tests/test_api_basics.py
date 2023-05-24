@@ -1,4 +1,5 @@
 from tablite import Table
+from tablite.base import Page
 import numpy as np
 from datetime import datetime, timedelta
 import pyperclip
@@ -202,21 +203,30 @@ def test03_verify_single_page_updates():
     L[:0] = [-3, -2, -1]  # insert
     C[:0] = [-3, -2, -1]  # insert
     assert list(C[:]) == L
+    assert all([isinstance(p, Page) for p in C.pages])
     L[len(L):] = [10, 11, 12]  # extend
     C[len(C):] = [10, 11, 12]  # extend
     assert list(C[:]) == L  # array([-3, -2, -1,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12])
+    assert all([isinstance(p, Page) for p in C.pages])
     L[0:2] = [20]  # reduce  # array([20, -1,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12])
     C[0:2] = [20]  # reduce
     assert list(C[:]) == L
+    assert all([isinstance(p, Page) for p in C.pages])
     L[0:1] = [-3, -2]  # expand
     C[0:1] = [-3, -2]  # expand
     assert list(C[:]) == L
+    assert all([isinstance(p, Page) for p in C.pages])
     L[4:8] = [11, 12, 13, 14]  # replace
     C[4:8] = [11, 12, 13, 14]  # replace
     assert list(C[:]) == L
+    assert all([isinstance(p, Page) for p in C.pages])
     L[8:4:-1] = [21, 22, 23, 24]  # replace reverse
+    print(L)
+    # [-3, -2, -1, 0, 11, 24, 23, 22, 21, 6, 7, 8, 9, 10, 11, 12]
     C[8:4:-1] = [21, 22, 23, 24]  # replace reverse
+    # array([-3, -2, -1,  0, 11, 12, 13, 14,  5,  6,  7,  8,  9, 10, 11, 12])
     assert list(C[:]) == L
+    assert all([isinstance(p, Page) for p in C.pages])
 
 
 def test03_verify_multi_page_updates():
