@@ -189,17 +189,19 @@ def filter(T, expressions, filter_type="all", tqdm=_tqdm):
         c2 = expression.get("column2", None)
         start = 0
         for end in range(Config.PAGE_SIZE, len(T) + 1, Config.PAGE_SIZE):
-            eval_task = Task(_mp_filter_evaluation_task, shm, shape, bitmap_ix, start, end, c1, c2, expression)
+            args = (shm, shape, bitmap_ix, start, end, c1, c2, expression)
+            eval_task = Task(_mp_filter_evaluation_task, *args)
             tasks.append(eval_task)
             end = start
 
     # 3. execute tasks.
+    pbar = _tqdm()
     cpus = max(psutil.cpu_count(), 1)
     if cpus < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
         for t in tasks:
             r = t.execute()
             if r is not None:
-                raise r
+                raise Exception(r)
             pbar.update(1)
     else:
         with TaskManager(cpus) as tm:
