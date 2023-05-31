@@ -2,8 +2,7 @@ import os
 import numpy as np
 import psutil
 from mplite import Task, TaskManager
-from tablite.config import Config
-from tablite.mp_utils import shared_memory, reindex_task
+from tablite.mp_utils import share_mem, shared_memory, reindex_task, select_processing_method
 from tablite.sort_utils import modes as sort_modes
 from tablite.sort_utils import rank as sort_rank
 from tablite.base import Table, Column, Page
@@ -75,32 +74,31 @@ def reindex(T, index):
     """
     sub_cls_check(T, Table)
     if isinstance(index, list):
-        index = np.ndarray(index, dtype=np.int64)
+        index = np.array(index, dtype=np.int64)
     type_check(index, np.ndarray)
     if max(index) >= len(T):
         raise IndexError("index out of range: max(index) > len(self)")
     if min(index) < -len(T):
         raise IndexError("index out of range: min(index) < -len(self)")
 
-    cpus = max(psutil.cpu_count(), 1)
-    if cpus < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
-        return _sp_reindex(T, index)
-    else:
-        return _mp_reindex(T, index)
+    fields = len(T) * len(T.columns)
+    m = select_processing_method(fields, _sp_reindex, _mp_reindex)
+    return m(T, index)
 
 
 def _sp_reindex(T, index):
     t = type(T)()
     for name in T.columns:
         t[name] = np.take(T[name][:], index)
-        np.tak
     return t
 
 
 def _mp_reindex(T, index):
-    shm = shared_memory.SharedMemory(create=True, size=index.nbytes)  # the co_processors will read this.
-    sort_index = np.ndarray(index.shape, dtype=index.dtype, buffer=shm.buf)
-    sort_index[:] = index
+    assert isinstance(index, np.ndarray)
+    index, shm = share_mem(index, dtype=index.dtype)
+    # shm = shared_memory.SharedMemory(create=True, size=index.nbytes)  # the co_processors will read this.
+    # sort_index = np.ndarray(index.shape, dtype=index.dtype, buffer=shm.buf)
+    # sort_index[:] = index
 
     new = {}
     tasks = []
@@ -113,10 +111,11 @@ def _mp_reindex(T, index):
             start, end = end, start + len(page)
             src = page.path
             dst = page.path.parent / f"{next(Page.ids)}.npy"
-            t = Task(reindex_task, src, dst, shm, start, end)
-            new.append(dst)
+            t = Task(reindex_task, src, dst, shm.name, index.shape, start, end)
+            new[name].append(dst)
+            tasks.append(t)
 
-    cpus = psutil.cpu_count()
+    cpus = min(len(tasks), psutil.cpu_count())
     with TaskManager(cpu_count=cpus) as tm:
         errs = tm.execute(tasks)
         if any(errs):
@@ -149,13 +148,10 @@ def sort(T, sort_mode="excel", **kwargs):
     """
     sub_cls_check(T, Table)
 
-    index = sort_index(sort_mode=sort_mode, **kwargs)
+    index = sort_index(T, sort_mode=sort_mode, **kwargs)
 
-    cpus = max(psutil.cpu_count(), 1)
-    if cpus < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
-        return _sp_reindex(T, index)
-    else:
-        return _mp_reindex(T, index)
+    m = select_processing_method(len(T) * len(T.columns), _sp_reindex, _mp_reindex)
+    return m(T, index)
 
 
 def is_sorted(T, **kwargs):
@@ -163,6 +159,6 @@ def is_sorted(T, **kwargs):
     **kwargs: optional: sort criteria. See Table.sort()
     :return bool
     """
-    index = sort_index(**kwargs)
+    index = sort_index(T, **kwargs)
     match = np.arange(len(T))
     return np.all(index == match)
