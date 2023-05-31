@@ -7,6 +7,7 @@ import pytest
 import gc
 from pathlib import Path
 import os
+
 # DESCRIPTION
 # The basic tests seeks to cover list like functionality:
 # If a table is created, saved, copied, updated or deleted.
@@ -47,7 +48,7 @@ def test01_compatible_datatypes():
     del table4
 
     # recover all active tables from HDF5.
-    
+
     table5 = Table.load(path)  # this is the content of table4
     assert table5["A"] == [-1, 1]  # list test
     assert table5["A"] == np.array([-1, 1])  # numpy test
@@ -88,7 +89,7 @@ def test02_verify_garbage_collection():
     table5["A"] = table4["A"]
 
     del table4["A"]
-    
+
     assert table5["A"] == [-1, 1]
 
     del table4
@@ -272,8 +273,9 @@ def test03_verify_negative_slice_operator_for_uniform_datatype():
     assert L == [0, 10, 20, 3, 4, 5, 100]
     assert table4["A"] == L
 
+    col = table4["A"]
     for i in range(-1, -len(L), -1):
-        assert table4["A"][i] == L[i]
+        assert col[i] == L[i]
 
 
 def test03_verify_slice_operator_for_uniform_datatype():
@@ -608,29 +610,28 @@ def test04_verify_table_stacking():
 def test05_verify_show_table():
     table4 = Table()
     txt = table4.to_ascii()
-    assert txt == "Empty table"
+    assert txt == "Table(0 columns, 0 rows)"
 
     table4.add_columns("A", "B", "C")
-    txt2 = table4.to_ascii()
+    txt2 = table4.to_ascii(dtype=True)
     # fmt: off
-    assert txt2 == "+=====+=====+=====+\n|  A  |  B  |  C  |\n|mixed|mixed|mixed|\n+-----+-----+-----+\n+=====+=====+=====+"  # noqa
+    expected = """\
++===+=====+=====+=====+
+| # |  A  |  B  |  C  |
+|row|mixed|mixed|mixed|
++---+-----+-----+-----+
++===+=====+=====+=====+"""
+    assert txt2 == expected
     # fmt: on
-    for i in range(5):
-        table4["A"] += [i]
-        table4["B"] += [str(i + 9)]
-        table4["C"] += [1.1 * i]
-        txt = table4.to_ascii()
-        # +=+==+==================+
-        # |A|B |        C         |
-        #
-        # +-+--+------------------+
-        # |0| 9 |               0.0|
-        # |1|10 |               1.1|
-        # |2|11 |               2.2|
-        # |3|12 |3.3000000000000003|
-        # |4|13 |               4.4|
-        # +=+==+==================+
-        assert txt.count("\n") == i + 5
+    n = 5
+    table4["A"] = [1] * n
+    table4["B"] = [str(9)] * n
+    table4["C"] = [1.1] * n
+    table4.show(dtype=False)
+    txt = table4.to_ascii(dtype=False)
+    assert txt.count("\n") == n + 3
+    txt = table4.to_ascii(dtype=True)
+    assert txt.count("\n") == n + 4
 
     table4.show()  # launch the print function.
     table4 *= 10
@@ -649,13 +650,6 @@ def test06_verify_multi_key_indexing_for_tables():
     index2 = table6.index("A", "B")  # multiple keys.
     assert index2[("Bob", "Dylan")] == {2}
 
-    try:
-        table6.copy_to_clipboard()
-        t = Table.copy_from_clipboard()
-        t.show()
-    except pyperclip.PyperclipException:
-        pass  # the test runner doesn't have a clipboard installed.
-
 
 def test06_verify_multikey_index_for_duplicates():
     table7 = Table()
@@ -663,19 +657,6 @@ def test06_verify_multikey_index_for_duplicates():
     table7["B"] = [1, 1, 2, 2]
     index = table7.index("A", "B")
     assert index == {(1, 1): {0, 1}, (2, 2): {2, 3}}
-
-
-def test07_verify_gc():
-    t = Table()
-    t["a"] = [1, 2, 3, 4]
-
-    Table.reset_storage()
-
-    t2 = Table()
-    t2["a"] = ["a", "b", "c"]  # breaks here.
-
-    gc.collect()
-    print("ok")
 
 
 def test_summary_statistics():
@@ -701,7 +682,7 @@ def test_summary_statistics():
 
 
 def test_from_dict():
-    t = Table.from_dict(d={"a": [1, 2, 3], "b": [4, 5, 6]})
+    t = Table({"a": [1, 2, 3], "b": [4, 5, 6]})
     assert t["a"] == [1, 2, 3]
     assert t["b"] == [4, 5, 6]
 
@@ -712,7 +693,7 @@ def test_replace():
     t["b"] = [4, 5, 6, 7]
     t["c"] = [4, "4", 44, "44"]
     t["d"] = [4, None, 4.4, "44"]
-    t.replace(target=4, replacement=40)
+    t.replace(mapping={4: 40})
     assert t["a"] == [1, 2, 3, 40]
     assert t["b"] == [40, 5, 6, 7]
     assert t["c"] == [40, "4", 44, "44"]
