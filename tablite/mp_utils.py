@@ -1,6 +1,8 @@
 import operator
 import numpy as np
 from multiprocessing import shared_memory
+import psutil
+from tablite.config import Config
 
 
 def not_in(a, b):
@@ -40,6 +42,29 @@ filter_ops = {
 filter_ops_from_text = {"gt": ">", "gteq": ">=", "eq": "==", "lt": "<", "lteq": "<=", "neq": "!=", "in": _in}
 
 
+def select_processing_method(fields, sp, mp):
+    """
+
+    Args:
+        fields (int): number of fields
+        sp (callable): method for single processing
+        mp (callable): method for multiprocessing
+
+    Returns:
+        _type_: _description_
+    """
+    cpus = max(psutil.cpu_count(), 1)
+    if fields < Config.SINGLE_PROCESSING_LIMIT:
+        m = sp
+    elif cpus < 2:
+        m = sp
+    elif Config.MULTIPROCESSING_MODE == Config.FALSE:
+        m = sp
+    else:
+        m = mp
+    return m
+
+
 def maskify(arr):
     none_mask = [False] * len(arr)  # Setting the default
 
@@ -76,12 +101,13 @@ def map_task(data, index, destination, start, end):
     shared_target.close()
 
 
-def reindex_task(src, dst, index_shm, start, end):
+def reindex_task(src, dst, index_shm, shm_shape, start, end):
     # connect
-    shared_index = shared_memory.SharedMemory(name=index_shm)
+    existing_shm = shared_memory.SharedMemory(name=index_shm)
+    shared_index = np.ndarray(shm_shape, dtype=np.int64, buffer=existing_shm.buf)
     # work
     array = np.load(src, allow_pickle=True, fix_imports=False)
     new = np.take(array, shared_index[start:end])
     np.save(dst, new, allow_pickle=True, fix_imports=False)
     # disconnect
-    shared_index.close()
+    existing_shm.close()
