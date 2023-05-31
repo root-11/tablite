@@ -1,12 +1,12 @@
 from tablite.core import Table
 from tablite.groupbys import GroupBy as gb
 from random import seed, choice
+import numpy as np
 import pytest
 
 
 @pytest.fixture(autouse=True)  # this resets the HDF5 file for every test.
 def refresh():
-    Table.reset_storage()
     yield
 
 
@@ -26,12 +26,15 @@ def test_groupby():
     t.add_columns("f", "g")
 
     # we can now use the filter, to iterate over the tablite:
+    f, g = [], []
     for row in t["a", "b", "c", "d"].rows:
         a, b, c, d = row
 
         # ... and add the values to the two new columns
-        t["f"].append(f1(a, b, c))
-        t["g"].append(f2(b, c, d))
+        f.append(f1(a, b, c))
+        g.append(f2(b, c, d))
+    t["f"].extend(np.array(f))
+    t["g"].extend(np.array(g))
 
     assert len(t) == 5
     assert list(t.columns) == list("abcdefg")
