@@ -4,7 +4,7 @@ import psutil
 import itertools
 from tablite.config import Config
 from tablite.utils import sub_cls_check, type_check, expression_interpreter
-from tablite.mp_utils import filter_ops, shared_memory
+from tablite.mp_utils import filter_ops, shared_memory, select_processing_method
 from mplite import Task, TaskManager
 
 from tqdm import tqdm as _tqdm
@@ -226,29 +226,6 @@ def filter(T, expressions, filter_type="all", tqdm=_tqdm):
     return trues, falses
 
 
-def _select_compress_method(fields):
-    """selects method for processing the join
-
-    Args:
-        fields (int): number of fields in the join.
-
-    Returns:
-        callable: _sp or _mp join.
-    """
-    type_check(fields, int)
-    if psutil.cpu_count() <= 1:
-        f = _sp_compress
-    elif Config.MULTIPROCESSING_MODE == Config.FALSE:
-        f = _sp_compress
-    elif Config.MULTIPROCESSING_MODE == Config.FORCE:
-        f = _mp_compress
-    elif fields < Config.SINGLE_PROCESSING_LIMIT:
-        f = _sp_compress
-    else:  # use_mp:
-        f = _mp_compress
-    return f
-
-
 def filter_all(T, **kwargs):
     """
     returns Table for rows where ALL kwargs match
@@ -314,7 +291,7 @@ def filter_all(T, **kwargs):
 
     mask = np.array([True if i in ixs else False for i in range(len(T))], dtype=bool)
     ixs.clear()
-    f = _select_compress_method(len(T) * len(T.columns))
+    f = select_processing_method(len(T) * len(T.columns), _sp_compress, _mp_compress)
     return f(T, mask)
 
 
@@ -338,7 +315,7 @@ def filter_any(T, **kwargs):
 
     mask = np.array([True if i in ixs else False for i in range(len(T))], dtype=bool)
     ixs.clear()
-    f = _select_compress_method(len(T) * len(T.columns))
+    f = select_processing_method(len(T) * len(T.columns), _sp_compress, _mp_compress)
     return f(T, mask)
 
 
