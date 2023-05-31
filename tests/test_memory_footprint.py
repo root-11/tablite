@@ -97,13 +97,12 @@ def test_recreate_readme_comparison():
     # Only the metadata remains in pythons memory.
 
     records.show()
-    # +===+===============================================+=======++==+======+
-    # | # |                     method                    |   memory  | time |
-    # |row|                      str                      |    int    |float |
-    # +---+-----------------------------------------------+-----------+------+
-    # |0  |1e6 lists w. 10 integers                       |141,307,904|0.6562|
-    # |1  |10 lists with 1e6 integers                     | 84,103,168|0.5625|
-    # |2  |10 lists with 1e6 integers in arrays           | 44,027,904|0.6719|
-    # |3  |Table with 10 columns with 1e6 integers        |  3,203,072|1.6094|
-    # |4  |2 Tables with 10 columns with 1e6 integers each|  3,846,144|0.0781|
-    # +===+===============================================+====++=====+======+
+# +==+===============================================+===========+======+
+# |# |                     method                    |   memory  | time |
+# +--+-----------------------------------------------+-----------+------+
+# | 0|1e6 lists w. 10 integers                       |137,052,160|   0.5|
+# | 1|10 lists with 1e6 integers                     | 84,525,056|0.3125|
+# | 2|10 lists with 1e6 integers in arrays           | 44,204,032|0.4531|
+# | 3|Table with 10 columns with 1e6 integers        |  4,190,208|0.7344|
+# | 4|2 Tables with 10 columns with 1e6 integers each|  4,190,208|   0.0|
+# +==+===============================================+===========+======+
