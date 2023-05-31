@@ -438,12 +438,7 @@ def test_join_logic():
     # -----------------------------------------
 
 
-def do_lookup_logic(always_mp):
-    if always_mp:
-        Config.MULTIPROCESSING_MODE = Config.FORCE
-    else:
-        Config.MULTIPROCESSING_MODE = Config.FALSE
-
+def do_lookup_logic():
     friends = Table()
     friends.add_column("name", data=["Alice", "Betty", "Charlie", "Dorethy", "Edward", "Fred"])
     friends.add_column(
@@ -490,12 +485,14 @@ def do_lookup_logic(always_mp):
     ]
     assert expected == [r for r in lookup1_sorted.rows]
 
+
+def test_lookup_logic_sp():
+    Config.MULTIPROCESSING_MODE = Config.FALSE
+    do_lookup_logic()
     Config.MULTIPROCESSING_MODE = Config.AUTO
 
 
-def test_lookup_logic_sp():
-    do_lookup_logic(False)
-
-
 def test_lookup_logic_mp():
-    do_lookup_logic(True)
+    Config.MULTIPROCESSING_MODE = Config.FORCE
+    do_lookup_logic()
+    Config.MULTIPROCESSING_MODE = Config.AUTO
