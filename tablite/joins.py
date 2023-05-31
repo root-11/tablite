@@ -3,8 +3,7 @@ import numpy as np
 from tablite.base import Table
 from itertools import product
 from tablite.utils import sub_cls_check, unique_name
-from tablite.config import Config
-from tablite.mp_utils import share_mem, map_task
+from tablite.mp_utils import share_mem, map_task, select_processing_method
 from mplite import TaskManager, Task
 import psutil
 
@@ -13,9 +12,7 @@ from tqdm import tqdm as _tqdm
 
 def _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns):
     sub_cls_check(T, Table)
-
-    if not issubclass(other, Table):
-        raise TypeError(f"other expected other to be type Table, not {type(other)}")
+    sub_cls_check(other, Table)
 
     if not isinstance(left_keys, list) and all(isinstance(k, str) for k in left_keys):
         raise TypeError(f"Expected keys as list of strings, not {type(left_keys)}")
@@ -135,29 +132,6 @@ def _mp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pba
     return result
 
 
-def _select_processing_method(fields):
-    """selects method for processing the join
-
-    Args:
-        fields (int): number of fields in the join.
-
-    Returns:
-        callable: _sp or _mp join.
-    """
-    assert isinstance(fields, int)
-    if psutil.cpu_count() <= 1:
-        f = _sp_join
-    elif Config.MULTIPROCESSING_MODE == Config.FALSE:
-        f = _sp_join
-    elif Config.MULTIPROCESSING_MODE == Config.FORCE:
-        f = _mp_join
-    elif fields < Config.SINGLE_PROCESSING_LIMIT:
-        f = _sp_join
-    else:  # use_mp:
-        f = _mp_join
-    return f
-
-
 def left_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
     """
     :param T: Table (left)
@@ -192,7 +166,7 @@ def left_join(T, other, left_keys, right_keys, left_columns=None, right_columns=
                 RIGHT.append(right_ix)
 
     LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)  # compress memory of python list to array.
-    f = _select_processing_method(fields=len(LEFT) * len(left_columns + right_columns))
+    f = select_processing_method(len(LEFT) * len(left_columns + right_columns), _sp_join, _mp_join)
     return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
 
@@ -231,7 +205,7 @@ def inner_join(T, other, left_keys, right_keys, left_columns=None, right_columns
                 RIGHT.append(right_ix)
 
     LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)
-    f = _select_processing_method(fields=len(LEFT) * len(left_columns + right_columns))
+    f = select_processing_method(len(LEFT) * len(left_columns + right_columns), _sp_join, _mp_join)
     return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
 
@@ -274,7 +248,7 @@ def outer_join(T, other, left_keys, right_keys, left_columns=None, right_columns
             RIGHT.append(right_ix)
 
     LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)
-    f = _select_processing_method(fields=len(LEFT) * len(left_columns + right_columns))
+    f = select_processing_method(len(LEFT) * len(left_columns + right_columns), _sp_join, _mp_join)
     return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
 
@@ -302,5 +276,5 @@ def cross_join(T, other, left_keys, right_keys, left_columns=None, right_columns
     LEFT, RIGHT = zip(*product(range(len(T)), range(len(other))))
 
     LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)
-    f = _select_processing_method(fields=len(LEFT))
+    f = select_processing_method(len(LEFT), _sp_join, _mp_join)
     return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
