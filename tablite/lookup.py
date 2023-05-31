@@ -3,8 +3,7 @@ import math
 import numpy as np
 from tablite.base import Table, Column
 from tablite.utils import sub_cls_check, unique_name
-from tablite.mp_utils import lookup_ops, share_mem, map_task
-from tablite.config import Config
+from tablite.mp_utils import lookup_ops, share_mem, map_task, select_processing_method
 from mplite import Task, TaskManager
 
 
@@ -66,7 +65,7 @@ def lookup(T, other, *criteria, all=True, tqdm=_tqdm):
     assert isinstance(left, Table)
     assert isinstance(right, Table)
 
-    for row1 in tqdm(left.rows, total=len(T)):
+    for ix, row1 in tqdm(enumerate(left.rows), total=len(T)):
         row1_tup = tuple(row1)
         row1d = {name: value for name, value in zip(left_columns, row1)}
         row1_hash = hash(row1_tup)
@@ -83,9 +82,9 @@ def lookup(T, other, *criteria, all=True, tqdm=_tqdm):
                 # from the columns IF left is a column name. If it isn't
                 # the function will treat left as a value.
                 # The same applies to right.
-                A = all and (False not in evaluations)
-                B = any and True in evaluations
-                if A or B:
+                all_ = all and (False not in evaluations)
+                any_ = any and True in evaluations
+                if all_ or any_:
                     match_found = True
                     cache[row1_hash] = row2ix
                     break
@@ -93,33 +92,10 @@ def lookup(T, other, *criteria, all=True, tqdm=_tqdm):
         if not match_found:  # no match found.
             cache[row1_hash] = -1  # -1 is replacement for None in the index as numpy can't handle Nones.
 
-        result_index.append(cache[row1_hash])
+        result_index[ix] = cache[row1_hash]
 
-    f = _select_processing_method(2 * max(len(T), len(other)))
+    f = select_processing_method(2 * max(len(T), len(other)), _sp_lookup, _mp_lookup)
     return f(T, other, result_index)
-
-
-def _select_processing_method(fields):
-    """selects method for processing the join
-
-    Args:
-        fields (int): number of fields in the join.
-
-    Returns:
-        callable: _sp or _mp join.
-    """
-    assert isinstance(fields, int)
-    if psutil.cpu_count() <= 1:
-        f = _sp_lookup
-    elif Config.MULTIPROCESSING_MODE == Config.FALSE:
-        f = _sp_lookup
-    elif Config.MULTIPROCESSING_MODE == Config.FORCE:
-        f = _mp_lookup
-    elif fields < Config.SINGLE_PROCESSING_LIMIT:
-        f = _sp_lookup
-    else:  # use_mp:
-        f = _mp_lookup
-    return f
 
 
 def _sp_lookup(T, other, index):
@@ -130,7 +106,7 @@ def _sp_lookup(T, other, index):
         # 1/3 reindex but well knowing that -1 in the index will be wrong.
         reindexed = np.take(col_data, index)
         # 2/3 prepare an array of nones
-        nones = np.empty(shape=col_data.shape, dtype=object)
+        nones = np.empty(shape=index.shape, dtype=object)
         # 3/3 merge reindexed array with None, whenever the original index is -1.
         result[revised_name] = np.where(index == -1, nones, reindexed)
         # the result of the three steps above are the same as in python below:
