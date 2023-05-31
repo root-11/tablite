@@ -53,12 +53,13 @@ def select_processing_method(fields, sp, mp):
     Returns:
         _type_: _description_
     """
-    cpus = max(psutil.cpu_count(), 1)
-    if fields < Config.SINGLE_PROCESSING_LIMIT:
-        m = sp
-    elif cpus < 2:
-        m = sp
+    if Config.MULTIPROCESSING_MODE == Config.FORCE:
+        m = mp
     elif Config.MULTIPROCESSING_MODE == Config.FALSE:
+        m = sp
+    elif fields < Config.SINGLE_PROCESSING_LIMIT:
+        m = sp
+    elif max(psutil.cpu_count(), 1) < 2:
         m = sp
     else:
         m = mp
