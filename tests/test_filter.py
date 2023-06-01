@@ -9,7 +9,6 @@ random.seed(5432)
 
 @pytest.fixture(autouse=True)  # this resets the HDF5 file for every test.
 def refresh():
-    Table.reset_storage()
     yield
 
 
@@ -39,7 +38,7 @@ def test_filter_all_1():
 
 
 def test_filter_a_in_b():
-    t = Table.from_dict({"A": ["1", "2", "3"]})
+    t = Table({"A": ["1", "2", "3"]})
     a, b = t.filter([{"column1": "A", "criteria": "in", "value2": "12"}])
     assert len(a) + len(b) == len(t)
     assert a["A"] == ["1", "2"]
@@ -56,23 +55,20 @@ def test_filter_more():
     tbl["SKU"] = [921558]
     tbl["Qty"] = [515]
     tbl.show()
-    print(tbl.key)
     tbl1, *_ = tbl.filter([{"column1": "Qty", "criteria": ">", "value2": 500}])
     # removing this line would not throw, but the line itself doesn't
     # actually filter anything and keeps the table unchanged
-    print(tbl1.key)
     tbl2, *_ = tbl1.filter([{"column1": "Date", "criteria": ">", "value2": date(2022, 1, 2)}])
-    print(tbl2.key)
     tbl2.show()
 
 
 def test_filter_on_mixed():
-    t = Table.from_dict({"A": [1, "V1"]})
+    t = Table({"A": [1, "V1"]})
     true, false = t.filter([{"value1": "V", "criteria": "in", "column2": "A"}])
     assert true["A"] == ["V1"]
     assert false["A"] == [1]
 
-    t = Table.from_dict({"A": [1, "ab", "abc"]})
+    t = Table({"A": [1, "ab", "abc"]})
     true, false = t.filter([{"column1": "A", "criteria": "in", "value2": "abc"}])
     assert true["A"] == ["ab", "abc"]
     assert false["A"] == [1]
