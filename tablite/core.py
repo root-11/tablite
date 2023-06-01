@@ -292,7 +292,7 @@ class Table(BaseTable):
         # publish the settings
         return reader(cls, *config, **additional_configs)
 
-    def _filter(self, expression):
+    def expression(self, expression):
         """
         filters based on an expression, such as:
 
@@ -447,12 +447,22 @@ class Table(BaseTable):
         d = {n: lambda x: x not in set(args) for n in self.columns}
         return self.all(**d)
 
-    def replace(self, columns, mapping):
-        """
-        Finds and replaces all instances of `target` with `replacement` across all Columns
+    def replace(self, mapping, columns=None):
+        """replaces all mapped keys with values from named columns
 
-        See Column.replace(target, replacement) for replacement in specific columns.
+        Args:
+            mapping (dict): keys are targets for replacement,
+                            values are replacements.
+            columns (list or str, optional): target columns.
+                Defaults to None (all columns)
+
+        Raises:
+            ValueError: _description_
         """
+        if columns is None:
+            columns = list(self.columns)
+        if not isinstance(columns, list) and columns in self.columns:
+            columns = [columns]
         type_check(columns, list)
         for n in columns:
             if n not in self.columns:
@@ -677,7 +687,7 @@ class Table(BaseTable):
               ('text 1', f, 'text 2')
               value from column 'text 1' is compared with value from column 'text 2'
         """
-        return lookup.lookup(self, other, *criteria, all, tqdm=_tqdm)
+        return lookup.lookup(self, other, *criteria, all=all, tqdm=tqdm)
 
     def replace_missing_values(self, *args, **kwargs):
         raise AttributeError("See imputation")
