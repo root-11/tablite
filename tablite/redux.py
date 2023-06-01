@@ -25,7 +25,7 @@ def _filter(T, expression):
     type_check(expression, str)
 
     try:
-        _f = expression_interpreter(expression, T.columns)
+        _f = expression_interpreter(expression, list(T.columns))
     except Exception as e:
         raise ValueError(f"Expression could not be compiled: {expression}:\n{e}")
 
@@ -44,64 +44,6 @@ def _filter(T, expression):
     else:
         mask = np.array(bitmap, dtype=bool)
         return _mp_compress(T, mask), _mp_compress(T, np.invert(mask))  # true, false
-
-
-def _mp_filter_evaluation_task(c1, c2, bitmap_shm, bitmap_shape, bitmap_ix, start, end, expression):
-    """evaluation tasks.
-
-    Args:
-        c1 (str): path of a page from column1
-        c2 (str): path of a page from column2
-        bitmap_shm (shared_memory name): _description_
-        bitmap_ix (int): bitmap column index - the index to which the
-                         evaluation of expression should be written.
-        start (int): bitmap start index
-        end (int): bitmap end index
-        expression: expression to evaluate
-    """
-    assert isinstance(expression, dict)
-    assert len(expression) == 3
-    c1 = expression.get("column1", None)
-    c2 = expression.get("column2", None)
-    expr = expression.get("criteria", None)
-    assert expr in filter_ops
-
-    v1 = expression.get("value1", None)
-    v2 = expression.get("value2", None)
-
-    if c1 is not None:
-        dset_A = np.load(c1, allow_pickle=True, fix_imports=False)
-    else:  # v1 is active:
-        dset_A = np.array([v1] * (end - start))
-
-    if c2 is not None:
-        dset_B = np.load(c2, allow_pickle=True, fix_imports=False)
-    else:  # v2 is active:
-        dset_B = np.array([v2] * (end - start))
-
-    # Connect
-    existing_shm = shared_memory.SharedMemory(name=bitmap_shm)
-    result_array = np.ndarray(bitmap_shape, dtype=np.bool, buffer=existing_shm.buf)
-    # Evaluate
-    if expr == ">":
-        result = dset_A > dset_B
-    elif expr == ">=":
-        result = dset_A >= dset_B
-    elif expr == "==":
-        result = dset_A == dset_B
-    elif expr == "<":
-        result = dset_A < dset_B
-    elif expr == "<=":
-        result = dset_A <= dset_B
-    elif expr == "!=":
-        result = dset_A != dset_B
-    else:  # it's a python evaluations (slow)
-        f = filter_ops.get(expr)
-        assert callable(f)
-        result = np.array([f(a, b) for a, b in zip(dset_A, dset_B)])
-    result_array[bitmap_ix][start:end] = result
-    # Disconnect
-    existing_shm.close()
 
 
 def filter(T, expressions, filter_type="all", tqdm=_tqdm):
@@ -127,7 +69,7 @@ def filter(T, expressions, filter_type="all", tqdm=_tqdm):
     """
     sub_cls_check(T, Table)
     if isinstance(expressions, str):
-        return _filter(expressions)
+        return _filter(T, expressions)
 
     if not isinstance(expressions, list) and not isinstance(expressions, tuple):
         raise TypeError
@@ -170,58 +112,57 @@ def filter(T, expressions, filter_type="all", tqdm=_tqdm):
 
     # EVALUATION....
     # 1. setup a rectangular bitmap for evaluations
-    shape = (len(expressions), len(T))
-    arr = np.zeros(shape=shape, dtype=bool)
-    shm = shared_memory.SharedMemory(create=True, size=arr.nbytes)  # shm name
-    _ = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
-
+    bitmap = np.empty(shape=(len(expressions), len(T)), dtype=bool)
     # 2. create tasks for evaluations
-    table = {}
-    for name, col in T.columns.items():
-        table[name] = {}
-        for ix, page in enumerate(col.pages):
-            table[name][ix] = str(page.path)
-
-    tasks = []
-    for bitmap_ix, expression in enumerate(expressions):
-        # one expression can AT MOST contain 2 columns.
+    for bit_index, expression in enumerate(expressions):
+        assert isinstance(expression, dict)
+        assert len(expression) == 3
         c1 = expression.get("column1", None)
         c2 = expression.get("column2", None)
-        start = 0
-        for end in range(Config.PAGE_SIZE, len(T) + 1, Config.PAGE_SIZE):
-            args = (shm, shape, bitmap_ix, start, end, c1, c2, expression)
-            eval_task = Task(_mp_filter_evaluation_task, *args)
-            tasks.append(eval_task)
-            end = start
+        expr = expression.get("criteria", None)
+        assert expr in filter_ops
+        v1 = expression.get("value1", None)
+        v2 = expression.get("value2", None)
 
-    # 3. execute tasks.
-    pbar = _tqdm()
-    cpus = max(psutil.cpu_count(), 1)
-    if cpus < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
-        for t in tasks:
-            r = t.execute()
-            if r is not None:
-                raise Exception(r)
-            pbar.update(1)
-    else:
-        with TaskManager(cpus) as tm:
-            errs = tm.execute(tasks, pbar=pbar)
-            if any(errs):
-                raise Exception(errs)
+        if c1 is not None:
+            dset_A = T[c1]
+        else:  # v1 is active:
+            dset_A = np.array([v1] * len(T))
 
+        if c2 is not None:
+            dset_B = T[c2]
+        else:  # v2 is active:
+            dset_B = np.array([v2] * len(T))
+        # Evaluate
+        if expr == ">":
+            result = dset_A[:] > dset_B[:]
+        elif expr == ">=":
+            result = dset_A[:] >= dset_B[:]
+        elif expr == "==":
+            result = dset_A[:] == dset_B[:]
+        elif expr == "<":
+            result = dset_A[:] < dset_B[:]
+        elif expr == "<=":
+            result = dset_A[:] <= dset_B[:]
+        elif expr == "!=":
+            result = dset_A[:] != dset_B[:]
+        else:  # it's a python evaluations (slow)
+            f = filter_ops.get(expr)
+            assert callable(f)
+            result = np.array([f(a, b) for a, b in zip(dset_A, dset_B)])
+        bitmap[bit_index] = result
+    
     f = np.all if filter_type == "all" else np.any
-    mask = f(arr, axis=1)
+    mask = f(bitmap, axis=0)
     # 4. The mask is now created and is no longer needed.
-    shm.close()
-
+    del result
+    del bitmap
     # 5. MERGE...
-    trues = type(T)()
+    trues, falses = type(T)(), type(T)()
     for name in T.columns:
-        trues[name] = np.compress(mask, T[name][:])
-
-    falses = type(T)()
-    for name in T.columns:
-        falses[name] = np.compress(np.invert(mask), T[name][:])
+        data = T[name][:]
+        trues[name] = np.compress(mask, data)
+        falses[name] = np.compress(np.invert(mask), data)
     # 6. RETURN
     return trues, falses
 
