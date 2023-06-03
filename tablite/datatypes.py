@@ -780,3 +780,88 @@ class Rank(object):
 
     def __iter__(self):
         return iter(self.items_list)
+
+
+def list_to_np_array(iterable):
+    """helper to make correct np array from python types.
+    Example of problem where numpy turns mixed types into strings.
+    >>> np.array([4,'5'])
+    np.ndarray(['4', '5'])
+    """
+    dtypes = set()
+    for v in iterable:
+        dtypes.add(type(v))
+        if len(dtypes) > 1:  # no need to continue after we know it'll be dtype=object
+            break
+    if len(dtypes) > 1:
+        value = np.array(iterable, dtype=object)
+    else:
+        value = np.array(iterable)
+    return value
+
+
+def np_type_unify(arrays):
+    dtypes = {arr.dtype: len(arr) for arr in arrays}
+    if len(dtypes) == 1:
+        dtype, _ = dtypes.popitem()
+    else:
+        for ix, arr in enumerate(arrays):
+            arrays[ix] = np.array(arr, dtype=object)
+        dtype = object
+    return np.concatenate(arrays, dtype=dtype)
+
+
+numpy_types = {
+    # The mapping below can be generated using:
+    #     d = {}
+    #     for name in dir(np):
+    #         obj = getattr(np,name)
+    #         if hasattr(obj, 'dtype'):
+    #             try:
+    #                 if 'time' in name:
+    #                     npn = obj(0, 'D')
+    #                 else:
+    #                     npn = obj(0)
+    #                 nat = npn.item()
+    #                 d[name] = type(nat)
+    #                 d[npn.dtype.char] = type(nat)
+    #             except:
+    #                 pass
+    #     return d
+    "bool": bool,
+    "bool_": bool,  # ('?') -> <class 'bool'>
+    "byte": int,  # ('b') -> <class 'int'>
+    "bytes0": bytes,  # ('S') -> <class 'bytes'>
+    "bytes_": bytes,  # ('S') -> <class 'bytes'>
+    "cdouble": complex,  # ('D') -> <class 'complex'>
+    "cfloat": complex,  # ('D') -> <class 'complex'>
+    "clongdouble": float,  # ('G') -> <class 'numpy.clongdouble'>
+    "clongfloat": float,  # ('G') -> <class 'numpy.clongdouble'>
+    "complex128": complex,  # ('D') -> <class 'complex'>
+    "complex64": complex,  # ('F') -> <class 'complex'>
+    "complex_": complex,  # ('D') -> <class 'complex'>
+    "csingle": complex,  # ('F') -> <class 'complex'>
+    "datetime64": date,  # ('M') -> <class 'datetime.date'>
+    "double": float,  # ('d') -> <class 'float'>
+    "float16": float,  # ('e') -> <class 'float'>
+    "float32": float,  # ('f') -> <class 'float'>
+    "float64": float,  # ('d') -> <class 'float'>
+    "float_": float,  # ('d') -> <class 'float'>
+    "half": float,  # ('e') -> <class 'float'>
+    "int0": int,  # ('q') -> <class 'int'>
+    "int16": int,  # ('h') -> <class 'int'>
+    "int32": int,  # ('l') -> <class 'int'>
+    "int64": int,  # ('q') -> <class 'int'>
+    "int8": int,  # ('b') -> <class 'int'>
+    "int_": int,  # ('l') -> <class 'int'>
+    "intc": int,  # ('i') -> <class 'int'>
+    "intp": int,  # ('q') -> <class 'int'>
+    "longcomplex": float,  # ('G') -> <class 'numpy.clongdouble'>
+    "longdouble": float,  # ('g') -> <class 'numpy.longdouble'>
+    "longfloat": float,  # ('g') -> <class 'numpy.longdouble'>
+    "longlong": int,  # ('q') -> <class 'int'>
+    "matrix": int,  # ('l') -> <class 'int'>
+    "record": bytes,  # ('V') -> <class 'bytes'>
+    "short": int,  # ('h') -> <class 'int'>
+}
+
