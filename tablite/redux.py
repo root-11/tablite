@@ -1,16 +1,12 @@
 from tablite.base import Table
 import numpy as np
-import psutil
-import itertools
-from tablite.config import Config
 from tablite.utils import sub_cls_check, type_check, expression_interpreter
-from tablite.mp_utils import filter_ops, shared_memory, select_processing_method
-from mplite import Task, TaskManager
+from tablite.mp_utils import filter_ops
 
 from tqdm import tqdm as _tqdm
 
 
-def _filter(T, expression):
+def _filter_using_expression(T, expression):
     """
     filters based on an expression, such as:
 
@@ -30,23 +26,10 @@ def _filter(T, expression):
         raise ValueError(f"Expression could not be compiled: {expression}:\n{e}")
 
     req_columns = [i for i in T.columns if i in expression]
-    bitmap = [bool(_f(*r)) for r in T.__getitem__(*req_columns).rows]
-    inverse_bitmap = [not i for i in bitmap]
-
-    cls = type(T)
-    if len(T) * len(T.columns) < Config.SINGLE_PROCESSING_LIMIT:
-        true, false = cls(), cls()
-        for col_name in T.columns:
-            data = T[col_name][:]
-            true[col_name] = list(itertools.compress(data, bitmap))
-            false[col_name] = list(itertools.compress(data, inverse_bitmap))
-        return true, false
-    else:
-        mask = np.array(bitmap, dtype=bool)
-        return _mp_compress(T, mask), _mp_compress(T, np.invert(mask))  # true, false
+    return np.array([bool(_f(*r)) for r in T.__getitem__(*req_columns).rows], dtype=bool)
 
 
-def filter(T, expressions, filter_type="all", tqdm=_tqdm):
+def filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
     """
     enables filtering across columns for multiple criteria.
 
@@ -67,16 +50,6 @@ def filter(T, expressions, filter_type="all", tqdm=_tqdm):
 
     filter_type: 'all' or 'any'
     """
-    sub_cls_check(T, Table)
-    if isinstance(expressions, str):
-        return _filter(T, expressions)
-
-    if not isinstance(expressions, list) and not isinstance(expressions, tuple):
-        raise TypeError
-
-    if len(T) == 0:
-        return T.copy(), T.copy()
-
     for expression in expressions:
         if not isinstance(expression, dict):
             raise TypeError(f"invalid expression: {expression}")
@@ -151,20 +124,11 @@ def filter(T, expressions, filter_type="all", tqdm=_tqdm):
             assert callable(f)
             result = np.array([f(a, b) for a, b in zip(dset_A, dset_B)])
         bitmap[bit_index] = result
-    
+
     f = np.all if filter_type == "all" else np.any
     mask = f(bitmap, axis=0)
     # 4. The mask is now created and is no longer needed.
-    del result
-    del bitmap
-    # 5. MERGE...
-    trues, falses = type(T)(), type(T)()
-    for name in T.columns:
-        data = T[name][:]
-        trues[name] = np.compress(mask, data)
-        falses[name] = np.compress(np.invert(mask), data)
-    # 6. RETURN
-    return trues, falses
+    return mask
 
 
 def filter_all(T, **kwargs):
@@ -232,8 +196,10 @@ def filter_all(T, **kwargs):
 
     mask = np.array([True if i in ixs else False for i in range(len(T))], dtype=bool)
     ixs.clear()
-    f = select_processing_method(len(T) * len(T.columns), _sp_compress, _mp_compress)
-    return f(T, mask)
+    new = type(T)()
+    for name in T.columns:
+        new[name] = np.compress(mask, T[name][:])
+    return new
 
 
 def filter_any(T, **kwargs):
@@ -256,25 +222,66 @@ def filter_any(T, **kwargs):
 
     mask = np.array([True if i in ixs else False for i in range(len(T))], dtype=bool)
     ixs.clear()
-    f = select_processing_method(len(T) * len(T.columns), _sp_compress, _mp_compress)
-    return f(T, mask)
+    new = type(T)()
+    for name in T.columns:
+        new[name] = np.compress(mask, T[name][:])
+    return new
 
 
-def _sp_compress(T, mask):
-    sub_cls_check(T, Table)
-    type_check(mask, np.ndarray)
-
-    t = type(T)()
-    for col_name in T.columns:
-        t[col_name] = np.compress(mask, T[col_name][:])
-    return t
-
-
-def _mp_compress(T, mask):
-    """
-    helper for `any` and `all` that performs compression of the table self according to mask
-    using multiprocessing.
-    """
+def compress(T, mask):
     # NOTE FOR DEVELOPERS:
     # _sp_compress is so fast that the overhead of multiprocessing doesn't pay off.
-    return _sp_compress(T, mask)
+    cls = type(T)
+    true, false = cls(), cls()
+    for col_name in T.columns:
+        data = T[col_name][:]
+        true[col_name] = np.compress(mask, data)
+        false[col_name] = np.compress(np.invert(mask), data)
+    return true, false
+
+
+def filter(T, expressions, filter_type="all", tqdm=_tqdm):
+    """filters table
+
+
+    Args:
+        T (Table subclass): Table.
+        expressions (list or str):
+            str:
+                filters based on an expression, such as:
+                "all((A==B, C!=4, 200<D))"
+                which is interpreted using python's compiler to:
+
+                def _f(A,B,C,D):
+                    return all((A==B, C!=4, 200<D))
+
+            list of dicts: (example):
+
+            L = [
+                {'column1':'A', 'criteria': "==", 'column2': 'B'},
+                {'column1':'C', 'criteria': "!=", "value2": '4'},
+                {'value1': 200, 'criteria': "<", column2: 'D' }
+            ]
+
+        accepted dictionary keys: 'column1', 'column2', 'criteria', 'value1', 'value2'
+
+        filter_type (str, optional): Ignored if expressions is str.
+            'all' or 'any'. Defaults to "all".
+        tqdm (tqdm, optional): progressbar. Defaults to _tqdm.
+
+    Returns:
+        2xTables: trues, falses
+    """
+    # determine method
+    sub_cls_check(T, Table)
+    if len(T) == 0:
+        return T.copy(), T.copy()
+
+    if isinstance(expressions, str):
+        mask = _filter_using_expression(T, expressions)
+    elif isinstance(expressions, list):
+        mask = filter_using_list_of_dicts(T, expressions, filter_type, tqdm)
+    else:
+        raise TypeError
+    # create new tables
+    return compress(T, mask)
