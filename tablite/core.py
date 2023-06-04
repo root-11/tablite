@@ -45,95 +45,7 @@ class Table(BaseTable):
         super().__init__(columns, headers, rows, _path)
 
     @classmethod
-    def from_pandas(cls, df):
-        """
-        Creates Table using pd.to_dict('list')
-
-        similar to:
-        >>> import pandas as pd
-        >>> df = pd.DataFrame({'a':[1,2,3], 'b':[4,5,6]})
-        >>> df
-            a  b
-            0  1  4
-            1  2  5
-            2  3  6
-        >>> df.to_dict('list')
-        {'a': [1, 2, 3], 'b': [4, 5, 6]}
-
-        >>> t = Table.from_dict(df.to_dict('list))
-        >>> t.show()
-            +===+===+===+
-            | # | a | b |
-            |row|int|int|
-            +---+---+---+
-            | 0 |  1|  4|
-            | 1 |  2|  5|
-            | 2 |  3|  6|
-            +===+===+===+
-        """
-        return import_utils.from_pandas(cls, df)
-
-    @classmethod
-    def from_hdf5(cls, path):
-        """
-        imports an exported hdf5 table.
-        """
-        return import_utils.from_hdf5(cls, path)
-
-    @classmethod
-    def from_json(cls, jsn):
-        """
-        Imports tables exported using .to_json
-        """
-        return import_utils.from_json(cls, jsn)
-
-    def to_hdf5(self, path):
-        """
-        creates a copy of the table as hdf5
-        """
-        export_utils.to_hdf5(self, path)
-
-    def to_pandas(self):
-        """
-        returns pandas.DataFrame
-        """
-        return export_utils.to_pandas(self)
-
-    def to_sql(self, name):
-        """
-        generates ANSI-92 compliant SQL.
-        """
-        return export_utils.to_sql(self, name)  # remove after update to test suite.
-
-    def to_json(self):
-        """
-        returns JSON
-        """
-        return export_utils.to_json(self)
-
-    def export(self, path):
-        """
-        exports table to path in format given by path suffix
-
-        path: str or pathlib.Path
-
-        for list of supported formats, see `exporters`
-        """
-        type_check(path, Path)
-
-        ext = path.suffix[1:]  # .xlsx --> xlsx
-
-        if ext not in export_utils.exporters:
-            raise TypeError(f"{ext} not a supported formats:{export_utils.supported_formats}")
-
-        handler = export_utils.exporters.get(ext)
-        handler(table=self, path=path)
-
-        log.info(f"exported {self} to {path}")
-        print(f"exported {self} to {path}")
-
-    @classmethod
-    def import_file(
+    def from_file(
         cls,
         path,
         columns=None,
@@ -289,6 +201,131 @@ class Table(BaseTable):
 
         # publish the settings
         return reader(cls, *config, **additional_configs)
+
+
+    @classmethod
+    def from_pandas(cls, df):
+        """
+        Creates Table using pd.to_dict('list')
+
+        similar to:
+        >>> import pandas as pd
+        >>> df = pd.DataFrame({'a':[1,2,3], 'b':[4,5,6]})
+        >>> df
+            a  b
+            0  1  4
+            1  2  5
+            2  3  6
+        >>> df.to_dict('list')
+        {'a': [1, 2, 3], 'b': [4, 5, 6]}
+
+        >>> t = Table.from_dict(df.to_dict('list))
+        >>> t.show()
+            +===+===+===+
+            | # | a | b |
+            |row|int|int|
+            +---+---+---+
+            | 0 |  1|  4|
+            | 1 |  2|  5|
+            | 2 |  3|  6|
+            +===+===+===+
+        """
+        return import_utils.from_pandas(cls, df)
+
+    @classmethod
+    def from_hdf5(cls, path):
+        """
+        imports an exported hdf5 table.
+        """
+        return import_utils.from_hdf5(cls, path)
+
+    @classmethod
+    def from_json(cls, jsn):
+        """
+        Imports tables exported using .to_json
+        """
+        return import_utils.from_json(cls, jsn)
+
+    def to_hdf5(self, path):
+        """
+        creates a copy of the table as hdf5
+        """
+        export_utils.to_hdf5(self, path)
+
+    def to_pandas(self):
+        """
+        returns pandas.DataFrame
+        """
+        return export_utils.to_pandas(self)
+
+    def to_sql(self, name):
+        """
+        generates ANSI-92 compliant SQL.
+        """
+        return export_utils.to_sql(self, name)  # remove after update to test suite.
+
+    def to_json(self):
+        """
+        returns JSON
+        """
+        return export_utils.to_json(self)
+
+    def to_xls(self, path):
+        """
+        exports table to path
+        """
+        export_utils.excel_writer(self, path)
+
+    def to_ods(self, path):
+        """
+        exports table to path
+        """
+        export_utils.excel_writer(self, path)
+
+    def to_csv(self, path):
+        """
+        exports table to path
+        """
+        export_utils.text_writer(self, path)
+
+    def to_tsv(self, path):
+        """
+        exports table to path
+        """
+        export_utils.text_writer(self, path)
+
+    def to_text(self, path):
+        """
+        exports table to path
+        """
+        export_utils.text_writer(self, path)
+
+    def to_html(self, path):
+        """
+        exports table to path
+        """
+        export_utils.to_html(self, path)
+
+    def export(self, path):
+        """
+        exports table to path in format given by path suffix
+
+        path: str or pathlib.Path
+
+        for list of supported formats, see `exporters`
+        """
+        type_check(path, Path)
+
+        ext = path.suffix[1:]  # .xlsx --> xlsx
+
+        if ext not in export_utils.exporters:
+            raise TypeError(f"{ext} not a supported formats:{export_utils.supported_formats}")
+
+        handler = export_utils.exporters.get(ext)
+        handler(table=self, path=path)
+
+        log.info(f"exported {self} to {path}")
+        print(f"exported {self} to {path}")
 
     def expression(self, expression):
         """
