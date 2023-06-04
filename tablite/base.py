@@ -12,7 +12,7 @@ from pathlib import Path
 from itertools import count, chain, product, repeat
 from collections import defaultdict
 
-from tablite.datatypes import DataTypes, np_type_unify, numpy_to_python, coerce_to_pytype, list_to_np_array
+from tablite.datatypes import DataTypes, np_type_unify, numpy_to_python, list_to_np_array, pytype
 from tablite.utils import (
     type_check,
     intercept,
@@ -706,10 +706,10 @@ class Column(object):
             data = page.get()
             if data.dtype == "O":
                 for i in data:
-                    dtype = coerce_to_pytype(i)
+                    dtype = pytype(i)
                     d[dtype] += 1
             else:
-                sample = coerce_to_pytype(data[0])
+                sample = pytype(data[0])
                 d[sample] += len(page)
         return dict(d)
 
