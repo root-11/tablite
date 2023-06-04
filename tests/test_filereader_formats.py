@@ -365,6 +365,7 @@ def test_filereader_saptxt():
         table[name] = DataTypes.guess(table[name])
 
     table.show()
+    # fmt: off
     # +==+====+=========+====+==========+======+==+==========+=====+=================+==+==========+=========+=============+===+===+==========+===+====+
     # |# |    | Delivery|Item|Pl.GI date|Route |SC| Ship-to  |SOrg.|Delivery quantity|SU|TO Number | Material|Dest.act.qty.|BUn|Typ|Source Bin|Cty| _1 |
     # +--+----+---------+----+----------+------+--+----------+-----+-----------------+--+----------+---------+-------------+---+---+----------+---+----+
@@ -389,7 +390,7 @@ def test_filereader_saptxt():
     # |18|None|255352616|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                6|EA|2110933218|LR086385 |            6|EA |100|1505450201|KR |None|
     # |19|None|255352619|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                2|EA|2110933219|LR072471 |            2|EA |100|1680050203|KR |None|
     # +==+====+=========+====+==========+======+==+==========+=====+=================+==+==========+=========+=============+===+===+==========+===+====+
-
+    # fmt: on
     assert len(table) == 20, len(table)
 
 
@@ -465,7 +466,7 @@ def test_filereader_gdocs1csv_no_header():
     path = Path(__file__).parent / "data" / "gdocs1.csv"
     assert path.exists()
     table = Table.import_file(path, first_row_has_headers=False)
-    assert table.columns == ["0", "1", "2", "3", "4", "5"]
+    assert list(table.columns) == ["0", "1", "2", "3", "4", "5"]
 
     table = Table.import_file(path, first_row_has_headers=False, columns=[str(n) for n in [0, 1, 2, 3, 4, 5]])
     # ^--- this uses the import_file shortcut as it has the same config as the previous import.
@@ -542,7 +543,7 @@ def test_filereader_gdocs1xlsx_no_header():
         tables.append(table)
 
 
-def test_keep():
+def test_keep_some_columns_only():
     path = Path(__file__).parent / "data" / "book1.csv"
     assert path.exists()
     table = Table.import_file(path, columns=["a", "b"])
@@ -589,11 +590,13 @@ def test_long_texts():
     ]
 
     t = Table.import_file(path, text_qualifier='"')
-    t.__getitem__(t.columns[0], t.columns[-1]).show()
+    first_col = list(t.columns)[0]
+    last_col = list(t.columns)[-1]
+    t[first_col, last_col].show()
 
     t = Table.import_file(path, columns=columns[:-1], text_qualifier='"')
-    selection = columns[:5]
-    t.__getitem__(*selection).show()
+    selection = tuple(columns[:5])
+    t[selection].show()
 
 
 def test_no_commas():
