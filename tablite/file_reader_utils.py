@@ -275,7 +275,7 @@ def get_headers(path, linecount=10, delimiter=None):
         raise ValueError(f"can't read {path.suffix}")
 
 
-def get_encoding(path, nbytes=10000):
+def get_encoding(path, nbytes=ENCODING_GUESS_BYTES):
     size = path.stat().st_size
     if nbytes > size:
         nbytes = size
