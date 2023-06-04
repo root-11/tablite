@@ -54,7 +54,7 @@ def sort_index(T, sort_mode="excel", tqdm=_tqdm, pbar=None, **kwargs):
     new_order.sort()
     sorted_index = [i for _, i in new_order]  # new index is extracted.
     new_order.clear()
-    return np.array(sorted_index, dtype=int)
+    return np.array(sorted_index, dtype=np.int64)
 
 
 def reindex(T, index):
@@ -115,7 +115,7 @@ def _mp_reindex(T, index):
             new[name].append(dst)
             tasks.append(t)
 
-    cpus = min(len(tasks), psutil.cpu_count())
+    cpus = min(len(tasks), psutil.cpu_count(logical=False))
     with TaskManager(cpu_count=cpus) as tm:
         errs = tm.execute(tasks)
         if any(errs):
