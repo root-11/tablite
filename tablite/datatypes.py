@@ -48,7 +48,7 @@ class DataTypes(object):
         if type(value) in cls._type_codes:
             return cls._type_codes[type(value)]
         elif hasattr(value, "dtype"):
-            dtype = numpy_types.get(np.dtype(value).name)
+            dtype = pytype(value)
             return cls._type_codes[dtype]
         else:
             return cls._type_codes["pickle"]
@@ -104,7 +104,7 @@ class DataTypes(object):
         if type(v) in cls.bytes_functions:  # it's a python native type
             f = cls.bytes_functions[type(v)]
         elif hasattr(v, "dtype"):  # it's a numpy/c type.
-            dtype = numpy_types.get(np.dtype(v).name)
+            dtype = pytype(v)
             f = cls.bytes_functions[dtype]
         else:
             f = cls.b_pickle
@@ -268,11 +268,32 @@ class DataTypes(object):
         if compact:
             s = iso_string
             if compact == 1:  # has T
-                slices = [(0, 4, "-"), (4, 6, "-"), (6, 8, "T"), (9, 11, ":"), (11, 13, ":"), (13, len(s), "")]
+                slices = [
+                    (0, 4, "-"),
+                    (4, 6, "-"),
+                    (6, 8, "T"),
+                    (9, 11, ":"),
+                    (11, 13, ":"),
+                    (13, len(s), ""),
+                ]
             elif compact == 2:  # has no T.
-                slices = [(0, 4, "-"), (4, 6, "-"), (6, 8, "T"), (8, 10, ":"), (10, 12, ":"), (12, len(s), "")]
+                slices = [
+                    (0, 4, "-"),
+                    (4, 6, "-"),
+                    (6, 8, "T"),
+                    (8, 10, ":"),
+                    (10, 12, ":"),
+                    (12, len(s), ""),
+                ]
             elif compact == 3:  # has T and :
-                slices = [(0, 4, "-"), (4, 6, "-"), (6, 8, "T"), (9, 11, ":"), (12, 14, ":"), (15, len(s), "")]
+                slices = [
+                    (0, 4, "-"),
+                    (4, 6, "-"),
+                    (6, 8, "T"),
+                    (9, 11, ":"),
+                    (12, 14, ":"),
+                    (15, len(s), ""),
+                ]
             else:
                 raise TypeError
             iso_string = "".join([s[a:b] + c for a, b, c in slices if b <= len(s)])
@@ -352,14 +373,11 @@ class DataTypes(object):
             json compatible value from v
         """
         if hasattr(v, "dtype"):
-            if v.dtype.name in numpy_types:
-                pytype = numpy_types[v.dtype.name]
-                v = pytype(v)
-            elif v.dtype.name.startswith("str"):
-                v = str(v)
+            v = numpy_to_python(v)
         if v is None:
             return v
-        elif v is False:  # using isinstance(v, bool): won't work as False also is int of zero.
+        elif v is False:
+            # using isinstance(v, bool): won't work as False also is int of zero.
             return str(v)
         elif v is True:
             return str(v)
@@ -439,7 +457,7 @@ class DataTypes(object):
 
         for value in values:
             if hasattr(value, "dtype"):
-                value = numpy_types[np.dtype(value).name](value)
+                value = numpy_to_python(value)
 
             for dtype in probability:
                 try:
@@ -466,7 +484,7 @@ class DataTypes(object):
 
         for ix, value in enumerate(values[0]):
             if hasattr(value, "dtype"):
-                value = numpy_types[np.dtype(value).name](value)
+                value = numpy_to_python(value)
             for dtype in probability:
                 try:
                     matches[ix] = DataTypes.infer(value, dtype)
@@ -676,81 +694,14 @@ class DataTypes(object):
         raise ValueError()
 
 
-def _get_numpy_types():
-    """mapping of numpy types and python native types
-
-    The mapping can be generated using:
-
-        d = {}
-        for name in dir(np):
-            obj = getattr(np,name)
-            if hasattr(obj, 'dtype'):
-                try:
-                    if 'time' in name:
-                        npn = obj(0, 'D')
-                    else:
-                        npn = obj(0)
-                    nat = npn.item()
-                    d[name] = type(nat)
-                    d[npn.dtype.char] = type(nat)
-                except:
-                    pass
-        return d
-
-    Returns:
-        dict: {key: numpy dtype str, value: python native type class}
-    """
-
-    return {
-        "bool": bool,
-        "bool_": bool,  # ('?') -> <class 'bool'>
-        "byte": int,  # ('b') -> <class 'int'>
-        "bytes0": bytes,  # ('S') -> <class 'bytes'>
-        "bytes_": bytes,  # ('S') -> <class 'bytes'>
-        "cdouble": complex,  # ('D') -> <class 'complex'>
-        "cfloat": complex,  # ('D') -> <class 'complex'>
-        "clongdouble": float,  # ('G') -> <class 'numpy.clongdouble'>
-        "clongfloat": float,  # ('G') -> <class 'numpy.clongdouble'>
-        "complex128": complex,  # ('D') -> <class 'complex'>
-        "complex64": complex,  # ('F') -> <class 'complex'>
-        "complex_": complex,  # ('D') -> <class 'complex'>
-        "csingle": complex,  # ('F') -> <class 'complex'>
-        "datetime64": date,  # ('M') -> <class 'datetime.date'>
-        "double": float,  # ('d') -> <class 'float'>
-        "float16": float,  # ('e') -> <class 'float'>
-        "float32": float,  # ('f') -> <class 'float'>
-        "float64": float,  # ('d') -> <class 'float'>
-        "float_": float,  # ('d') -> <class 'float'>
-        "half": float,  # ('e') -> <class 'float'>
-        "int0": int,  # ('q') -> <class 'int'>
-        "int16": int,  # ('h') -> <class 'int'>
-        "int32": int,  # ('l') -> <class 'int'>
-        "int64": int,  # ('q') -> <class 'int'>
-        "int8": int,  # ('b') -> <class 'int'>
-        "int_": int,  # ('l') -> <class 'int'>
-        "intc": int,  # ('i') -> <class 'int'>
-        "intp": int,  # ('q') -> <class 'int'>
-        "longcomplex": float,  # ('G') -> <class 'numpy.clongdouble'>
-        "longdouble": float,  # ('g') -> <class 'numpy.longdouble'>
-        "longfloat": float,  # ('g') -> <class 'numpy.longdouble'>
-        "longlong": int,  # ('q') -> <class 'int'>
-        "matrix": int,  # ('l') -> <class 'int'>
-        "record": bytes,  # ('V') -> <class 'bytes'>
-        "short": int,  # ('h') -> <class 'int'>
-    }
-
-
-numpy_types = _get_numpy_types()
-
-
-def numpy_to_python(obj):  # TODO: Apply this instead of numpy_types.
+def numpy_to_python(obj):
     """See https://numpy.org/doc/stable/reference/arrays.scalars.html"""
     if isinstance(obj, np.generic):
         return obj.item()
     return obj
 
 
-def coerce_to_pytype(obj):  # TODO: Apply this instead of numpy_types.
+def pytype(obj):
     """Returns the python type of any object"""
     if isinstance(obj, np.generic):
         return type(obj.item())
@@ -809,59 +760,3 @@ def np_type_unify(arrays):
             arrays[ix] = np.array(arr, dtype=object)
         dtype = object
     return np.concatenate(arrays, dtype=dtype)
-
-
-numpy_types = {
-    # The mapping below can be generated using:
-    #     d = {}
-    #     for name in dir(np):
-    #         obj = getattr(np,name)
-    #         if hasattr(obj, 'dtype'):
-    #             try:
-    #                 if 'time' in name:
-    #                     npn = obj(0, 'D')
-    #                 else:
-    #                     npn = obj(0)
-    #                 nat = npn.item()
-    #                 d[name] = type(nat)
-    #                 d[npn.dtype.char] = type(nat)
-    #             except:
-    #                 pass
-    #     return d
-    "bool": bool,
-    "bool_": bool,  # ('?') -> <class 'bool'>
-    "byte": int,  # ('b') -> <class 'int'>
-    "bytes0": bytes,  # ('S') -> <class 'bytes'>
-    "bytes_": bytes,  # ('S') -> <class 'bytes'>
-    "cdouble": complex,  # ('D') -> <class 'complex'>
-    "cfloat": complex,  # ('D') -> <class 'complex'>
-    "clongdouble": float,  # ('G') -> <class 'numpy.clongdouble'>
-    "clongfloat": float,  # ('G') -> <class 'numpy.clongdouble'>
-    "complex128": complex,  # ('D') -> <class 'complex'>
-    "complex64": complex,  # ('F') -> <class 'complex'>
-    "complex_": complex,  # ('D') -> <class 'complex'>
-    "csingle": complex,  # ('F') -> <class 'complex'>
-    "datetime64": date,  # ('M') -> <class 'datetime.date'>
-    "double": float,  # ('d') -> <class 'float'>
-    "float16": float,  # ('e') -> <class 'float'>
-    "float32": float,  # ('f') -> <class 'float'>
-    "float64": float,  # ('d') -> <class 'float'>
-    "float_": float,  # ('d') -> <class 'float'>
-    "half": float,  # ('e') -> <class 'float'>
-    "int0": int,  # ('q') -> <class 'int'>
-    "int16": int,  # ('h') -> <class 'int'>
-    "int32": int,  # ('l') -> <class 'int'>
-    "int64": int,  # ('q') -> <class 'int'>
-    "int8": int,  # ('b') -> <class 'int'>
-    "int_": int,  # ('l') -> <class 'int'>
-    "intc": int,  # ('i') -> <class 'int'>
-    "intp": int,  # ('q') -> <class 'int'>
-    "longcomplex": float,  # ('G') -> <class 'numpy.clongdouble'>
-    "longdouble": float,  # ('g') -> <class 'numpy.longdouble'>
-    "longfloat": float,  # ('g') -> <class 'numpy.longdouble'>
-    "longlong": int,  # ('q') -> <class 'int'>
-    "matrix": int,  # ('l') -> <class 'int'>
-    "record": bytes,  # ('V') -> <class 'bytes'>
-    "short": int,  # ('h') -> <class 'int'>
-}
-
