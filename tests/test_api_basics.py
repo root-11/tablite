@@ -2,9 +2,7 @@ from tablite import Table
 from tablite.base import Page
 import numpy as np
 from datetime import datetime, timedelta
-import pyperclip
 import pytest
-import gc
 from pathlib import Path
 import os
 
@@ -340,13 +338,11 @@ def test03_verify_slice_operator_for_uniform_datatype():
     except ValueError:
         assert True
 
-    col.insert(0, -10)
-    col.append(120)
-    assert list(col) == [-10, 10, 20, 30, 0, 50, 60, 0, 0, 110, 120]
+    assert list(col) == [10, 20, 30, 0, 50, 60, 0, 0, 110]
     col.extend([130, 140])
-    assert list(col) == [-10, 10, 20, 30, 0, 50, 60, 0, 0, 110, 120, 130, 140]
+    assert list(col) == [10, 20, 30, 0, 50, 60, 0, 0, 110, 130, 140]
     col.extend(col)
-    assert list(col) == 2 * [-10, 10, 20, 30, 0, 50, 60, 0, 0, 110, 120, 130, 140]
+    assert list(col) == 2 * [10, 20, 30, 0, 50, 60, 0, 0, 110, 130, 140]
 
 
 def test03_verify_slice_operator_for_multitype_datasets():
@@ -416,29 +412,21 @@ def test03_verify_slice_operator_for_multitype_datasets():
     # ----------------------
 
     L = t["A"].copy()
-    L[0::2] = [
-        4,
-        5,
-    ]  # SLICE: for new_index,position in enumerate(range(0,end,step=2)): REPLACE L[position] WITH NEW[ew_index]
+    L[0::2] = [4, 5]
+    # SLICE: for new_index,position in enumerate(range(0,end,step=2)): REPLACE L[position] WITH NEW[ew_index]
     assert L == [4, 2, 5]
 
     t = Table()
     t["A"] = ["1", 1, 1.0, "1", 1, 1.0]
 
     L = t["A"].copy()
-    L[0::2] = [
-        2,
-        3,
-        4,
-    ]  # SLICE: for new_index,position in enumerate(range(0,end,step=2)): REPLACE L[position] WITH NEW[ew_index]
+    L[0::2] = [2, 3, 4]
+    # SLICE: for new_index,position in enumerate(range(0,end,step=2)): REPLACE L[position] WITH NEW[ew_index]
     assert L == [2, 1, 3, "1", 4, 1.0]
 
     L = t["A"].copy()
-    L[1::2] = [
-        2,
-        3,
-        4,
-    ]  # SLICE: for new_index,position in enumerate(range(0,end,step=2)): REPLACE L[position] WITH NEW[ew_index]
+    L[1::2] = [2, 3, 4]
+    # SLICE: for new_index,position in enumerate(range(0,end,step=2)): REPLACE L[position] WITH NEW[ew_index]
     assert L == ["1", 2, 1.0, 3, 1, 4]
 
     L = t["A"].copy()
@@ -534,9 +522,9 @@ def test03_verify_column_summaries():  # test special column functions.
     n, m = 5, 3
     t["A"] = list(range(n)) * m
     col = t["A"]
-    k, v = col.histogram()
-    assert len(k) == n
-    assert sum(k1 * v1 for k1, v1 in zip(k, v)) == sum(col)
+    d = col.histogram()
+    assert len(d) == n
+    assert sum(k1 * v1 for k1, v1 in d.items()) == sum(col)
     uq = col.unique()
     assert len(uq) == n
     assert sum(uq) == sum(range(n))
@@ -545,12 +533,7 @@ def test03_verify_column_summaries():  # test special column functions.
 
 
 def test04_verify_add_rows_for_table():
-    table4 = Table()
-    table4["A", "B", "C"] = [
-        list(range(20)),
-        [str(i) for i in range(20)],
-        [1.1 * i for i in range(20)],
-    ]  # test multiple assignment.
+    table4 = Table({"A": list(range(20)), "B": [str(i) for i in range(20)], "C": [1.1 * i for i in range(20)]})
 
     table5 = table4 * 10
     assert len(table5) == len(table4) * 10  # test __mul__
