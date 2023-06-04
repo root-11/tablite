@@ -54,7 +54,7 @@ def sort_index(T, sort_mode="excel", tqdm=_tqdm, pbar=None, **kwargs):
     new_order.sort()
     sorted_index = [i for _, i in new_order]  # new index is extracted.
     new_order.clear()
-    return np.array(sorted_index)
+    return np.array(sorted_index, dtype=int)
 
 
 def reindex(T, index):
@@ -74,7 +74,7 @@ def reindex(T, index):
     """
     sub_cls_check(T, Table)
     if isinstance(index, list):
-        index = np.array(index, dtype=np.int64)
+        index = np.array(index, dtype=int)
     type_check(index, np.ndarray)
     if max(index) >= len(T):
         raise IndexError("index out of range: max(index) > len(self)")
@@ -149,7 +149,6 @@ def sort(T, sort_mode="excel", **kwargs):
     sub_cls_check(T, Table)
 
     index = sort_index(T, sort_mode=sort_mode, **kwargs)
-
     m = select_processing_method(len(T) * len(T.columns), _sp_reindex, _mp_reindex)
     return m(T, index)
 
