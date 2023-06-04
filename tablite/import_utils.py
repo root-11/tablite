@@ -10,7 +10,7 @@ import logging
 
 from mplite import TaskManager, Task
 
-from tablite.datatypes import DataTypes
+from tablite.datatypes import DataTypes, list_to_np_array
 from tablite.config import Config
 from tablite.file_reader_utils import TextEscape, get_encoding, get_delimiter
 from tablite.utils import type_check, unique_name, sub_cls_check
@@ -83,7 +83,7 @@ def from_json(T, jsn):
 
     type_check(jsn, str)
     d = json.loads(jsn)
-    return T(columns=d['columns'])
+    return T(columns=d["columns"])
 
 
 def excel_reader(T, path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
@@ -293,7 +293,7 @@ def text_reader_task(
             except IndexError:
                 values.append(None)
 
-    array = np.array(DataTypes.guess(values)) if guess_datatypes else np.array(values)
+    array = list_to_np_array(DataTypes.guess(values)) if guess_datatypes else list_to_np_array(values)
     np.save(destination, array, allow_pickle=True, fix_imports=False)
 
 
@@ -473,13 +473,15 @@ def text_reader(
             def update(self, n=1):
                 pbar.update(n * dump_size)
 
-        cpus = max(psutil.cpu_count(logical=True), 1)  # there's always at least one core!
-        if cpus < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
+        cpus = max(psutil.cpu_count(logical=False), 1)  # there's always at least one core.
+        # do not set logical to true as windows cannot handle that many file handles.
+        cpus_needed = min(len(tasks), cpus)  # 4 columns won't require 96 cpus ...!
+        if cpus_needed < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
             for task in tasks:
                 task.execute()
                 pbar.update(dump_size)
         else:
-            with TaskManager(cpus - 1) as tm:
+            with TaskManager(cpus_needed) as tm:
                 errors = tm.execute(tasks, pbar=PatchTqdm())  # I expects a list of None's if everything is ok.
                 if any(errors):
                     raise Exception("\n".join(e for e in errors if e))
