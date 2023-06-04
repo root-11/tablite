@@ -99,11 +99,11 @@ class Table(BaseTable):
         """
         return export_utils.to_pandas(self)
 
-    def to_sql(self):
+    def to_sql(self, name):
         """
         generates ANSI-92 compliant SQL.
         """
-        return export_utils.to_sql(self)  # remove after update to test suite.
+        return export_utils.to_sql(self, name)  # remove after update to test suite.
 
     def to_json(self):
         """
