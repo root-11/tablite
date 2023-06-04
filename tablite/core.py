@@ -202,7 +202,6 @@ class Table(BaseTable):
         # publish the settings
         return reader(cls, *config, **additional_configs)
 
-
     @classmethod
     def from_pandas(cls, df):
         """
