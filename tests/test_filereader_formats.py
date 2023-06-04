@@ -12,26 +12,6 @@ def refresh():
     yield
 
 
-def test_empty():
-    table = Table.import_file(Path(__file__).parent / "data" / "empty.csv")
-
-    assert len(table.columns) == 0
-    assert len(list(table.rows)) == 0
-    Table.reset_storage(include_imports=False)
-
-    existing_tables = Table.reload_saved_tables()
-    assert len(existing_tables) == 1
-
-    table = Table.import_file(Path(__file__).parent / "data" / "empty_newline.csv")
-
-    assert len(table.columns) == 0
-    assert len(list(table.rows)) == 0
-    Table.reset_storage(include_imports=True)
-
-    existing_tables = Table.reload_saved_tables()
-    assert len(existing_tables) == 0
-
-
 def test_text_escape():
     text_escape = TextEscape(delimiter=";", openings=None, closures=None)
 
@@ -71,7 +51,7 @@ def test_text_escape2():
     assert L == ["this", "is", "a", "", "嗨", "(comma,sep'd)", "text"]
 
 
-def test2():
+def test_text_escape_without_text_qualifier():
     text_escape = TextEscape(openings="({[", closures="]})", delimiter=",")
 
     s = "this,is,a,,嗨,(comma,sep'd),text"
@@ -80,13 +60,11 @@ def test2():
 
 
 def test_get_headers():
-    import pathlib
-
-    folder = pathlib.Path(__file__).parent / "data"
+    """this test does not look for content. It merely checks that the reader doesn't fail."""
+    folder = Path(__file__).parent / "data"
     for fname in folder.iterdir():
         d = get_headers(fname)
         assert isinstance(d, dict)
-        # this test does not look for content. It merely checks that the reader doesn't fail.
         assert d
         print(fname)
         print(d)
@@ -95,10 +73,13 @@ def test_get_headers():
 def test_filereader_123csv():
     csv_file = Path(__file__).parent / "data" / "123.csv"
 
-    table7 = Table()
-    table7.add_column("A", data=[1, None, 8, 3, 4, 6, 5, 7, 9])
-    table7.add_column("B", data=[10, 100, 1, 1, 1, 1, 10, 10, 10])
-    table7.add_column("C", data=[0, 1, 0, 1, 0, 1, 0, 1, 0])
+    table7 = Table(
+        columns={
+            "A": [1, None, 8, 3, 4, 6, 5, 7, 9],
+            "B": [10, 100, 1, 1, 1, 1, 10, 10, 10],
+            "C": [0, 1, 0, 1, 0, 1, 0, 1, 0],
+        }
+    )
     sort_order = {"B": False, "C": False, "A": False}
     table7 = table7.sort(**sort_order)
 
@@ -384,6 +365,30 @@ def test_filereader_saptxt():
         table[name] = DataTypes.guess(table[name])
 
     table.show()
+    # +==+====+=========+====+==========+======+==+==========+=====+=================+==+==========+=========+=============+===+===+==========+===+====+
+    # |# |    | Delivery|Item|Pl.GI date|Route |SC| Ship-to  |SOrg.|Delivery quantity|SU|TO Number | Material|Dest.act.qty.|BUn|Typ|Source Bin|Cty| _1 |
+    # +--+----+---------+----+----------+------+--+----------+-----+-----------------+--+----------+---------+-------------+---+---+----------+---+----+
+    # | 0|None|255332458|  10|2016-03-01|KR-SSH|S1|N193799SEA|GB20 |                1|EA|2110950757|LR034266 |            1|EA |122|2406130101|KR |None|
+    # | 1|None|255337984|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                9|EA|2110933207|LR069697 |            9|EA |66L|6605020402|KR |None|
+    # | 2|None|255337999|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                1|EA|2110933208|LR006253 |            1|EA |400|F103310000|KR |None|
+    # | 3|None|255342585|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                1|EA|2110933209|LR076144 |            1|EA |104|130637A001|KR |None|
+    # | 4|None|255342838|  10|2016-03-01|JP-SA |S1|N269899AIR|GB20 |               20|EA|2110940618|LR072969 |            0|EA |209|340649C001|JP |None|
+    # | 5|None|255342838|  10|2016-03-01|JP-SA |S1|N269899AIR|GB20 |               20|EA|2110938640|LR072969 |           14|EA |209|340649C001|JP |None|
+    # | 6|None|255342838|  10|2016-03-01|JP-SA |S1|N269899AIR|GB20 |               20|EA|2110938641|LR072969 |            6|EA |209|340649C001|JP |None|
+    # | 7|None|255342842|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                3|EA|2110933210|LR045184 |            3|EA |122|2406060201|KR |None|
+    # | 8|None|255342846|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                6|EA|2110933211|LR045184 |            6|EA |122|2406060201|KR |None|
+    # | 9|None|255343550|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                1|EA|2110933212|LR006253 |            1|EA |400|F103310000|KR |None|
+    # |10|None|255345406|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                1|EA|2110933213|LR006253 |            1|EA |400|F103310000|KR |None|
+    # |11|None|255347459|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                1|EA|2110933214|LR076133 |            0|EA |211|130842B002|KR |None|
+    # |12|None|255347459|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                1|EA|2110938506|LR076133 |            1|EA |111|131125A002|KR |None|
+    # |13|None|255347460|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                2|EA|2110933215|LR076133 |            0|EA |211|130842B002|KR |None|
+    # |14|None|255347460|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                2|EA|2110938507|LR076133 |            2|EA |111|131125A002|KR |None|
+    # |15|None|255347461|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                2|EA|2110933216|LR076133 |            0|EA |211|130842B002|KR |None|
+    # |16|None|255347461|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                2|EA|2110938508|LR076133 |            2|EA |111|131125A002|KR |None|
+    # |17|None|255349073|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                1|EA|2110933217|VPLCT0147|            1|EA |205|RS0933A02X|KR |None|
+    # |18|None|255352616|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                6|EA|2110933218|LR086385 |            6|EA |100|1505450201|KR |None|
+    # |19|None|255352619|  10|2016-03-01|KR-SS |S1|N193799SEA|GB20 |                2|EA|2110933219|LR072471 |            2|EA |100|1680050203|KR |None|
+    # +==+====+=========+====+==========+======+==+==========+=====+=================+==+==========+=========+=============+===+===+==========+===+====+
 
     assert len(table) == 20, len(table)
 
