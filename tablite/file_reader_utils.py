@@ -275,9 +275,12 @@ def get_headers(path, linecount=10, delimiter=None):
         raise ValueError(f"can't read {path.suffix}")
 
 
-def get_encoding(path):
+def get_encoding(path, nbytes=10000):
+    size = path.stat().st_size
+    if nbytes > size:
+        nbytes = size
     with path.open("rb") as fi:
-        rawdata = fi.read(10000)
+        rawdata = fi.read(nbytes)
         encoding = chardet.detect(rawdata)["encoding"]
         if encoding == "ascii":  # utf-8 is backwards compatible with ascii
             return "utf-8"  # --   so should the first 10k chars not be enough,
