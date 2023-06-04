@@ -3,7 +3,7 @@ import os
 import gc
 import psutil
 from pathlib import Path
-from tempfile import tempdir
+from tempfile import gettempdir
 
 from tablite.datasets import synthetic_order_data
 
@@ -13,7 +13,7 @@ def test01():
     baseline_memory = process.memory_info().rss
 
     length = 2_000_000
-    fn = Path(tempdir) / "synth data.tpz"
+    fn = Path(gettempdir()) / "synth data.tpz"
     start = time.process_time()
     t = synthetic_order_data(length)
     created = time.process_time()
