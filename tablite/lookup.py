@@ -116,7 +116,7 @@ def _sp_lookup(T, other, index):
 
 def _mp_lookup(T, other, index):
     result = T.copy()
-    cpus = max(psutil.cpu_count(), 2)
+    cpus = max(psutil.cpu_count(logical=False), 1)
     step_size = math.ceil(len(T) / cpus)
 
     with TaskManager(cpu_count=cpus) as tm:  # keeps the CPU pool alive during the whole join.
@@ -131,12 +131,14 @@ def _mp_lookup(T, other, index):
             # either to mmap the source or keep it in RAM.
 
             data, data_shm = share_mem(data, data.dtype)  # <-- this is source
-            destination, dest_shm = share_mem(np.empty(shape=(len(T),)), data.dtype)  # <--this is destination.
+            destination, dest_shm = share_mem(np.ndarray(shape=data.shape), data.dtype)  # <--this is destination.
 
             tasks = []
             start, end = 0, step_size
             for _ in range(cpus):
-                tasks.append(Task(map_task, data_shm, index_shm, dest_shm, start, end))
+                tasks.append(
+                    Task(map_task, data_shm.name, index_shm.name, dest_shm.name, data.shape, data.dtype, start, end)
+                )
                 start, end = end, end + step_size
             # All CPUS now work on the same column and memory footprint is predetermined.
             results = tm.execute(tasks)
@@ -144,8 +146,8 @@ def _mp_lookup(T, other, index):
                 raise Exception("\n".join(filter(lambda x: x is not None, results)))
 
             # As the data and index no longer is needed, then can be closed.
-            index_shm.close()
             data_shm.close()
+            data_shm.unlink()
 
             # As all the tasks have been completed, the Column can handle the pagination at once.
             name = unique_name(name, set(result.columns))
@@ -155,5 +157,8 @@ def _mp_lookup(T, other, index):
             result[name] = np.where(index == -1, nones, destination)
 
             dest_shm.close()  # finally close dest.
+            dest_shm.unlink()
+        index_shm.close()
+        index_shm.unlink()
 
     return result
