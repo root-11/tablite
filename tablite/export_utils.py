@@ -174,30 +174,9 @@ def h5_writer(table, path):
     to_hdf5(table, path)
 
 
-def html_writer(table, path):
+def to_html(table, path):
     type_check(table, Table)
     type_check(path, Path)
     with path.open("w", encoding="utf-8") as fo:
         fo.write(table._repr_html_())
 
-
-exporters = {  # the commented formats are not yet supported by the pyexcel plugins:
-    # 'fods': excel_writer,
-    "json": json_writer,
-    "html": html_writer,
-    # 'simple': excel_writer,
-    # 'rst': excel_writer,
-    # 'mediawiki': excel_writer,
-    "xlsx": excel_writer,
-    "xls": excel_writer,
-    # 'xlsm': excel_writer,
-    "csv": text_writer,
-    "tsv": text_writer,
-    "txt": text_writer,
-    "ods": excel_writer,
-    "sql": sql_writer,
-    # 'hdf5': h5_writer,
-    # 'h5': h5_writer
-}
-
-supported_formats = list(exporters.keys())
