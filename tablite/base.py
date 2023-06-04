@@ -1347,10 +1347,16 @@ class Table(object):
             if n * tag not in cols:
                 tag = n * tag
                 break
-        if slice_ is None:
-            slc = slice(0, 20, 1) if len(self) <= 20 else None
-        elif isinstance(slice_, slice):
+
+        if isinstance(slice_, slice):
             slc = slice_
+        if slice_ is None:
+            if len(self) <= 20:
+                slc = slice(0, 20, 1)
+            else:
+                slc = None
+        else:
+            raise TypeError(f"slice_ must be None or slice, not {type(slice_)}")
 
         n = len(self)
         if slc:  # either we want slc or we want everything.
