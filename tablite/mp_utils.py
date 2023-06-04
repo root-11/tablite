@@ -59,7 +59,7 @@ def select_processing_method(fields, sp, mp):
         m = sp
     elif fields < Config.SINGLE_PROCESSING_LIMIT:
         m = sp
-    elif max(psutil.cpu_count(), 1) < 2:
+    elif max(psutil.cpu_count(logical=False), 1) < 2:
         m = sp
     else:
         m = mp
@@ -89,13 +89,18 @@ def share_mem(inp_arr, dtype):
     return out_arr_index, out_shm
 
 
-def map_task(data, index, destination, start, end):
+def map_task(data_shm_name, index_shm_name, destination_shm_name, shape, dtype, start, end):
     # connect
-    shared_data = shared_memory.SharedMemory(name=data)
-    shared_index = shared_memory.SharedMemory(name=index)
-    shared_target = shared_memory.SharedMemory(name=destination)
+    shared_data = shared_memory.SharedMemory(name=data_shm_name)
+    data = np.ndarray(shape, dtype=dtype, buffer=shared_data.buf)
+
+    shared_index = shared_memory.SharedMemory(name=index_shm_name)
+    index = np.ndarray(shape, dtype=np.int64, buffer=shared_index.buf)
+
+    shared_target = shared_memory.SharedMemory(name=destination_shm_name)
+    target = np.ndarray(shape, dtype=dtype, buffer=shared_target.buf)
     # work
-    shared_target[start:end] = np.take(shared_data[start:end], shared_index[start:end])
+    target[start:end] = np.take(data[start:end], index[start:end])
     # disconnect
     shared_data.close()
     shared_index.close()
