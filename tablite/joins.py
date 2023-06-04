@@ -91,7 +91,7 @@ def _mp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pba
     assert isinstance(LEFT, np.ndarray) and isinstance(RIGHT, np.ndarray)
 
     result = type(T)()
-    cpus = max(psutil.cpu_count(), 2)
+    cpus = max(psutil.cpu_count(logical=False), 2)
     step_size = math.ceil(len(LEFT) / cpus)
 
     with TaskManager(cpu_count=cpus) as tm:  # keeps the CPU pool alive during the whole join.
