@@ -36,8 +36,8 @@ def test_exporters():
     assert p.exists()
 
     p = test_dir / "2.txt"
-    t.to_ascii(p)
-    assert p.exists()
+    s = t.to_ascii()
+    assert s != ""
 
     p = test_dir / "3.csv"
     t.to_csv(p)
