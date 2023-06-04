@@ -271,7 +271,6 @@ class Table(BaseTable):
                 columns,
                 start,
                 limit,
-                path.stat().st_size,
             )  # if file length changes - re-import.
 
         if reader == import_utils.ods_reader:
@@ -283,7 +282,6 @@ class Table(BaseTable):
                 columns,
                 start,
                 limit,
-                path.stat().st_size,
             )  # if file length changes - re-import.
 
         # At this point the import config seems valid.
@@ -303,7 +301,7 @@ class Table(BaseTable):
             def _f(A,B,C,D):
                 return all((A==B, C!=4, 200<D))
         """
-        return redux._filter(self, expression)
+        return redux._filter_using_expression(self, expression)
 
     def filter(self, expressions, filter_type="all", tqdm=_tqdm):
         """
