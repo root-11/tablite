@@ -1,6 +1,6 @@
 # tools.py is a collection of helpers inspired by Python collections.
 
-from datatypes import DataTypes
+from datatypes import DataTypes, numpy_to_python, pytype
 from utils import date_range  # helper for date_ranges
 from utils import unique_name
 from utils import intercept as range_intercept
@@ -22,6 +22,8 @@ assert callable(get_delimiter)
 
 guess = DataTypes.guess
 xround = DataTypes.round
+assert callable(numpy_to_python)
+assert callable(pytype)
 
 assert callable(guess)
 assert callable(xround)
