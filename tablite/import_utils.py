@@ -49,7 +49,7 @@ def from_pandas(T, df):
         | 2 |  3|  6|
         +===+===+===+
     """
-    if not isinstance(T, type):
+    if not issubclass(T, Table):
         raise TypeError("Expected subclass of Table")
 
     return T(columns=df.to_dict("list"))  # noqa
@@ -59,7 +59,7 @@ def from_hdf5(T, path):
     """
     imports an exported hdf5 table.
     """
-    if not isinstance(T, type):
+    if not issubclass(T, Table):
         raise TypeError("Expected subclass of Table")
 
     import h5py
@@ -77,7 +77,7 @@ def from_json(T, jsn):
     """
     Imports tables exported using .to_json
     """
-    if not isinstance(T, type):
+    if not issubclass(T, Table):
         raise TypeError("Expected subclass of Table")
     import json
 
@@ -92,7 +92,7 @@ def excel_reader(T, path, first_row_has_headers=True, sheet=None, columns=None, 
 
     **kwargs are excess arguments that are ignored.
     """
-    if not isinstance(T, type):
+    if not issubclass(T, Table):
         raise TypeError("Expected subclass of Table")
 
     book = pyexcel.get_book(file_name=str(path))
@@ -144,7 +144,7 @@ def ods_reader(T, path, first_row_has_headers=True, sheet=None, columns=None, st
     """
     returns Table from .ODS
     """
-    if not isinstance(T, type):
+    if not issubclass(T, Table):
         raise TypeError("Expected subclass of Table")
 
     sheets = pyexcel.get_book_dict(file_name=str(path))
@@ -320,6 +320,9 @@ def text_reader(
 
     excess kwargs are ignored.
     """
+    if not issubclass(T, Table):
+        raise TypeError("Expected subclass of Table")
+
     if not isinstance(path, Path):
         path = Path(path)
     if not path.exists():
@@ -329,7 +332,7 @@ def text_reader(
         return T()  # NO DATA: EMPTY TABLE.
 
     if encoding is None:
-        encoding = get_encoding(path)
+        encoding = get_encoding(path, nbytes=path.stat().st_size)
 
     if delimiter is None:
         try:
@@ -338,13 +341,11 @@ def text_reader(
             return T()  # NO DELIMITER: EMPTY TABLE.
 
     read_stage, process_stage, dump_stage, consolidation_stage = 20, 50, 20, 10
-
+    assert sum([read_stage, process_stage, dump_stage, consolidation_stage]) == 100, "Must add to to a 100"
     pbar_fname = path.name
 
     if len(pbar_fname) > 20:
         pbar_fname = pbar_fname[0:10] + "..." + pbar_fname[-7:]
-
-    assert sum([read_stage, process_stage, dump_stage, consolidation_stage]) == 100, "Must add to to a 100"
 
     file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
 
@@ -413,12 +414,27 @@ def text_reader(
                 warnings.warn("file was empty: {path}")
                 return T()  # returning an empty table as there was no data.
 
-            if len(set(fields)) != len(fields):  # then there's duplicate names.
-                new_fields = []
-                for name in fields:
-                    new_fields.append(unique_name(name, new_fields))
-                # header_line = delimiter.join(new_fields) + newline
-                fields = new_fields
+        if columns is None:
+            columns = fields[:]
+        else:
+            type_check(columns, list)
+            if set(fields) < set(columns):
+                missing = [c for c in columns if c not in fields]
+                raise ValueError(f"missing columns {missing}")
+
+        if first_row_has_headers is False:
+            new_fields = {}
+            for ix, name in enumerate(fields):
+                new_fields[ix] = f"{ix}"  # name starts on 0.
+            fields = new_fields
+        else:  # first_row_has_headers is True, but ...
+            new_fields, seen = {}, set()
+            for ix, name in enumerate(fields):
+                if name in columns:  # I may have to reduce to match user selection of columns.
+                    unseen_name = unique_name(name, seen)
+                    new_fields[ix] = unseen_name
+                    seen.add(unseen_name)
+            fields = {ix: name for ix, name in new_fields.items() if name in columns}
 
         tasks = math.ceil(newlines / Config.PAGE_SIZE) * len(fields)
 
@@ -444,7 +460,7 @@ def text_reader(
             (workdir / "pages").mkdir()
 
         tasks, configs = [], {}
-        for ix, field_name in enumerate(fields):
+        for ix, field_name in fields.items():
             configs[field_name] = []
 
             begin = 1 if first_row_has_headers else 0
@@ -478,7 +494,9 @@ def text_reader(
         cpus_needed = min(len(tasks), cpus)  # 4 columns won't require 96 cpus ...!
         if cpus_needed < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
             for task in tasks:
-                task.execute()
+                err = task.execute()
+                if err is not None:
+                    raise Exception(err)
                 pbar.update(dump_size)
         else:
             with TaskManager(cpus_needed) as tm:
@@ -494,8 +512,6 @@ def text_reader(
         # consolidate the task results
         t = T()
         for name, cfgs in configs.items():
-            if name in t.columns:
-                name = unique_name(name, set(t.columns))
             t[name] = Column(t.path)
             for cfg in cfgs:
                 data = np.load(cfg.destination, allow_pickle=True, fix_imports=False)
