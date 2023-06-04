@@ -12,13 +12,8 @@ def refresh():
         Config.PROCESSING_PRIORITY = Config.AUTO
 
 
-def do_left_join(always_mp):
+def do_left_join():
     """joining a table on itself. Wierd but possible."""
-    if always_mp:
-        Config.MULTIPROCESSING_MODE = Config.FORCE
-    else:
-        Config.MULTIPROCESSING_MODE = Config.FALSE
-
     numbers = Table()
     numbers.add_column("number", data=[1, 2, 3, 4, None])
     numbers.add_column("colour", data=["black", "blue", "white", "white", "blue"])
@@ -47,19 +42,18 @@ def do_left_join(always_mp):
 
 
 def test_left_join_sp():
+    Config.MULTIPROCESSING_MODE = Config.FALSE
     do_left_join(False)
+    Config.MULTIPROCESSING_MODE = Config.reset()
 
 
 def test_left_join_mp():
+    Config.MULTIPROCESSING_MODE = Config.FORCE
     do_left_join(True)
+    Config.MULTIPROCESSING_MODE = Config.reset()
 
 
-def do_left_join2(always_mp):
-    if always_mp:
-        Config.MULTIPROCESSING_MODE = Config.FORCE
-    else:
-        Config.MULTIPROCESSING_MODE = Config.FALSE
-
+def do_left_join2():
     """joining a table on itself. Wierd but possible."""
     numbers = Table()
     numbers.add_column("number", data=[1, 2, 3, 4, None])
@@ -88,25 +82,24 @@ def do_left_join2(always_mp):
 
 
 def test_left_join2_sp():
-    do_left_join2(False)
+    Config.MULTIPROCESSING_MODE = Config.FALSE
+    do_left_join2()
+    Config.MULTIPROCESSING_MODE = Config.reset()
 
 
 def test_left_join2_mp():
-    do_left_join2(True)
+    Config.MULTIPROCESSING_MODE = Config.FALSE
+    do_left_join2()
+    Config.MULTIPROCESSING_MODE = Config.reset()
 
 
-def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2, always_mp):
+def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2):
     """
     SELECT tbl1.number, tbl1.color, tbl2.number, tbl2.color
       FROM `tbl2`
       LEFT JOIN `tbl2`
         ON tbl1.color = tbl2.color;
     """
-    if always_mp:
-        Config.MULTIPROCESSING_MODE = Config.FORCE
-    else:
-        Config.MULTIPROCESSING_MODE = Config.FALSE
-
     numbers_1 = Table()
     numbers_1.add_column("number", data=[p[0] for p in pairs_1])
     numbers_1.add_column("colour", data=[p[1] for p in pairs_1])
@@ -128,7 +121,7 @@ def _join_left(pairs_1, pairs_2, pairs_ans, column_1, column_2, always_mp):
         assert a == tuple(b)
 
 
-def do_same_join_1(always_mp):
+def do_same_join_1():
     """FIDDLE: http://sqlfiddle.com/#!9/7dd756/7"""
 
     pairs_1 = [
@@ -189,18 +182,22 @@ def do_same_join_1(always_mp):
         (None, "blue", None, "blue"),
     ]
 
-    _join_left(pairs_1, pairs_2, pairs_ans, "colour", "colour", always_mp)
+    _join_left(pairs_1, pairs_2, pairs_ans, "colour", "colour")
 
 
 def test_same_join_1_sp():
-    do_same_join_1(False)
+    Config.MULTIPROCESSING_MODE = Config.FALSE
+    do_same_join_1()
+    Config.MULTIPROCESSING_MODE = Config.reset()
 
 
 def test_same_join_1_mp():
-    do_same_join_1(True)
+    Config.MULTIPROCESSING_MODE = Config.FORCE
+    do_same_join_1()
+    Config.MULTIPROCESSING_MODE = Config.reset()
 
 
-def do_left_join_2(always_mp):
+def do_left_join_2():
     """FIDDLE: http://sqlfiddle.com/#!9/986b2a/3"""
 
     pairs_1 = [(1, "black"), (2, "blue"), (3, "white"), (4, "white"), (None, "blue")]
@@ -215,24 +212,23 @@ def do_left_join_2(always_mp):
         (2, "blue", None, "blue"),
         (None, "blue", None, "blue"),
     ]
-    _join_left(pairs_1, pairs_1, pairs_ans, "colour", "colour", always_mp)
+    _join_left(pairs_1, pairs_1, pairs_ans, "colour", "colour")
 
 
 def test_left_join_2_sp():
-    do_left_join_2(False)
+    Config.MULTIPROCESSING_MODE = Config.FALSE
+    do_left_join_2()
+    Config.MULTIPROCESSING_MODE = Config.reset()
 
 
 def test_left_join_2_mp():
-    do_left_join_2(True)
+    Config.MULTIPROCESSING_MODE = Config.FORCE
+    do_left_join_2()
+    Config.MULTIPROCESSING_MODE = Config.reset()
 
 
 # https://en.wikipedia.org/wiki/Join_(SQL)#Inner_join
-def do_wiki_joins(always_mp):
-    if always_mp:
-        Config.MULTIPROCESSING_MODE = Config.FORCE
-    else:
-        Config.MULTIPROCESSING_MODE = Config.FALSE
-
+def do_wiki_joins():
     employees = Table()
     employees["last name"] = ["Rafferty", "Jones", "Heisenberg", "Robinson", "Smith", "Williams"]
     employees["department"] = [31, 33, 33, 34, 34, None]
@@ -427,8 +423,12 @@ def do_wiki_joins(always_mp):
 
 
 def test_wiki_joins_sp():
-    do_wiki_joins(False)
+    Config.MULTIPROCESSING_MODE = Config.FALSE
+    do_wiki_joins()
+    Config.MULTIPROCESSING_MODE = Config.reset()
 
 
 def test_wiki_joins_mp():
+    Config.MULTIPROCESSING_MODE = Config.FORCE
     do_wiki_joins(True)
+    Config.MULTIPROCESSING_MODE = Config.reset()
