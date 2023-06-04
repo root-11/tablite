@@ -7,15 +7,19 @@ from pathlib import Path
 from tqdm import tqdm as _tqdm
 
 
-def to_sql(table):
+def to_sql(table, name):
     """
     generates ANSI-92 compliant SQL.
+
+    args:
+        name (str): name of SQL table.
     """
     sub_cls_check(table, Table)
+    type_check(name, str)
 
-    prefix = "Table"
+    prefix = name
     name = "T1"
-    create_table = """CREATE TABLE {}{} ({})"""
+    create_table = """CREATE TABLE {} ({})"""
     columns = []
     for name, col in table.columns.items():
         dtype = col.types()
@@ -32,13 +36,13 @@ def to_sql(table):
         definition = f"{name} {dtype}"
         columns.append(definition)
 
-    create_table = create_table.format(prefix, name, ", ".join(columns))
+    create_table = create_table.format(prefix, ", ".join(columns))
 
     # return create_table
     row_inserts = []
     for row in table.rows:
         row_inserts.append(str(tuple([i if i is not None else "NULL" for i in row])))
-    row_inserts = f"INSERT INTO {prefix}{name} VALUES " + ",".join(row_inserts)
+    row_inserts = f"INSERT INTO {prefix} VALUES " + ",".join(row_inserts)
     return "begin; {}; {}; commit;".format(create_table, row_inserts)
 
 

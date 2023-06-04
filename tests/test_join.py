@@ -43,13 +43,13 @@ def do_left_join():
 
 def test_left_join_sp():
     Config.MULTIPROCESSING_MODE = Config.FALSE
-    do_left_join(False)
+    do_left_join()
     Config.MULTIPROCESSING_MODE = Config.reset()
 
 
 def test_left_join_mp():
     Config.MULTIPROCESSING_MODE = Config.FORCE
-    do_left_join(True)
+    do_left_join()
     Config.MULTIPROCESSING_MODE = Config.reset()
 
 
@@ -234,12 +234,12 @@ def do_wiki_joins():
     employees["department"] = [31, 33, 33, 34, 34, None]
     employees.show()
 
-    sql = employees.to_sql()
+    sql = employees.to_sql(name="department")
 
     con = sqlite3.connect(":memory:")
     cur = con.cursor()
     cur.executescript(sql)
-    result = cur.execute(f"select * from Table{employees.key};").fetchall()
+    result = cur.execute(f"select * from department;").fetchall()
     assert len(result) == 6
 
     departments = Table()
