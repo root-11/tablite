@@ -2,7 +2,7 @@ from tablite.base import Table
 import numpy as np
 from tablite.utils import sub_cls_check, type_check, expression_interpreter
 from tablite.mp_utils import filter_ops
-
+from tablite.datatypes import list_to_np_array
 from tqdm import tqdm as _tqdm
 
 
@@ -122,7 +122,7 @@ def filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
         else:  # it's a python evaluations (slow)
             f = filter_ops.get(expr)
             assert callable(f)
-            result = np.array([f(a, b) for a, b in zip(dset_A, dset_B)])
+            result = list_to_np_array([f(a, b) for a, b in zip(dset_A, dset_B)])
         bitmap[bit_index] = result
 
     f = np.all if filter_type == "all" else np.any
