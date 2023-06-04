@@ -27,7 +27,7 @@ def test_the_basics():
 
     # load data:
     path = pathlib.Path("tests/data/book1.csv")
-    t3 = Table.import_file(path)
+    t3 = Table.from_file(path)
 
     # to view any table use .show(). Note that show gives either
     # first and last 7 rows or the whole table if it is less than 20 rows.

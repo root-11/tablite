@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 def test_defaults():
-    tbl = Table.import_file(Path(__file__).parent / "data" / "ols.csv")
+    tbl = Table.from_file(Path(__file__).parent / "data" / "ols.csv")
     assert len(tbl) > 0, "data wasn't loaded"
     d = tbl.to_dict()  # defaults.
     for name in tbl.columns:
@@ -12,7 +12,7 @@ def test_defaults():
 
 
 def test_no_row_count():
-    tbl = Table.import_file(Path(__file__).parent / "data" / "ols.csv")
+    tbl = Table.from_file(Path(__file__).parent / "data" / "ols.csv")
     d = tbl.to_dict()
 
     for name in tbl.columns:
@@ -28,7 +28,7 @@ def test_no_row_count():
 
 
 def test_limited_columns_and_slice():
-    tbl = Table.import_file(Path(__file__).parent / "data" / "ols.csv")
+    tbl = Table.from_file(Path(__file__).parent / "data" / "ols.csv")
     columns = ["Id", "Client", "Product"]
     slcs = slice(3, 100, 9)
     d = tbl.to_dict(columns=columns, slice_=slcs)
@@ -39,7 +39,7 @@ def test_limited_columns_and_slice():
 
 
 def test_defaults_to_json_and_back():
-    tbl = Table.import_file(Path(__file__).parent / "data" / "ols.csv")
+    tbl = Table.from_file(Path(__file__).parent / "data" / "ols.csv")
     s = tbl.to_json()  # just use defaults.
     tbl2 = Table.from_json(s)
     assert all(c in tbl2.columns for c in tbl.columns)

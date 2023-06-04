@@ -57,7 +57,7 @@ def test01():
     }
 
     start = time.time()
-    t1 = Table.import_file(path, **config)
+    t1 = Table.from_file(path, **config)
     end = time.time()
     print(f"import of {rows:,} rows took {round(end-start, 4)} secs.")
     # import took 135.534 secs.
