@@ -12,11 +12,10 @@ from pathlib import Path
 from itertools import count, chain, product, repeat
 from collections import defaultdict
 
-from tablite.datatypes import DataTypes, numpy_to_python, coerce_to_pytype
+from tablite.datatypes import DataTypes, np_type_unify, numpy_to_python, coerce_to_pytype, list_to_np_array
 from tablite.utils import (
     type_check,
     intercept,
-    np_type_unify,
     dict_to_rows,
     unique_name,
     summary_statistics,
@@ -76,6 +75,9 @@ class Page(object):
     def __len__(self):
         return self.len
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.path}, {self.get()})"
+
     def __hash__(self) -> int:
         return self.id
 
@@ -114,6 +116,9 @@ class Column(object):
 
     def __len__(self):
         return sum(len(p) for p in self.pages)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.path}, {self[:]})"
 
     @staticmethod
     def _paginate(values, page_size=None):
@@ -157,6 +162,15 @@ class Column(object):
         Args:
             value (np.ndarray): data
         """
+        if isinstance(value, Column):
+            self.pages.extend(value.pages[:])
+            return
+        elif isinstance(value, np.ndarray):
+            pass
+        elif isinstance(value, (list, tuple)):
+            value = list_to_np_array(value)
+        else:
+            raise TypeError(f"Cannot extend Column with {type(value)}")
         type_check(value, np.ndarray)
         for array in self._paginate(value):
             self.pages.append(Page(path=self.path.parent, array=array))
@@ -184,6 +198,8 @@ class Column(object):
         """
         # internal function
         if isinstance(item, int):
+            if item < 0:
+                item = len(self) + item
             item = slice(item, item + 1, 1)
 
         type_check(item, slice)
@@ -260,7 +276,7 @@ class Column(object):
         if isinstance(item, int):
             if len(arr) == 0:
                 raise IndexError(f"index {item} is out of bounds for axis 0 with size {len(self)}")
-            return arr[0]
+            return numpy_to_python(arr[0])
         else:
             return arr
 
@@ -279,7 +295,7 @@ class Column(object):
 
         elif isinstance(key, slice):
             if not isinstance(value, np.ndarray):
-                value = np.array(value)
+                value = list_to_np_array(value)
             type_check(value, np.ndarray)
 
             if key.start is None and key.stop is None and key.step in (None, 1):
@@ -298,8 +314,8 @@ class Column(object):
             raise KeyError(f"bad key: {key}")
 
     def _setitem_integer_key(self, key, value):  # PRIVATE FUNCTION
-        # documentation:
-        # example: L[3] = 27
+        """handles the following case:
+        example: L[3] = 27"""
         if isinstance(value, (list, type, np.ndarray)):
             raise TypeError(
                 f"your key is an integer, but your value is a {type(value)}. \
@@ -322,9 +338,9 @@ class Column(object):
                 break
 
     def _setitem_replace_all(self, key, value):  # PRIVATE FUNCTION
-        """handles the following case:
+        """handles the following cases:
         new = list(value)
-        example: L[:] = [1,2,3]
+        L[:] = [1,2,3]
         """
         self.pages.clear()  # Page.__del__ will take care of removed pages.
         self.extend(value)  # Column.extend handles pagination.
@@ -358,9 +374,9 @@ class Column(object):
             start, end = end, end + page.len
             if start <= key.stop < end:  # find beginning
                 data = page.get()
-                keep = data[: key.stop - start]  # keeping up to key.stop
+                keep = data[(key.stop - start) :]  # keeping up to key.stop
                 new = np_type_unify([value, keep])
-                tail = self.pages[index:]  # keep pointers to pages.
+                tail = self.pages[index + 1 :]  # keep pointers to pages.
                 self.pages = []
                 self.extend(new)  # handles pagination.
                 self.pages.extend(tail)  # handles old pages.
@@ -415,7 +431,7 @@ class Column(object):
         for page in self.pages:
             start, end = end, end + page.len
 
-            if end <= key_start:
+            if end <= key_start and not changed:
                 head.append(page)
             elif start <= key_start < end:
                 changed.append(page)
@@ -476,7 +492,7 @@ class Column(object):
         start, end = 0, 0
         for page in self.pages:
             start, end = end, end + page.len
-            if key_stop < start:
+            if key_stop < start and not changed:
                 head.append(page)
             elif start <= key_start < end:
                 starts_on = start
@@ -624,7 +640,7 @@ class Column(object):
 
     def __iadd__(self, other):
         if isinstance(other, (list, tuple)):
-            other = np.array(other)
+            other = list_to_np_array(other)
             self.extend(other)
         elif isinstance(other, Column):
             self.pages.extend(other.pages[:])
@@ -649,7 +665,7 @@ class Column(object):
         type_check(values, tuple)
         if isinstance(values[0], tuple):
             values = values[0]
-        to_remove = np.array(values)
+        to_remove = list_to_np_array(values)
         for index, page in enumerate(self.pages):
             data = page.get()
             bitmask = np.isin(data, to_remove)  # identify elements to remove.
@@ -676,8 +692,8 @@ class Column(object):
             bitmask = np.isin(data, to_replace)  # identify elements to replace.
             if bitmask.any():
                 warray = np.compress(bitmask, data)
-                for ix, v in enumerate(np.nditer(warray)):
-                    warray[ix] = mapping[v.item()]
+                for ix, v in enumerate(warray):
+                    warray[ix] = mapping[numpy_to_python(v)]
                 data[bitmask] = warray
                 self.pages[index] = Page(path=self.path.parent, array=data)
 
@@ -710,6 +726,7 @@ class Column(object):
         d = defaultdict(list)
         for ix, v in enumerate(self.__iter__()):
             d[v].append(ix)
+        return dict(d)
 
     def unique(self):
         """
@@ -745,8 +762,8 @@ class Column(object):
         for page in self.pages:
             uarray, carray = np.unique(page.get(), return_counts=True)
             for i, c in zip(uarray, carray):
-                d[i] += c
-        return d
+                d[numpy_to_python(i)] += numpy_to_python(c)
+        return dict(d)
 
     def statistics(self):
         """
@@ -867,28 +884,17 @@ class Table(object):
         and the header/data combinations:
             t = Table(header=['b','c'], data=[[4,5,6],[7,8,9]])
 
-        it is no longer necessary to write:
-            t = Table
-            t['b'] = [4,5,6]
-            t['c'] = [7,8,9]
-
-        and the following assignment method is DEPRECATED:
-
-            t = Table()
-            t[('b','c')] = [ [4,5,6], [7,8,9] ]
-            Which then produced the table with two columns:
-            t['b'] == [4,5,6]
-            t['c'] == [7,8,9]
-
         This has the side-benefit that tuples now can be used as headers.
         """
         if value is None:
             self.columns[key] = Column(self.path, value=None)
+        elif isinstance(value, (list, tuple)):
+            value = list_to_np_array(value)
+            self.columns[key] = Column(self.path, value)
+        elif isinstance(value, (np.ndarray)):
+            self.columns[key] = Column(self.path, value)
         elif isinstance(value, Column):
             self.columns[key] = value
-        elif isinstance(value, (list, tuple, np.ndarray)):
-            value = np.array(value)
-            self.columns[key] = Column(self.path, value)
         else:
             raise TypeError(f"{type(value)} not supported.")
 
@@ -897,11 +903,12 @@ class Table(object):
         Enables selection of columns and rows
         Examples:
 
-            table['a']   # selects column 'a'
-            table[3]  # selects row 3 as a tuple.
-            table[:10]   # selects first 10 rows from all columns
-            table['a','b', slice(3,20,2)]  # selects a slice from columns 'a' and 'b'
-            table['b', 'a', 'a', 'c', 2:20:3]  # selects column 'b' and 'c' and 'a' twice for a slice.
+        table['a']                        selects column 'a'
+        table[3]                          selects row 3 as a tuple.
+        table[:10]                        selects first 10 rows from all columns
+        table['a','b', slice(3,20,2)]     selects a slice from columns 'a' and 'b'
+        table['b', 'a', 'a', 'c', 2:20:3] selects column 'b' and 'c' and 'a' twice for a slice.
+        table[('b', 'a', 'a', 'c')]       selects columns 'b', 'a', 'a', and 'c' using a tuple.
 
         returns values in same order as selection.
         """
@@ -971,7 +978,7 @@ class Table(object):
     @property
     def rows(self):
         """
-        enables row based iteration
+        enables row based iteration in python types.
 
         for row in Table.rows:
             print(row)
@@ -984,7 +991,7 @@ class Table(object):
             generators.append(chain(iter(column), repeat(None, times=n_max - len(column))))
 
         for _ in range(len(self)):
-            yield [next(i) for i in generators]
+            yield [numpy_to_python(next(i)) for i in generators]
 
     def __eq__(self, other) -> bool:  # USER FUNCTION.
         """
@@ -1237,14 +1244,14 @@ class Table(object):
                 # 2. extend the columns
                 for n, values in d.items():
                     col = self.columns[n]
-                    col.extend(np.array(values))
+                    col.extend(list_to_np_array(values))
 
         if kwargs:
             if isinstance(kwargs, dict):
                 if all(isinstance(v, (list, tuple)) for v in kwargs.values()):
                     for k, v in kwargs.items():
                         col = self.columns[k]
-                        col.extend(np.array(v))
+                        col.extend(list_to_np_array(v))
                 else:
                     for k, v in kwargs.items():
                         col = self.columns[k]
@@ -1313,7 +1320,7 @@ class Table(object):
             d[name] = col.types()
         return d
 
-    def display_dict(self, *args, blanks=None, dtype=False):
+    def display_dict(self, slice_=None, blanks=None, dtype=False):
         """
         param: args:
           - slice
@@ -1340,19 +1347,17 @@ class Table(object):
             if n * tag not in cols:
                 tag = n * tag
                 break
-        slc = slice(0, 20, 1) if len(self) <= 20 else None
-        if args:
-            for arg in args:
-                if isinstance(arg, slice):
-                    slc = arg
-                    break
+        if slice_ is None:
+            slc = slice(0, 20, 1) if len(self) <= 20 else None
+        elif isinstance(slice_, slice):
+            slc = slice_
 
         n = len(self)
-        if slc:
+        if slc:  # either we want slc or we want everything.
             row_no = list(range(*slc.indices(len(self))))
             data = {tag: [f"{i:,}".rjust(2) for i in row_no]}
             for name, col in self.columns.items():
-                data[name] = list(chain(iter(col), repeat(blanks, times=n - len(col))))
+                data[name] = list(chain(iter(col), repeat(blanks, times=n - len(col))))[slc]
         else:
             data = {}
             j = int(math.ceil(math.log10(n)) / 3) + len(str(n))
@@ -1379,10 +1384,11 @@ class Table(object):
 
         return data
 
-    def to_ascii(self, *args, blanks=None, dtype=False):
+    def to_ascii(self, slice_=None, blanks=None, dtype=False):
         """returns ascii view of table as string.
 
         Args:
+            slice_ (slice, optional): slice to determine table snippet.
             blanks (str, optional): value for whitespace. Defaults to None.
             dtype (bool, optional): adds subheader with datatype for column. Defaults to False.
         """
@@ -1400,7 +1406,7 @@ class Table(object):
             return str(self)
 
         d = {}
-        for name, values in self.display_dict(*args, blanks=blanks, dtype=dtype).items():
+        for name, values in self.display_dict(slice_=slice_, blanks=blanks, dtype=dtype).items():
             as_text = [str(v) for v in values] + [str(name)]
             width = max(len(i) for i in as_text)
             new_name = name.center(width, " ")
@@ -1428,24 +1434,31 @@ class Table(object):
 
         return "\n".join(s)
 
-    def show(self, *args, blanks=None, dtype=False):
+    def show(self, slice_=None, blanks=None, dtype=False):
         """prints ascii view of table.
 
         Args:
+            slice_ (slice, optional): slice to determine table snippet.
             blanks (str, optional): value for whitespace. Defaults to None.
             dtype (bool, optional): adds subheader with datatype for column. Defaults to False.
         """
-        print(self.to_ascii(*args, blanks=blanks, dtype=dtype))
+        print(self.to_ascii(slice_=slice_, blanks=blanks, dtype=dtype))
 
-    def _repr_html_(self, *args, blanks=None, dtype=False):
-        """Ipython display compatible format
+    def _repr_html_(self, slice_=None, blanks=None, dtype=False):
+        """
+        Ipython display compatible format
         https://ipython.readthedocs.io/en/stable/api/generated/IPython.display.html#IPython.display.display
+
+        Args:
+            slice_ (slice, optional): slice to determine table snippet.
+            blanks (str, optional): value for whitespace. Defaults to None.
+            dtype (bool, optional): adds subheader with datatype for column. Defaults to False.
         """
         start, end = "<div><table border=1>", "</table></div>"
 
         if not self.columns:
             return f"{start}<tr>Empty Table</tr>{end}"
-        rows = dict_to_rows(self.display_dict(*args, blanks=blanks, dtype=dtype))
+        rows = dict_to_rows(self.display_dict(slice_=slice_, blanks=blanks, dtype=dtype))
         html = "".join(["<tr>" + "".join(f"<th>{cn}</th>" for cn in row) + "</tr>" for row in rows])
 
         warning = ""
