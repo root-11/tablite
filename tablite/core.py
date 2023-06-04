@@ -305,27 +305,6 @@ class Table(BaseTable):
         """
         export_utils.to_html(self, path)
 
-    def export(self, path):
-        """
-        exports table to path in format given by path suffix
-
-        path: str or pathlib.Path
-
-        for list of supported formats, see `exporters`
-        """
-        type_check(path, Path)
-
-        ext = path.suffix[1:]  # .xlsx --> xlsx
-
-        if ext not in export_utils.exporters:
-            raise TypeError(f"{ext} not a supported formats:{export_utils.supported_formats}")
-
-        handler = export_utils.exporters.get(ext)
-        handler(table=self, path=path)
-
-        log.info(f"exported {self} to {path}")
-        print(f"exported {self} to {path}")
-
     def expression(self, expression):
         """
         filters based on an expression, such as:
