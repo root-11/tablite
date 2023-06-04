@@ -5,7 +5,6 @@ import tempfile
 import shutil
 
 from tablite import Table
-from tablite.export_utils import exporters
 
 
 def test_exporters():
@@ -32,9 +31,36 @@ def test_exporters():
         shutil.rmtree(test_dir)
     test_dir.mkdir(exist_ok=False)
 
-    for suffix in exporters:
-        path = test_dir / f"myfile.{suffix}"
-        t.export(path)
-        assert path.exists()
+    p = test_dir / "1.h5"
+    t.to_hdf5(p)
+    assert p.exists()
+
+    p = test_dir / "2.txt"
+    t.to_ascii(p)
+    assert p.exists()
+
+    p = test_dir / "3.csv"
+    t.to_csv(p)
+    assert p.exists()
+
+    d = t.to_dict()
+    assert isinstance(d, dict)
+
+    p = test_dir / "4.html"
+    t.to_html(p)
+    assert p.exists()
+
+    s = t.to_json()
+    assert s is not None
+
+    p = test_dir / "5.ods"
+    t.to_ods(p)
+    assert p.exists()
+    p = test_dir / "6.txt"
+    t.to_text(p)
+    assert p.exists()
+    p = test_dir / "7.tsv"
+    t.to_tsv(p)
+    assert p.exists()
 
     shutil.rmtree(test_dir)
