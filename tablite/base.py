@@ -1358,6 +1358,8 @@ class Table(object):
                 tag = n * tag
                 break
 
+        if not isinstance(slice_, (slice, type(None))):
+            raise TypeError(f"slice_ must be None or slice, not {type(slice_)}")
         if isinstance(slice_, slice):
             slc = slice_
         if slice_ is None:
@@ -1365,9 +1367,7 @@ class Table(object):
                 slc = slice(0, 20, 1)
             else:
                 slc = None
-        else:
-            raise TypeError(f"slice_ must be None or slice, not {type(slice_)}")
-
+            
         n = len(self)
         if slc:  # either we want slc or we want everything.
             row_no = list(range(*slc.indices(len(self))))
