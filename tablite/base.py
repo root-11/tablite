@@ -355,7 +355,7 @@ class Column(object):
             start, end = end, end + page.len
             if start <= key.start < end:  # find beginning
                 data = page.get()
-                keep = data[key.start - start :]
+                keep = data[: key.start - start]
                 new = np_type_unify([keep, value])
                 self.pages = self.pages[:index]
                 self.extend(new)
@@ -369,12 +369,19 @@ class Column(object):
         new = list(value) + old[key.stop:]
         example: L[:3] = [1,2,3]
         """
+        if key.stop == len(self):
+            self.pages = []
+            self.extend(value)
+            return
+        if key.stop < 0:
+            key = slice(*key.indices(len(self)))
+
         start, end = 0, 0
         for index, page in enumerate(self.pages):
             start, end = end, end + page.len
             if start <= key.stop < end:  # find beginning
                 data = page.get()
-                keep = data[(key.stop - start) :]  # keeping up to key.stop
+                keep = data[(key.stop - start) :]  # keeping after key.stop
                 new = np_type_unify([value, keep])
                 tail = self.pages[index + 1 :]  # keep pointers to pages.
                 self.pages = []
@@ -389,8 +396,11 @@ class Column(object):
         """
         key_start, key_stop, _ = key.indices(len(self))
         # create 3 partitions: A + B + C = head + new + tail
+        if key_start > key_stop:  # e.g. L[1:0] = [4,5]
+            key_stop = key_start
 
-        unchanged_head, unchanged_tail = [], []
+        unchanged_head, unchanged_tail = [], []  # these are full pages
+        head, tail = np.array([]), np.array([])  # these are np.arrays
         # first partition:
         start, end = 0, 0
         for page in self.pages:
