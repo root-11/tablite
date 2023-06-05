@@ -372,7 +372,7 @@ def test03_verify_slice_operator_for_multitype_datasets():
 
     L = t["A"].copy()
     L[0:] = [4, 5]  # SLICE: REPLACE L after 0 with NEW
-    assert L == [4, 5]  # <-- check that page type becomes simple!
+    assert L == [4, 5]
 
     L = t["A"].copy()
     L[:1] = [4, 5]  # SLICE: REPLACE L before 1 with NEW
@@ -384,13 +384,13 @@ def test03_verify_slice_operator_for_multitype_datasets():
 
     L = t["A"].copy()
     L[:3] = [4, 5]  # SLICE: REPLACE L before 3 with NEW
-    assert L == [4, 5]  # <-- check that page type becomes simple!
+    assert L == [4, 5]
 
     # SLICES - TWO VALUES!
     # --------------------
     L = t["A"].copy()
     L[0:1] = [4, 5]  # SLICE: DROP L between A,B (L[0]=[1]). INSERT NEW starting on 0.
-    assert L == [4, 5, 2, 3]
+    assert L == [4, 5, 2, 3.0]
 
     L = t["A"].copy()
     L[1:0] = [4, "5"]  # SLICE: DROP L between A,B (nothing). INSERT NEW starting on 1.
@@ -508,7 +508,7 @@ def test03_verify_slice_operator_for_multitype_datasets():
     assert L == [4, 2, 5]
 
     L = t["A"].copy()
-    L.append(4)
+    L.extend([4])
     del L[1:3]
     assert L == ["1", 4]
 
