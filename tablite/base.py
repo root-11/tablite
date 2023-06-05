@@ -712,7 +712,7 @@ class Column(object):
         returns dict with python datatypes: frequency of occurrence
         """
         d = defaultdict(int)
-        for page in self.pages:
+        for page in set(self.pages):
             data = page.get()
             if data.dtype == "O":
                 for i in data:
@@ -748,7 +748,7 @@ class Column(object):
         ['a','b','c']
         """
         arrays = []
-        for page in self.pages:
+        for page in set(self.pages):
             try:  # when it works, numpy is fast...
                 arrays.append(np.unique(page.get()))
             except TypeError:  # ...but np.unique cannot handle Nones.
