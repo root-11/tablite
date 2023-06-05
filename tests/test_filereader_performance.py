@@ -131,13 +131,14 @@ def test2():
 @pytest.mark.timesensitive  # to include run: pytest tests --timesensitive . See tests/conftest.py for details.
 def test3():
     start = time.process_time()
-    t = synthetic_order_data(1_000_000)
+    t = synthetic_order_data(2_000_000)
     print(f"table ready: {time.process_time()-start}")
     start = time.process_time()
-    f = t.filter([{"column1": "8", "criteria": "==", "value2": "6°"}])
+    true, false = t.filter([{"column1": "8", "criteria": "==", "value2": "6°"}])
     end = time.process_time()
-    print(f"all took {end-start}, {len(f)}")
-    print(f.to_ascii())
+    print(f"filter took {end-start}, {len(true)+len(false)}")
+    print(true.to_ascii())
+    print(false.to_ascii())
 
 
 def test4():
