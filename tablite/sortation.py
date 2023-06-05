@@ -2,7 +2,7 @@ import os
 import numpy as np
 import psutil
 from mplite import Task, TaskManager
-from tablite.mp_utils import share_mem, shared_memory, reindex_task, select_processing_method
+from tablite.mp_utils import share_mem, reindex_task, select_processing_method
 from tablite.sort_utils import modes as sort_modes
 from tablite.sort_utils import rank as sort_rank
 from tablite.base import Table, Column, Page
