@@ -663,7 +663,7 @@ class Column(object):
         determines if item is in the Column. Similar to 'x' in ['a','b','c']
         returns boolean
         """
-        for page in self.pages:
+        for page in set(self.pages):
             if item in page.get():  # x in np.ndarray([...]) uses np.any(arr, value)
                 return True
         return False
