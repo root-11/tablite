@@ -1,6 +1,6 @@
 import statistics
 from tablite.utils import intercept, summary_statistics, date_range
-from tablite.utils import expression_interpreter
+from tablite.utils import expression_interpreter, dict_to_rows, sub_cls_check
 from datetime import date, time, datetime, timedelta
 from itertools import chain
 
@@ -32,6 +32,47 @@ def test_normalize_slice():
     assert (0, 10, 1) == slice(0, None, 1).indices(10)
 
 
+def test_intercept():
+    r = range
+
+    assert intercept(r(1, 3, 1), r(0, 4, 1)) == r(1, 3, 1)
+    assert intercept(r(0, 5, 1), r(3, 7, 1)) == r(3, 5, 1)
+    assert intercept(r(3, 7, 1), r(0, 5, 1)) == r(3, 5, 1)
+    assert intercept(r(0, 1, 1), r(0, 1, 1)) == r(0, 1, 1)
+
+    assert intercept(r(4, 20, 1), r(0, 16, 2)) == r(4, 16, 2)
+    assert intercept(r(4, 20, 1), r(0, 16, 1)) == r(4, 16, 1)
+    assert intercept(r(4, 20, 3), r(0, 16, 2)) == r(4, 16, 6)
+
+    assert intercept(r(9, 0, -1), r(7, 10, 1)) == r(7, 10, 1)
+
+    slc = slice(-1, 0, -1)
+    A = r(*slc.indices(10))
+    B = r(1, 11, 1)
+    assert intercept(A, B) == r(1, 10, 1)
+
+    A = range(-5, 5, 1)
+    B = range(6, -6, -1)
+    assert intercept(A, B) == range(-5, 5, 1)
+
+
+def test_dict_to_rows():
+    d = {"A": [1, 2, 3], "B": [10, 20, 30], "C": [100, 200, 300]}
+    rows = dict_to_rows(d)
+    assert rows == [["A", "B", "C"], [1, 10, 100], [2, 20, 200], [3, 30, 300]]
+
+
+def test_subcls_check():
+    class MyList(list):
+        pass
+
+    sub_cls_check(MyList, list)
+    try:
+        sub_cls_check(MyList, int)
+    except TypeError:
+        pass
+
+
 def test_interpreter():
     s = "all((A==B, C!=4, 200<D))"
 
@@ -59,6 +100,7 @@ def test_summary_statistics_even_ints():
     assert d["mode"] == statistics.mode(L)
     assert d["distinct"] == len(V)
     low, mid, high = statistics.quantiles(L)
+    assert low < mid < high
     assert d["iqr"] == high - low
     assert d["sum"] == sum(L)
 
@@ -76,6 +118,7 @@ def test_summary_statistics_even_ints_equal():
     assert d["mode"] == statistics.mode(L)
     assert d["distinct"] == len(V)
     low, mid, high = statistics.quantiles(L, method="inclusive")
+    assert low < mid < high
     assert d["iqr"] == high - low
     assert d["sum"] == sum(L)
 
@@ -93,6 +136,7 @@ def test_summary_statistics_odd_ints():
     assert d["mode"] == statistics.mode(L)
     assert d["distinct"] == len(V)
     low, mid, high = statistics.quantiles(L, method="inclusive")
+    assert low < mid < high
     assert d["iqr"] == high - low
     assert d["sum"] == sum(L)
 
@@ -110,6 +154,7 @@ def test_summary_statistics_odd_ints_equal():
     assert d["mode"] == statistics.mode(L)
     assert d["distinct"] == len(V)
     low, mid, high = statistics.quantiles(L, method="inclusive")
+    assert low < mid < high
     assert d["iqr"] == high - low
     assert d["sum"] == sum(L)
 
@@ -127,6 +172,7 @@ def test_summary_statistics_min_data():
     assert d["mode"] == statistics.mode(L)
     assert d["distinct"] == len(V)
     low, mid, high = statistics.quantiles(L, method="inclusive")
+    assert low < mid < high
     assert d["iqr"] == high - low
     assert d["sum"] == sum(L)
 
@@ -158,6 +204,7 @@ def test_summary_statistics_even_floats():
     assert d["mode"] == statistics.mode(L)
     assert d["distinct"] == len(V)
     low, mid, high = statistics.quantiles(L)
+    assert low < mid < high
     assert d["iqr"] == high - low
     assert d["sum"] == sum(L)
 
@@ -230,9 +277,8 @@ def test_summary_statistics_mixed_types():
     assert d["stdev"] == 0.40824829046386296
     assert d["mode"] is True
     assert d["distinct"] == len(V)
-    assert (
-        d["iqr"] == 0
-    )  # iqr high = True , iqr low = True, so True-True becomes 1-1 = 0.
+    assert d["iqr"] == 0
+    # iqr high = True , iqr low = True, so True-True becomes 1-1 = 0.
     assert d["sum"] == 5
 
 
