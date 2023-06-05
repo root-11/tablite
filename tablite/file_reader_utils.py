@@ -248,7 +248,7 @@ def get_headers(path, linecount=10, delimiter=None):
                 book.close()
 
             return d
-        except Exception as e:
+        except Exception:
             pass  # it must be a raw text format.
 
     try:
