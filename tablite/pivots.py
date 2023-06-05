@@ -2,7 +2,7 @@ from collections import defaultdict
 import numpy as np
 
 from tablite.base import Table
-from tablite.utils import unique_name, sub_cls_check, dict_to_rows
+from tablite.utils import unique_name, sub_cls_check
 from tablite.groupbys import groupby
 from tablite.config import Config
 
