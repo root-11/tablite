@@ -629,9 +629,9 @@ def test06_verify_multi_key_indexing_for_tables():
     table6.show()
 
     index = table6.index("A")  # single key.
-    assert index[("Bob",)] == {1, 2}
+    assert index[("Bob",)] == [1, 2]
     index2 = table6.index("A", "B")  # multiple keys.
-    assert index2[("Bob", "Dylan")] == {2}
+    assert index2[("Bob", "Dylan")] == [2]
 
 
 def test06_verify_multikey_index_for_duplicates():
@@ -639,7 +639,7 @@ def test06_verify_multikey_index_for_duplicates():
     table7["A"] = [1, 1, 2, 2]
     table7["B"] = [1, 1, 2, 2]
     index = table7.index("A", "B")
-    assert index == {(1, 1): {0, 1}, (2, 2): {2, 3}}
+    assert index == {(1, 1): [0, 1], (2, 2): [2, 3]}
 
 
 def test_summary_statistics():

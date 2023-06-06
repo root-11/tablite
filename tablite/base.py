@@ -1568,9 +1568,9 @@ class Table(object):
          ('Albert', 'Einstein'): {6}})
 
         """
-        idx = defaultdict(set)
+        idx = defaultdict(list)
         iterators = [iter(self.columns[c]) for c in args]
         for ix, key in enumerate(zip(*iterators)):
             key = tuple(numpy_to_python(k) for k in key)
-            idx[key].add(ix)
+            idx[key].append(ix)
         return idx
