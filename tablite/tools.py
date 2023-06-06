@@ -1,11 +1,11 @@
 # tools.py is a collection of helpers inspired by Python collections.
 
-from datatypes import DataTypes, numpy_to_python, pytype
-from utils import date_range  # helper for date_ranges
-from utils import unique_name
-from utils import intercept as range_intercept
-from sort_utils import text_sort, unix_sort, excel_sort
-from file_reader_utils import detect_seperator, get_encoding, get_headers, get_delimiter
+from tablite.datatypes import DataTypes, numpy_to_python, pytype
+from tablite.utils import date_range  # helper for date_ranges
+from tablite.utils import unique_name
+from tablite.utils import intercept as range_intercept
+from tablite.sort_utils import text_sort, unix_sort, excel_sort
+from tablite.file_reader_utils import detect_seperator, get_encoding, get_headers, get_delimiter
 
 assert callable(date_range)
 
