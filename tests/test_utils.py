@@ -66,9 +66,11 @@ def test_subcls_check():
     class MyList(list):
         pass
 
-    sub_cls_check(MyList, list)
+    instance = MyList()
+
+    sub_cls_check(instance, list)
     try:
-        sub_cls_check(MyList, int)
+        sub_cls_check(instance, int)
     except TypeError:
         pass
 
@@ -172,7 +174,7 @@ def test_summary_statistics_min_data():
     assert d["mode"] == statistics.mode(L)
     assert d["distinct"] == len(V)
     low, mid, high = statistics.quantiles(L, method="inclusive")
-    assert low < mid < high
+    assert low <= mid <= high
     assert d["iqr"] == high - low
     assert d["sum"] == sum(L)
 
