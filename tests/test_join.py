@@ -430,5 +430,5 @@ def test_wiki_joins_sp():
 
 def test_wiki_joins_mp():
     Config.MULTIPROCESSING_MODE = Config.FORCE
-    do_wiki_joins(True)
+    do_wiki_joins()
     Config.MULTIPROCESSING_MODE = Config.reset()
