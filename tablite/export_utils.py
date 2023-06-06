@@ -71,12 +71,13 @@ def to_hdf5(table, path):
     print(f"writing {total} records to {path}")
 
     with h5py.File(path, "a") as f:
-        with tqdm(total=len(table.columns), unit="columns") as pbar:
-            n = 0
-            for name, col in table.items():
+        n = 0
+        for name, col in table.items():
+            try:
                 f.create_dataset(name, data=col[:])  # stored in hdf5 as '/name'
-                n += 1
-                pbar.update(n)
+            except TypeError:
+                f.create_dataset(name, data=[str(i) for i in col[:]])  # stored in hdf5 as '/name'
+            n += 1
     print(f"writing {path} to HDF5 done")
 
 
