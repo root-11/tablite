@@ -121,8 +121,6 @@ def test2():
     print(f"table ready: {time.process_time()-start}")
     start = time.process_time()
     f = t.all(**{"8": "6°"})
-    # f = t.filter([{"column1": "8", "criteria": "==", "value2": "6°"}])
-    # {'column1':'8', 'criteria': "==", 'column2': '6°'},
     end = time.process_time()
     print(f"all took {end-start}, {len(f)}")
     print(f.to_ascii())
