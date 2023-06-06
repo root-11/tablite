@@ -1,8 +1,5 @@
 from tablite import Table
 import pytest
-import random
-
-random.seed(456)
 
 
 @pytest.fixture(autouse=True)  # this resets the HDF5 file for every test.
