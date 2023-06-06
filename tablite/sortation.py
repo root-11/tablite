@@ -95,6 +95,8 @@ def _sp_reindex(T, index):
 
 def _mp_reindex(T, index):
     assert isinstance(index, np.ndarray)
+    return _sp_reindex(T, index)
+
     index, shm = share_mem(index, dtype=index.dtype)
     # shm = shared_memory.SharedMemory(create=True, size=index.nbytes)  # the co_processors will read this.
     # sort_index = np.ndarray(index.shape, dtype=index.dtype, buffer=shm.buf)
