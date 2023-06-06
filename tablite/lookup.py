@@ -22,11 +22,11 @@ def lookup(T, other, *criteria, all=True, tqdm=_tqdm):
     RIGHT must be a value that the OPERATOR can compare.
 
     Examples:
-            ('column A', "==", 'column B')  # comparison of two columns
-            ('Date', "<", DataTypes.date(24,12) )  # value from column 'Date' is before 24/12.
-            f = lambda L,R: all( ord(L) < ord(R) )  # uses custom function.
-            ('text 1', f, 'text 2')
-            value from column 'text 1' is compared with value from column 'text 2'
+        ('column A', "==", 'column B')         comparison of two columns
+        ('Date', "<", DataTypes.date(24,12) )  value from column 'Date' is before 24/12.
+        f = lambda L,R: all( ord(L) < ord(R) ) uses custom function.
+        ('text 1', f, 'text 2')
+        value from column 'text 1' is compared with value from column 'text 2'
     """
     sub_cls_check(T, Table)
     sub_cls_check(other, Table)
@@ -115,8 +115,10 @@ def _sp_lookup(T, other, index):
 
 
 def _mp_lookup(T, other, index):
+    return _sp_lookup(T,other,index)
+
     result = T.copy()
-    cpus = max(psutil.cpu_count(logical=False), 1)
+    cpus = 1# max(psutil.cpu_count(logical=False), 1)
     step_size = math.ceil(len(T) / cpus)
 
     with TaskManager(cpu_count=cpus) as tm:  # keeps the CPU pool alive during the whole join.
@@ -129,7 +131,7 @@ def _mp_lookup(T, other, index):
             data = other[name][:]
             # TODO         ^---- determine how much memory is free and then decide
             # either to mmap the source or keep it in RAM.
-
+            data = np.array([str(v) for v in data])
             data, data_shm = share_mem(data, data.dtype)  # <-- this is source
             destination, dest_shm = share_mem(np.ndarray(shape=data.shape), data.dtype)  # <--this is destination.
 
