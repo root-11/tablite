@@ -436,6 +436,12 @@ def text_reader(
                     seen.add(unseen_name)
             fields = {ix: name for ix, name in new_fields.items() if name in columns}
 
+        if not fields:
+            if columns is not None:
+                raise ValueError(f"Columns not found: {columns}")
+            else:
+                raise ValueError("No columns?")
+
         tasks = math.ceil(newlines / Config.PAGE_SIZE) * len(fields)
 
         task_config = TRconfig(
