@@ -81,7 +81,7 @@ class Page(object):
                         ">>> from tablite.config import Config",
                         ">>> Config.DISK_LIMIT = 0",
                         "To free space, clean up Config.workdir:",
-                        f"{Config.workdir}"
+                        f"{Config.workdir}",
                     ]
                 )
                 raise OSError(msg)
@@ -106,9 +106,10 @@ class Page(object):
         data stored on disk, the space on disk must be freed up as well.
         This __del__ override assures the cleanup of stored data.
         """
-        if self.path.exists():
-            os.remove(self.path)
-        log.debug(f"Page deleted: {self.path}")
+        if f"pid-{os.getpid()}" in self.path.parts:
+            if self.path.exists():
+                os.remove(self.path)
+            log.debug(f"Page deleted: {self.path}")
 
     def get(self):
         """loads stored data
@@ -171,7 +172,7 @@ class Column(object):
         for _ in range(0, len(self) + 1, Config.PAGE_SIZE):
             start, end = end, end + Config.PAGE_SIZE
             array = self[slice(start, end, step=1)]
-            new_pages.extend(Page(self.path.parent, array))
+            new_pages.extend(Page(self.path, array))
         self.pages = new_pages
 
     def extend(self, value):  # USER FUNCTION.
@@ -191,7 +192,7 @@ class Column(object):
             raise TypeError(f"Cannot extend Column with {type(value)}")
         type_check(value, np.ndarray)
         for array in self._paginate(value):
-            self.pages.append(Page(path=self.path.parent, array=array))
+            self.pages.append(Page(path=self.path, array=array))
 
     def clear(self):
         """
@@ -351,7 +352,7 @@ class Column(object):
             if start <= key < end:
                 data = page.get()
                 data[key - start] = value
-                new_page = Page(self.path.parent, data)
+                new_page = Page(self.path, data)
                 self.pages[index] = new_page
                 break
 
@@ -379,7 +380,7 @@ class Column(object):
                 self.extend(new)
                 break
         else:
-            new = Page(self.path.parent, value)
+            new = Page(self.path, value)
             self.pages.append(new)
 
     def _setitem_prextend(self, key, value):  # PRIVATE FUNCTION
@@ -439,7 +440,7 @@ class Column(object):
                 unchanged_tail.append(page)
 
         new_middle = np_type_unify([head, value, tail])
-        new_pages = [Page(self.path.parent, arr) for arr in self._paginate(new_middle)]
+        new_pages = [Page(self.path, arr) for arr in self._paginate(new_middle)]
         self.pages = unchanged_head + new_pages + unchanged_tail
 
     def _setitem_update(self, key, value):
@@ -475,7 +476,7 @@ class Column(object):
 
         for index, val in zip(range(key_start, key_stop, key_step), value):
             new[index - starts_on] = val
-        new_pages = [Page(self.path.parent, arr) for arr in self._paginate(new)]
+        new_pages = [Page(self.path, arr) for arr in self._paginate(new)]
         # merge.
         self.pages = head + new_pages + tail
 
@@ -537,7 +538,7 @@ class Column(object):
         filter = [i - starts_on for i in seq]
         pruned = np.delete(new, filter)
         new_arrays = self._paginate(pruned)
-        self.pages = head + [Page(self.path.parent, arr) for arr in new_arrays] + tail
+        self.pages = head + [Page(self.path, arr) for arr in new_arrays] + tail
 
     def __iter__(self):  # USER FUNCTION.
         for page in self.pages:
@@ -700,7 +701,7 @@ class Column(object):
             if bitmask.any():
                 bitmask = np.invert(bitmask)  # turn bitmask around to keep.
                 new_data = np.compress(bitmask, data)
-                new_page = Page(self.path.parent, new_data)
+                new_page = Page(self.path, new_data)
                 self.pages[index] = new_page
 
     def replace(self, mapping):
@@ -723,7 +724,7 @@ class Column(object):
                 for ix, v in enumerate(warray):
                     warray[ix] = mapping[numpy_to_python(v)]
                 data[bitmask] = warray
-                self.pages[index] = Page(path=self.path.parent, array=data)
+                self.pages[index] = Page(path=self.path, array=data)
 
     def types(self):
         """
@@ -856,7 +857,7 @@ class Table(object):
                     (self._pid_dir / "pages").mkdir()
                 register(self._pid_dir)
 
-            _path = Path(self._pid_dir) / f"{next(self._ids)}.yml"
+            _path = Path(self._pid_dir)
             # if path exists under the given PID it will be overwritten.
             # this can only happen if the process previously was SIGKILLed.
         type_check(_path, Path)
@@ -882,17 +883,22 @@ class Table(object):
     def __repr__(self):
         return self.__str__()
 
-    def nbytes(self):
+    def nbytes(self):  # USER FUNCTION.
         """finds the total bytes of the table on disk
 
         Returns:
-            int: bytes used
+            tuple:
+                int: real bytes used on disk
+                int: total bytes used if flattened
         """
+        real = {}
         total = 0
         for column in self.columns.values():
+            for page in set(column.pages):
+                real[page] = page.path.stat().st_size
             for page in column.pages:
-                total += page.path.stat().st_size
-        return total
+                total += real[page]
+        return sum(real.values()), total
 
     def items(self):  # USER FUNCTION.
         """returns table as dict."""
