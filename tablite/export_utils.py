@@ -119,6 +119,12 @@ def to_json(table, *args, **kwargs):
     return json.dumps(table.as_json_serializable())
 
 
+def path_suffix_check(path, kind):
+    if not path.suffix == kind:
+        raise ValueError(f"Suffix mismatch: Expected {kind}, got {path.suffix} in {path.name}")
+    if not path.parent.exists():
+        raise FileNotFoundError(f"directory {path.parent} not found.")
+
 def text_writer(table, path, tqdm=_tqdm):
     """exports table to csv, tsv or txt dependening on path suffix.
     follows the JSON norm. text escape is ON for all strings.
