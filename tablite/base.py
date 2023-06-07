@@ -882,6 +882,18 @@ class Table(object):
     def __repr__(self):
         return self.__str__()
 
+    def nbytes(self):
+        """finds the total bytes of the table on disk
+
+        Returns:
+            int: bytes used
+        """
+        total = 0
+        for column in self.columns.values():
+            for page in column.pages:
+                total += page.path.stat().st_size
+        return total
+
     def items(self):  # USER FUNCTION.
         """returns table as dict."""
         return {name: column[:].tolist() for name, column in self.columns.items()}.items()
