@@ -68,6 +68,24 @@ class Page(object):
 
         type_check(array, np.ndarray)
 
+        if Config.DISK_LIMIT <= 0:
+            pass
+        else:
+            _, _, free = shutil.disk_usage(path)
+            if free - array.nbytes < Config.DISK_LIMIT:
+                msg = "\n".join(
+                    [
+                        f"Disk limit reached: Config.DISK_LIMIT = {Config.DISK_LIMIT:,} bytes.",
+                        f"array requires {array.nbytes:,} bytes, but only {free:,} bytes are free.",
+                        "To disable this check, use:",
+                        ">>> from tablite.config import Config",
+                        ">>> Config.DISK_LIMIT = 0",
+                        "To free space, clean up Config.workdir:",
+                        f"{Config.workdir}"
+                    ]
+                )
+                raise OSError(msg)
+
         self.len = len(array)
         np.save(self.path, array, allow_pickle=True, fix_imports=False)
         log.debug(f"Page saved: {self.path}")
@@ -835,9 +853,7 @@ class Table(object):
                 self._pid_dir = Path(Config.workdir) / f"pid-{os.getpid()}"
                 if not self._pid_dir.exists():
                     self._pid_dir.mkdir()
-                    (self._pid_dir / "tables").mkdir()  # NOT USED.
                     (self._pid_dir / "pages").mkdir()
-                    (self._pid_dir / "index").mkdir()  # NOT USED.
                 register(self._pid_dir)
 
             _path = Path(self._pid_dir) / f"{next(self._ids)}.yml"
