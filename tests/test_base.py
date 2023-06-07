@@ -98,7 +98,6 @@ def test_cleaup():
     t = Table(columns=data)
     assert isinstance(t, Table)
     _folder = t._pid_dir
-    
 
     del t
     import gc
@@ -107,7 +106,6 @@ def test_cleaup():
         pass
 
     assert _folder.exists()  # should be there until sigint.
-    
 
 
 def save_and_load():
