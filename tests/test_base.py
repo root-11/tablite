@@ -1,4 +1,4 @@
-from tablite.base import Table, Column, Page
+from tablite.base import Table, Column
 from tablite.config import Config
 import numpy as np
 from pathlib import Path
