@@ -273,36 +273,42 @@ class Table(BaseTable):
         """
         exports table to path
         """
+        export_utils.path_suffix_check(path, '.xls')
         export_utils.excel_writer(self, path)
 
     def to_ods(self, path):
         """
         exports table to path
         """
+        export_utils.path_suffix_check(path, '.ods')
         export_utils.excel_writer(self, path)
 
     def to_csv(self, path):
         """
         exports table to path
         """
+        export_utils.path_suffix_check(path, '.csv')
         export_utils.text_writer(self, path)
 
     def to_tsv(self, path):
         """
         exports table to path
         """
+        export_utils.path_suffix_check(path, '.tsv')
         export_utils.text_writer(self, path)
 
     def to_text(self, path):
         """
         exports table to path
         """
+        export_utils.path_suffix_check(path, '.txt')
         export_utils.text_writer(self, path)
 
     def to_html(self, path):
         """
         exports table to path
         """
+        export_utils.path_suffix_check(path, '.html')
         export_utils.to_html(self, path)
 
     def expression(self, expression):
