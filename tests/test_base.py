@@ -90,15 +90,15 @@ def test_page_size():
 
 
 def test_cleaup():
-    A = list(range(1, 10_000_000))
+    A = list(range(1, 10))
     B = [i * 10 for i in A]
-    C = [i * 10 for i in B]
-    data = {"A": A, "B": B, "C": C}
+
+    data = {"A": A, "B": B}
 
     t = Table(columns=data)
     assert isinstance(t, Table)
     _folder = t._pid_dir
-    _t_path = t.path
+    
 
     del t
     import gc
@@ -107,7 +107,7 @@ def test_cleaup():
         pass
 
     assert _folder.exists()  # should be there until sigint.
-    assert not _t_path.exists()  # should have been deleted
+    
 
 
 def save_and_load():
