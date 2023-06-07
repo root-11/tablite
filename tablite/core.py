@@ -273,42 +273,42 @@ class Table(BaseTable):
         """
         exports table to path
         """
-        export_utils.path_suffix_check(path, '.xls')
+        export_utils.path_suffix_check(path, ".xls")
         export_utils.excel_writer(self, path)
 
     def to_ods(self, path):
         """
         exports table to path
         """
-        export_utils.path_suffix_check(path, '.ods')
+        export_utils.path_suffix_check(path, ".ods")
         export_utils.excel_writer(self, path)
 
     def to_csv(self, path):
         """
         exports table to path
         """
-        export_utils.path_suffix_check(path, '.csv')
+        export_utils.path_suffix_check(path, ".csv")
         export_utils.text_writer(self, path)
 
     def to_tsv(self, path):
         """
         exports table to path
         """
-        export_utils.path_suffix_check(path, '.tsv')
+        export_utils.path_suffix_check(path, ".tsv")
         export_utils.text_writer(self, path)
 
     def to_text(self, path):
         """
         exports table to path
         """
-        export_utils.path_suffix_check(path, '.txt')
+        export_utils.path_suffix_check(path, ".txt")
         export_utils.text_writer(self, path)
 
     def to_html(self, path):
         """
         exports table to path
         """
-        export_utils.path_suffix_check(path, '.html')
+        export_utils.path_suffix_check(path, ".html")
         export_utils.to_html(self, path)
 
     def expression(self, expression):
@@ -354,7 +354,7 @@ class Table(BaseTable):
         param: sort_mode: str: "alphanumeric", "unix", or, "excel" (default)
         param: **kwargs: sort criteria. See Table.sort()
         """
-        return sortation.sort_index(self, sort_mode, tqdm=_tqdm, pbar=None, **kwargs)
+        return sortation.sort_index(self, sort_mode, tqdm=tqdm, pbar=pbar, **kwargs)
 
     def reindex(self, index):
         """
@@ -570,7 +570,7 @@ class Table(BaseTable):
             https://github.com/root-11/tablite/blob/master/tests/test_groupby.py
 
         """
-        return groupbys.groupby(self, keys, functions, tqdm=_tqdm, pbar=None)
+        return groupbys.groupby(self, keys, functions, tqdm=tqdm, pbar=pbar)
 
     def pivot(self, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=None):
         """
@@ -614,7 +614,7 @@ class Table(BaseTable):
         # +===+===+========+=====+=====+=====+
 
         """
-        return pivots.pivot(self, rows, columns, functions, values_as_rows, tqdm=_tqdm, pbar=None)
+        return pivots.pivot(self, rows, columns, functions, values_as_rows, tqdm=tqdm, pbar=pbar)
 
     def join(self, other, left_keys, right_keys, left_columns, right_columns, kind="inner", tqdm=_tqdm, pbar=None):
         """
@@ -646,7 +646,7 @@ class Table(BaseTable):
             letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter']
         )
         """
-        return joins.left_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=_tqdm, pbar=None)
+        return joins.left_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
     def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
         """
@@ -662,7 +662,7 @@ class Table(BaseTable):
             letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter']
             )
         """
-        return joins.inner_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=_tqdm, pbar=None)
+        return joins.inner_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
     def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
         """
@@ -678,7 +678,7 @@ class Table(BaseTable):
             letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter']
             )
         """
-        return joins.outer_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=_tqdm, pbar=None)
+        return joins.outer_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
     def cross_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
         """
@@ -686,7 +686,7 @@ class Table(BaseTable):
         In other words, it will produce rows which combine each row from the first table
         with each row from the second table
         """
-        return joins.cross_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=_tqdm, pbar=None)
+        return joins.cross_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
     def lookup(self, other, *criteria, all=True, tqdm=_tqdm):
         """function for looking up values in `other` according to criteria in ascending order.
@@ -758,7 +758,7 @@ class Table(BaseTable):
         Returns:
             table: table with replaced values.
         """
-        return imputation.imputation(self, targets, missing, method, sources, tqdm=_tqdm)
+        return imputation.imputation(self, targets, missing, method, sources, tqdm=tqdm)
 
     def transpose(self, tqdm=_tqdm):
         return pivots.transpose(self, tqdm)
@@ -795,7 +795,7 @@ class Table(BaseTable):
         |1244| 2445| 4456| mon      |     7|
 
         """
-        return pivots.pivot_transpose(self, columns, keep, column_name, value_name, tqdm=_tqdm)
+        return pivots.pivot_transpose(self, columns, keep, column_name, value_name, tqdm=tqdm)
 
     def diff(self, other, columns=None):
         """compares table self with table other
