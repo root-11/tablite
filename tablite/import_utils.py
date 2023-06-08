@@ -55,13 +55,12 @@ def from_pandas(T, df):
     return T(columns=df.to_dict("list"))  # noqa
 
 
-def from_hdf5(T, path):
+def from_hdf5(T, path, tqdm=_tqdm, pbar=None):
     """
     imports an exported hdf5 table.
     """
     if not issubclass(T, Table):
         raise TypeError("Expected subclass of Table")
-
     import h5py
 
     type_check(path, Path)
@@ -86,6 +85,58 @@ def from_json(T, jsn):
     type_check(jsn, str)
     d = json.loads(jsn)
     return T(columns=d["columns"])
+
+
+def from_html(T, path, tqdm=_tqdm, pbar=None):
+    if not issubclass(T, Table):
+        raise TypeError("Expected subclass of Table")
+    type_check(path, Path)
+
+    if pbar is None:
+        total = path.stat().st_size
+        pbar = tqdm(total=total, desc="from_html")
+
+    row_start, row_end = "<tr>", "</tr>"
+    value_start, value_end = "<th>", "</th>"
+    chunk = ""
+    t = None  # will be T()
+    start, end = 0, 0
+    data = {}
+    with path.open("r") as fi:
+        while True:
+            start = chunk.find(row_start, start)  # row tag start
+            end = chunk.find(row_end, end)  # row tag end
+            if start == -1 or end == -1:
+                new = fi.read(100_000)
+                pbar.update(len(new))
+                if new == "":
+                    break
+                chunk += new
+                continue
+            # get indices from chunk
+            row = chunk[start + len(row_start) : end]
+            fields = [v.rstrip(value_end) for v in row.split(value_start)]
+            if not data:
+                headers = fields[:]
+                data = {f: [] for f in headers}
+                continue
+            else:
+                for field, header in zip(fields, headers):
+                    data[header].append(field)
+
+            chunk = chunk[end + len(row_end) :]
+
+            if len(data[headers[0]]) == Config.PAGE_SIZE:
+                if t is None:
+                    t = T(columns=data)
+                else:
+                    for k, v in data.items():
+                        t[k].extend(DataTypes.guess(v))
+                data = {f: [] for f in headers}
+
+    for k, v in data.items():
+        t[k].extend(DataTypes.guess(v))
+    return t
 
 
 def excel_reader(T, path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
@@ -505,6 +556,7 @@ def text_reader(
                 if err is not None:
                     raise Exception(err)
                 pbar.update(dump_size)
+                
         else:
             with TaskManager(cpus_needed) as tm:
                 errors = tm.execute(tasks, pbar=PatchTqdm())  # I expects a list of None's if everything is ok.
@@ -533,7 +585,8 @@ def text_reader(
 file_readers = {  # dict of file formats and functions used during Table.import_file
     "fods": excel_reader,
     "json": excel_reader,
-    "html": excel_reader,
+    "html": from_html,
+    "hdf5": from_hdf5,
     "simple": excel_reader,
     "rst": excel_reader,
     "mediawiki": excel_reader,
