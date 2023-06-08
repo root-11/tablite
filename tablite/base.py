@@ -171,8 +171,8 @@ class Column(object):
         start, end = 0, 0
         for _ in range(0, len(self) + 1, Config.PAGE_SIZE):
             start, end = end, end + Config.PAGE_SIZE
-            array = self[slice(start, end, step=1)]
-            new_pages.extend(Page(self.path, array))
+            array = self[slice(start, end, 1)]
+            new_pages.append(Page(self.path, array))
         self.pages = new_pages
 
     def extend(self, value):  # USER FUNCTION.
