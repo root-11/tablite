@@ -89,13 +89,11 @@ def groupby(T, keys, functions, tqdm=_tqdm, pbar=None):  # TODO: This is single 
     if not isinstance(keys, list):
         raise TypeError("expected keys as a list of column names")
 
-    if not keys:
-        raise ValueError("Keys missing.")
-
-    if len(set(keys)) != len(keys):
-        duplicates = [k for k in keys if keys.count(k) > 1]
-        s = "" if len(duplicates) > 1 else "s"
-        raise ValueError(f"duplicate key{s} found across rows and columns: {duplicates}")
+    if keys:
+        if len(set(keys)) != len(keys):
+            duplicates = [k for k in keys if keys.count(k) > 1]
+            s = "" if len(duplicates) > 1 else "s"
+            raise ValueError(f"duplicate key{s} found across rows and columns: {duplicates}")
 
     if not isinstance(functions, list):
         raise TypeError(f"Expected functions to be a list of tuples. Got {type(functions)}")
