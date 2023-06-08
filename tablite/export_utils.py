@@ -76,7 +76,9 @@ def to_hdf5(table, path):
             try:
                 f.create_dataset(name, data=col[:])  # stored in hdf5 as '/name'
             except TypeError:
-                f.create_dataset(name, data=[str(i) for i in col[:]])  # stored in hdf5 as '/name'
+                f.create_dataset(
+                    name, data=[str(i) for i in col[:]]
+                )  # stored in hdf5 as '/name'
             n += 1
     print(f"writing {path} to HDF5 done")
 
@@ -105,7 +107,12 @@ def excel_writer(table, path):
     data = list(gen(table))
     if path.suffix in [".xls", ".ods"]:
         data = [
-            [str(v) if (isinstance(v, (int, float)) and abs(v) > 2**32 - 1) else DataTypes.to_json(v) for v in row]
+            [
+                str(v)
+                if (isinstance(v, (int, float)) and abs(v) > 2**32 - 1)
+                else DataTypes.to_json(v)
+                for v in row
+            ]
             for row in data
         ]
 
@@ -121,9 +128,12 @@ def to_json(table, *args, **kwargs):
 
 def path_suffix_check(path, kind):
     if not path.suffix == kind:
-        raise ValueError(f"Suffix mismatch: Expected {kind}, got {path.suffix} in {path.name}")
+        raise ValueError(
+            f"Suffix mismatch: Expected {kind}, got {path.suffix} in {path.name}"
+        )
     if not path.parent.exists():
         raise FileNotFoundError(f"directory {path.parent} not found.")
+
 
 def text_writer(table, path, tqdm=_tqdm):
     """exports table to csv, tsv or txt dependening on path suffix.
@@ -150,7 +160,9 @@ def text_writer(table, path, tqdm=_tqdm):
             # else:
             return value  # this would for example be an empty string: ""
         else:
-            return str(DataTypes.to_json(value))  # this handles datetimes, timedelta, etc.
+            return str(
+                DataTypes.to_json(value)
+            )  # this handles datetimes, timedelta, etc.
 
     delimiters = {".csv": ",", ".tsv": "\t", ".txt": "|"}
     delimiter = delimiters.get(path.suffix)
@@ -186,4 +198,3 @@ def to_html(table, path):
     type_check(path, Path)
     with path.open("w", encoding="utf-8") as fo:
         fo.write(table._repr_html_())
-
