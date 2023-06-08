@@ -241,7 +241,7 @@ class Table(BaseTable):
     @classmethod
     def from_json(cls, jsn):
         """
-        Imports tables exported using .to_json
+        Imports table exported using .to_json
         """
         return import_utils.from_json(cls, jsn)
 
