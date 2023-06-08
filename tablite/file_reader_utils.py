@@ -276,9 +276,7 @@ def get_headers(path, linecount=10, delimiter=None):
 
 
 def get_encoding(path, nbytes=ENCODING_GUESS_BYTES):
-    size = path.stat().st_size
-    if nbytes > size:
-        nbytes = size
+    nbytes = min(nbytes, path.stat().st_size)
     with path.open("rb") as fi:
         rawdata = fi.read(nbytes)
         encoding = chardet.detect(rawdata)["encoding"]
