@@ -12,7 +12,7 @@ from mplite import TaskManager, Task
 
 from tablite.datatypes import DataTypes, list_to_np_array
 from tablite.config import Config
-from tablite.file_reader_utils import TextEscape, get_encoding, get_delimiter
+from tablite.file_reader_utils import TextEscape, get_encoding, get_delimiter, ENCODING_GUESS_BYTES
 from tablite.utils import type_check, unique_name, sub_cls_check
 from tablite.base import Table, Page, Column
 
@@ -69,6 +69,8 @@ def from_hdf5(T, path):
     with h5py.File(path, "r") as h5:
         for col_name in h5.keys():
             dset = h5[col_name]
+            if dset.dtype == str:
+                dset = np.array(DataTypes.guess(dset[:]))
             t[col_name] = dset[:]
     return t
 
@@ -257,7 +259,6 @@ def text_reader_task(
     text_escape_openings: str: default: "({[
     text_escape_closures: str: default: ]})"
     strip_leading_and_tailing_whitespace: bool
-
     encoding: chardet encoding ('utf-8, 'ascii', ..., 'ISO-22022-CN')
     """
     if isinstance(source, str):
@@ -281,7 +282,7 @@ def text_reader_task(
         strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
     )
     values = []
-    with source.open("r", encoding=encoding) as fi:  # --READ
+    with source.open("r", encoding=encoding, errors='ignore') as fi:  # --READ
         for ix, line in enumerate(fi):
             if ix < start:
                 continue
@@ -332,7 +333,7 @@ def text_reader(
         return T()  # NO DATA: EMPTY TABLE.
 
     if encoding is None:
-        encoding = get_encoding(path, nbytes=path.stat().st_size)
+        encoding = get_encoding(path, nbytes=ENCODING_GUESS_BYTES)
 
     if delimiter is None:
         try:
