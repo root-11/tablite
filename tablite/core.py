@@ -269,11 +269,11 @@ class Table(BaseTable):
         """
         return export_utils.to_json(self)
 
-    def to_xls(self, path):
+    def to_xlsx(self, path):
         """
         exports table to path
         """
-        export_utils.path_suffix_check(path, ".xls")
+        export_utils.path_suffix_check(path, ".xlsx")
         export_utils.excel_writer(self, path)
 
     def to_ods(self, path):
