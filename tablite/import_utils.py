@@ -13,7 +13,7 @@ from mplite import TaskManager, Task
 from tablite.datatypes import DataTypes, list_to_np_array
 from tablite.config import Config
 from tablite.file_reader_utils import TextEscape, get_encoding, get_delimiter, ENCODING_GUESS_BYTES
-from tablite.utils import type_check, unique_name, sub_cls_check
+from tablite.utils import type_check, unique_name
 from tablite.base import Table, Page, Column
 
 from tqdm import tqdm as _tqdm
@@ -282,7 +282,7 @@ def text_reader_task(
         strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
     )
     values = []
-    with source.open("r", encoding=encoding, errors='ignore') as fi:  # --READ
+    with source.open("r", encoding=encoding, errors="ignore") as fi:  # --READ
         for ix, line in enumerate(fi):
             if ix < start:
                 continue
