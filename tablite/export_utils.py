@@ -70,15 +70,13 @@ def to_hdf5(table, path):
     total = ":,".format(len(table.columns) * len(table))  # noqa
     print(f"writing {total} records to {path}")
 
-    with h5py.File(path, "a") as f:
+    with h5py.File(path, "w") as f:
         n = 0
         for name, col in table.items():
             try:
                 f.create_dataset(name, data=col[:])  # stored in hdf5 as '/name'
             except TypeError:
-                f.create_dataset(
-                    name, data=[str(i) for i in col[:]]
-                )  # stored in hdf5 as '/name'
+                f.create_dataset(name, data=[str(i) for i in col[:]])  # stored in hdf5 as '/name'
             n += 1
     print(f"writing {path} to HDF5 done")
 
@@ -107,12 +105,7 @@ def excel_writer(table, path):
     data = list(gen(table))
     if path.suffix in [".xls", ".ods"]:
         data = [
-            [
-                str(v)
-                if (isinstance(v, (int, float)) and abs(v) > 2**32 - 1)
-                else DataTypes.to_json(v)
-                for v in row
-            ]
+            [str(v) if (isinstance(v, (int, float)) and abs(v) > 2**32 - 1) else DataTypes.to_json(v) for v in row]
             for row in data
         ]
 
@@ -128,9 +121,7 @@ def to_json(table, *args, **kwargs):
 
 def path_suffix_check(path, kind):
     if not path.suffix == kind:
-        raise ValueError(
-            f"Suffix mismatch: Expected {kind}, got {path.suffix} in {path.name}"
-        )
+        raise ValueError(f"Suffix mismatch: Expected {kind}, got {path.suffix} in {path.name}")
     if not path.parent.exists():
         raise FileNotFoundError(f"directory {path.parent} not found.")
 
@@ -160,9 +151,7 @@ def text_writer(table, path, tqdm=_tqdm):
             # else:
             return value  # this would for example be an empty string: ""
         else:
-            return str(
-                DataTypes.to_json(value)
-            )  # this handles datetimes, timedelta, etc.
+            return str(DataTypes.to_json(value))  # this handles datetimes, timedelta, etc.
 
     delimiters = {".csv": ",", ".tsv": "\t", ".txt": "|"}
     delimiter = delimiters.get(path.suffix)
@@ -187,14 +176,8 @@ def json_writer(table, path):
         fo.write(to_json(table))
 
 
-def h5_writer(table, path):
-    type_check(table, Table)
-    type_check(path, Path)
-    to_hdf5(table, path)
-
-
 def to_html(table, path):
     type_check(table, Table)
     type_check(path, Path)
     with path.open("w", encoding="utf-8") as fo:
-        fo.write(table._repr_html_())
+        fo.write(table._repr_html_(slice(0, len(table))))
