@@ -96,7 +96,8 @@ class Table(BaseTable):
             True: (default) first row is used as column names.
             False: integers are used as column names.
 
-        encoding: str. Defaults to None (autodetect)
+        encoding: str. Defaults to None (autodetect using n bytes).
+            n is declared in filereader_utils as ENCODING_GUESS_BYTES
 
         start: the first line to be read (default: 0)
 
