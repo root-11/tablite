@@ -93,11 +93,13 @@ def test_groupby_missing_args():
     except ValueError:
         assert True
 
-    try:
-        _ = t.groupby(keys=[], functions=[("A", gb.count)])  # value error
-        assert False, "the line above should raise ValueError"
-    except ValueError:
-        assert True
+    g0 = t.groupby(keys=[], functions=[("A", gb.sum)])
+    # +==+======+
+    # |# |Sum(A)|
+    # +--+------+
+    # | 0|    24|
+    # +==+======+
+    assert g0["Sum(A)"] == [sum(t["A"])]
 
     g1 = t.groupby(keys=["A"], functions=[])  # list of unique values
     assert g1["A"] == [1, 2, 3]
@@ -149,6 +151,14 @@ def test_groupby_w_pivot():
     # |4  |  3|  2|    10|
     # |5  |  3|  1|    12|
     # +===+===+===+======+
+
+    g2 = t.groupby(keys=[], functions=[("B", gb.sum)])
+    g2.show()
+    # +==+======+
+    # |# |Sum(B)|
+    # +--+------+
+    # | 0|    42|
+    # +==+======+
 
     t2 = t.pivot(rows=["C"], columns=["A"], functions=[("B", gb.sum)])
     t2.show()
