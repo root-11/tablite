@@ -35,7 +35,7 @@ class Config(object):
 
     PAGE_SIZE = 1_000_000  # sets the page size limit.
     ENCODING = "UTF-8"  # sets the page encoding when using bytes
-    
+
     DISK_LIMIT = int(10e9)  # 10e9 (10Gb) on 100 Gb disk means raise at
     # 90 Gb disk usage.
     # if DISK_LIMIT <= 0, the check is turned off.
