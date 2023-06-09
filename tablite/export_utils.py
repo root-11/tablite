@@ -90,7 +90,7 @@ def to_hdf5(table, path):
     type_check(path, Path)
 
     total = f"{len(table.columns) * len(table):,}"  # noqa
-    print(f"writing {total} records to {path}")
+    print(f"writing {total} records to {path}", end="")
 
     with h5py.File(path, "w") as f:
         n = 0
@@ -100,7 +100,7 @@ def to_hdf5(table, path):
             except TypeError:
                 f.create_dataset(name, data=[str(i) for i in col[:]])  # stored in hdf5 as '/name'
             n += 1
-    print(f"writing {path} to HDF5 done")
+    print("... done")
 
 
 def excel_writer(table, path):
