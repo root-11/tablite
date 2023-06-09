@@ -8,6 +8,7 @@ import logging
 import warnings
 import zipfile
 import numpy as np
+from tqdm import tqdm as _tqdm
 from pathlib import Path
 from itertools import count, chain, product, repeat
 from collections import defaultdict
@@ -988,10 +989,10 @@ class Table(object):
             return tuple(self.columns[name][slc].tolist()[0] for name in column_names)
 
         elif not slices:  # e.g. new table with N whole columns.
-            t = self.__class__()
-            for name in column_names:
-                t.columns[name] = self.columns[name]  # link pointers, but make no copies.
-            return t
+            return self.__class__(columns={
+                name: self.columns[name]
+                for name in column_names
+            })
 
         else:  # e.g. new table from selection of columns and slices.
             t = self.__class__()
@@ -1133,7 +1134,7 @@ class Table(object):
             log.debug(f"Wrote {_fields} on {_page_counter} pages in {_file_counter} files: {_avg} fields/page")
 
     @classmethod
-    def load(cls, path):  # USER FUNCTION.
+    def load(cls, path, tqdm=_tqdm):  # USER FUNCTION.
         """loads a table from .tpz file.
         See also Table.save for details on the file format.
 
@@ -1149,13 +1150,18 @@ class Table(object):
             yml = f.read("table.yml")
             metadata = yaml.safe_load(yml)
             t = cls()
-            for name, d in metadata["columns"].items():
-                column = Column(t.path)
-                for page in d["pages"]:
-                    bytestream = io.BytesIO(f.read(page))
-                    data = np.load(bytestream, allow_pickle=True, fix_imports=False)
-                    column.extend(data)
-                t.columns[name] = column
+
+            page_count = sum([len(c["pages"]) for c in metadata["columns"].values()])
+
+            with tqdm(total=page_count, desc=f"importing '{path.name}' file") as pbar:
+                for name, d in metadata["columns"].items():
+                    column = Column(t.path)
+                    for page in d["pages"]:
+                        bytestream = io.BytesIO(f.read(page))
+                        data = np.load(bytestream, allow_pickle=True, fix_imports=False)
+                        column.extend(data)
+                        pbar.update(1)
+                    t.columns[name] = column
         return t
 
     def copy(self):
