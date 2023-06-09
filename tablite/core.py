@@ -399,8 +399,8 @@ class Table(BaseTable):
             values: 'reverse' as boolean.
 
         examples:
-        Table.sort('A'=False) means sort by 'A' in ascending order.
-        Table.sort('A'=True, 'B'=False) means sort 'A' in descending order, then (2nd priority)
+        Table.sort(**{'A':False}) means sort by 'A' in ascending order.
+        Table.sort(**{'A':True, 'B':False}) means sort 'A' in descending order, then (2nd priority)
         sort B in ascending order.
         """
         return sortation.sort(self, sort_mode, **kwargs)
