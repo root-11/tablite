@@ -58,6 +58,26 @@ def from_pandas(T, df):
 def from_hdf5(T, path, tqdm=_tqdm, pbar=None):
     """
     imports an exported hdf5 table.
+
+    Note that some loss of type information is to be expected in columns of mixed type:
+    >>> t.show(dtype=True)
+    +===+===+=====+=====+====+=====+=====+===================+==========+========+===============+===+=========================+=====+===+
+    | # | A |  B  |  C  | D  |  E  |  F  |         G         |    H     |   I    |       J       | K |            L            |  M  | O |
+    |row|int|mixed|float|str |mixed| bool|      datetime     |   date   |  time  |   timedelta   |str|           int           |float|int|
+    +---+---+-----+-----+----+-----+-----+-------------------+----------+--------+---------------+---+-------------------------+-----+---+
+    | 0 | -1|None | -1.1|    |None |False|2023-06-09 09:12:06|2023-06-09|09:12:06| 1 day, 0:00:00|b  |-100000000000000000000000|  inf| 11|
+    | 1 |  1|    1|  1.1|1000|1    | True|2023-06-09 09:12:06|2023-06-09|09:12:06|2 days, 0:06:40|嗨 | 100000000000000000000000| -inf|-11|
+    +===+===+=====+=====+====+=====+=====+===================+==========+========+===============+===+=========================+=====+===+
+    >>> t.to_hdf5(filename)
+    >>> t2 = Table.from_hdf5(filename)
+    >>> t2.show(dtype=True)
+    +===+===+=====+=====+=====+=====+=====+===================+===================+========+===============+===+=========================+=====+===+
+    | # | A |  B  |  C  |  D  |  E  |  F  |         G         |         H         |   I    |       J       | K |            L            |  M  | O |
+    |row|int|mixed|float|mixed|mixed| bool|      datetime     |      datetime     |  time  |      str      |str|           int           |float|int|
+    +---+---+-----+-----+-----+-----+-----+-------------------+-------------------+--------+---------------+---+-------------------------+-----+---+
+    | 0 | -1|None | -1.1|None |None |False|2023-06-09 09:12:06|2023-06-09 00:00:00|09:12:06|1 day, 0:00:00 |b  |-100000000000000000000000|  inf| 11|
+    | 1 |  1|    1|  1.1| 1000|    1| True|2023-06-09 09:12:06|2023-06-09 00:00:00|09:12:06|2 days, 0:06:40|嗨 | 100000000000000000000000| -inf|-11|
+    +===+===+=====+=====+=====+=====+=====+===================+===================+========+===============+===+=========================+=====+===+
     """
     if not issubclass(T, Table):
         raise TypeError("Expected subclass of Table")
@@ -68,9 +88,10 @@ def from_hdf5(T, path, tqdm=_tqdm, pbar=None):
     with h5py.File(path, "r") as h5:
         for col_name in h5.keys():
             dset = h5[col_name]
-            if dset.dtype == str:
-                dset = np.array(DataTypes.guess(dset[:]))
-            t[col_name] = dset[:]
+            arr = np.array(dset[:])
+            if arr.dtype == object:
+                arr = np.array(DataTypes.guess([v.decode('utf-8') for v in arr]))
+            t[col_name] = arr
     return t
 
 
@@ -556,7 +577,7 @@ def text_reader(
                 if err is not None:
                     raise Exception(err)
                 pbar.update(dump_size)
-                
+
         else:
             with TaskManager(cpus_needed) as tm:
                 errors = tm.execute(tasks, pbar=PatchTqdm())  # I expects a list of None's if everything is ok.

@@ -34,7 +34,10 @@ def test_exporters():
     p = test_dir / "1.h5"
     t.to_hdf5(p)
     assert p.exists()
-
+    t2 = Table.from_hdf5(p)
+    for c in ['A', 'B', 'C', 'F', 'G', 'I', 'K', 'L', 'M', 'O']:  # some precision loss is expected.
+        assert t[c] == t2[c]
+    
     p = test_dir / "2.txt"
     s = t.to_ascii()
     assert s != ""
