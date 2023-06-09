@@ -87,7 +87,7 @@ def _sp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pba
 
 
 def _mp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None):
-    return _sp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None)
+    return _sp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
     assert len(LEFT) == len(RIGHT)
     assert isinstance(LEFT, np.ndarray) and isinstance(RIGHT, np.ndarray)
