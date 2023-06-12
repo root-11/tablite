@@ -62,7 +62,7 @@ _excel_value_function = {
     bool: _excel_bool,
     float: _excel_float,
     int: _excel_int,
-    type(None): _excel_none,
+    type(None): _excel_none
     # str is handled by pyUCA.
 }
 
@@ -160,19 +160,30 @@ def unix_sort(values, reverse=False):
     τ = 2 * π
 
     """
-    L = []
-    text = [i for i in values if isinstance(i, str)]
+    text, non_text = [], []
+
+    # L = []
+    # text = [i for i in values if isinstance(i, str)]
+    # text.sort(key=uca_collator.sort_key, reverse=reverse)
+    # text_code = _unix_typecodes[str]
+    # L = [(text_code, ix, v) for ix, v in enumerate(text)]
+
+    for value in values:
+        if isinstance(value, str):
+            text.append(value)
+        else:
+            t = type(value)
+            TC = _unix_typecodes[t]
+            tf = _unix_value_function[t]
+            VC = tf(value)
+            non_text.append((TC, VC, value))
+    non_text.sort(reverse=reverse)
+
     text.sort(key=uca_collator.sort_key, reverse=reverse)
     text_code = _unix_typecodes[str]
-    L = [(text_code, ix, v) for ix, v in enumerate(text)]
+    text = [(text_code, ix, v) for ix, v in enumerate(text)]
 
-    for value in (i for i in values if not isinstance(i, str)):
-        t = type(value)
-        TC = _unix_typecodes[t]
-        tf = _unix_value_function[t]
-        VC = tf(value)
-        L.append((TC, VC, value))
-    L.sort(reverse=reverse)
+    L = non_text + text
     d = {value: ix for ix, (_, _, value) in enumerate(L)}
     return d
 
@@ -196,20 +207,38 @@ def excel_sort(values, reverse=False):
 
     * Excel doesn't have timedelta.
     """
-    L = []
-    text = [i for i in values if isinstance(i, str)]
 
-    text.sort(key=uca_collator.sort_key, reverse=reverse)
-    L = [(2, ix, v) for ix, v in enumerate(text)]
+    def tup(TC, value):
+        return (TC, _excel_value_function[t](value), value)
 
-    for value in (i for i in values if not isinstance(i, str)):
+    text, numeric, booles, nones = [], [], [], []
+    for value in values:
         t = type(value)
         TC = _excel_typecodes[t]
-        tf = _excel_value_function[t]
-        VC = tf(value)
-        L.append((TC, VC, value))
 
-    L.sort(reverse=reverse)
+        if TC == 0:
+            numeric.append(tup(TC, value))
+        elif TC == 1:
+            text.append(value)  # text is processed later.
+        elif TC == 2:
+            booles.append(tup(TC, value))
+        elif TC == 3:
+            booles.append(tup(TC, value))
+        else:
+            raise TypeError
+
+    if text:
+        text.sort(key=uca_collator.sort_key, reverse=reverse)
+        text = [(2, ix, v) for ix, v in enumerate(text)]
+
+    numeric.sort(reverse=reverse)
+    booles.sort(reverse=reverse)
+    nones.sort(reverse=reverse)
+
+    if reverse:
+        L = nones + booles + text + numeric
+    else:
+        L = numeric + text + booles + nones
     d = {value: ix for ix, (_, _, value) in enumerate(L)}
     return d
 
