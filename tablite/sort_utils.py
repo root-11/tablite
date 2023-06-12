@@ -1,6 +1,6 @@
 from datetime import datetime, date, time, timedelta
 from pyuca import Collator
-import numpy as np
+
 
 uca_collator = Collator()
 
