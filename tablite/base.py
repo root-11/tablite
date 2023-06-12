@@ -816,16 +816,15 @@ class Column(object):
         - sum (int/float, length of str, date)
         - histogram (see .histogram)
         """
-        htg = self.histogram()
-        values, counts = list(htg.keys()), list(htg.values())
+        values, counts = self.histogram()
         return summary_statistics(values, counts)
 
     def count(self, item):
         """counts appearances of item in column.
 
         Note:
-        
-        in python: 
+
+        in python:
         >>> L = [1, True]
         >>> L.count(True)
         2
@@ -833,7 +832,7 @@ class Column(object):
         in tablite:
         >>> t = Table({'L': [1,True]})
         >>> t['L'].count(True)
-        1   
+        1
 
         Args:
             item (Any): target item
