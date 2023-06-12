@@ -409,7 +409,7 @@ class Table(BaseTable):
         """
         new = sortation.sort(self, mapping, sort_mode)
         self.columns = new.columns
-                
+
     def sorted(self, mapping, sort_mode="excel"):
         """See sort.
         Sorted returns a new table in contrast to "sort", which is in-place.
@@ -419,7 +419,7 @@ class Table(BaseTable):
         """
         return sortation.sort(self, mapping, sort_mode)
 
-    def is_sorted(self, mapping, sort_mode='excel'):
+    def is_sorted(self, mapping, sort_mode="excel"):
         """Performs multi-pass sorting check with precedence given order of column names.
         **kwargs: optional: sort criteria. See Table.sort()
         :return bool
