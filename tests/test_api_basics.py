@@ -582,14 +582,6 @@ def test04_utf8_extension():
     assert t == t2
 
 
-def test04_verify_multiprocessing_index_in_shared_memory():
-    pass  # done in filereader, filter, sort.
-
-
-def test04_verify_table_stacking():
-    pass  # done in the new tutorial
-
-
 def test05_verify_show_table():
     table4 = Table()
     txt = table4.to_ascii()
