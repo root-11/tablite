@@ -1,4 +1,5 @@
 from tablite import Table
+from fractions import Fraction
 
 
 def test_sort():
@@ -34,3 +35,9 @@ def test_sorted():
     t.sort({"A": False})
     assert t2 == t
     assert t2 is not t
+
+
+def test_sort_multiple_datatypes():
+    t = Table(columns={"A": [None, True, 2.0, 3, 4, "5"], "B": [0, 1, 2, 3, 4, 5]})
+    t.sort(mapping={"A": False})
+    assert t["A"] == [2.0, 3, 4, "5", True, None]
