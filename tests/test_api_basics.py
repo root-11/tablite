@@ -522,10 +522,11 @@ def test03_verify_column_summaries():  # test special column functions.
     n, m = 5, 3
     t["A"] = list(range(n)) * m
     col = t["A"]
-    d = col.histogram()
-    assert len(d) == n
-    assert sum(k1 * v1 for k1, v1 in d.items()) == sum(col)
+    vals, cnts = col.histogram()
+    assert len(vals) == n
+    assert sum(k1 * v1 for k1, v1 in zip(vals, cnts)) == sum(col)
     uq = col.unique()
+    assert list(uq) == vals
     assert len(uq) == n
     assert sum(uq) == sum(range(n))
     ix = col.index()
