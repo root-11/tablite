@@ -178,7 +178,7 @@ class Table(BaseTable):
         elif reader == import_utils.from_html:
             config = (path,)
         elif reader == import_utils.from_hdf5:
-            config = (path, )
+            config = (path,)
 
         elif reader == import_utils.excel_reader:
             # config = path, first_row_has_headers, sheet, columns, start, limit
@@ -391,26 +391,40 @@ class Table(BaseTable):
         index = [min(v) for v in self.index(*args).values()]
         return self.reindex(index)
 
-    def sort(self, sort_mode="excel", **kwargs):
+    def sort(self, mapping, sort_mode="excel"):
         """Perform multi-pass sorting with precedence given order of column names.
-        sort_mode: str: "alphanumeric", "unix", or, "excel"
-        kwargs:
-            keys: columns,
-            values: 'reverse' as boolean.
 
-        examples:
-        Table.sort(**{'A':False}) means sort by 'A' in ascending order.
-        Table.sort(**{'A':True, 'B':False}) means sort 'A' in descending order, then (2nd priority)
+        Args:
+            mapping (dict): keys as columns,
+                            values as boolean for 'reverse'
+            sort_mode: str: "alphanumeric", "unix", or, "excel"
+
+        Returns:
+            None: Table.sort is sorted inplace
+
+        Examples:
+        Table.sort(mappinp={A':False}) means sort by 'A' in ascending order.
+        Table.sort(mapping={'A':True, 'B':False}) means sort 'A' in descending order, then (2nd priority)
         sort B in ascending order.
         """
-        return sortation.sort(self, sort_mode, **kwargs)
+        new = sortation.sort(self, mapping, sort_mode)
+        self.columns = new.columns
+                
+    def sorted(self, mapping, sort_mode="excel"):
+        """See sort.
+        Sorted returns a new table in contrast to "sort", which is in-place.
 
-    def is_sorted(self, **kwargs):
+        Returns:
+            Table.
+        """
+        return sortation.sort(self, mapping, sort_mode)
+
+    def is_sorted(self, mapping, sort_mode='excel'):
         """Performs multi-pass sorting check with precedence given order of column names.
         **kwargs: optional: sort criteria. See Table.sort()
         :return bool
         """
-        return sortation.is_sorted(self, **kwargs)
+        return sortation.is_sorted(self, mapping, sort_mode)
 
     def any(self, **kwargs):
         """
