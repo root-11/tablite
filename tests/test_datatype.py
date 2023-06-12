@@ -50,10 +50,7 @@ def test_datatype_inference():
     assert DataTypes.infer("1", int) == 1
     assert DataTypes.infer("0", int) == 0
     assert DataTypes.infer("-1", int) == -1
-    assert (
-        DataTypes.infer('"1000028234565432345676542345676543342345675432"', int)
-        == 1000028234565432345676542345676543342345675432
-    )
+    assert (DataTypes.infer('"1000028234565432345676542345676543342345675432"', int) == 1000028234565432345676542345676543342345675432)
     assert DataTypes.infer('"1000028"', int) == 1000028
     assert DataTypes.infer('"1,000,028"', int) == 1000028
     try:
