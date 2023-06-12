@@ -470,9 +470,25 @@ def test_unique():
     assert np.all(t["A"].unique() == np.array([1, 2, 3, 4]))
 
 
+def test_unique_multiple_dtypes():
+    t = Table({"A": [0, 1.0, True, None, False, "0", "1"] * 2})
+    u = list(t["A"].unique())
+    assert all(i in u for i in [0, 1.0, True, None, False, "0", "1"])
+    assert len(u) == 7
+
+
 def test_histogram():
-    t = Table({"A": [1, 1, 1, 2, 2, 2, 3, 3, 4]})
-    assert t["A"].histogram() == {1: 3, 2: 3, 3: 2, 4: 1}
+    t = Table({"A": [1, 2, 3, 4, 5] * 3})
+    u, c = t["A"].histogram()
+    assert u == [1, 2, 3, 4, 5]
+    assert c == [3] * len(u)
+
+
+def test_histogram_multiple_dtypes():
+    t = Table({"A": [0, 1, True, False, None, "0", "1"] * 2})
+    u, c = t["A"].histogram()
+    assert u == [0, 1, True, False, None, "0", "1"]
+    assert c == [2] * len(u)
 
 
 def test_count():
@@ -480,7 +496,19 @@ def test_count():
     assert t["A"].count(2) == 3
 
 
+def test_count_multiple_dtypes():
+    t = Table({"A": [0, 1.0, True, False, None, "0"] * 2})
+    for v in t['A']:
+        assert t['A'].count(v) == 2
+
+
 def test_contains():
     t = Table({"A": [1, 1, 1, 2, 2, 2, 3, 3, 4]})
     assert 3 in t["A"]
     assert 7 not in t["A"]
+
+
+def test_contains_multiple_dtypes():
+    t = Table({"A": [0, 1.0, True, False, None, "0"] * 2})
+    for v in t['A']:
+        assert v in t['A']
