@@ -760,3 +760,22 @@ def np_type_unify(arrays):
             arrays[ix] = np.array(arr, dtype=object)
         dtype = object
     return np.concatenate(arrays, dtype=dtype)
+
+
+def multitype_set(arr):
+    """prevents loss of True, False when calling sets.
+
+    python looses values when called returning a set:
+    >>> {1, True, 0, False}
+    {0,1}
+
+    Args:
+        arr (Iterable): iterable of mixed types.
+
+    Returns:
+        np.array: with unique values.
+    """
+    L = [(type(v), v) for v in arr]
+    L = list(set(L))
+    L = [v for _, v in L]
+    return np.array(L, dtype=object)
