@@ -11,7 +11,7 @@ from tablite.utils import sub_cls_check, type_check
 from tqdm import tqdm as _tqdm
 
 
-def sort_index(T, sort_mode="excel", tqdm=_tqdm, pbar=None, **kwargs):
+def sort_index(T, mapping, sort_mode="excel", tqdm=_tqdm, pbar=None):
     """
     helper for methods `sort` and `is_sorted`
 
@@ -21,12 +21,10 @@ def sort_index(T, sort_mode="excel", tqdm=_tqdm, pbar=None, **kwargs):
 
     sub_cls_check(T, Table)
 
-    if not isinstance(kwargs, dict):
-        raise ValueError("Expected keyword arguments, did you forget the ** in front of your dict?")
-    if not kwargs:
-        kwargs = {c: False for c in T.columns}
+    if not isinstance(mapping, dict) or not mapping:
+        raise TypeError("Expected mapping (dict)?")
 
-    for k, v in kwargs.items():
+    for k, v in mapping.items():
         if k not in T.columns:
             raise ValueError(f"no column {k}")
         if not isinstance(v, bool):
@@ -37,20 +35,24 @@ def sort_index(T, sort_mode="excel", tqdm=_tqdm, pbar=None, **kwargs):
 
     rank = {i: tuple() for i in range(len(T))}  # create index and empty tuple for sortation.
 
-    _pbar = tqdm(total=len(kwargs.items()), desc="creating sort index") if pbar is None else pbar
+    _pbar = tqdm(total=len(mapping.items()), desc="creating sort index") if pbar is None else pbar
 
-    for key, reverse in kwargs.items():
+    for key, reverse in mapping.items():
         col = T[key][:]
         col = col.tolist() if isinstance(col, np.ndarray) else col
         ranks = sort_rank(values=set(col), reverse=reverse, mode=sort_mode)
         assert isinstance(ranks, dict)
         for ix, v in enumerate(col):
-            rank[ix] += (ranks[v],)  # add tuple
+            rank[ix] += (ranks[v],)  # add tuple for each sortation level.
 
         _pbar.update(1)
 
+    col.clear()
+    ranks.clear()
+
     new_order = [(r, i) for i, r in rank.items()]  # tuples are listed and sort...
     rank.clear()  # free memory.
+
     new_order.sort()
     sorted_index = [i for _, i in new_order]  # new index is extracted.
     new_order.clear()
@@ -89,7 +91,8 @@ def reindex(T, index):
 def _sp_reindex(T, index):
     t = type(T)()
     for name in T.columns:
-        t[name] = np.take(T[name][:], index)
+        data = T[name][:]
+        t[name] = np.take(data, index)
     return t
 
 
@@ -136,7 +139,7 @@ def _mp_reindex(T, index):
     return t
 
 
-def sort(T, sort_mode="excel", **kwargs):
+def sort(T, mapping, sort_mode="excel"):
     """Perform multi-pass sorting with precedence given order of column names.
     sort_mode: str: "alphanumeric", "unix", or, "excel"
     kwargs:
@@ -150,16 +153,21 @@ def sort(T, sort_mode="excel", **kwargs):
     """
     sub_cls_check(T, Table)
 
-    index = sort_index(T, sort_mode=sort_mode, **kwargs)
+    index = sort_index(T, mapping, sort_mode=sort_mode)
     m = select_processing_method(len(T) * len(T.columns), _sp_reindex, _mp_reindex)
     return m(T, index)
 
 
-def is_sorted(T, **kwargs):
+def is_sorted(T, mapping, sort_mode="excel"):
     """Performs multi-pass sorting check with precedence given order of column names.
-    **kwargs: optional: sort criteria. See Table.sort()
-    :return bool
+
+    Args:
+        mapping: sort criteria. See Table.sort()
+        sort_mode = sort mode. See Table.sort()
+
+    Returns:
+        bool
     """
-    index = sort_index(T, **kwargs)
+    index = sort_index(T, mapping, sort_mode=sort_mode)
     match = np.arange(len(T))
     return np.all(index == match)
