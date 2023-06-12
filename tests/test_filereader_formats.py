@@ -81,7 +81,7 @@ def test_filereader_123csv():
         }
     )
     sort_order = {"B": False, "C": False, "A": False}
-    table7 = table7.sort(**sort_order)
+    table7.sort(sort_order)
 
     headers = ",".join([c for c in table7.columns])
     data = [headers]
