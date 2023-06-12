@@ -736,7 +736,7 @@ class Rank(object):
 def list_to_np_array(iterable):
     """helper to make correct np array from python types.
     Example of problem where numpy turns mixed types into strings.
-    >>> np.array([4,'5'])
+    >>> np.array([4, '5'])
     np.ndarray(['4', '5'])
     """
     dtypes = set()
