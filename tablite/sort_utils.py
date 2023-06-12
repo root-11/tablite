@@ -226,7 +226,7 @@ def excel_sort(values, reverse=False):
         elif TC == 3:
             booles.append(tup(TC, value))
         else:
-            raise TypeError
+            raise TypeError(f"no typecode for {value}")
 
     if text:
         text.sort(key=uca_collator.sort_key, reverse=reverse)
