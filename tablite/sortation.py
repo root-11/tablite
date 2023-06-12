@@ -3,6 +3,7 @@ import numpy as np
 import psutil
 from mplite import Task, TaskManager
 from tablite.mp_utils import share_mem, reindex_task, select_processing_method
+from tablite.datatypes import multitype_set, numpy_to_python
 from tablite.sort_utils import modes as sort_modes
 from tablite.sort_utils import rank as sort_rank
 from tablite.base import Table, Column, Page
@@ -39,19 +40,18 @@ def sort_index(T, mapping, sort_mode="excel", tqdm=_tqdm, pbar=None):
 
     for key, reverse in mapping.items():
         col = T[key][:]
-        col = col.tolist() if isinstance(col, np.ndarray) else col
-        ranks = sort_rank(values=set(col), reverse=reverse, mode=sort_mode)
+        ranks = sort_rank(values=[numpy_to_python(v) for v in multitype_set(col)], reverse=reverse, mode=sort_mode)
         assert isinstance(ranks, dict)
         for ix, v in enumerate(col):
             rank[ix] += (ranks[v],)  # add tuple for each sortation level.
 
         _pbar.update(1)
 
-    col.clear()
-    ranks.clear()
+    del col
+    del ranks
 
     new_order = [(r, i) for i, r in rank.items()]  # tuples are listed and sort...
-    rank.clear()  # free memory.
+    del rank  # free memory.
 
     new_order.sort()
     sorted_index = [i for _, i in new_order]  # new index is extracted.
