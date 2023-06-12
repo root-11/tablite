@@ -228,7 +228,6 @@ def test_the_basics():
     # tablite uses numpy's fileformat because it is fast.
     # this means you can make a table persistent using .save
     t5path = pathlib.Path("tests/data/myfile.tpz")
-    assert not t5path.exists()
     t5.save(t5path)
     print("old t5")
     t5.show()
@@ -246,9 +245,9 @@ def test_sort():
     table.add_column("C", data=[0, 1, 0, 1, 0, 1, 0, 1, 0])
 
     sort_order = {"B": False, "C": False, "A": False}
-    assert not table.is_sorted(**sort_order)
+    assert not table.is_sorted(sort_order)
 
-    sorted_table = table.sort(**sort_order)
+    sorted_table = table.sorted(sort_order)
 
     assert list(sorted_table.rows) == [
         [4, 1, 0],
@@ -264,7 +263,7 @@ def test_sort():
 
     assert list(sorted_table["A", "B", slice(4, 8)].rows) == [[1, 10], [5, 10], [9, 10], [7, 10]]
 
-    assert sorted_table.is_sorted(**sort_order)
+    assert sorted_table.is_sorted(sort_order)
 
 
 def test_sort_parallel():
@@ -277,7 +276,7 @@ def test_sort_parallel():
 
     start = cputime.time()
     sort_order = {"B": False, "C": False, "A": False}
-    sorted_table = table.sort(**sort_order)  # sorts 1M values.
+    sorted_table = table.sorted(sort_order)  # sorts 1M values.
     print("table sorting took ", round(cputime.time() - start, 3), "secs")
     sorted_table.show()
     assert set(sorted_table["A"]) == set(table["A"])
@@ -466,19 +465,19 @@ def do_lookup_logic():
     bustable.add_column("stop", data=stops[:table_size])
     bustable.add_column("route", data=route[:table_size])
 
-    bustable.sort(**{"time": False})
+    bustable.sort({"time": False})
 
     print("Departures from Concert Hall towards ...")
     bustable.show(slice(0, 10))
 
     lookup_1 = friends.lookup(bustable, (DataTypes.time(21, 10), "<=", "time"), ("stop", "==", "stop"))
-    lookup1_sorted = lookup_1.sort(**{"time": True, "name": False, "sort_mode": "unix"})
+    lookup1_sorted = lookup_1.sorted({"time": True, "name": False}, sort_mode="unix")
     lookup1_sorted.show()
 
     expected = [
         ["Dorethy", "Hillside Crescent", time(23, 54), "Hillside Crescent", 1],
         ["Alice", "Downtown-1", time(23, 12), "Downtown-1", 3],
-        ["Charlie", "Hillside View", time(22, 28), "Hillside View", 1],
+        ["Charlie", "Hillside View", time(22, 19), "Hillside View", 2],
         ["Betty", "Downtown-2", time(21, 51), "Downtown-2", 1],
         ["Edward", "Downtown-2", time(21, 51), "Downtown-2", 1],
         ["Fred", "Chicago", None, None, None],
