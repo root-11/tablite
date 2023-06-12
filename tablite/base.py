@@ -12,7 +12,7 @@ from pathlib import Path
 from itertools import count, chain, product, repeat
 from collections import defaultdict
 
-from tablite.datatypes import DataTypes, np_type_unify, numpy_to_python, list_to_np_array, pytype
+from tablite.datatypes import DataTypes, np_type_unify, numpy_to_python, list_to_np_array, pytype, multitype_set
 from tablite.utils import (
     type_check,
     intercept,
@@ -771,12 +771,12 @@ class Column(object):
             try:  # when it works, numpy is fast...
                 arrays.append(np.unique(page.get()))
             except TypeError:  # ...but np.unique cannot handle Nones.
-                arrays.append(list(set(page.get())))
+                arrays.append(multitype_set(page.get()))
         union = np_type_unify(arrays)
         try:
             return np.unique(union)
         except TypeError:
-            return np.array(list(set(union)))
+            return multitype_set(union)
 
     def histogram(self):
         """
@@ -789,10 +789,18 @@ class Column(object):
         """
         d = defaultdict(int)
         for page in self.pages:
-            uarray, carray = np.unique(page.get(), return_counts=True)
+            try:
+                uarray, carray = np.unique(page.get(), return_counts=True)
+            except TypeError:
+                uarray = page.get()
+                carray = repeat(1, len(uarray))
+
             for i, c in zip(uarray, carray):
-                d[numpy_to_python(i)] += numpy_to_python(c)
-        return dict(d)
+                v = numpy_to_python(i)
+                d[(type(v), v)] += numpy_to_python(c)
+        u = [v for _, v in d.keys()]
+        c = list(d.values())
+        return u, c  # unique, counts
 
     def statistics(self):
         """
@@ -813,23 +821,47 @@ class Column(object):
         return summary_statistics(values, counts)
 
     def count(self, item):
+        """counts appearances of item in column.
+
+        Note:
+        
+        in python: 
+        >>> L = [1, True]
+        >>> L.count(True)
+        2
+
+        in tablite:
+        >>> t = Table({'L': [1,True]})
+        >>> t['L'].count(True)
+        1   
+
+        Args:
+            item (Any): target item
+
+        Returns:
+            int: number of occurrences of item.
+        """
         result = 0
         for page in self.pages:
-            result += np.nonzero(page.get() == item)[0].shape[0]
-            # what happens here ---^ below:
-            # arr = page.get()
-            # >>> arr
-            # array([1,2,3,4,3], int64)
-            # >>> (arr == 3)
-            # array([False, False,  True, False,  True])
-            # >>> np.nonzero(arr==3)
-            # (array([2,4], dtype=int64), )  <-- tuple!
-            # >>> np.nonzero(page.get() == item)[0]
-            # array([2,4])
-            # >>> np.nonzero(page.get() == item)[0].shape
-            # (2, )
-            # >>> np.nonzero(page.get() == item)[0].shape[0]
-            # 2
+            data = page.get()
+            if data.dtype != "O":
+                result += np.nonzero(page.get() == item)[0].shape[0]
+                # what happens here ---^ below:
+                # arr = page.get()
+                # >>> arr
+                # array([1,2,3,4,3], int64)
+                # >>> (arr == 3)
+                # array([False, False,  True, False,  True])
+                # >>> np.nonzero(arr==3)
+                # (array([2,4], dtype=int64), )  <-- tuple!
+                # >>> np.nonzero(page.get() == item)[0]
+                # array([2,4])
+                # >>> np.nonzero(page.get() == item)[0].shape
+                # (2, )
+                # >>> np.nonzero(page.get() == item)[0].shape[0]
+                # 2
+            else:
+                result += sum(1 for i in data if type(i) == type(item) and i == item)
         return result
 
 
