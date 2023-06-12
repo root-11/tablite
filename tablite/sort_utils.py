@@ -1,5 +1,6 @@
 from datetime import datetime, date, time, timedelta
 from pyuca import Collator
+import numpy as np
 
 uca_collator = Collator()
 
@@ -7,6 +8,7 @@ uca_collator = Collator()
 _excel_typecodes = {  # declares sortation rank: 0 < 1, etc.
     time: 0,
     int: 0,
+    np.int64: 0,
     float: 0,
     date: 0,
     datetime: 0,
@@ -62,6 +64,7 @@ _excel_value_function = {
     bool: _excel_bool,
     float: _excel_float,
     int: _excel_int,
+    np.int64: _excel_int,
     type(None): _excel_none,
     # str is handled by pyUCA.
 }
