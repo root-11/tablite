@@ -40,6 +40,21 @@ def test01_compatible_datatypes():
     table4["M"] = [float("inf"), float("-inf")]
     assert list(table4.columns) == ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M"]
     # testing .columns property.
+    assert table4.dtypes() == {
+        "A": "int",
+        "B": "mixed",
+        "C": "float",
+        "D": "str",
+        "E": "mixed",
+        "F": "bool",
+        "G": "datetime",
+        "H": "date",
+        "I": "mixed",
+        "J": "timedelta",
+        "K": "str",
+        "L": "mixed",
+        "M": "float",
+    }
 
     path = Path(__file__).parent / "data/myfile.tpz"
     table4.save(path)  # testing that save keeps the data in HDF5.

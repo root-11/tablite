@@ -13,7 +13,16 @@ from pathlib import Path
 from itertools import count, chain, product, repeat
 from collections import defaultdict
 
-from tablite.datatypes import DataTypes, np_type_unify, numpy_to_python, list_to_np_array, pytype, multitype_set
+from tablite.datatypes import (
+    DataTypes,
+    np_type_unify,
+    numpy_to_python,
+    list_to_np_array,
+    pytype,
+    multitype_set,
+    MetaArray,
+    pytype_from_iterable,
+)
 from tablite.utils import (
     type_check,
     intercept,
@@ -88,6 +97,9 @@ class Page(object):
                 raise OSError(msg)
 
         self.len = len(array)
+        if not hasattr(array, "metadata"):
+            raise ValueError
+        self.dtype = array.metadata["py_dtype"]
         np.save(self.path, array, allow_pickle=True, fix_imports=False)
         log.debug(f"Page saved: {self.path}")
 
@@ -118,7 +130,8 @@ class Page(object):
         Returns:
             np.ndarray: stored data.
         """
-        return np.load(self.path, allow_pickle=True, fix_imports=False)
+        array = np.load(self.path, allow_pickle=True, fix_imports=False)
+        return MetaArray(array, array.dtype, py_dtype=self.dtype)
 
 
 class Column(object):
@@ -161,8 +174,10 @@ class Column(object):
         n = int(math.ceil(len(values) / page_size)) * page_size
         start = 0
         for end in range(page_size, n + 1, page_size):
-            x = np.array(values[start:end])
-            arrays.append(x)
+            x = values[start:end]
+            np_dtype, py_dtype = pytype_from_iterable(x)
+            new = MetaArray(x, dtype=np_dtype, py_dtype=py_dtype)
+            arrays.append(new)
             start = end
         return arrays
 
@@ -352,6 +367,8 @@ class Column(object):
             start, end = end, end + page.len
             if start <= key < end:
                 data = page.get()
+                if not isinstance(value, page.dtype):
+                    data = MetaArray(array=data, dtype=object, py_dtype=object)
                 data[key - start] = value
                 new_page = Page(self.path, data)
                 self.pages[index] = new_page
@@ -743,6 +760,18 @@ class Column(object):
                 d[sample] += len(page)
         return dict(d)
 
+    def dtypes(self):
+        """
+        returns dtypes in the whole column
+        """
+        dtypes = set()
+        for page in set(self.pages):
+            dtypes.add(page.dtype if page.dtype is object else page.dtype.__name__)
+            if len(dtypes) > 1:
+                return "mixed"
+        dtype = dtypes.pop()
+        return "mixed" if dtype is object else dtype
+        
     def index(self):
         """
         returns dict with { unique entry : list of indices }
@@ -1020,10 +1049,7 @@ class Table(object):
             return tuple(self.columns[name][slc].tolist()[0] for name in column_names)
 
         elif not slices:  # e.g. new table with N whole columns.
-            return self.__class__(columns={
-                name: self.columns[name]
-                for name in column_names
-            })
+            return self.__class__(columns={name: self.columns[name] for name in column_names})
 
         else:  # e.g. new table from selection of columns and slices.
             t = self.__class__()
@@ -1399,6 +1425,18 @@ class Table(object):
         for name, col in self.columns.items():
             assert isinstance(col, Column)
             d[name] = col.types()
+        return d
+
+    def dtypes(self):
+        """finds dtypes for all columns
+
+        Returns:
+           dict: {column name: {set of dtypes} }
+        """
+        d = {}
+        for name, col in self.columns.items():
+            assert isinstance(col, Column)
+            d[name] = col.dtypes()
         return d
 
     def display_dict(self, slice_=None, blanks=None, dtype=False):

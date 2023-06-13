@@ -733,21 +733,69 @@ class Rank(object):
         return iter(self.items_list)
 
 
+def pytype_from_iterable(iterable):
+    if isinstance(iterable, (tuple, list)):
+        py_dtype = set()
+        for v in iterable:
+            py_dtype.add(type(v))
+            if len(py_dtype) > 1:  # no need to continue after we know it'll be dtype=object
+                break
+        if len(py_dtype) == 0:
+            np_dtype, py_dtype = object, bool
+        elif len(py_dtype) == 1:
+            py_dtype = py_dtype.pop()
+            if py_dtype == datetime:
+                np_dtype = np.datetime64
+            elif py_dtype == date:
+                np_dtype = np.datetime64
+            elif py_dtype == timedelta:
+                np_dtype = np.timedelta64
+            else:
+                np_dtype = None
+        else:
+            np_dtype = object
+            py_dtype = object
+
+    elif isinstance(iterable, np.ndarray):
+        if iterable.dtype == object:
+            np_dtype = object
+            py_dtype = object
+        else:
+            np_dtype = iterable.dtype
+            py_dtype = pytype(iterable[0])
+    else:
+        raise NotImplementedError(f"No handler for {type(iterable)}")
+
+    return np_dtype, py_dtype
+
+
+class MetaArray(np.ndarray):
+    """Array with metadata."""
+
+    def __new__(cls, array, dtype=None, order=None, **kwargs):
+        obj = np.asarray(array, dtype=dtype, order=order).view(cls)
+        obj.metadata = kwargs
+        return obj
+
+    def __array_finalize__(self, obj):
+        if obj is None:
+            return
+        self.metadata = getattr(obj, "metadata", None)
+
+
 def list_to_np_array(iterable):
     """helper to make correct np array from python types.
     Example of problem where numpy turns mixed types into strings.
     >>> np.array([4, '5'])
     np.ndarray(['4', '5'])
+
+    returns:
+        np.array
+        datatypes
     """
-    dtypes = set()
-    for v in iterable:
-        dtypes.add(type(v))
-        if len(dtypes) > 1:  # no need to continue after we know it'll be dtype=object
-            break
-    if len(dtypes) > 1:
-        value = np.array(iterable, dtype=object)
-    else:
-        value = np.array(iterable)
+    np_dtype, py_dtype = pytype_from_iterable(iterable)
+
+    value = MetaArray(iterable, dtype=np_dtype, py_dtype=py_dtype)
     return value
 
 
