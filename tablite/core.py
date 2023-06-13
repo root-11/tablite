@@ -391,7 +391,7 @@ class Table(BaseTable):
         index = [min(v) for v in self.index(*args).values()]
         return self.reindex(index)
 
-    def sort(self, mapping, sort_mode="excel"):
+    def sort(self, mapping, sort_mode="excel", tqdm=_tqdm, pbar:_tqdm=None):
         """Perform multi-pass sorting with precedence given order of column names.
 
         Args:
@@ -407,17 +407,17 @@ class Table(BaseTable):
         Table.sort(mapping={'A':True, 'B':False}) means sort 'A' in descending order, then (2nd priority)
         sort B in ascending order.
         """
-        new = sortation.sort(self, mapping, sort_mode)
+        new = sortation.sort(self, mapping, sort_mode, tqdm=tqdm, pbar=pbar)
         self.columns = new.columns
 
-    def sorted(self, mapping, sort_mode="excel"):
+    def sorted(self, mapping, sort_mode="excel", tqdm=_tqdm, pbar:_tqdm=None):
         """See sort.
         Sorted returns a new table in contrast to "sort", which is in-place.
 
         Returns:
             Table.
         """
-        return sortation.sort(self, mapping, sort_mode)
+        return sortation.sort(self, mapping, sort_mode, tqdm=tqdm, pbar=pbar)
 
     def is_sorted(self, mapping, sort_mode='excel'):
         """Performs multi-pass sorting check with precedence given order of column names.

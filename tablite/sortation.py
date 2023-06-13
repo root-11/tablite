@@ -139,7 +139,7 @@ def _mp_reindex(T, index):
     return t
 
 
-def sort(T, mapping, sort_mode="excel"):
+def sort(T, mapping, sort_mode="excel", tqdm=_tqdm, pbar: _tqdm = None):
     """Perform multi-pass sorting with precedence given order of column names.
     sort_mode: str: "alphanumeric", "unix", or, "excel"
     kwargs:
@@ -153,7 +153,7 @@ def sort(T, mapping, sort_mode="excel"):
     """
     sub_cls_check(T, Table)
 
-    index = sort_index(T, mapping, sort_mode=sort_mode)
+    index = sort_index(T, mapping, sort_mode=sort_mode, tqdm=_tqdm, pbar=pbar)
     m = select_processing_method(len(T) * len(T.columns), _sp_reindex, _mp_reindex)
     return m(T, index)
 
