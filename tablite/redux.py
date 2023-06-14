@@ -107,7 +107,8 @@ def filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
         else:  # v2 is active:
             dset_B = np.array([v2] * len(T))
         
-        assert len(dset_A) == len(dset_B)
+        if len(dset_A) != len(dset_B):
+            raise ValueError(f"Assymmetric dataset: {c1} has {len(dset_A)} values, whilst {c2} has {len(dset_B)} values.")
         # Evaluate
         if expr == ">":
             result = dset_A[:] > dset_B[:]
