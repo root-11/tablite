@@ -771,7 +771,7 @@ class Column(object):
                 return "mixed"
         dtype = dtypes.pop()
         return "mixed" if dtype is object else dtype
-        
+
     def index(self):
         """
         returns dict with { unique entry : list of indices }
@@ -1122,14 +1122,14 @@ class Table(object):
         """
         self.columns.clear()
 
-    def save(self, path, compression_method=zipfile.ZIP_STORED, compression_level=None):  # USER FUNCTION.
+    def save(self, path, compression_method=zipfile.ZIP_DEFLATED, compression_level=1):  # USER FUNCTION.
         """saves table to compressed tpz file.
 
         Args:
-            path (Path): workdir / PID / tables / <int>.yml
-            compression_method: See zipfile compression methods. Default no compression.
-            compression_level: See zipfile compression levels. Defaults to None.
-            The defaults are the fastest mode of operation.
+            path (Path): file destination.
+            compression_method: See zipfile compression methods. Defaults to ZIP_DEFLATED.
+            compression_level: See zipfile compression levels. Defaults to 1.
+            The default settings produce 80% compression at 10% slowdown.
 
         .tpz is a gzip archive with table metadata captured as table.yml
         and the necessary set of pages saved as .npy files.
@@ -1137,18 +1137,11 @@ class Table(object):
         The zip contains table.yml which provides an overview of the data:
         --------------------------------------
         %YAML 1.2                              yaml version
-        temp = false                           temp identifier.
         columns:                               start of columns section.
             name: “列 1”                       name of column 1.
                 pages: [p1b1, p1b2]            list of pages in column 1.
-                length: [1_000_000, 834_312]   list of page-lengths
-                types: [0,0]                   list of zeroes, so column 1 is a C-level data format.
             name: “列 2”                       name of column 2
                 pages: [p2b1, p2b2]            list of pages in column 2.
-                length: [1_000_000, 834_312]   list of page-lengths
-                types: [p3b1, p3b2]            list of nonzero type codes, so column 2 is not a C
-                                                 -level data format. The type codes are available
-                                                 in datatypes.Datatypes as _type_codes
         ----------------------------------------
 
         """
@@ -1158,25 +1151,19 @@ class Table(object):
         if path.suffix != ".tpz":
             path += ".tpz"
 
+        # create yaml document
         _page_counter = 0
-        d = {"temp": False}
+        d = {}
         cols = {}
         for name, col in self.columns.items():
             type_check(col, Column)
-            cols[name] = {
-                "pages": [p.path.name for p in col.pages],
-                "length": [p.len for p in col.pages],
-                "types": [0 for _ in col.pages],
-            }
+            cols[name] = {"pages": [p.path.name for p in col.pages]}
             _page_counter += len(col.pages)
         d["columns"] = cols
-
         yml = yaml.safe_dump(d, sort_keys=False, allow_unicode=True, default_flow_style=None)
 
         _file_counter = 0
-        with zipfile.ZipFile(
-            path, "w", compression=compression_method, compresslevel=compression_level
-        ) as f:  # raise if exists.
+        with zipfile.ZipFile(path, "w", compression=compression_method, compresslevel=compression_level) as f:
             log.debug(f"writing .tpz to {path} with\n{yml}")
             f.writestr("table.yml", yml)
             for name, col in self.columns.items():
@@ -1188,7 +1175,7 @@ class Table(object):
 
             _fields = len(self) * len(self.columns)
             _avg = _fields // _page_counter
-            log.debug(f"Wrote {_fields} on {_page_counter} pages in {_file_counter} files: {_avg} fields/page")
+            log.debug(f"Wrote {_fields:,} on {_page_counter:,} pages in {_file_counter} files: {_avg} fields/page")
 
     @classmethod
     def load(cls, path, tqdm=_tqdm):  # USER FUNCTION.
@@ -1210,7 +1197,7 @@ class Table(object):
 
             page_count = sum([len(c["pages"]) for c in metadata["columns"].values()])
 
-            with tqdm(total=page_count, desc=f"importing '{path.name}' file") as pbar:
+            with tqdm(total=page_count, desc=f"loading '{path.name}' file") as pbar:
                 for name, d in metadata["columns"].items():
                     column = Column(t.path)
                     for page in d["pages"]:
