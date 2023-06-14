@@ -106,6 +106,8 @@ def filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
             dset_B = T[c2]
         else:  # v2 is active:
             dset_B = np.array([v2] * len(T))
+        
+        assert len(dset_A) == len(dset_B)
         # Evaluate
         if expr == ">":
             result = dset_A[:] > dset_B[:]
