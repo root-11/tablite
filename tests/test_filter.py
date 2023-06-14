@@ -148,6 +148,7 @@ def test_filter():
         filter_type="all",
     )
     assert len(a) + len(b) == len(t)
+    assert len(a) == len([i for i in t["4"] if i % 2 == 0])
 
     assert set(a["4"].unique()) == {0}
     assert set(b["4"].unique()) == {1}
@@ -173,3 +174,14 @@ def test_filter():
         assert row[4] != 0 and row[7] != "6°"
 
     assert len(a) + len(b) == len(t)
+
+    t["12"] = t["11"][:-5]
+    try:
+        a, b = t.filter(
+            [
+                {"column1": "11", "criteria": "==", "column2": "12"},
+            ]
+        )
+        assert False, "the compared datasets are assymmetric."
+    except ValueError:
+        assert True
