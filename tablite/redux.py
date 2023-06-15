@@ -3,6 +3,7 @@ import numpy as np
 from tablite.utils import sub_cls_check, type_check, expression_interpreter
 from tablite.mp_utils import filter_ops
 from tablite.datatypes import list_to_np_array
+from tablite.config import Config
 from tqdm import tqdm as _tqdm
 
 
@@ -106,9 +107,11 @@ def filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
             dset_B = T[c2]
         else:  # v2 is active:
             dset_B = np.array([v2] * len(T))
-        
+
         if len(dset_A) != len(dset_B):
-            raise ValueError(f"Assymmetric dataset: {c1} has {len(dset_A)} values, whilst {c2} has {len(dset_B)} values.")
+            raise ValueError(
+                f"Assymmetric dataset: {c1} has {len(dset_A)} values, whilst {c2} has {len(dset_B)} values."
+            )
         # Evaluate
         if expr == ">":
             result = dset_A[:] > dset_B[:]
@@ -199,10 +202,7 @@ def filter_all(T, **kwargs):
 
     mask = np.array([True if i in ixs else False for i in range(len(T))], dtype=bool)
     ixs.clear()
-    new = type(T)()
-    for name in T.columns:
-        new[name] = np.compress(mask, T[name][:])
-    return new
+    return compress_one(T, mask)
 
 
 def filter_any(T, **kwargs):
@@ -225,21 +225,44 @@ def filter_any(T, **kwargs):
 
     mask = np.array([True if i in ixs else False for i in range(len(T))], dtype=bool)
     ixs.clear()
-    new = type(T)()
+    return compress_one(T, mask)
+
+
+def compress_one(T, mask):
+    # NOTE FOR DEVELOPERS:
+    # np.compress is so fast that the overhead of multiprocessing doesn't pay off.
+    cls = type(T)
+    new = cls()
     for name in T.columns:
-        new[name] = np.compress(mask, T[name][:])
+        new.add_columns(name)
+        col = new[name]  # fetch the col to avoid doing it in the loop below
+
+        # prevent OOMError by slicing the getitem ops
+        start, end = 0, 0
+        for _ in range(0, len(T) + 1, Config.PAGE_SIZE):
+            start, end = end, end + Config.PAGE_SIZE
+            col.extend(np.compress(mask, T[name][start:end]))  # <-- getitem ops
     return new
 
 
-def compress(T, mask):
+def compress_both(T, mask):
     # NOTE FOR DEVELOPERS:
-    # _sp_compress is so fast that the overhead of multiprocessing doesn't pay off.
+    # np.compress is so fast that the overhead of multiprocessing doesn't pay off.
     cls = type(T)
     true, false = cls(), cls()
-    for col_name in T.columns:
-        data = T[col_name][:]
-        true[col_name] = np.compress(mask, data)
-        false[col_name] = np.compress(np.invert(mask), data)
+
+    for name in T.columns:
+        true.add_column(name)
+        false.add_column(name)
+        true_col = true[name]  # fetch the col to avoid doing it in the loop below
+        false_col = false[name]
+        # prevent OOMError by slicing the getitem ops
+        start, end = 0, 0
+        for _ in range(0, len(T) + 1, Config.PAGE_SIZE):
+            start, end = end, end + Config.PAGE_SIZE
+            data = T[name][start:end]
+            true_col.extend(np.compress(mask, data))
+            false_col.extend(np.compress(np.invert(mask), data))
     return true, false
 
 
@@ -287,4 +310,4 @@ def filter(T, expressions, filter_type="all", tqdm=_tqdm):
     else:
         raise TypeError
     # create new tables
-    return compress(T, mask)
+    return compress_both(T, mask)
