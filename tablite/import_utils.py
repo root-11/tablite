@@ -90,7 +90,7 @@ def from_hdf5(T, path, tqdm=_tqdm, pbar=None):
             dset = h5[col_name]
             arr = np.array(dset[:])
             if arr.dtype == object:
-                arr = np.array(DataTypes.guess([v.decode('utf-8') for v in arr]))
+                arr = np.array(DataTypes.guess([v.decode("utf-8") for v in arr]))
             t[col_name] = arr
     return t
 
@@ -429,7 +429,7 @@ def text_reader(
 
     # fmt:off
     with tqdm(total=100, desc=f"importing: reading '{pbar_fname}' bytes", unit="%",
-              bar_format="{desc}: {percentage:3.2f}%|{bar}| [{elapsed}<{remaining}]") as pbar:
+              bar_format="{desc}: {percentage:3.2f}%|{bar}| [{elapsed}<{remaining}]", disable=Config.TQDM_DISABLE) as pbar:
         # fmt:on
         with path.open("r", encoding=encoding, errors="ignore") as fi:
             # task: find chunk ...
