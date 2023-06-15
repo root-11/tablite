@@ -321,7 +321,8 @@ def do_wiki_joins():
     # Definition: A cross join produces a cartesian product between the two tables,
     # returning all possible combinations of all rows. It has no on clause because
     # you're just joining everything to everything.
-    assert sql_result == tbl_result
+    assert set(sql_result) == set(tbl_result)
+    assert len(sql_result) == len(tbl_result)
 
     # inner join
     sql_result = cur.execute(

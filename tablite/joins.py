@@ -1,7 +1,8 @@
 import math
 import numpy as np
-from tablite.base import Table
 from itertools import product
+from tablite.base import Table
+from tablite.reindex import reindex
 from tablite.utils import sub_cls_check, unique_name
 from tablite.mp_utils import share_mem, map_task, select_processing_method
 from mplite import TaskManager, Task
@@ -68,21 +69,16 @@ def _sp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pba
     private helper for single processing join
     """
     assert len(LEFT) == len(RIGHT)
-    result = type(T)()
-
     if pbar is None:
         total = len(left_columns) + len(right_columns)
         pbar = tqdm(total=total, desc="join")
 
-    for col_name in left_columns:
-        col_data = T[col_name][:]
-        result[col_name] = [col_data[k] if k != -1 else None for k in LEFT]
-        pbar.update(1)
-    for col_name in right_columns:
-        col_data = other[col_name][:]
-        revised_name = unique_name(col_name, result.columns)
-        result[revised_name] = [col_data[k] if k != -1 else None for k in RIGHT]
-        pbar.update(1)
+    result = reindex(T, LEFT, left_columns, tqdm=tqdm, pbar=pbar)
+    second = reindex(other, RIGHT, right_columns, tqdm=tqdm, pbar=pbar)
+    for name in right_columns:
+        revised_name = unique_name(name, result.columns)
+        result[revised_name] = second[name]
+
     return result
 
 
