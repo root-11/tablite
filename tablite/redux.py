@@ -30,7 +30,7 @@ def _filter_using_expression(T, expression):
     return np.array([bool(_f(*r)) for r in T.__getitem__(*req_columns).rows], dtype=bool)
 
 
-def filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
+def _filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
     """
     enables filtering across columns for multiple criteria.
 
@@ -202,7 +202,7 @@ def filter_all(T, **kwargs):
 
     mask = np.array([True if i in ixs else False for i in range(len(T))], dtype=bool)
     ixs.clear()
-    return compress_one(T, mask)
+    return _compress_one(T, mask)
 
 
 def filter_any(T, **kwargs):
@@ -225,10 +225,10 @@ def filter_any(T, **kwargs):
 
     mask = np.array([True if i in ixs else False for i in range(len(T))], dtype=bool)
     ixs.clear()
-    return compress_one(T, mask)
+    return _compress_one(T, mask)
 
 
-def compress_one(T, mask):
+def _compress_one(T, mask):
     # NOTE FOR DEVELOPERS:
     # np.compress is so fast that the overhead of multiprocessing doesn't pay off.
     cls = type(T)
@@ -245,7 +245,7 @@ def compress_one(T, mask):
     return new
 
 
-def compress_both(T, mask):
+def _compress_both(T, mask):
     # NOTE FOR DEVELOPERS:
     # np.compress is so fast that the overhead of multiprocessing doesn't pay off.
     cls = type(T)
@@ -306,8 +306,8 @@ def filter(T, expressions, filter_type="all", tqdm=_tqdm):
     if isinstance(expressions, str):
         mask = _filter_using_expression(T, expressions)
     elif isinstance(expressions, list):
-        mask = filter_using_list_of_dicts(T, expressions, filter_type, tqdm)
+        mask = _filter_using_list_of_dicts(T, expressions, filter_type, tqdm)
     else:
         raise TypeError
     # create new tables
-    return compress_both(T, mask)
+    return _compress_both(T, mask)
