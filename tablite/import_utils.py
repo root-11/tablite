@@ -115,7 +115,7 @@ def from_html(T, path, tqdm=_tqdm, pbar=None):
 
     if pbar is None:
         total = path.stat().st_size
-        pbar = tqdm(total=total, desc="from_html")
+        pbar = tqdm(total=total, desc="from_html", disable=Config.TQDM_DISABLE)
 
     row_start, row_end = "<tr>", "</tr>"
     value_start, value_end = "<th>", "</th>"
