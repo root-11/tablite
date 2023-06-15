@@ -498,8 +498,8 @@ def test_count():
 
 def test_count_multiple_dtypes():
     t = Table({"A": [0, 1.0, True, False, None, "0"] * 2})
-    for v in t['A']:
-        assert t['A'].count(v) == 2
+    for v in t["A"]:
+        assert t["A"].count(v) == 2
 
 
 def test_contains():
@@ -510,5 +510,32 @@ def test_contains():
 
 def test_contains_multiple_dtypes():
     t = Table({"A": [0, 1.0, True, False, None, "0"] * 2})
-    for v in t['A']:
-        assert v in t['A']
+    for v in t["A"]:
+        assert v in t["A"]
+
+
+def test_get_by_indices_one_page():
+    data = list("abcdefg")
+    t = Table({"A": data})
+    col = t["A"]
+    assert isinstance(col, Column)
+    indices = np.array([6, 3, 4, 1, 2])
+    values = col.get_by_indices(indices)
+    expected = [data[i] for i in indices]
+    assert np.all(values == expected)
+
+
+def test_get_by_indices_multiple_pages():
+    old_cfg = Config.PAGE_SIZE
+    Config.PAGE_SIZE = 5
+
+    data = [i for i in range(23)]
+    t = Table({"A": data})
+    col = t["A"]
+    assert isinstance(col, Column)
+    indices = np.array(data[3:22:4])
+    values = col.get_by_indices(indices)
+    expected = [data[i] for i in indices]
+    assert np.all(values == expected)
+
+    Config.PAGE_SIZE = old_cfg
