@@ -558,6 +558,36 @@ class Column(object):
         new_arrays = self._paginate(pruned)
         self.pages = head + [Page(self.path, arr) for arr in new_arrays] + tail
 
+    def get_by_indices(self, indices):
+        """retrieves values from column given a set of indices.
+
+        A useful alternative to iterating over rows.
+
+        >>> indices = np.array(list(range(3,700_700, 426)))
+        >>> arr = np.array(list(range(2_000_000)))
+        Slow:
+        >>> [v for i,v in enumerate(arr) if i in indices]
+
+        Fast:
+        >>> np.take(arr, indices)
+
+        Args:
+            indices (np.array): targets
+        """
+        type_check(indices, np.ndarray)
+        arrays = []
+
+        start, end = 0, 0
+        for page in self.pages:
+            data = page.get()
+            start, end = end, end + page.len
+            range_match = np.where(((indices >= start) & (indices < end)) | (indices == -1))[0]
+            if len(range_match):
+                sub_index = np.take(indices, range_match)
+                arr = np.take(data, sub_index - start)
+                arrays.append(arr)
+        return np_type_unify(arrays)
+
     def __iter__(self):  # USER FUNCTION.
         for page in self.pages:
             data = page.get()
@@ -1197,7 +1227,7 @@ class Table(object):
 
             page_count = sum([len(c["pages"]) for c in metadata["columns"].values()])
 
-            with tqdm(total=page_count, desc=f"loading '{path.name}' file") as pbar:
+            with tqdm(total=page_count, desc=f"loading '{path.name}' file", disable=Config.TQDM_DISABLE) as pbar:
                 for name, d in metadata["columns"].items():
                     column = Column(t.path)
                     for page in d["pages"]:
