@@ -27,7 +27,9 @@ def _filter_using_expression(T, expression):
         raise ValueError(f"Expression could not be compiled: {expression}:\n{e}")
 
     req_columns = [i for i in T.columns if i in expression]
-    return np.array([bool(_f(*r)) for r in T.__getitem__(*req_columns).rows], dtype=bool)
+    return np.array(
+        [bool(_f(*r)) for r in T.__getitem__(*req_columns).rows], dtype=bool
+    )
 
 
 def _filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
@@ -175,33 +177,34 @@ def filter_all(T, **kwargs):
     if not isinstance(kwargs, dict):
         raise TypeError("did you forget to add the ** in front of your dict?")
     if not all([k in T.columns for k in kwargs]):
-        raise ValueError(f"Unknown column(s): {[k for k in kwargs if k not in T.columns]}")
+        raise ValueError(
+            f"Unknown column(s): {[k for k in kwargs if k not in T.columns]}"
+        )
 
-    ixs = None
+    mask = np.full((len(T),), True)
     for k, v in kwargs.items():
-        col = T[k][:]
-        if ixs is None:  # first header generates base set.
-            if callable(v):
-                ix2 = {ix for ix, i in enumerate(col) if v(i)}
-            else:
-                ix2 = {ix for ix, i in enumerate(col) if v == i}
-
-        else:  # remaining headers reduce the base set.
-            if callable(v):
-                ix2 = {ix for ix in ixs if v(col[ix])}
-            else:
-                ix2 = {ix for ix in ixs if v == col[ix]}
-
-        if not isinstance(ixs, set):
-            ixs = ix2
+        data = T[k][:]
+        if callable(v):
+            mask = mask & v(data)
         else:
-            ixs = ixs.intersection(ix2)
+            mask = mask & (data == v)
 
-        if not ixs:  # There are no matches.
-            break
+    return _compress_one(T, mask)
 
-    mask = np.array([True if i in ixs else False for i in range(len(T))], dtype=bool)
-    ixs.clear()
+
+def drop(T, *args):
+    """drops all rows that contain args
+
+    Args:
+        T (Table):
+    """
+    sub_cls_check(T, Table)
+    mask = np.full((len(T),), False)
+    for name in T.columns:
+        data = T[name][:]
+        for arg in args:
+            mask = mask | (data == arg)
+    mask = np.invert(mask)
     return _compress_one(T, mask)
 
 
@@ -214,17 +217,14 @@ def filter_any(T, **kwargs):
     if not isinstance(kwargs, dict):
         raise TypeError("did you forget to add the ** in front of your dict?")
 
-    ixs = set()
+    mask = np.full((len(T),), False)
     for k, v in kwargs.items():
-        col = T[k][:]
+        data = T[k][:]
         if callable(v):
-            ix2 = {ix for ix, r in enumerate(col) if v(r)}
+            mask = mask | v(data)
         else:
-            ix2 = {ix for ix, r in enumerate(col) if v == r}
-        ixs.update(ix2)
+            mask = mask | (v == data)
 
-    mask = np.array([True if i in ixs else False for i in range(len(T))], dtype=bool)
-    ixs.clear()
     return _compress_one(T, mask)
 
 
