@@ -241,7 +241,7 @@ def _compress_one(T, mask):
         start, end = 0, 0
         for _ in range(0, len(T) + 1, Config.PAGE_SIZE):
             start, end = end, end + Config.PAGE_SIZE
-            col.extend(np.compress(mask, T[name][start:end]))  # <-- getitem ops
+            col.extend(np.compress(mask[start:end], T[name][start:end]))  # <-- getitem ops
     return new
 
 
@@ -261,8 +261,8 @@ def _compress_both(T, mask):
         for _ in range(0, len(T) + 1, Config.PAGE_SIZE):
             start, end = end, end + Config.PAGE_SIZE
             data = T[name][start:end]
-            true_col.extend(np.compress(mask, data))
-            false_col.extend(np.compress(np.invert(mask), data))
+            true_col.extend(np.compress(mask[start:end], data))
+            false_col.extend(np.compress(np.invert(mask)[start:end], data))
     return true, false
 
 
