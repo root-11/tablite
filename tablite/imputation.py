@@ -2,6 +2,7 @@ import math
 
 from tablite.base import Table, Column
 from tablite.utils import sub_cls_check
+from tablite.config import Config
 from tablite import sort_utils
 
 from tqdm import tqdm as _tqdm
@@ -154,7 +155,9 @@ def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm):
     item_order = sort_utils.unix_sort(list(ranks))
     new_order = {tuple(item_order[i] for i in k): k for k in missing_value_index.keys()}
 
-    with tqdm(unit="missing values", total=sum(len(v) for v in missing_value_index.values())) as pbar:
+    with tqdm(
+        unit="missing values", total=sum(len(v) for v in missing_value_index.values()), disable=Config.TQDM_DISABLE
+    ) as pbar:
         for _, key in sorted(new_order.items(), reverse=True):  # Fewest None's are at the front of the list.
             for row_id in missing_value_index[key]:
                 err_map = [0.0 for _ in range(len(T))]
