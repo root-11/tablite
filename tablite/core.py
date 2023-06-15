@@ -391,7 +391,7 @@ class Table(BaseTable):
         index = [min(v) for v in self.index(*args).values()]
         return self.reindex(index)
 
-    def sort(self, mapping, sort_mode="excel", tqdm=_tqdm, pbar:_tqdm=None):
+    def sort(self, mapping, sort_mode="excel", tqdm=_tqdm, pbar: _tqdm = None):
         """Perform multi-pass sorting with precedence given order of column names.
 
         Args:
@@ -410,7 +410,7 @@ class Table(BaseTable):
         new = sortation.sort(self, mapping, sort_mode, tqdm=tqdm, pbar=pbar)
         self.columns = new.columns
 
-    def sorted(self, mapping, sort_mode="excel", tqdm=_tqdm, pbar:_tqdm=None):
+    def sorted(self, mapping, sort_mode="excel", tqdm=_tqdm, pbar: _tqdm = None):
         """See sort.
         Sorted returns a new table in contrast to "sort", which is in-place.
 
@@ -419,7 +419,7 @@ class Table(BaseTable):
         """
         return sortation.sort(self, mapping, sort_mode, tqdm=tqdm, pbar=pbar)
 
-    def is_sorted(self, mapping, sort_mode='excel'):
+    def is_sorted(self, mapping, sort_mode="excel"):
         """Performs multi-pass sorting check with precedence given order of column names.
         **kwargs: optional: sort criteria. See Table.sort()
         :return bool
@@ -483,8 +483,7 @@ class Table(BaseTable):
         """
         if not args:
             raise ValueError("What to drop? None? np.nan? ")
-        d = {n: lambda x: x not in set(args) for n in self.columns}
-        return self.all(**d)
+        return redux.drop(self, *args)
 
     def replace(self, mapping, columns=None):
         """replaces all mapped keys with values from named columns
