@@ -59,6 +59,8 @@ class Config(object):
     #             if any(errors):
     #                 raise Exception("\n".join(e for e in errors if e))
 
+    TQDM_DISABLE = False  # set to True to disable tqdm
+
     @classmethod
     def reset(cls):
         """Resets the config class to original values."""
