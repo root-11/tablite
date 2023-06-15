@@ -1,5 +1,6 @@
 from tablite.utils import sub_cls_check, type_check
 from tablite.base import Table
+from tablite.config import Config
 from tablite.datatypes import DataTypes
 from pathlib import Path
 
@@ -180,7 +181,7 @@ def text_writer(table, path, tqdm=_tqdm):
 
     with path.open("w", encoding="utf-8") as fo:
         fo.write(delimiter.join(c for c in table.columns) + "\n")
-        for row in tqdm(table.rows, total=len(table)):
+        for row in tqdm(table.rows, total=len(table), disable=Config.TQDM_DISABLE):
             fo.write(delimiter.join(txt(c) for c in row) + "\n")
 
 
