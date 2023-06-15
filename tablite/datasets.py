@@ -1,7 +1,9 @@
+import math
 import random
 from datetime import datetime
 from string import ascii_uppercase
 from tablite import Table
+from tablite.config import Config
 
 
 def synthetic_order_data(rows=100_000):
@@ -42,28 +44,39 @@ def synthetic_order_data(rows=100_000):
 
     t = Table()
     assert isinstance(t, Table)
-    t["#"] = list(range(1, rows + 1))
-    # 1 - mock orderid
-    t["1"] = [random.randint(18_778_628_504, 2277_772_117_504) for i in range(1, rows + 1)]
-    # 2 - mock delivery date.
-    t["2"] = [datetime.fromordinal(random.randint(738000, 738150)).isoformat() for i in range(1, rows + 1)]
-    # 3 - mock store id.
-    t["3"] = [random.randint(50000, 51000) for _ in range(1, rows + 1)]
-    # 4 - random bit.
-    t["4"] = [random.randint(0, 1) for _ in range(1, rows + 1)]
-    # 5 - mock product id
-    t["5"] = [random.randint(3000, 30000) for _ in range(1, rows + 1)]
-    # 6 - random weird string
-    t["6"] = [f"C{random.randint(1, 5)}-{random.randint(1, 5)}" for _ in range(1, rows + 1)]
-    # 7 - # random category
-    t["7"] = ["".join(random.choice(ascii_uppercase) for _ in range(3)) for _ in range(1, rows + 1)]
-    # 8 -random temperature group.
-    t["8"] = [random.choice(L1) for _ in range(1, rows + 1)]
-    # 9 - random choice of category
-    t["9"] = [random.choice(L2) for _ in range(1, rows + 1)]
-    # 10 - volume?
-    t["10"] = [random.uniform(0.01, 2.5) for _ in range(1, rows + 1)]
-    # 11 - units?
-    t["11"] = [f"{random.uniform(0.1, 25)}" for _ in range(1, rows + 1)]
+    for page_n in range(math.ceil(rows / Config.PAGE_SIZE)):  # n pages
+        start = (page_n * Config.PAGE_SIZE)
+        end = min(start + Config.PAGE_SIZE, rows)
+        ro = range(start, end)
+
+        t2 = Table()
+        t2["#"] = [v+1 for v in ro]
+        # 1 - mock orderid
+        t2["1"] = [random.randint(18_778_628_504, 2277_772_117_504) for i in ro]
+        # 2 - mock delivery date.
+        t2["2"] = [datetime.fromordinal(random.randint(738000, 738150)).isoformat() for i in ro]
+        # 3 - mock store id.
+        t2["3"] = [random.randint(50000, 51000) for _ in ro]
+        # 4 - random bit.
+        t2["4"] = [random.randint(0, 1) for _ in ro]
+        # 5 - mock product id
+        t2["5"] = [random.randint(3000, 30000) for _ in ro]
+        # 6 - random weird string
+        t2["6"] = [f"C{random.randint(1, 5)}-{random.randint(1, 5)}" for _ in ro]
+        # 7 - # random category
+        t2["7"] = ["".join(random.choice(ascii_uppercase) for _ in range(3)) for _ in ro]
+        # 8 -random temperature group.
+        t2["8"] = [random.choice(L1) for _ in ro]
+        # 9 - random choice of category
+        t2["9"] = [random.choice(L2) for _ in ro]
+        # 10 - volume?
+        t2["10"] = [random.uniform(0.01, 2.5) for _ in ro]
+        # 11 - units?
+        t2["11"] = [f"{random.uniform(0.1, 25)}" for _ in ro]
+
+        if len(t) == 0:
+            t = t2
+        else:
+            t += t2
 
     return t
