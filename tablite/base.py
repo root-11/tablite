@@ -587,11 +587,7 @@ class Column(object):
         """
         type_check(indices, np.ndarray)
         arrays = []
-
-        start, end = 0, 0
-        for page in self.pages:
-            data = page.get()
-            start, end = end, end + page.len
+        for start, end, data in self.iter_by_page():
             range_match = np.where(((indices >= start) & (indices < end)) | (indices == -1))[0]
             if len(range_match):
                 sub_index = np.take(indices, range_match)
