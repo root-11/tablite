@@ -31,9 +31,7 @@ def reindex(T, index, names, tqdm=_tqdm, pbar=None):
         result.add_column(name)
         col = result[name]
 
-        start, end = 0, 0
-        for _ in range(0, len(T), Config.PAGE_SIZE):
-            start, end = end, end + Config.PAGE_SIZE
+        for start, end in Config.page_steps(len(T)):
             indices = index[start:end]
             values = T[name].get_by_indices(indices)
             mask = indices == -1
