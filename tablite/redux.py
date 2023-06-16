@@ -27,9 +27,7 @@ def _filter_using_expression(T, expression):
         raise ValueError(f"Expression could not be compiled: {expression}:\n{e}")
 
     req_columns = [i for i in T.columns if i in expression]
-    return np.array(
-        [bool(_f(*r)) for r in T.__getitem__(*req_columns).rows], dtype=bool
-    )
+    return np.array([bool(_f(*r)) for r in T.__getitem__(*req_columns).rows], dtype=bool)
 
 
 def _filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
@@ -177,17 +175,16 @@ def filter_all(T, **kwargs):
     if not isinstance(kwargs, dict):
         raise TypeError("did you forget to add the ** in front of your dict?")
     if not all([k in T.columns for k in kwargs]):
-        raise ValueError(
-            f"Unknown column(s): {[k for k in kwargs if k not in T.columns]}"
-        )
+        raise ValueError(f"Unknown column(s): {[k for k in kwargs if k not in T.columns]}")
 
     mask = np.full((len(T),), True)
     for k, v in kwargs.items():
-        data = T[k][:]
-        if callable(v):
-            mask = mask & v(data)
-        else:
-            mask = mask & (data == v)
+        col = T[k]
+        for start, end, data in col.iter_by_page():
+            if callable(v):
+                mask[start:end] = mask[start:end] & v(data)
+            else:
+                mask[start:end] = mask[start:end] & (data == v)
 
     return _compress_one(T, mask)
 
@@ -201,9 +198,11 @@ def drop(T, *args):
     sub_cls_check(T, Table)
     mask = np.full((len(T),), False)
     for name in T.columns:
-        data = T[name][:]
-        for arg in args:
-            mask = mask | (data == arg)
+        col = T[name]
+        for start, end, data in col.iter_by_page():
+            for arg in args:
+                mask[start:end] = mask[start:end] | (data == arg)
+
     mask = np.invert(mask)
     return _compress_one(T, mask)
 
@@ -219,11 +218,12 @@ def filter_any(T, **kwargs):
 
     mask = np.full((len(T),), False)
     for k, v in kwargs.items():
-        data = T[k][:]
-        if callable(v):
-            mask = mask | v(data)
-        else:
-            mask = mask | (v == data)
+        col = T[k]
+        for start, end, data in col.iter_by_page():
+            if callable(v):
+                mask[start:end] = mask[start:end] | v(data)
+            else:
+                mask[start:end] = mask[start:end] | (v == data)
 
     return _compress_one(T, mask)
 
@@ -238,9 +238,7 @@ def _compress_one(T, mask):
         col = new[name]  # fetch the col to avoid doing it in the loop below
 
         # prevent OOMError by slicing the getitem ops
-        start, end = 0, 0
-        for _ in range(0, len(T) + 1, Config.PAGE_SIZE):
-            start, end = end, end + Config.PAGE_SIZE
+        for start, end in Config.page_steps(len(T)):
             col.extend(np.compress(mask[start:end], T[name][start:end]))  # <-- getitem ops
     return new
 
@@ -257,9 +255,7 @@ def _compress_both(T, mask):
         true_col = true[name]  # fetch the col to avoid doing it in the loop below
         false_col = false[name]
         # prevent OOMError by slicing the getitem ops
-        start, end = 0, 0
-        for _ in range(0, len(T) + 1, Config.PAGE_SIZE):
-            start, end = end, end + Config.PAGE_SIZE
+        for start, end in Config.page_steps(len(T)):
             data = T[name][start:end]
             true_col.extend(np.compress(mask[start:end], data))
             false_col.extend(np.compress(np.invert(mask)[start:end], data))
