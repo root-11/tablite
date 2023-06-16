@@ -2,10 +2,10 @@ from tablite.base import Table
 from tablite.config import Config
 from tablite.utils import sub_cls_check
 import numpy as np
-import tqdm as _tqdm
+from tqdm import tqdm as _tqdm
 
 
-def reindex(T, index, names, tqdm=_tqdm, pbar=None):
+def reindex(T, index, names=None, tqdm=_tqdm, pbar=None):
     """Constant Memory helper for reindexing pages.
 
     Memory usage is set by datatype and Config.PAGE_SIZE
@@ -20,6 +20,9 @@ def reindex(T, index, names, tqdm=_tqdm, pbar=None):
     Returns:
         _type_: _description_
     """
+    if names is None:
+        names = list(T.columns.keys())
+
     if pbar is None:
         total = len(names)
         pbar = tqdm(total=total, desc="join", disable=Config.TQDM_DISABLE)
