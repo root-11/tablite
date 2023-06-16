@@ -4,6 +4,7 @@ import psutil
 from mplite import Task, TaskManager
 from tablite.mp_utils import share_mem, reindex_task, select_processing_method
 from tablite.datatypes import multitype_set, numpy_to_python
+from tablite.reindex import reindex as _reindex
 from tablite.sort_utils import modes as sort_modes
 from tablite.sort_utils import rank as sort_rank
 from tablite.base import Table, Column, Page
@@ -84,16 +85,12 @@ def reindex(T, index):
         raise IndexError("index out of range: min(index) < -len(self)")
 
     fields = len(T) * len(T.columns)
-    m = select_processing_method(fields, _sp_reindex, _mp_reindex)
+    m = select_processing_method(fields, _reindex, _mp_reindex)
     return m(T, index)
 
 
 def _sp_reindex(T, index):
-    t = type(T)()
-    for name in T.columns:
-        data = T[name][:]
-        t[name] = np.take(data, index)
-    return t
+    return _reindex(T, index)
 
 
 def _mp_reindex(T, index):
