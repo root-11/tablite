@@ -34,9 +34,12 @@ def reindex(T, index, names=None, tqdm=_tqdm, pbar=None):
         result.add_column(name)
         col = result[name]
 
-        for start, end in Config.page_steps(len(T)):
+        for start, end in Config.page_steps(len(index)):
             indices = index[start:end]
             values = T[name].get_by_indices(indices)
+            # in these values, the index of -1 will be wrong.
+            # so if there is any -1 in the indices, they will
+            # have to be replaced with Nones
             mask = indices == -1
             if np.any(mask):
                 nones = np.full(index.shape, fill_value=None)
