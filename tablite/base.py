@@ -280,6 +280,17 @@ class Column(object):
 
         return pages
 
+    def iter_by_page(self):
+        """iterates over the column, page by page
+
+        Yields:
+            tuple: start, end, data
+        """
+        start, end = 0, 0
+        for page in self.pages:
+            start, end = end, end + page.len
+            yield start, end, page.get()
+
     def __getitem__(self, item):  # USER FUNCTION.
         """gets numpy array.
 
