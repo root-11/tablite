@@ -78,6 +78,8 @@ class Config(object):
         for _ in range(0, length + 1, cls.PAGE_SIZE):
             start, end = end, end + cls.PAGE_SIZE
             yield start, end
+            if end == length:
+                return
 
 
 _default_values = {k: v for k, v in Config.__dict__.items() if not k.startswith("__") or callable(v)}
