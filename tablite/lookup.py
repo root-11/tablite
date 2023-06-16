@@ -1,7 +1,7 @@
-import psutil
 import math
 import numpy as np
 from tablite.base import Table, Column
+from tablite.reindex import reindex as _reindex
 from tablite.utils import sub_cls_check, unique_name
 from tablite.mp_utils import lookup_ops, share_mem, map_task, select_processing_method
 from mplite import Task, TaskManager
@@ -100,25 +100,18 @@ def lookup(T, other, *criteria, all=True, tqdm=_tqdm):
 
 def _sp_lookup(T, other, index):
     result = T.copy()
-    for col_name in other.columns:
-        col_data = other[col_name][:]
-        revised_name = unique_name(col_name, result.columns)
-        # 1/3 reindex but well knowing that -1 in the index will be wrong.
-        reindexed = np.take(col_data, index)
-        # 2/3 prepare an array of nones
-        nones = np.empty(shape=index.shape, dtype=object)
-        # 3/3 merge reindexed array with None, whenever the original index is -1.
-        result[revised_name] = np.where(index == -1, nones, reindexed)
-        # the result of the three steps above are the same as in python below:
-        # result[revised_name] = [col_data[k] if k != -1 else None for k in index]
+    second = _reindex(other, index)
+    for name in other.columns:
+        revised_name = unique_name(name, result.columns)
+        result[revised_name] = second[name]
     return result
 
 
 def _mp_lookup(T, other, index):
-    return _sp_lookup(T,other,index)
+    return _sp_lookup(T, other, index)
 
     result = T.copy()
-    cpus = 1# max(psutil.cpu_count(logical=False), 1)
+    cpus = 1  # max(psutil.cpu_count(logical=False), 1)
     step_size = math.ceil(len(T) / cpus)
 
     with TaskManager(cpu_count=cpus) as tm:  # keeps the CPU pool alive during the whole join.
