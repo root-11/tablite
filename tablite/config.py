@@ -67,5 +67,17 @@ class Config(object):
         for k, v in _default_values.items():
             setattr(Config, k, v)
 
+    @classmethod
+    def page_steps(cls, length):
+        """an iterator that yield start and end in page sizes
+
+        Yields:
+            tuple: start:int, end:int
+        """
+        start, end = 0, 0
+        for _ in range(0, length + 1, cls.PAGE_SIZE):
+            start, end = end, end + cls.PAGE_SIZE
+            yield start, end
+
 
 _default_values = {k: v for k, v in Config.__dict__.items() if not k.startswith("__") or callable(v)}
