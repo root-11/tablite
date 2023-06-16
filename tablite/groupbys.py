@@ -120,7 +120,7 @@ def groupby(T, keys, functions, tqdm=_tqdm, pbar=None):  # TODO: This is single 
     # only keys will produce unique values for each key group.
     if keys and not functions:
         cols = list(zip(*T.index(*keys)))
-        result = Table()
+        result = T.__class__()
 
         pbar = tqdm(total=len(keys), desc="groupby") if pbar is None else pbar
 
