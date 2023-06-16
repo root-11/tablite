@@ -76,7 +76,7 @@ class Config(object):
         """
         start, end = 0, 0
         for _ in range(0, length + 1, cls.PAGE_SIZE):
-            start, end = end, end + cls.PAGE_SIZE
+            start, end = end, min(end + cls.PAGE_SIZE, length)
             yield start, end
             if end == length:
                 return
