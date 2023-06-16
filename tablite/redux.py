@@ -98,38 +98,39 @@ def _filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
         v1 = expression.get("value1", None)
         v2 = expression.get("value2", None)
 
-        if c1 is not None:
-            dset_A = T[c1]
-        else:  # v1 is active:
-            dset_A = np.array([v1] * len(T))
+        for start, end in Config.page_steps(len(T)):
+            if c1 is not None:
+                dset_A = T[c1][start:end]
+            else:  # v1 is active:
+                dset_A = np.array([v1] * (end - start))
 
-        if c2 is not None:
-            dset_B = T[c2]
-        else:  # v2 is active:
-            dset_B = np.array([v2] * len(T))
+            if c2 is not None:
+                dset_B = T[c2][start:end]
+            else:  # v2 is active:
+                dset_B = np.array([v2] * (end - start))
 
-        if len(dset_A) != len(dset_B):
-            raise ValueError(
-                f"Assymmetric dataset: {c1} has {len(dset_A)} values, whilst {c2} has {len(dset_B)} values."
-            )
-        # Evaluate
-        if expr == ">":
-            result = dset_A[:] > dset_B[:]
-        elif expr == ">=":
-            result = dset_A[:] >= dset_B[:]
-        elif expr == "==":
-            result = dset_A[:] == dset_B[:]
-        elif expr == "<":
-            result = dset_A[:] < dset_B[:]
-        elif expr == "<=":
-            result = dset_A[:] <= dset_B[:]
-        elif expr == "!=":
-            result = dset_A[:] != dset_B[:]
-        else:  # it's a python evaluations (slow)
-            f = filter_ops.get(expr)
-            assert callable(f)
-            result = list_to_np_array([f(a, b) for a, b in zip(dset_A, dset_B)])
-        bitmap[bit_index] = result
+            if len(dset_A) != len(dset_B):
+                raise ValueError(
+                    f"Assymmetric dataset: {c1} has {len(dset_A)} values, whilst {c2} has {len(dset_B)} values."
+                )
+            # Evaluate
+            if expr == ">":
+                result = dset_A > dset_B
+            elif expr == ">=":
+                result = dset_A >= dset_B
+            elif expr == "==":
+                result = dset_A == dset_B
+            elif expr == "<":
+                result = dset_A < dset_B
+            elif expr == "<=":
+                result = dset_A <= dset_B
+            elif expr == "!=":
+                result = dset_A != dset_B
+            else:  # it's a python evaluations (slow)
+                f = filter_ops.get(expr)
+                assert callable(f)
+                result = list_to_np_array([f(a, b) for a, b in zip(dset_A, dset_B)])
+            bitmap[bit_index, start:end] = result
 
     f = np.all if filter_type == "all" else np.any
     mask = f(bitmap, axis=0)
