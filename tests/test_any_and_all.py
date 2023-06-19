@@ -31,6 +31,17 @@ def test_any():
     assert [r for r in t2.rows] == [[2, 20], [3, 30]]
 
 
+def test_all_with_nones():
+    t = Table({"A": [1, 2, 3], "B": [None, True, False]})
+
+    def f(x):
+        return x is not None
+
+    t2 = t.all(B=f)
+    assert len(t2) == 2
+    assert t2["A"] == [2, 3]
+
+
 def test_filter_profile():
     random.seed(5432)
     t = Table()
