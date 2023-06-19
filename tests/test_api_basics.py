@@ -38,7 +38,8 @@ def test01_compatible_datatypes():
     table4["K"] = ["b", "嗨"]  # utf-32
     table4["L"] = [-(10**23), 10**23]  # int > int64.
     table4["M"] = [float("inf"), float("-inf")]
-    assert list(table4.columns) == ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M"]
+    table4["N"] = []
+    assert list(table4.columns) == ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"]
     # testing .columns property.
     assert table4.dtypes() == {
         "A": "int",
@@ -54,6 +55,7 @@ def test01_compatible_datatypes():
         "K": "str",
         "L": "mixed",
         "M": "float",
+        "N": "mixed"
     }
 
     path = Path(__file__).parent / "data/myfile.tpz"
@@ -79,6 +81,7 @@ def test01_compatible_datatypes():
     assert table5["K"] == ["b", "嗨"]
     assert table5["L"] == [-(10**23), 10**23]  # int > int64.
     assert table5["M"] == [float("inf"), float("-inf")]
+    assert table5["N"] == []
     rows = [row for row in table5.rows]  # test .rows iterator.
     assert len(rows) == 2
     assert rows[0][0] == -1

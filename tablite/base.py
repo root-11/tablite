@@ -188,7 +188,11 @@ class Column(object):
         for _ in range(0, len(self) + 1, Config.PAGE_SIZE):
             start, end = end, end + Config.PAGE_SIZE
             array = self[slice(start, end, 1)]
-            new_pages.append(Page(self.path, array))
+
+            np_dtype, py_dtype = pytype_from_iterable(array)
+            new = MetaArray(array, dtype=np_dtype, py_dtype=py_dtype)
+
+            new_pages.append(Page(self.path, new))
         self.pages = new_pages
 
     def extend(self, value):  # USER FUNCTION.
@@ -806,6 +810,10 @@ class Column(object):
             dtypes.add(page.dtype if page.dtype is object else page.dtype.__name__)
             if len(dtypes) > 1:
                 return "mixed"
+            
+        if len(dtypes) == 0:
+            return "mixed"
+
         dtype = dtypes.pop()
         return "mixed" if dtype is object else dtype
 
