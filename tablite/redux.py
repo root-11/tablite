@@ -183,7 +183,8 @@ def filter_all(T, **kwargs):
         col = T[k]
         for start, end, data in col.iter_by_page():
             if callable(v):
-                mask[start:end] = mask[start:end] & v(data)
+                vf = np.frompyfunc(v, 1, 1)
+                mask[start:end] = mask[start:end] & np.apply_along_axis(vf, 0, data)
             else:
                 mask[start:end] = mask[start:end] & (data == v)
 
@@ -222,7 +223,8 @@ def filter_any(T, **kwargs):
         col = T[k]
         for start, end, data in col.iter_by_page():
             if callable(v):
-                mask[start:end] = mask[start:end] | v(data)
+                vf = np.frompyfunc(v, 1, 1)
+                mask[start:end] = mask[start:end] | np.apply_along_axis(vf, 0, data)
             else:
                 mask[start:end] = mask[start:end] | (v == data)
 
