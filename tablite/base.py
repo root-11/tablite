@@ -806,6 +806,10 @@ class Column(object):
             dtypes.add(page.dtype if page.dtype is object else page.dtype.__name__)
             if len(dtypes) > 1:
                 return "mixed"
+            
+        if len(dtypes) == 0:
+            return "mixed"
+
         dtype = dtypes.pop()
         return "mixed" if dtype is object else dtype
 
