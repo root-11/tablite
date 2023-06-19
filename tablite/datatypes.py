@@ -762,7 +762,7 @@ def pytype_from_iterable(iterable):
             py_dtype = object
         else:
             np_dtype = iterable.dtype
-            py_dtype = pytype(iterable[0])
+            py_dtype = pytype(iterable[0]) if len(iterable) > 0 else pytype(np_dtype.type())
     else:
         raise NotImplementedError(f"No handler for {type(iterable)}")
 
