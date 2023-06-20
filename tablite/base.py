@@ -189,7 +189,7 @@ class Column(object):
             start, end = end, end + Config.PAGE_SIZE
             array = self[slice(start, end, 1)]
 
-            np_dtype, py_dtype = pytype_from_iterable(array)
+            np_dtype, py_dtype = pytype_from_iterable(array.tolist())
             new = MetaArray(array, dtype=np_dtype, py_dtype=py_dtype)
 
             new_pages.append(Page(self.path, new))
