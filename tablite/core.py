@@ -1,5 +1,6 @@
 import sys
 import logging
+import numpy as np
 from pathlib import Path
 
 from tqdm import tqdm as _tqdm
@@ -10,6 +11,7 @@ from tablite.utils import type_check
 from tablite import import_utils
 from tablite import export_utils
 from tablite import redux
+from tablite import reindex as _reindex
 from tablite import joins
 from tablite import lookup
 from tablite import sortation
@@ -17,9 +19,6 @@ from tablite import groupbys
 from tablite import pivots
 from tablite import imputation
 from tablite import diff
-
-
-TIMEOUT_MS = 60 * 1000  # maximum msec tolerance waiting for OS to release hdf5 write lock
 
 
 logging.getLogger("lml").propagate = False
@@ -377,7 +376,9 @@ class Table(BaseTable):
             result: ['a','c','e','g','b','d','f','h']
 
         """
-        return sortation.reindex(self, index)
+        if isinstance(index, list):
+            index = np.array(index)
+        return _reindex.reindex(self, index)
 
     def drop_duplicates(self, *args):
         """
@@ -388,7 +389,7 @@ class Table(BaseTable):
         """
         if not args:
             args = self.columns
-        index = [min(v) for v in self.index(*args).values()]
+        index = self.unique_index(*args)
         return self.reindex(index)
 
     def sort(self, mapping, sort_mode="excel", tqdm=_tqdm, pbar: _tqdm = None):
