@@ -810,7 +810,7 @@ class Column(object):
             dtypes.add(page.dtype if page.dtype is object else page.dtype.__name__)
             if len(dtypes) > 1:
                 return "mixed"
-            
+
         if len(dtypes) == 0:
             return "mixed"
 
@@ -850,6 +850,8 @@ class Column(object):
         union = np_type_unify(arrays)
         try:
             return np.unique(union)
+        except MemoryError:
+            return np.array(set(union))
         except TypeError:
             return multitype_set(union)
 
@@ -1693,20 +1695,20 @@ class Table(object):
         >>> table6['B'] = ['Alison', 'Marley', 'Dylan', 'Affleck', 'Hepburn', 'Barnes', 'Einstein']
 
         >>> table6.index('A')  # single key.
-        {('Alice',): {0},
-         ('Bob',): {1, 2},
-         ('Ben',): {3, 5},
-         ('Charlie',): {4},
-         ('Albert',): {6}})
+        {('Alice',): [0],
+         ('Bob',): [1, 2],
+         ('Ben',): [3, 5],
+         ('Charlie',): [4],
+         ('Albert',): [6]})
 
         >>> table6.index('A', 'B')  # multiple keys.
-        {('Alice', 'Alison'): {0},
-         ('Bob', 'Marley'): {1},
-         ('Bob', 'Dylan'): {2},
-         ('Ben', 'Affleck'): {3},
-         ('Charlie', 'Hepburn'): {4},
-         ('Ben', 'Barnes'): {5},
-         ('Albert', 'Einstein'): {6}})
+        {('Alice', 'Alison'): [0],
+         ('Bob', 'Marley'): [1],
+         ('Bob', 'Dylan'): [2],
+         ('Ben', 'Affleck'): [3],
+         ('Charlie', 'Hepburn'): [4],
+         ('Ben', 'Barnes'): [5],
+         ('Albert', 'Einstein'): [6]})
 
         """
         idx = defaultdict(list)
@@ -1715,3 +1717,27 @@ class Table(object):
             key = tuple(numpy_to_python(k) for k in key)
             idx[key].append(ix)
         return idx
+
+    def unique_index(self, *args, tqdm=_tqdm):
+        """generates the index of unique rows given a list of column names
+
+        Args:
+            *args (any): columns names
+            tqdm (tqdm, optional): Defaults to _tqdm.
+
+        Returns:
+            np.array(int64): indices of unique records.
+        """
+        if not args:
+            raise ValueError("*args (column names) is required")
+        seen = set()
+        unique = set()
+        iterators = [iter(self.columns[c]) for c in args]
+        for ix, key in tqdm(enumerate(zip(*iterators)), disable=Config.TQDM_DISABLE):
+            key_hash = hash(tuple(numpy_to_python(k) for k in key))
+            if key_hash in seen:
+                continue
+            else:
+                seen.add(key_hash)
+                unique.add(ix)
+        return np.array(sorted(unique))
