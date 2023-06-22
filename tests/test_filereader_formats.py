@@ -70,6 +70,24 @@ def test_get_headers():
         print(d)
 
 
+def test_filereader_empty_fields():
+    csv_file = Path(__file__).parent / "data" / "bad_empty.csv"
+
+    from tablite.config import Config
+
+    Config.MULTIPROCESSING_MODE = Config.FALSE
+
+    t = Table.from_file(csv_file, text_qualifier='"')
+    expected = Table(
+        columns={
+            "A": [None, 3, 1, None, None],
+            "B": [None, 3333, None, 2, None],
+            "C": [None, 3, None, None, 3],
+        }
+    )
+    assert t == expected, t.show()
+
+
 def test_filereader_123csv():
     csv_file = Path(__file__).parent / "data" / "123.csv"
 
