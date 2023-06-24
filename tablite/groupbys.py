@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+from tablite.config import Config
 from tablite.base import Table, Column
 from tablite.groupby_utils import GroupBy, GroupbyFunction
 from tablite.utils import unique_name
@@ -148,7 +149,7 @@ def groupby(T, keys, functions, tqdm=_tqdm, pbar=None):  # TODO: This is single 
     else:
         tbl = data
 
-    pbar = tqdm(desc="groupby", total=len(tbl)) if pbar is None else pbar
+    pbar = tqdm(desc="groupby", total=len(tbl), disable=Config.TQDM_DISABLE) if pbar is None else pbar
 
     for row in tbl.rows:
         d = {col_name: value for col_name, value in zip(L, row)}
