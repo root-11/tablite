@@ -1,6 +1,7 @@
 import math
 import numpy as np
 from itertools import product
+from tablite.config import Config
 from tablite.base import Table
 from tablite.reindex import reindex
 from tablite.utils import sub_cls_check, unique_name
@@ -71,7 +72,7 @@ def _sp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pba
     assert len(LEFT) == len(RIGHT)
     if pbar is None:
         total = len(left_columns) + len(right_columns)
-        pbar = tqdm(total=total, desc="join")
+        pbar = tqdm(total=total, desc="join", disable=Config.TQDM_DISABLE)
 
     result = reindex(T, LEFT, left_columns, tqdm=tqdm, pbar=pbar)
     second = reindex(other, RIGHT, right_columns, tqdm=tqdm, pbar=pbar)
