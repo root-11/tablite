@@ -1,5 +1,6 @@
 import math
 import numpy as np
+from tablite.config import Config
 from tablite.base import Table, Column
 from tablite.reindex import reindex as _reindex
 from tablite.utils import sub_cls_check, unique_name
@@ -22,11 +23,20 @@ def lookup(T, other, *criteria, all=True, tqdm=_tqdm):
     RIGHT must be a value that the OPERATOR can compare.
 
     Examples:
-        ('column A', "==", 'column B')         comparison of two columns
-        ('Date', "<", DataTypes.date(24,12) )  value from column 'Date' is before 24/12.
-        f = lambda L,R: all( ord(L) < ord(R) ) uses custom function.
-        ('text 1', f, 'text 2')
-        value from column 'text 1' is compared with value from column 'text 2'
+        comparison of two columns:
+
+            ('column A', "==", 'column B')
+
+        compare value from column 'Date' with date 24/12.
+
+            ('Date', "<", DataTypes.date(24,12) )
+
+        uses custom function to compare value from column
+        'text 1' with value from column 'text 2'
+
+            f = lambda L,R: all( ord(L) < ord(R) )
+            ('text 1', f, 'text 2')
+
     """
     sub_cls_check(T, Table)
     sub_cls_check(other, Table)
@@ -65,7 +75,7 @@ def lookup(T, other, *criteria, all=True, tqdm=_tqdm):
     assert isinstance(left, Table)
     assert isinstance(right, Table)
 
-    for ix, row1 in tqdm(enumerate(left.rows), total=len(T)):
+    for ix, row1 in tqdm(enumerate(left.rows), total=len(T), disable=Config.TQDM_DISABLE):
         row1_tup = tuple(row1)
         row1d = {name: value for name, value in zip(left_columns, row1)}
         row1_hash = hash(row1_tup)
