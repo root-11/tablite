@@ -54,7 +54,7 @@ Tablite is ~200 kB.
 
 Tablite wants you to be productive, so a number of helpers are available. 
 
-- `Table.import_file` to import csv*, tsv, txt, xls, xlsx, xlsm, ods, zip and logs. There is automatic type detection (see [tutorial.ipynb](https://github.com/root-11/tablite/tree/master/docs/articles/tutorial.ipynb))
+- `Table.import_file` to import csv*, tsv, txt, xls, xlsx, xlsm, ods, zip and logs. There is automatic type detection (see [tutorial.ipynb](https://nbviewer.org/github/root-11/tablite/blob/master/tutorial.ipynb) )
 - To peek into any supported file use `get_headers` which shows the first 10 rows.
 - Use `mytable.rows` and `mytable.columns` to iterate over rows or columns.
 - Create multi-key `.index` for quick lookups.
