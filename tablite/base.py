@@ -1445,18 +1445,6 @@ class Table(object):
             d[name] = col.types()
         return d
 
-    def dtypes(self):
-        """finds dtypes for all columns
-
-        Returns:
-           dict: {column name: {set of dtypes} }
-        """
-        d = {}
-        for name, col in self.columns.items():
-            assert isinstance(col, Column)
-            d[name] = col.dtypes()
-        return d
-
     def display_dict(self, slice_=None, blanks=None, dtype=False):
         """
         param: args:
