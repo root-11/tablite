@@ -1,7 +1,7 @@
 from tablite import Table
 from tablite.base import Page
 import numpy as np
-from datetime import datetime, timedelta
+import datetime
 import pytest
 from pathlib import Path
 import os
@@ -22,7 +22,8 @@ def refresh():
 
 
 def test01_compatible_datatypes():
-    now = datetime.now().replace(microsecond=0)
+    dt = datetime
+    now = dt.datetime.now().replace(microsecond=0)
 
     table4 = Table()
     table4["A"] = [-1, 1]
@@ -34,29 +35,30 @@ def test01_compatible_datatypes():
     table4["G"] = [now, now]
     table4["H"] = [now.date(), now.date()]
     table4["I"] = [now.time(), now.time()]
-    table4["J"] = [timedelta(1), timedelta(2, 400)]
+    table4["J"] = [dt.timedelta(1), dt.timedelta(2, 400)]
     table4["K"] = ["b", "嗨"]  # utf-32
     table4["L"] = [-(10**23), 10**23]  # int > int64.
     table4["M"] = [float("inf"), float("-inf")]
     table4["N"] = []
     assert list(table4.columns) == ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"]
     # testing .columns property.
-    assert table4.dtypes() == {
-        "A": "int",
-        "B": "mixed",
-        "C": "float",
-        "D": "str",
-        "E": "mixed",
-        "F": "bool",
-        "G": "datetime",
-        "H": "date",
-        "I": "mixed",
-        "J": "timedelta",
-        "K": "str",
-        "L": "mixed",
-        "M": "float",
-        "N": "mixed"
+    expected = {
+        "A": {int: 2},
+        "B": {type(None): 1, int: 1},
+        "C": {float: 2},
+        "D": {str: 2},
+        "E": {type(None): 1, str: 1},
+        "F": {bool: 2},
+        "G": {datetime.datetime: 2},
+        "H": {datetime.date: 2},
+        "I": {datetime.time: 2},
+        "J": {datetime.timedelta: 2},
+        "K": {str: 2},
+        "L": {int: 2},
+        "M": {float: 2},
+        "N": {},
     }
+    assert table4.types() == expected
 
     path = Path(__file__).parent / "data/myfile.tpz"
     table4.save(path)  # testing that save keeps the data in HDF5.
@@ -77,7 +79,7 @@ def test01_compatible_datatypes():
     assert table5["G"] == [now, now]
     assert table5["H"] == [now.date(), now.date()]
     assert table5["I"] == [now.time(), now.time()]
-    assert table5["J"] == [timedelta(1), timedelta(2, 400)]
+    assert table5["J"] == [dt.timedelta(1), dt.timedelta(2, 400)]
     assert table5["K"] == ["b", "嗨"]
     assert table5["L"] == [-(10**23), 10**23]  # int > int64.
     assert table5["M"] == [float("inf"), float("-inf")]
