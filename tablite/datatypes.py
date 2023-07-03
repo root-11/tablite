@@ -1,5 +1,5 @@
 from datetime import date, datetime, time, timedelta, timezone
-from collections import defaultdict
+from collections import defaultdict, Counter
 import numpy as np
 import pickle
 
@@ -734,16 +734,17 @@ class Rank(object):
 
 
 def pytype_from_iterable(iterable):
+    py_types = {}
     if isinstance(iterable, (tuple, list)):
-        py_dtype = set()
-        for v in iterable:
-            py_dtype.add(type(v))
-            if len(py_dtype) > 1:  # no need to continue after we know it'll be dtype=object
-                break
-        if len(py_dtype) == 0:
+        type_counter = Counter((pytype(v) for v in iterable))
+
+        for k, v in type_counter.items():
+            py_types[k] = v
+
+        if len(py_types) == 0:
             np_dtype, py_dtype = object, bool
-        elif len(py_dtype) == 1:
-            py_dtype = py_dtype.pop()
+        elif len(py_types) == 1:
+            py_dtype = list(py_types.keys())[0]
             if py_dtype == datetime:
                 np_dtype = np.datetime64
             elif py_dtype == date:
@@ -754,19 +755,20 @@ def pytype_from_iterable(iterable):
                 np_dtype = None
         else:
             np_dtype = object
-            py_dtype = object
-
     elif isinstance(iterable, np.ndarray):
         if iterable.dtype == object:
             np_dtype = object
-            py_dtype = object
+            py_types = dict(Counter((pytype(v) for v in iterable)))
         else:
             np_dtype = iterable.dtype
-            py_dtype = pytype(iterable[0]) if len(iterable) > 0 else pytype(np_dtype.type())
+            if len(iterable) > 0:
+                py_types = {pytype(iterable[0]): len(iterable)}
+            else:
+                py_types = {pytype(np_dtype.type()): len(iterable)}
     else:
         raise NotImplementedError(f"No handler for {type(iterable)}")
 
-    return np_dtype, py_dtype
+    return np_dtype, py_types
 
 
 class MetaArray(np.ndarray):

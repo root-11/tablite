@@ -11,7 +11,7 @@ import numpy as np
 from tqdm import tqdm as _tqdm
 from pathlib import Path
 from itertools import count, chain, product, repeat
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 from tablite.datatypes import (
     DataTypes,
@@ -97,6 +97,7 @@ class Page(object):
                 raise OSError(msg)
 
         self.len = len(array)
+        # type_check(array, MetaArray)
         if not hasattr(array, "metadata"):
             raise ValueError
         self.dtype = array.metadata["py_dtype"]
@@ -382,8 +383,10 @@ class Column(object):
             start, end = end, end + page.len
             if start <= key < end:
                 data = page.get()
-                if not isinstance(value, page.dtype):
-                    data = MetaArray(array=data, dtype=object, py_dtype=object)
+                if pytype(value) not in page.dtype:
+                    py_dtype = page.dtype.copy()
+                    py_dtype[pytype(value)] = 1
+                    data = MetaArray(array=data, dtype=object, py_dtype=py_dtype)
                 data[key - start] = value
                 new_page = Page(self.path, data)
                 self.pages[index] = new_page
@@ -789,33 +792,11 @@ class Column(object):
         """
         returns dict with python datatypes: frequency of occurrence
         """
-        d = defaultdict(int)
+        d = Counter()
         for page in set(self.pages):
-            data = page.get()
-            if data.dtype == "O":
-                for i in data:
-                    dtype = pytype(i)
-                    d[dtype] += 1
-            else:
-                sample = pytype(data[0])
-                d[sample] += len(page)
+            assert isinstance(page.dtype, dict)
+            d += page.dtype
         return dict(d)
-
-    def dtypes(self):
-        """
-        returns dtypes in the whole column
-        """
-        dtypes = set()
-        for page in set(self.pages):
-            dtypes.add(page.dtype if page.dtype is object else page.dtype.__name__)
-            if len(dtypes) > 1:
-                return "mixed"
-
-        if len(dtypes) == 0:
-            return "mixed"
-
-        dtype = dtypes.pop()
-        return "mixed" if dtype is object else dtype
 
     def index(self):
         """
