@@ -64,11 +64,11 @@ def lookup(T, other, *criteria, all=True, tqdm=_tqdm):
 
     result_index = np.empty(shape=(len(T)), dtype=np.int64)
     cache = {}
-    left = T.__getitem__(*left_columns)
+    left = T[left_columns]
     if isinstance(left, Column):
         tmp, left = left, Table()
         left[left_columns[0]] = tmp
-    right = other.__getitem__(*right_columns)
+    right = other[right_columns]
     if isinstance(right, Column):
         tmp, right = right, Table()
         right[right_columns[0]] = tmp

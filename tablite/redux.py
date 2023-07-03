@@ -27,7 +27,7 @@ def _filter_using_expression(T, expression):
         raise ValueError(f"Expression could not be compiled: {expression}:\n{e}")
 
     req_columns = [i for i in T.columns if i in expression]
-    return np.array([bool(_f(*r)) for r in T.__getitem__(*req_columns).rows], dtype=bool)
+    return np.array([bool(_f(*r)) for r in T[req_columns].rows], dtype=bool)
 
 
 def _filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):

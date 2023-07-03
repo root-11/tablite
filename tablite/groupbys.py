@@ -142,7 +142,7 @@ def groupby(T, keys, functions, tqdm=_tqdm, pbar=None):  # TODO: This is single 
             L.append(c)
 
     # there's a table of values.
-    data = T.__getitem__(*L)
+    data = T[L]
     if isinstance(data, Column):
         tbl = Table()
         tbl[L[0]] = data
