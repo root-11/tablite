@@ -1050,7 +1050,7 @@ class Table(object):
         else:
             raise TypeError(f"{type(value)} not supported.")
 
-    def __getitem__(self, *keys):  # USER FUNCTION
+    def __getitem__(self, keys):  # USER FUNCTION
         """
         Enables selection of columns and rows
         Examples:
@@ -1066,7 +1066,10 @@ class Table(object):
         """
 
         if not isinstance(keys, tuple):
-            raise TypeError(f"Bad key: {keys}")
+            if isinstance(keys, list):
+                keys = tuple(keys)
+            else:
+                keys = (keys,)
         if isinstance(keys[0], tuple):
             keys = tuple(list(chain(*keys)))
 
