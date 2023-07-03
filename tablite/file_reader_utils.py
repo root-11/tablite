@@ -186,7 +186,7 @@ def detect_seperator(text):
         return frq[0][-1]
 
 
-def get_headers(path, linecount=10, delimiter=None):
+def get_headers(path, delimiter=None, header_row_index=0, text_qualifier=None, linecount=10):
     """
     file format	definition
     csv	    comma separated values
@@ -257,19 +257,25 @@ def get_headers(path, linecount=10, delimiter=None):
             encoding = chardet.detect(rawdata)["encoding"]
         with path.open("r", encoding=encoding, errors="ignore") as fi:
             lines = []
-            for n, line in enumerate(fi):
+            for n, line in enumerate(fi, -header_row_index):
+                if n < 0:
+                    continue
                 line = line.rstrip("\n")
                 lines.append(line)
                 if n > linecount:
                     break  # break on first
+
+
             if delimiter is None:
                 d["delimiter"] = delimiter = detect_seperator("\n".join(lines))
 
             if delimiter is None:
-                d["delimiter"] = delimiters[path.suffix]  # pickup the default one
+                d["delimiter"] = delimiter = delimiters[path.suffix]  # pickup the default one
                 d["is_empty"] = True  # mark as empty to return an empty table instead of throwing
 
-            d[path.name] = [line.split(delimiter) for line in lines]
+            text_escape = TextEscape(text_qualifier=text_qualifier, delimiter=delimiter)
+
+            d[path.name] = [text_escape(line) for line in lines]
         return d
     except Exception:
         raise ValueError(f"can't read {path.suffix}")
