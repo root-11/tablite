@@ -44,7 +44,8 @@ def sort_index(T, mapping, sort_mode="excel", tqdm=_tqdm, pbar=None):
         ranks = sort_rank(values=[numpy_to_python(v) for v in multitype_set(col)], reverse=reverse, mode=sort_mode)
         assert isinstance(ranks, dict)
         for ix, v in enumerate(col):
-            rank[ix] += (ranks[v],)  # add tuple for each sortation level.
+            v2 = numpy_to_python(v)
+            rank[ix] += (ranks[v2],)  # add tuple for each sortation level.
 
         _pbar.update(1)
 
