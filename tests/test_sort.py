@@ -1,5 +1,6 @@
 from tablite import Table
-from fractions import Fraction
+from datetime import datetime
+from numpy import datetime64
 
 
 def test_sort():
@@ -41,3 +42,11 @@ def test_sort_multiple_datatypes():
     t = Table(columns={"A": [None, True, 2.0, 3, 4, "5"], "B": [0, 1, 2, 3, 4, 5]})
     t.sort(mapping={"A": False})
     assert t["A"] == [2.0, 3, 4, "5", True, None]
+
+
+def test_sort_datetime():
+    t = Table(columns={"A": [datetime(2019, 2, 2, 12, 12, 12), datetime.now()], "B": [2, 2]})
+    t.sort({"A": False})
+
+    t = Table(columns={"A": [datetime64("2005"), datetime64(datetime.now())], "B": [2, 2]})
+    t.sort({"A": False})
