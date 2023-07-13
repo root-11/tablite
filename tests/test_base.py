@@ -539,3 +539,18 @@ def test_get_by_indices_multiple_pages():
     assert np.all(values == expected)
 
     Config.PAGE_SIZE = old_cfg
+
+
+def test_get_by_indices():
+    old_cfg = Config.PAGE_SIZE
+    Config.PAGE_SIZE = 50
+
+    t = Table({"A": [str(i) for i in range(100)]})
+    col = t["A"]
+    assert isinstance(col, Column)
+    indices = np.array([3, 4, 5, 6, 56, 57, 58, 3, 8, 9, 10, 59])
+    values = col.get_by_indices(indices)
+    expected = [str(i) for i in indices]
+    assert np.all(values == expected)
+
+    Config.PAGE_SIZE = old_cfg
