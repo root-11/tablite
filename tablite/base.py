@@ -593,14 +593,22 @@ class Column(object):
             indices (np.array): targets
         """
         type_check(indices, np.ndarray)
-        arrays = []
+
+        dtypes = set()
+        values = np.empty(indices.shape, dtype=object)  # placeholder for the indexed values.
+
         for start, end, data in self.iter_by_page():
             range_match = np.where(((indices >= start) & (indices < end)) | (indices == -1))[0]
             if len(range_match):
                 sub_index = np.take(indices, range_match)
                 arr = np.take(data, sub_index - start)
-                arrays.append(arr)
-        return np_type_unify(arrays)
+                dtypes.add(arr.dtype)
+                np.put(values, range_match, arr)
+
+        if len(dtypes) == 1:  # simplify the datatype.
+            dtype = next(iter(dtypes))
+            values = np.array(values, dtype=dtype)
+        return values
 
     def __iter__(self):  # USER FUNCTION.
         for page in self.pages:
