@@ -210,6 +210,9 @@ def get_headers(path, delimiter=None, header_row_index=0, text_qualifier=None, l
         raise TypeError("expected pathlib path.")
     if not path.exists():
         raise FileNotFoundError(str(path))
+    if delimiter is not None:
+        if not isinstance(delimiter, str):
+            raise TypeError(f"expected str or None, not {type(delimiter)}")
 
     delimiters = {
         ".csv": ",",
@@ -264,7 +267,6 @@ def get_headers(path, delimiter=None, header_row_index=0, text_qualifier=None, l
                 lines.append(line)
                 if n > linecount:
                     break  # break on first
-
 
             if delimiter is None:
                 d["delimiter"] = delimiter = detect_seperator("\n".join(lines))
