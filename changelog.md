@@ -2,6 +2,7 @@
 
 | Version    | Change                                              |
 |:-----------|-----------------------------------------------------|
+|2023.6.2| Updated `mplite` dependency, changed to soft version requirement to prevent pipeline freezes due to small bugfixes in `mplite`. |
 |2023.6.1| Major change of the backend processes. Speed up of ~6x. For more see the [release notes](https://github.com/root-11/tablite/releases/tag/2023.6.1) |
 | 2022.11.19 | Fixed some memory leaks. |
 | 2022.11.18 | `copy`, `filter`, `sort`, `any`, `all` methods now properly respects the table subclass.<br>Filter for tables with under `SINGLE_PROCESSING_LIMIT` rows will run on same process to reduce overhead.<br>Errors within child processes now properly propagate to parent.<br>`Table.reset_storage(include_imports=True)` now allows the user to reset the storage but exclude any imported files by setting `include_imports=False` during `Table.reset(...)`.<br>Bug: A column with `1,None,2` would be written to csv & tsv as `"1,None,2"`. Now it is written `"1,,2"` where None means absent.<br>Fix mp `join` producing mismatched columns lengths when different table lengths are used as an input or when join product is longer than the input table. |
