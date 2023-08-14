@@ -65,7 +65,7 @@ atexit.register(shutdown)
 
 class Page(object):
     ids = count(start=1)
-    refcounts: dict[Path, int] = {}
+    refcounts = {}
 
     def _incr_refcount(self):
         """ increment refcount of this page if it's used by this process"""
