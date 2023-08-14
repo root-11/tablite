@@ -1,9 +1,11 @@
-from tablite.base import Table, Column
+from tablite.base import Table, Column, Page
+from mplite import TaskManager, Task
 from tablite.config import Config
 import numpy as np
 from pathlib import Path
 import math
 import os
+import gc
 
 import logging
 
@@ -554,3 +556,42 @@ def test_get_by_indices():
     assert np.all(values == expected)
 
     Config.PAGE_SIZE = old_cfg
+
+def fn_foo_table(tbl):
+    return tbl
+
+def test_page_refcount():
+    table = Table({"A": [0, 1, 2, 3], "B": [4, 5, 6, 7]})
+
+    assert all(Page.refcounts.get(p.path, 0) == 1 for p in table["A"].pages), "Refcount expected to be 1"
+    assert all(Page.refcounts.get(p.path, 0) == 1 for p in table["B"].pages), "Refcount expected to be 1"
+
+    with TaskManager(1) as tm:
+        """ this will cause deep table copy by copying table from main process -> child process -> main process """
+        tasks = [Task(fn_foo_table, table)]
+
+        result_table, *_ = tm.execute(tasks)
+
+    assert all(Page.refcounts.get(p.path, 0) == 2 for p in table["A"].pages), "Refcount expected to be 2"
+    assert all(Page.refcounts.get(p.path, 0) == 2 for p in table["B"].pages), "Refcount expected to be 2"
+
+    del result_table # deleting the table should reduce the refcounts for all pages
+    gc.collect()
+
+    assert all(Page.refcounts.get(p.path, 0) == 1 for p in table["A"].pages), "Refcount expected to be 1"
+    assert all(Page.refcounts.get(p.path, 0) == 1 for p in table["B"].pages), "Refcount expected to be 1"
+
+    table.show() # make sure table is not corrupt
+
+    a_pages = [p.path for p in table["A"].pages]
+    b_pages = [p.path for p in table["B"].pages]
+
+    del tm, tasks, table # deleting the table should reduce the refcounts for all pages
+    gc.collect()
+
+    assert all(p not in Page.refcounts for p in a_pages), "There should be no more pages left"
+    assert all(p not in Page.refcounts for p in b_pages), "There should be no more pages left"
+
+    assert all(p.exists() == False for p in a_pages), "Pages should be deleted"
+    assert all(p.exists() == False for p in b_pages), "Pages should be deleted"
+
