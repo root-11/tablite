@@ -2,6 +2,7 @@
 
 | Version    | Change                                              |
 |:-----------|-----------------------------------------------------|
+|2023.6.3| Updated the way reference counting works. Tablite now tracks references to used pages and cleans them up based on number of references to those pages in the current process. This change allows to handle deep table clones when sending tables via processes (pickling/unpickling), whereas previous implementation would corrupt all tables using same pages due to reference counting asserting that all tables are shallow copies to the same object.
 |2023.6.2| Updated `mplite` dependency, changed to soft version requirement to prevent pipeline freezes due to small bugfixes in `mplite`. |
 |2023.6.1| Major change of the backend processes. Speed up of ~6x. For more see the [release notes](https://github.com/root-11/tablite/releases/tag/2023.6.1) |
 | 2022.11.19 | Fixed some memory leaks. |

@@ -65,6 +65,44 @@ atexit.register(shutdown)
 
 class Page(object):
     ids = count(start=1)
+    refcounts = {}
+
+    def _incr_refcount(self):
+        """ increment refcount of this page if it's used by this process"""
+        if f"pid-{os.getpid()}" in self.path.parts:
+            self.refcounts[self.path] = self.refcounts.get(self.path, 0) + 1
+
+
+    def __setstate__(self, state):
+        """
+            when an object is unpickled,
+            say in a case of multi-processing, object.__setstate__(state) is called instead of __init__,
+            this means we need to update page refcount as if constructor had been called
+        """
+        self.__dict__.update(state)
+        
+        self._incr_refcount()
+
+    def __del__(self):
+        """When python's reference count for an object is 0, python uses
+        it's garbage collector to remove the object and free the memory.
+        As tablite tables have columns and columns have page and pages have
+        data stored on disk, the space on disk must be freed up as well.
+        This __del__ override assures the cleanup of stored data.
+        """
+        if f"pid-{os.getpid()}" not in self.path.parts:
+            return
+        
+        refcount = self.refcounts[self.path] = max(self.refcounts.get(self.path, 0) - 1, 0)
+
+        if refcount > 0:
+            return
+        
+        print(f"{os.getpid()} deleted page '{self.path}")
+
+        self.path.unlink(True)
+
+        del self.refcounts[self.path]
 
     def __init__(self, path, array) -> None:
         """
@@ -104,6 +142,8 @@ class Page(object):
         np.save(self.path, array, allow_pickle=True, fix_imports=False)
         log.debug(f"Page saved: {self.path}")
 
+        self._incr_refcount() # increment refcount for this page
+
     def __len__(self):
         return self.len
 
@@ -112,18 +152,6 @@ class Page(object):
 
     def __hash__(self) -> int:
         return self.id
-
-    def __del__(self):
-        """When python's reference count for an object is 0, python uses
-        it's garbage collector to remove the object and free the memory.
-        As tablite tables have columns and columns have page and pages have
-        data stored on disk, the space on disk must be freed up as well.
-        This __del__ override assures the cleanup of stored data.
-        """
-        if f"pid-{os.getpid()}" in self.path.parts:
-            if self.path.exists():
-                os.remove(self.path)
-            log.debug(f"Page deleted: {self.path}")
 
     def get(self):
         """loads stored data
