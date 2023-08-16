@@ -265,7 +265,7 @@ def get_headers(path, delimiter=None, header_row_index=0, text_qualifier=None, l
                     continue
                 line = line.rstrip("\n")
                 lines.append(line)
-                if n > linecount:
+                if n >= linecount:
                     break  # break on first
 
             if delimiter is None:
