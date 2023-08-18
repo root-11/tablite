@@ -2,6 +2,7 @@ import re
 import chardet
 import openpyxl
 from pathlib import Path
+from tablite.datatypes import DataTypes
 
 ENCODING_GUESS_BYTES = 10000
 
@@ -229,13 +230,18 @@ def get_headers(path, delimiter=None, header_row_index=0, text_qualifier=None, l
                 all_sheets = book.sheetnames
 
                 for sheet_name, sheet in ((name, book[name]) for name in all_sheets):
-                    max_rows = min(sheet.max_row, linecount)
+                    max_rows = min(sheet.max_row, linecount + 1)
                     container = [None] * max_rows
                     padding_ends = 0
                     max_column = sheet.max_column
 
-                    for i, row_data in enumerate(sheet.iter_rows(0, max_rows, values_only=True)):
-                        container[i] = list(row_data)
+                    for i, row_data in enumerate(sheet.iter_rows(0, header_row_index + max_rows, values_only=True), start=-header_row_index):
+                        if i < 0:
+                            # NOTE: for some reason `iter_rows` specifying a start row starts reading cells as binary, instead skip the rows that are before our first read row
+                            continue
+                        
+                        # NOTE: text readers do not cast types and give back strings, neither should xlsx reader, can't find documentation if it's possible to ignore this via `iter_rows` instead of casting back to string
+                        container[i] = [DataTypes.to_json(v) for v in row_data]
 
                         for j, cell in enumerate(reversed(row_data)):
                             if cell is None:
