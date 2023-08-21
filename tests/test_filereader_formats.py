@@ -69,6 +69,12 @@ def test_get_headers():
         print(fname)
         print(d)
 
+def test_get_headers_single_column():
+    """this test does not look for content. It merely checks that the reader doesn't fail."""
+    fname = Path(__file__).parent / "data" / "simple.csv"
+
+    headers = get_headers(fname, header_row_index=1, linecount=0)
+    assert headers["simple.csv"] == [["header"]]
 
 def test_filereader_empty_fields():
     csv_file = Path(__file__).parent / "data" / "bad_empty.csv"
@@ -235,6 +241,10 @@ def test_filereader_book1_txt_chunks_and_offset():
     assert path.exists()
 
     start = 2
+
+    table1 = Table.from_file(
+        path, columns=["a", "b", "c", "d", "e", "f"], delimiter="\t", text_qualifier=None, start=0
+    )
 
     table1 = Table.from_file(
         path, columns=["a", "b", "c", "d", "e", "f"], delimiter="\t", text_qualifier=None, start=start
@@ -627,3 +637,15 @@ def test_multi_charset():
     tbl = Table.from_file(Path(__file__).parent / "data" / "formats.csv")
 
     assert len(tbl) == ENCODING_GUESS_BYTES + 3
+
+def test_header_offset_text():
+    tbl = Table.from_file(Path(__file__).parent / "data" / "simple.csv", header_row_index=1)
+
+    assert list(tbl.columns.keys()) == ["header"]
+    assert list(tbl["header"]) == [1, 2, 3, 4, 5]
+
+def test_header_offset_xlsx():
+    tbl = Table.from_file(Path(__file__).parent / "data" / "simple.xlsx", header_row_index=1, sheet="simple")
+
+    assert list(tbl.columns.keys()) == ["header"]
+    assert list(tbl["header"]) == [1, 2, 3, 4, 5]
