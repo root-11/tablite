@@ -49,6 +49,7 @@ class Table(BaseTable):
         path,
         columns=None,
         first_row_has_headers=True,
+        header_row_index=0,
         encoding=None,
         start=0,
         limit=sys.maxsize,
@@ -169,7 +170,7 @@ class Table(BaseTable):
         if reader == import_utils.text_reader:
             # here we inject tqdm, if tqdm is not provided, use generic iterator
             # fmt:off
-            config = (path, columns, first_row_has_headers, encoding, start, limit, newline,
+            config = (path, columns, first_row_has_headers, header_row_index, encoding, start, limit, newline,
                       guess_datatypes, text_qualifier, strip_leading_and_tailing_whitespace,
                       delimiter, text_escape_openings, text_escape_closures)
             # fmt:on
@@ -184,6 +185,7 @@ class Table(BaseTable):
             config = (
                 str(path),
                 first_row_has_headers,
+                header_row_index,
                 sheet,
                 columns,
                 start,
@@ -195,6 +197,7 @@ class Table(BaseTable):
             config = (
                 str(path),
                 first_row_has_headers,
+                header_row_index,
                 sheet,
                 columns,
                 start,
