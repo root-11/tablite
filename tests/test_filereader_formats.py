@@ -649,3 +649,9 @@ def test_header_offset_xlsx():
 
     assert list(tbl.columns.keys()) == ["header"]
     assert list(tbl["header"]) == [1, 2, 3, 4, 5]
+
+def test_header_offset_ods():
+    tbl = Table.from_file(Path(__file__).parent / "data" / "simple.ods", header_row_index=1, sheet="simple")
+
+    assert list(tbl.columns.keys()) == ["header"]
+    assert list(tbl["header"]) == [1, 2, 3, 4, 5]
