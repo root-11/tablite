@@ -275,7 +275,13 @@ def get_headers(path, delimiter=None, header_row_index=0, text_qualifier=None, l
                     break  # break on first
 
             if delimiter is None:
-                d["delimiter"] = delimiter = detect_seperator("\n".join(lines))
+                try:
+                    d["delimiter"] = delimiter = detect_seperator("\n".join(lines))
+                except ValueError as e:
+                    if e.args == ("separator not detected", ):
+                        d["delimiter"] = delimiter = None # this will handle the case of 1 column, 1 row
+                    else:
+                        raise e
 
             if delimiter is None:
                 d["delimiter"] = delimiter = delimiters[path.suffix]  # pickup the default one
