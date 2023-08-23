@@ -214,7 +214,7 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
     return t
 
 
-def ods_reader(T, path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
+def ods_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
     """
     returns Table from .ODS
     """
@@ -241,11 +241,11 @@ def ods_reader(T, path, first_row_has_headers=True, sheet=None, columns=None, st
     t = T()
 
     used_columns_names = set()
-    for ix, value in enumerate(data[0]):
+    for ix, value in enumerate(data[header_row_index]):
         if first_row_has_headers:
-            header, start_row_pos = str(value), 1
+            header, start_row_pos = str(value), (1 + header_row_index)
         else:
-            header, start_row_pos = f"_{ix + 1}", 0
+            header, start_row_pos = f"_{ix + 1}", (0 + header_row_index)
 
         if columns is not None:
             if header not in columns:
