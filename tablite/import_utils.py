@@ -160,7 +160,7 @@ def from_html(T, path, tqdm=_tqdm, pbar=None):
     return t
 
 
-def excel_reader(T, path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
+def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
     """
     returns Table from excel
 
@@ -192,7 +192,7 @@ def excel_reader(T, path, first_row_has_headers=True, sheet=None, columns=None, 
 
     if columns is None:
         if first_row_has_headers:
-            columns = [i[0] for i in ws.columns()]
+            columns = [i[header_row_index] for i in ws.columns()]
         else:
             columns = [str(i) for i in range(len(ws.columns()))]
 
@@ -200,9 +200,9 @@ def excel_reader(T, path, first_row_has_headers=True, sheet=None, columns=None, 
     t = T()
     for idx, col in enumerate(ws.columns()):
         if first_row_has_headers:
-            header, start_row_pos = str(col[0]), max(1, start)
+            header, start_row_pos = str(col[header_row_index]), (max(1, start) + header_row_index)
         else:
-            header, start_row_pos = str(idx), max(0, start)
+            header, start_row_pos = str(idx), (max(0, start) + header_row_index)
 
         if header not in columns:
             continue
@@ -214,7 +214,7 @@ def excel_reader(T, path, first_row_has_headers=True, sheet=None, columns=None, 
     return t
 
 
-def ods_reader(T, path, first_row_has_headers=True, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
+def ods_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
     """
     returns Table from .ODS
     """
@@ -241,11 +241,11 @@ def ods_reader(T, path, first_row_has_headers=True, sheet=None, columns=None, st
     t = T()
 
     used_columns_names = set()
-    for ix, value in enumerate(data[0]):
+    for ix, value in enumerate(data[header_row_index]):
         if first_row_has_headers:
-            header, start_row_pos = str(value), 1
+            header, start_row_pos = str(value), (1 + header_row_index)
         else:
-            header, start_row_pos = f"_{ix + 1}", 0
+            header, start_row_pos = f"_{ix + 1}", (0 + header_row_index)
 
         if columns is not None:
             if header not in columns:
@@ -375,6 +375,7 @@ def text_reader(
     path,
     columns,
     first_row_has_headers,
+    header_row_index,
     encoding,
     start,
     limit,
@@ -464,7 +465,7 @@ def text_reader(
             if newlines < 1:
                 raise ValueError(f"Using {newline} to split file, revealed {newlines} lines in the file.")
 
-            if newlines <= start + (1 if first_row_has_headers else 0):  # Then start > end: Return EMPTY TABLE.
+            if newlines <= start + header_row_index + (1 if first_row_has_headers else 0):  # Then start > end: Return EMPTY TABLE.
                 return Table(columns={n : [] for n in columns})
 
         line_reader = TextEscape(
@@ -476,8 +477,8 @@ def text_reader(
         )
 
         with path.open("r", encoding=encoding) as fi:
-            for line in fi:
-                if line == "":  # skip any empty line.
+            for i, line in enumerate(fi):
+                if line == "" or i < header_row_index:  # skip any empty line or header offset.
                     continue
                 else:
                     line = line.rstrip(newline)
@@ -542,7 +543,7 @@ def text_reader(
         for ix, field_name in fields.items():
             configs[field_name] = []
 
-            begin = 1 if first_row_has_headers else 0
+            begin = header_row_index + 1 if first_row_has_headers else 0
             for start in range(begin, newlines + 1, Config.PAGE_SIZE):
                 end = min(start + Config.PAGE_SIZE, newlines)
 
