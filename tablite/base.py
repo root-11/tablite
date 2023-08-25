@@ -1103,7 +1103,7 @@ class Table(object):
         slices = [i for i in keys if isinstance(i, slice)]
         slc = slice(0, len(self)) if not slices else slices[0]
 
-        if len(column_names) == 1:  # e.g. tbl['a'] or tbl['a'][:10]
+        if len(slices) == 0 and len(column_names) == 1:  # e.g. tbl['a'] or tbl['a'][:10]
             col = self.columns[column_names[0]]
             if slices:
                 return col[slc]  # return slice from column as list of values
