@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import math
+import platform
 import psutil
 from pathlib import Path
 import pyexcel
@@ -569,8 +570,15 @@ def text_reader(
             def update(self, n=1):
                 pbar.update(n * dump_size)
 
-        cpus = max(psutil.cpu_count(logical=False), 1)  # there's always at least one core.
-        # do not set logical to true as windows cannot handle that many file handles.
+        """
+            all modern processors have more than one thread per core intel has hyper-threading, amd has SMT
+            we don't want to stop using potentially half of our cores on other OS'es because windows can't that many file handles
+        """
+        is_windows = platform.system() == "Windows"
+        use_logical = False if is_windows else True
+
+        cpus = max(psutil.cpu_count(logical=use_logical), 1)  # there's always at least one core.
+        
         cpus_needed = min(len(tasks), cpus)  # 4 columns won't require 96 cpus ...!
         if cpus_needed < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
             for task in tasks:
