@@ -572,7 +572,7 @@ def text_reader(
 
         """
             all modern processors have more than one thread per core intel has hyper-threading, amd has SMT
-            we don't want to stop using potentially half of our cores on other OS'es because windows windows can't that many file handles
+            we don't want to stop using potentially half of our cores on other OS'es because windows can't that many file handles
         """
         is_windows = platform.system() == "Windows"
         use_logical = False if is_windows else True
