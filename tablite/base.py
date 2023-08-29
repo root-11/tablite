@@ -97,8 +97,6 @@ class Page(object):
 
         if refcount > 0:
             return
-        
-        print(f"{os.getpid()} deleted page '{self.path}")
 
         self.path.unlink(True)
 
