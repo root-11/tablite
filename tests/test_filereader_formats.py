@@ -40,7 +40,7 @@ def test_text_escape():
     assert te == ["1000627", "MOC;SEaert;pás;krk;XL;černá", "2.180,000", "CM3", "2"]
 
     te = text_escape('"1000294";"S2417DG 24"" LED monitor (210-AJWM)";"47.120,000";"CM3";3')
-    assert te == ["1000294", 'S2417DG 24"" LED monitor (210-AJWM)', "47.120,000", "CM3", "3"]
+    assert te == ["1000294", 'S2417DG 24" LED monitor (210-AJWM)', "47.120,000", "CM3", "3"]
 
 
 def test_text_escape2():

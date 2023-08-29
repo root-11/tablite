@@ -3,6 +3,8 @@ import chardet
 import openpyxl
 from pathlib import Path
 from tablite.datatypes import DataTypes
+import csv
+from io import StringIO
 
 ENCODING_GUESS_BYTES = 10000
 
@@ -88,6 +90,7 @@ class TextEscape(object):
                 self.c = self._call_4
             except TypeError:
                 self.c = self._call_4_slow
+        # self.c = self._call_3
 
     def __call__(self, s):
         return self.c(s)
@@ -100,24 +103,37 @@ class TextEscape(object):
 
     def _call_3(self, s):  # looks for qoutes.
         words = []
-        qoute = False
-        ix = 0
-        while ix < len(s):
-            c = s[ix]
-            if c == self.qoute:
-                qoute = not qoute
-            if qoute:
-                ix += 1
-                continue
-            if c == self.delimiter:
-                word, s = s[:ix], s[ix + self._delimiter_length :]
-                word = word.lstrip(self.qoute).rstrip(self.qoute)
-                words.append(word)
-                ix = -1
-            ix += 1
-        if s:
-            s = s.lstrip(self.qoute).rstrip(self.qoute)
-            words.append(s)
+        # qoute = False
+        # ix = 0
+        # while ix < len(s):
+        #     c = s[ix]
+        #     if c == self.qoute:
+        #         qoute = not qoute
+        #     if qoute:
+        #         ix += 1
+        #         continue
+        #     if c == self.delimiter:
+        #         word, s = s[:ix], s[ix + self._delimiter_length :]
+        #         word = word.lstrip(self.qoute).rstrip(self.qoute)
+        #         words.append(word)
+        #         ix = -1
+        #     ix += 1
+        # if s:
+        #     s = s.lstrip(self.qoute).rstrip(self.qoute)
+        #     words.append(s)
+
+        class MyDialect(csv.Dialect):
+            delimiter = self.delimiter
+            quotechar = self.qoute
+            escapechar = '\\'
+            doublequote = True
+            quoting = csv.QUOTE_MINIMAL
+            skipinitialspace = False
+            lineterminator = "\n"
+
+        dia = MyDialect
+        parsed_words = list(csv.reader(StringIO(s), dialect=dia))[0]
+        words.extend(parsed_words)
         return words
 
     def _call_4(self, s):  # looks for qoutes, openings and closures.

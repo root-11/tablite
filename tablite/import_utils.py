@@ -3,6 +3,7 @@ import os
 import math
 import platform
 import psutil
+import csv
 from pathlib import Path
 import pyexcel
 import sys
@@ -264,7 +265,6 @@ class TRconfig(object):
         self,
         source,
         destination,
-        column_index,
         start,
         end,
         guess_datatypes,
@@ -274,10 +274,11 @@ class TRconfig(object):
         text_escape_closures,
         strip_leading_and_tailing_whitespace,
         encoding,
+        newline_offsets,
+        fields
     ) -> None:
         self.source = source
         self.destination = destination
-        self.column_index = column_index
         self.start = start
         self.end = end
         self.guess_datatypes = guess_datatypes
@@ -287,7 +288,8 @@ class TRconfig(object):
         self.text_escape_closures = text_escape_closures
         self.strip_leading_and_tailing_whitespace = strip_leading_and_tailing_whitespace
         self.encoding = encoding
-        type_check(column_index, int),
+        self.newline_offsets = newline_offsets
+        self.fields = fields
         type_check(start, int),
         type_check(end, int),
         type_check(delimiter, str),
@@ -296,6 +298,8 @@ class TRconfig(object):
         type_check(text_escape_closures, str),
         type_check(encoding, str),
         type_check(strip_leading_and_tailing_whitespace, bool),
+        type_check(newline_offsets, list)
+        type_check(fields, dict)
 
     def copy(self):
         return TRconfig(**self.dict())
@@ -304,10 +308,29 @@ class TRconfig(object):
         return {k: v for k, v in self.__dict__.items() if not (k.startswith("_") or callable(v))}
 
 
+def _create_numpy_header(dtype, shape, file_handler):
+    magic = b"\x93NUMPY"
+    major = b"\x01"
+    minor = b"\x00"
+    header = {
+        "descr": dtype,
+        "fortran_order": False,
+        "shape": shape,
+    }
+    header_str = str(header).encode("ascii")
+    header_len = len(header_str)
+    padding = 64 - ((len(magic) + len(major) + len(minor) + 2 + header_len)) % 64
+    file_handler.write(magic)
+    file_handler.write(major)
+    file_handler.write(minor)
+    file_handler.write((header_len + padding).to_bytes(2, "little"))
+    file_handler.write(header_str)
+    file_handler.write(b" " * (padding - 1) + "\n".encode("ascii"))
+
+
 def text_reader_task(
     source,
     destination,
-    column_index,
     start,
     end,
     guess_datatypes,
@@ -317,13 +340,14 @@ def text_reader_task(
     text_escape_closures,
     strip_leading_and_tailing_whitespace,
     encoding,
+    newline_offsets,
+    fields
 ):
     """PARALLEL TASK FUNCTION
     reads columnsname + path[start:limit] into hdf5.
 
     source: csv or txt file
     destination: filename for page.
-    column_index: int: column index
     start: int: start of page.
     end: int: end of page.
     guess_datatypes: bool: if True datatypes will be inferred by datatypes.Datatypes.guess
@@ -339,37 +363,44 @@ def text_reader_task(
     type_check(source, Path)
     if not source.exists():
         raise FileNotFoundError(f"File not found: {source}")
-
-    if isinstance(destination, str):
-        destination = Path(destination)
-    type_check(destination, Path)
-
-    type_check(column_index, int)
+    type_check(destination, list)
 
     # declare CSV dialect.
-    text_escape = TextEscape(
-        text_escape_openings,
-        text_escape_closures,
-        text_qualifier=text_qualifier,
-        delimiter=delimiter,
-        strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
-    )
-    values = []
+    delim = delimiter
+
+    class Dialect(csv.Dialect):
+        delimiter = delim
+        quotechar = '"' if text_qualifier is None else text_qualifier
+        escapechar = '\\'
+        doublequote = True
+        quoting = csv.QUOTE_MINIMAL
+        skipinitialspace = False if strip_leading_and_tailing_whitespace is None else strip_leading_and_tailing_whitespace
+        lineterminator = "\n"
+
     with source.open("r", encoding=encoding, errors="ignore") as fi:  # --READ
-        for ix, line in enumerate(fi):
-            if ix < start:
-                continue
-            if ix >= end:
-                break
-            L = text_escape(line.rstrip("\n"))
-            try:
-                values.append(L[column_index])
-            except IndexError:
-                values.append(None)
+        fi.seek(newline_offsets[start])
+        reader = csv.reader(fi, dialect=Dialect)
 
-    array = list_to_np_array(DataTypes.guess(values)) if guess_datatypes else list_to_np_array(values)
-    np.save(destination, array, allow_pickle=True, fix_imports=False)
+        page_file_handlers = [open(f, mode="wb") for f in destination]
 
+        # identify longest str
+        longest_str = [0 for _ in range(len(destination))]
+        for row in (next(reader) for _ in range(end - start)):
+            for idx, c in ((fields[idx], c) for idx, c in filter(lambda t: t[0] in fields, enumerate(row))):
+                longest_str[idx] = max(longest_str[idx], len(c))
+
+        column_formats = [f"<U{i}" for i in longest_str]
+        for idx, cf in enumerate(column_formats):
+            _create_numpy_header(cf, (end - start, ), page_file_handlers[idx])
+
+        # write page arrays to files
+        fi.seek(newline_offsets[start])
+        for row in (next(reader) for _ in range(end - start)):
+            for idx, c in ((fields[idx], c) for idx, c in filter(lambda t: t[0] in fields, enumerate(row))):
+                cbytes = np.asarray(c, dtype=column_formats[idx]).tobytes()
+                page_file_handlers[idx].write(cbytes)
+
+        [phf.close() for phf in page_file_handlers]
 
 def text_reader(
     T,
@@ -429,6 +460,8 @@ def text_reader(
     if not (isinstance(limit, int) and limit > 0):
         raise ValueError("expected limit as an integer > 0")
 
+    newline_offsets = [0]
+
     # fmt:off
     with tqdm(total=100, desc=f"importing: reading '{pbar_fname}' bytes", unit="%",
               bar_format="{desc}: {percentage:3.2f}%|{bar}| [{elapsed}<{remaining}]", disable=Config.TQDM_DISABLE) as pbar:
@@ -452,10 +485,13 @@ def text_reader(
             # so the only option left is to read the file and split it in workable chunks.
             try:
                 newlines = 0
-                for block in fi:
+                block = fi.readline()
+                while block:
+                    dx = fi.tell()
+                    newline_offsets.append(dx)
+                    pbar.update((dx / file_length) * read_stage)
+                    block = fi.readline()
                     newlines = newlines + 1
-
-                    pbar.update((len(block) / file_length) * read_stage)
 
                 pbar.desc = f"importing: processing '{pbar_fname}'"
                 pbar.update(read_stage - pbar.n)
@@ -478,8 +514,9 @@ def text_reader(
         )
 
         with path.open("r", encoding=encoding) as fi:
-            for i, line in enumerate(fi):
-                if line == "" or i < header_row_index:  # skip any empty line or header offset.
+            fi.seek(newline_offsets[header_row_index])
+            for line in fi:
+                if line == "":  # skip any empty line or header offset.
                     continue
                 else:
                     line = line.rstrip(newline)
@@ -517,12 +554,12 @@ def text_reader(
             else:
                 raise ValueError("No columns?")
 
-        tasks = math.ceil(newlines / Config.PAGE_SIZE) * len(fields)
+        field_relation = {f: i for i, f in enumerate(fields.keys())}
+        inv_field_relation = dict(zip(field_relation.values(), field_relation.keys()))
 
         task_config = TRconfig(
             source=str(path),
             destination=None,
-            column_index=0,
             start=1,
             end=Config.PAGE_SIZE,
             guess_datatypes=guess_datatypes,
@@ -532,6 +569,8 @@ def text_reader(
             text_escape_closures=text_escape_closures,
             strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
             encoding=encoding,
+            newline_offsets=newline_offsets,
+            fields=field_relation
         )
 
         # make sure the tempdir is ready.
@@ -540,23 +579,21 @@ def text_reader(
             workdir.mkdir()
             (workdir / "pages").mkdir()
 
-        tasks, configs = [], {}
-        for ix, field_name in fields.items():
-            configs[field_name] = []
+        tasks, configs = [], []
 
-            begin = header_row_index + 1 if first_row_has_headers else 0
-            for start in range(begin, newlines + 1, Config.PAGE_SIZE):
-                end = min(start + Config.PAGE_SIZE, newlines)
+        begin = header_row_index + 1 if first_row_has_headers else 0
+        # Creates task for n pages of size Config.PAGE_SIZE. Assigns a page index for each column.
+        for start in range(begin, newlines + 1, Config.PAGE_SIZE):
+            end = min(start + Config.PAGE_SIZE, newlines)
 
-                cfg = task_config.copy()
-                cfg.start = start
-                cfg.end = end
-                cfg.destination = workdir / "pages" / f"{next(Page.ids)}.npy"
-                cfg.column_index = ix
-                tasks.append(Task(f=text_reader_task, **cfg.dict()))
-                configs[field_name].append(cfg)
+            cfg = task_config.copy()
+            cfg.start = start
+            cfg.end = end
+            cfg.destination = [workdir / "pages" / f"{next(Page.ids)}.npy" for _ in range(len(fields))]
+            tasks.append(Task(f=text_reader_task, **cfg.dict()))
+            configs.append(cfg)
 
-                start = end
+            start = end
 
         pbar.desc = f"importing: saving '{pbar_fname}' to disk"
         pbar.update((read_stage + process_stage) - pbar.n)
@@ -600,12 +637,17 @@ def text_reader(
 
         # consolidate the task results
         t = T()
-        for name, cfgs in configs.items():
+        for name in fields.values():
             t[name] = Column(t.path)
-            for cfg in cfgs:
-                data = np.load(cfg.destination, allow_pickle=True, fix_imports=False)
-                t[name].extend(data)
-                os.remove(cfg.destination)
+        for cfg in configs:
+            for idx, npy in ((inv_field_relation[idx], npy) for idx, npy in enumerate(cfg.destination)):
+                data = np.load(npy, allow_pickle=True, fix_imports=False)
+
+                if guess_datatypes:
+                    data = list_to_np_array(DataTypes.guess(data))
+
+                t[fields[idx]].extend(data)
+                os.remove(npy)
             pbar.update(consolidation_size)
 
         pbar.update(100 - pbar.n)
