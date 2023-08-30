@@ -381,6 +381,7 @@ def text_reader_task(
         fi.seek(newline_offsets[start])
         reader = csv.reader(fi, dialect=Dialect)
 
+        # if there's an issue with file handlers on windows, we can make a special case for windows where the file is opened on demand and appended instead of opening all handlers at once
         page_file_handlers = [open(f, mode="wb") for f in destination]
 
         # identify longest str
@@ -446,7 +447,8 @@ def text_reader(
         except ValueError:
             return T()  # NO DELIMITER: EMPTY TABLE.
 
-    read_stage, process_stage, dump_stage, consolidation_stage = 20, 10, 60, 10
+
+    read_stage, process_stage, dump_stage, consolidation_stage = (20, 10, 35, 35) if guess_datatypes else (20, 10, 50, 20)
     assert sum([read_stage, process_stage, dump_stage, consolidation_stage]) == 100, "Must add to to a 100"
     pbar_fname = path.name
 
@@ -460,51 +462,40 @@ def text_reader(
     if not (isinstance(limit, int) and limit > 0):
         raise ValueError("expected limit as an integer > 0")
 
-    newline_offsets = [0]
-
     # fmt:off
     with tqdm(total=100, desc=f"importing: reading '{pbar_fname}' bytes", unit="%",
               bar_format="{desc}: {percentage:3.2f}%|{bar}| [{elapsed}<{remaining}]", disable=Config.TQDM_DISABLE) as pbar:
         # fmt:on
-        with path.open("rb") as fi:
-            # task: find chunk ...
-            # Here is the problem in a nutshell:
-            # --------------------------------------------------------
-            # text = "this is my \n text".encode('utf-16')
-            # >>> text
-            # b'\xff\xfet\x00h\x00i\x00s\x00 \x00i\x00s\x00 \x00m\x00y\x00 \x00\n\x00 \x00t\x00e\x00x\x00t\x00'
-            # >>> newline = "\n".encode('utf-16')
-            # >>> newline in text
-            # False
-            # >>> newline.decode('utf-16') in text.decode('utf-16')
-            # True
-            # --------------------------------------------------------
-            # This means we can't read the encoded stream to check if in contains a particular character.
-            # We will need to decode it.
-            # furthermore fi.tell() will not tell us which character we a looking at.
-            # so the only option left is to read the file and split it in workable chunks.
-            try:
-                newlines = 0
-                dx, dy = 0, 0
+        # task: find chunk ...
+        # Here is the problem in a nutshell:
+        # --------------------------------------------------------
+        # text = "this is my \n text".encode('utf-16')
+        # >>> text
+        # b'\xff\xfet\x00h\x00i\x00s\x00 \x00i\x00s\x00 \x00m\x00y\x00 \x00\n\x00 \x00t\x00e\x00x\x00t\x00'
+        # >>> newline = "\n".encode('utf-16')
+        # >>> newline in text
+        # False
+        # >>> newline.decode('utf-16') in text.decode('utf-16')
+        # True
+        # --------------------------------------------------------
+        # This means we can't read the encoded stream to check if in contains a particular character.
+        # We will need to decode it.
+        # furthermore fi.tell() will not tell us which character we a looking at.
+        # so the only option left is to read the file and split it in workable chunks.
 
-                for block in fi:
-                    dx = dx + len(block)
-                    newline_offsets.append(dx)
-                    pbar.update(((dx - dy) / file_length) * read_stage)
-                    newlines = newlines + 1
-                    dy = dx
+        if encoding.lower() == "utf-8":
+            newline_offsets, newlines = _find_newlines_fast(path, file_length, pbar, read_stage)
+        else:
+            newline_offsets, newlines = _find_newlines_slow(path, file_length, encoding, pbar, read_stage)
 
-                pbar.desc = f"importing: processing '{pbar_fname}'"
-                pbar.update(read_stage - pbar.n)
+        if newlines < 1:
+            raise ValueError(f"Using {newline} to split file, revealed {newlines} lines in the file.")
 
-                fi.seek(0)
-            except Exception as e:
-                raise ValueError(f"file could not be read with encoding={encoding}\n{str(e)}")
-            if newlines < 1:
-                raise ValueError(f"Using {newline} to split file, revealed {newlines} lines in the file.")
-
-            if newlines <= start + header_row_index + (1 if first_row_has_headers else 0):  # Then start > end: Return EMPTY TABLE.
-                return Table(columns={n : [] for n in columns})
+        if newlines <= start + header_row_index + (1 if first_row_has_headers else 0):  # Then start > end: Return EMPTY TABLE.
+            return Table(columns={n : [] for n in columns})
+        
+        pbar.desc = f"importing: processing '{pbar_fname}'"
+        pbar.update(read_stage - pbar.n)
 
         line_reader = TextEscape(
             openings=text_escape_openings,
@@ -596,7 +587,7 @@ def text_reader(
 
             start = end
 
-        pbar.desc = f"importing: saving '{pbar_fname}' to disk"
+        pbar.desc = f"importing: parsing '{pbar_fname}' to disk"
         pbar.update((read_stage + process_stage) - pbar.n)
 
         len_tasks = len(tasks)
@@ -620,9 +611,8 @@ def text_reader(
         cpus_needed = min(len(tasks), cpus)  # 4 columns won't require 96 cpus ...!
         if cpus_needed < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
             for task in tasks:
-                err = task.execute()
-                if err is not None:
-                    raise Exception(err)
+                # using execute captures and rethrows which messes up the call stack, just call the function directly
+                task.f(*task.args, **task.kwargs)
                 pbar.update(dump_size)
 
         else:
@@ -673,3 +663,35 @@ file_readers = {  # dict of file formats and functions used during Table.import_
 }
 
 valid_readers = ",".join(list(file_readers.keys()))
+
+def _find_newlines_fast(path, file_length, pbar, read_stage):
+    """ utf8 is a predictable format with predictable line-endings, just use binary file iterator """
+    newline_offsets = [0]
+    newlines, dx, dy = 0, 0, 0
+
+    with path.open("rb") as fi:
+        for block in fi:
+            dx = dx + len(block)
+            newline_offsets.append(dx)
+            pbar.update(((dx - dy) / file_length) * read_stage)
+            newlines = newlines + 1
+            dy = dx
+
+    return newline_offsets, newlines
+
+def _find_newlines_slow(path, file_length, encoding, pbar, read_stage):
+    """ non-utf8 file formats needs to be interpreted """
+    newline_offsets = [0]
+    newlines, dx, dy = 0, 0, 0
+
+    with path.open("r", encoding=encoding, errors="ignore") as fi:
+        block = fi.readline()
+        while block:
+            dx = fi.tell()
+            newline_offsets.append(dx)
+            pbar.update(((dx - dy) / file_length) * read_stage)
+            block = fi.readline()
+            newlines = newlines + 1
+            dy = dx
+
+    return newline_offsets, newlines
