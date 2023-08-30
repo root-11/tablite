@@ -498,22 +498,13 @@ class DataTypes(object):
     def infer(cls, v, dtype):
         if v in DataTypes.nones:
             return None
-        if dtype is int:
-            return DataTypes._infer_int(v)
-        elif dtype is str:
-            return DataTypes._infer_str(v)
-        elif dtype is float:
-            return DataTypes._infer_float(v)
-        elif dtype is bool:
-            return DataTypes._infer_bool(v)
-        elif dtype is date:
-            return DataTypes._infer_date(v)
-        elif dtype is datetime:
-            return DataTypes._infer_datetime(v)
-        elif dtype is time:
-            return DataTypes._infer_time(v)
-        else:
+        
+
+
+        if dtype not in matched_types:
             raise TypeError(f"The datatype {str(dtype)} is not supported.")
+        
+        return matched_types[dtype](v)
 
     @classmethod
     def _infer_bool(cls, value):
@@ -829,3 +820,13 @@ def multitype_set(arr):
     L = list(set(L))
     L = [v for _, v in L]
     return np.array(L, dtype=object)
+
+matched_types = {
+    int: DataTypes._infer_int,
+    str: DataTypes._infer_str,
+    float: DataTypes._infer_float,
+    bool: DataTypes._infer_bool,
+    date: DataTypes._infer_date,
+    datetime: DataTypes._infer_datetime,
+    time: DataTypes._infer_time,
+}
