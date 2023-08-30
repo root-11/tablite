@@ -446,7 +446,7 @@ def text_reader(
         except ValueError:
             return T()  # NO DELIMITER: EMPTY TABLE.
 
-    read_stage, process_stage, dump_stage, consolidation_stage = 20, 50, 20, 10
+    read_stage, process_stage, dump_stage, consolidation_stage = 20, 10, 60, 10
     assert sum([read_stage, process_stage, dump_stage, consolidation_stage]) == 100, "Must add to to a 100"
     pbar_fname = path.name
 
@@ -486,12 +486,15 @@ def text_reader(
             try:
                 newlines = 0
                 block = fi.readline()
+                dy = 0
+                pbar.update(0)
                 while block:
                     dx = fi.tell()
                     newline_offsets.append(dx)
-                    pbar.update((dx / file_length) * read_stage)
+                    pbar.update(((dx - dy) / file_length) * read_stage)
                     block = fi.readline()
                     newlines = newlines + 1
+                    dy = dx
 
                 pbar.desc = f"importing: processing '{pbar_fname}'"
                 pbar.update(read_stage - pbar.n)
