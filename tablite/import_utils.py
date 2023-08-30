@@ -466,7 +466,7 @@ def text_reader(
     with tqdm(total=100, desc=f"importing: reading '{pbar_fname}' bytes", unit="%",
               bar_format="{desc}: {percentage:3.2f}%|{bar}| [{elapsed}<{remaining}]", disable=Config.TQDM_DISABLE) as pbar:
         # fmt:on
-        with path.open("r", encoding=encoding, errors="ignore") as fi:
+        with path.open("rb") as fi:
             # task: find chunk ...
             # Here is the problem in a nutshell:
             # --------------------------------------------------------
@@ -485,14 +485,12 @@ def text_reader(
             # so the only option left is to read the file and split it in workable chunks.
             try:
                 newlines = 0
-                block = fi.readline()
-                dy = 0
-                pbar.update(0)
-                while block:
-                    dx = fi.tell()
+                dx, dy = 0, 0
+
+                for block in fi:
+                    dx = dx + len(block)
                     newline_offsets.append(dx)
                     pbar.update(((dx - dy) / file_length) * read_stage)
-                    block = fi.readline()
                     newlines = newlines + 1
                     dy = dx
 
