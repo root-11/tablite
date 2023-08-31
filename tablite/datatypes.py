@@ -496,10 +496,12 @@ class DataTypes(object):
 
     @classmethod
     def infer(cls, v, dtype):
+        if isinstance(v, str) and dtype == str:
+            # we got a string, we're trying to infer it to string, we shouldn't check for None-ness
+            return v
+
         if v in DataTypes.nones:
             return None
-        
-
 
         if dtype not in matched_types:
             raise TypeError(f"The datatype {str(dtype)} is not supported.")
