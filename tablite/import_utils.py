@@ -265,7 +265,7 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
             forcing recalc would require parsing entire file
             drop the progress bar in that case, just show iterations
 
-            as an alternative we can use Σ=1/x but it just doesn't look, show iterations per second instead
+            as an alternative we can use Σ=1/x but it just doesn't look good, show iterations per second instead
         """
         tqdm_iter = tqdm(it_rows_filtered, desc=f"importing excel: {pbar_fname}")
 
