@@ -307,21 +307,21 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
             dtype = type(value)
 
             if dtype == int:
-                ptype, bytes_ = b"q", struct.pack("q", value) # pack int as int64
+                ptype, bytes_ = b'q', struct.pack('q', value) # pack int as int64
             elif dtype == float:
-                ptype, bytes_ = b"d", struct.pack("d", value) # pack float as float64
+                ptype, bytes_ = b'd', struct.pack('d', value) # pack float as float64
             elif dtype == str:
-                ptype, bytes_ = b"s", value.encode("utf-8")   # pack string
+                ptype, bytes_ = b's', value.encode("utf-8")   # pack string
             elif dtype == bool:
-                ptype, bytes_ = b"b", b'1' if value else b'0' # pack boolean
+                ptype, bytes_ = b'b', b'1' if value else b'0' # pack boolean
             elif value is None:
                 ptype, bytes_ = b'n', b''                     # pack none
             elif dtype in [date, time, datetime]:
-                ptype, bytes_ = b"p", pkl.dumps(value)        # pack object types via pickle
+                ptype, bytes_ = b'p', pkl.dumps(value)        # pack object types via pickle
             else:
                 raise NotImplementedError()
 
-            byte_count = struct.pack("I", len(bytes_))        # pack our payload size, i doubt payload size can be over uint32
+            byte_count = struct.pack('I', len(bytes_))        # pack our payload size, i doubt payload size can be over uint32
 
             # dump object to file
             fh.write(ptype)
@@ -827,20 +827,20 @@ def _fix_xls_page(table, col_name, fh):
     with open(fpath, "rb") as fh:
         while fh.tell() < file_length:
             ptype = fh.read(1)  # read the packed type
-            psize = struct.unpack("I", fh.read(4))[0] # read the packed byte count
+            psize = struct.unpack('I', fh.read(4))[0] # read the packed byte count
             pvalue = fh.read(psize) # read the packed bytes
 
             if ptype == b'q':
-                value = struct.unpack("q", pvalue)[0]
+                value = struct.unpack('q', pvalue)[0]
             elif ptype == b'd':
-                value = struct.unpack("d", pvalue)[0]
-            elif ptype == b"s":
+                value = struct.unpack('d', pvalue)[0]
+            elif ptype == b's':
                 value = pvalue.decode("utf-8")
-            elif ptype == b"b":
+            elif ptype == b'b':
                 value = True if pvalue == b'1' else False
             elif ptype == b'n':
                 value = None
-            elif ptype == b"p":
+            elif ptype == b'p':
                 value = pkl.loads(pvalue)
             else:
                 raise NotImplementedError()
