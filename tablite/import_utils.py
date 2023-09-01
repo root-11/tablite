@@ -5,10 +5,15 @@ import platform
 import psutil
 import csv
 from pathlib import Path
+import openpyxl
 import pyexcel
 import sys
 import warnings
 import logging
+
+import struct
+import pickle as pkl
+from datetime import date, time, datetime
 
 from mplite import TaskManager, Task
 
@@ -162,7 +167,7 @@ def from_html(T, path, tqdm=_tqdm, pbar=None):
     return t
 
 
-def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
+def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=None, columns=None, start=0, limit=sys.maxsize, tqdm=_tqdm, **kwargs):
     """
     returns Table from excel
 
@@ -171,11 +176,12 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
     if not issubclass(T, Table):
         raise TypeError("Expected subclass of Table")
 
-    book = pyexcel.get_book(file_name=str(path))
+    book = openpyxl.load_workbook(path, read_only=True, data_only=True)
 
     if sheet is None:  # help the user.
-        raise ValueError(f"No sheet_name declared: \navailable sheets:\n{[s.name for s in book]}")
-    elif sheet not in {ws.name for ws in book}:
+        sheet_list = ', '.join((f'\n - {c}' for c in book.sheetnames))
+        raise ValueError(f"No 'sheet' declared, available sheets:{sheet_list}")
+    elif sheet not in book.sheetnames:
         raise ValueError(f"sheet not found: {sheet}")
 
     if not (isinstance(start, int) and start >= 0):
@@ -183,37 +189,150 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
     if not (isinstance(limit, int) and limit > 0):
         raise ValueError("expected limit as integer > 0")
 
-    # import a sheets
-    for ws in book:
-        if ws.name != sheet:
-            continue
-        else:
-            break
-    if ws.name != sheet:
-        raise ValueError(f'sheet "{sheet}" not found:\n\tSheets: {[str(ws.name) for ws in book]}')
+    worksheet = book.get_sheet_by_name(sheet)
+
+    try:
+        # get the first row to know our headers or the number of columns
+        fields = [c.value for c in next(worksheet.iter_rows(min_row=header_row_index + 1))] # excel is offset by 1
+    except StopIteration:
+        # excel was empty, return empty table
+        return T()
+
+    if not first_row_has_headers:
+        # since the first row did not contain headers, we use the column count to populate header names
+        fields = [str(i) for i in range(len(fields))]
 
     if columns is None:
-        if first_row_has_headers:
-            columns = [i[header_row_index] for i in ws.columns()]
-        else:
-            columns = [str(i) for i in range(len(ws.columns()))]
+        # no columns were specified by user to import, that means we import all of the them
+        columns = []
 
-    used_columns_names = set()
-    t = T()
-    for idx, col in enumerate(ws.columns()):
-        if first_row_has_headers:
-            header, start_row_pos = str(col[header_row_index]), (max(1, start) + header_row_index)
-        else:
-            header, start_row_pos = str(idx), (max(0, start) + header_row_index)
+        for f in fields:
+            # fixup the duplicate column names
+            columns.append(unique_name(f, columns))
 
-        if header not in columns:
-            continue
+        field_dict = {k: i for i, k in enumerate(columns)}
+    else:
+        field_dict = {}
 
-        unique_column_name = unique_name(str(header), used_columns_names)
-        used_columns_names.add(unique_column_name)
+        for k, i in ((k, fields.index(k)) for k in columns):
+            # fixup the duplicate column names
+            field_dict[unique_name(k, field_dict.keys())] = i
 
-        t[unique_column_name] = [v for v in col[start_row_pos : start_row_pos + limit]]
-    return t
+    # calculate our data rows iterator offset
+    it_offset = start + (1 if first_row_has_headers else 0) + header_row_index + 1
+    
+    # attempt to fetch number of rows in the sheet
+    total_rows = worksheet.max_row
+    real_tqdm = True
+
+    if total_rows is None:
+        # i don't know what causes it but max_row can be None in some cases, so we don't know how large the dataset is
+        total_rows = it_offset + limit
+        real_tqdm = False
+
+    # create the actual data rows iterator
+    it_rows = worksheet.iter_rows(min_row=it_offset, max_row=min(it_offset+limit, total_rows))
+    it_used_indices = list(field_dict.values())
+
+    # filter columns that we're not going to use
+    it_rows_filtered = ([row[idx].value for idx in it_used_indices] for row in it_rows)
+
+    # create page directory
+    workdir = Path(Config.workdir) / f"pid-{os.getpid()}"
+    pagesdir = workdir/"pages"
+    pagesdir.mkdir(exist_ok=True, parents=True)
+
+    field_names = list(field_dict.keys())
+    column_count = len(field_names)
+
+    page_fhs = None
+
+    # prepopulate the table with columns
+    table = T()
+    for name in field_names:
+        table[name] = Column(table.path)
+
+    pbar_fname = path.name
+    if len(pbar_fname) > 20:
+        pbar_fname = pbar_fname[0:10] + "..." + pbar_fname[-7:]
+
+    if real_tqdm:
+        # we can create a true tqdm progress bar, make one
+        tqdm_iter = tqdm(it_rows_filtered, total=total_rows, desc=f"importing excel: {pbar_fname}")
+    else:
+        """
+            openpyxls was unable to precalculate the size of the excel for whatever reason
+            forcing recalc would require parsing entire file
+            drop the progress bar in that case, just show iterations
+
+            as an alternative we can use Σ=1/x but it just doesn't look, show iterations per second instead
+        """
+        tqdm_iter = tqdm(it_rows_filtered, desc=f"importing excel: {pbar_fname}")
+
+    tqdm_iter = enumerate(tqdm_iter)
+
+    while True:
+        try:
+            idx, row = next(tqdm_iter)
+        except StopIteration:
+            break # because in some cases we can't know the size of excel to set the upper iterator limit we loop until stop iteration is encountered
+        
+        if idx % Config.PAGE_SIZE == 0:
+            if page_fhs is not None:
+                # we reached the max page file size, fix the pages
+                [_fix_xls_page(table, c, fh) for c, fh in zip(field_names, page_fhs)]
+
+            page_fhs = [None] * column_count
+
+            for cidx in range(column_count):
+                # allocate new pages
+                pg_path = pagesdir / f"{next(Page.ids)}.npy"
+                page_fhs[cidx] = open(pg_path, "wb")
+
+        for fh, value in zip(page_fhs, row):
+            """
+                since excel types are already cast into appropriate type we're going to do two passes per page
+
+                we create our temporary custom format:
+                packed type|packed byte count|packed bytes|...
+
+                available types:
+                    * q - int64
+                    * d - float64
+                    * s - string
+                    * b - boolean
+                    * n - none
+                    * p - pickled (date, time, datetime)
+            """
+            dtype = type(value)
+
+            if dtype == int:
+                ptype, bytes_ = b"q", struct.pack("q", value) # pack int as int64
+            elif dtype == float:
+                ptype, bytes_ = b"d", struct.pack("d", value) # pack float as float64
+            elif dtype == str:
+                ptype, bytes_ = b"s", value.encode("utf-8")   # pack string
+            elif dtype == bool:
+                ptype, bytes_ = b"b", b'1' if value else b'0' # pack boolean
+            elif value is None:
+                ptype, bytes_ = b'n', b''                     # pack none
+            elif dtype in [date, time, datetime]:
+                ptype, bytes_ = b"p", pkl.dumps(value)        # pack object types via pickle
+            else:
+                raise NotImplementedError()
+
+            byte_count = struct.pack("I", len(bytes_))        # pack our payload size, i doubt payload size can be over uint32
+
+            # dump object to file
+            fh.write(ptype)
+            fh.write(byte_count)
+            fh.write(bytes_)
+
+    if page_fhs is not None:
+        # we reached end of the loop, fix the pages
+        [_fix_xls_page(table, c, fh) for c, fh in zip(field_names, page_fhs)]
+
+    return table
 
 
 def ods_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
@@ -695,3 +814,41 @@ def _find_newlines_slow(path, file_length, encoding, pbar, read_stage):
             dy = dx
 
     return newline_offsets, newlines
+
+def _fix_xls_page(table, col_name, fh):
+    # we need to convert our temporary file format to numpy array and re-dump it back to disk
+    fpath = Path(fh.name)
+    fh.close() # pages come in open, so close file handler
+
+    file_length = fpath.stat().st_size # fetch the size of the file so that we can iterate until the end of the file
+
+    page_values = []
+    
+    with open(fpath, "rb") as fh:
+        while fh.tell() < file_length:
+            ptype = fh.read(1)  # read the packed type
+            psize = struct.unpack("I", fh.read(4))[0] # read the packed byte count
+            pvalue = fh.read(psize) # read the packed bytes
+
+            if ptype == b'q':
+                value = struct.unpack("q", pvalue)[0]
+            elif ptype == b'd':
+                value = struct.unpack("d", pvalue)[0]
+            elif ptype == b"s":
+                value = pvalue.decode("utf-8")
+            elif ptype == b"b":
+                value = True if pvalue == b'1' else False
+            elif ptype == b'n':
+                value = None
+            elif ptype == b"p":
+                value = pkl.loads(pvalue)
+            else:
+                raise NotImplementedError()
+
+            page_values.append(value)
+
+    page_values = list_to_np_array(page_values) # cast to numpy array
+    np.save(fpath, page_values) # re-dump it
+
+    col = table[col_name]
+    col.extend(page_values) # put it into the table
