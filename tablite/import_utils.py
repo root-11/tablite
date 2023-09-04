@@ -193,7 +193,7 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
 
     try:
         # get the first row to know our headers or the number of columns
-        fields = [c.value for c in next(worksheet.iter_rows(min_row=header_row_index + 1))] # excel is offset by 1
+        fields = [str(c.value) for c in next(worksheet.iter_rows(min_row=header_row_index + 1))] # excel is offset by 1
     except StopIteration:
         # excel was empty, return empty table
         return T()
