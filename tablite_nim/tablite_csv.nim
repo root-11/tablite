@@ -26,8 +26,9 @@
 
 #     return Rank(items: items)
 
+import argparse
 import std/enumerate
-import os, sugar, times, tables, sequtils, json, unicode, encodings, bitops
+import os, sugar, times, tables, sequtils, json, unicode, parseutils, encodings, bitops
 
 type Encodings {.pure.} = enum ENC_UTF8, ENC_UTF16
 
@@ -737,6 +738,16 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
         var row_idx: uint = 1
         var page_size: uint = 1_000_000
 
+        let ft = open(dirname & "/tasks.txt", fmWrite)
+
+        var delimiter = ""
+        delimiter.addEscapedChar(dia.delimiter)
+        var quotechar = ""
+        quotechar.addEscapedChar(dia.quotechar)
+        var escapechar = ""
+        escapechar.addEscapedChar(dia.escapechar)
+        var lineterminator = ""
+        lineterminator.addEscapedChar(dia.lineterminator)
 
         while row_idx < newlines:
             var pages = newSeq[string](fields.len)
@@ -745,23 +756,161 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
                 pages[idx] = dirname & "/" & $page_idx & ".npy"
                 inc page_idx
 
+            # case encoding:
+            #     of ENC_UTF8:
+            #         ft.write("--encoding=" & "utf8" & " ")
+            #     of ENC_UTF16:
+            #         ft.write("--encoding" & "utf16" & " ")
+
+            # ft.write("--delimiter=\"" & delimiter & "\" ")
+            # ft.write("--quotechar=\"" & quotechar & "\" ")
+            # ft.write("--escapechar=\"" & escapechar & "\" ")
+            # ft.write("--lineterminator=\"" & lineterminator & "\" ")
+            # ft.write("--doublequote=" & $dia.doublequote & " ")
+            # ft.write("--skipinitialspace=" & $dia.skipinitialspace & " ")
+            # ft.write("--quoting=" & $dia.quoting & " ")
+
+            ft.write("\"/home/ratchet/Documents/dematic/tablite/build/tablite_csv\" ")
+            ft.write("task ")
+
+            ft.write("--pages=\"" & pages.join(",") & "\" ")
+            ft.write("--fields_keys=\"" & toSeq(field_relation.keys).join(",") & "\" ")
+            ft.write("--fields_vals=\"" & toSeq(field_relation.values).join(",") & "\" ")
+
+            ft.write("\"" & path & "\" ")
+            ft.write($newline_offsets[row_idx] & " ")
+            ft.write($page_size)
+
+            ft.write("\n")
+
             # text_reader_task(path, encoding, dia, pages, field_relation, newline_offsets[1], -1)
-            
 
             row_idx = row_idx + page_size
+
+        ft.close()
+
+proc unescape_seq(str: string): string = # nim has no true unescape
+    case str:
+        of "\\n": return "\n"
+        of "\\t": return "\t"
+
+    return str
 
 if isMainModule:
     var path_csv: string
     var encoding: Encodings
     var dialect: Dialect
 
-    if paramCount() == 0:
+    var p = newParser:
+        help("Imports tablite pages")
+        option(
+            "-e", "--encoding",
+            help="file encoding",
+            choices = @["UTF8", "UTF16"],
+            default=some("UTF8")
+        )
+
+        option("--delimiter", help="text delimiter", default=some(","))
+        option("--quotechar", help="text quotechar", default=some("\""))
+        option("--escapechar", help="text escapechar", default=some("\\"))
+        option("--lineterminator", help="text lineterminator", default=some("\\n"))
+
+        option(
+            "--doublequote",
+            help="text doublequote",
+            choices = @["true", "false", "yes", "no", "t", "f", "y", "n"],
+            default=some("true")
+        )
+
+        option(
+            "--skipinitialspace",
+            help="text skipinitialspace",
+            choices = @["true", "false", "yes", "no", "t", "f", "y", "n"],
+            default=some("false")
+        )
+
+        option(
+            "--quoting",
+            help="text quoting",
+            choices = @[
+                "QUOTE_MINIMAL",
+                "QUOTE_ALL",
+                "QUOTE_NONNUMERIC",
+                "QUOTE_NONE",
+                "QUOTE_STRINGS",
+                "QUOTE_NOTNULL"
+            ],
+            default=some("QUOTE_MINIMAL")
+        )
+
+        command("import"):
+            arg("path", help="file path")
+            run:
+                discard
+                # echo opts.parentOpts.encoding
+        command("task"):
+            option("--pages", help="task pages", required = true)
+            option("--fields_keys", help="field keys", required = true)
+            option("--fields_vals", help="field vals", required = true)
+
+            arg("path", help="file path")
+            arg("offset", help="file offset")
+            arg("count", help="line count")
+            run:
+                discard
+        run:
+            var delimiter = opts.delimiter.unescape_seq()
+            var quotechar = opts.quotechar.unescape_seq()
+            var escapechar = opts.escapechar.unescape_seq()
+            var lineterminator = opts.lineterminator.unescape_seq()
+
+            if delimiter.len != 1: raise newException(IOError, "'delimiter' must be 1 character")
+            if quotechar.len != 1: raise newException(IOError, "'quotechar' must be 1 character")
+            if escapechar.len != 1: raise newException(IOError, "'escapechar' must be 1 character")
+            if lineterminator.len != 1: raise newException(IOError, "'lineterminator' must be 1 character")
+
+            dialect = newDialect(
+                delimiter = delimiter[0],
+                quotechar = quotechar[0],
+                escapechar = escapechar[0],
+                doublequote = opts.doublequote in ["true", "yes", "y", "t"],
+                quoting = (
+                    case opts.quoting.toUpper():
+                        of "QUOTE_MINIMAL":
+                            QUOTE_MINIMAL
+                        of "QUOTE_ALL":
+                            QUOTE_ALL
+                        of "QUOTE_NONNUMERIC":
+                            QUOTE_NONNUMERIC
+                        of "QUOTE_NONE":
+                            QUOTE_NONE
+                        of "QUOTE_STRINGS":
+                            QUOTE_STRINGS
+                        of "QUOTE_NOTNULL":
+                            QUOTE_NOTNULL
+                        else:
+                            raise newException(Exception, "invalid 'quoting'")
+                ),
+                skipinitialspace = opts.skipinitialspace in ["true", "yes", "y", "t"],
+                lineterminator = lineterminator[0],
+            )
+
+            case opts.encoding.toUpper():
+                of "UTF8": encoding = ENC_UTF8
+                of "UTF16": encoding = ENC_UTF16
+                else: raise newException(Exception, "invalid 'encoding'")
+
+    let opts = p.parse()
+    p.run()
+
+    if opts.import.isNone and opts.task.isNone:
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/bad_empty.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", ENC_UTF8)
-        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
+        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
+        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/gesaber_data.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_be.csv", ENC_UTF16)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_le.csv", ENC_UTF16)
-        dialect = newDialect()
+        # dialect = newDialect()
 
         let d0 = getTime()
         import_file(path_csv, encoding, dialect, nil)
@@ -769,26 +918,21 @@ if isMainModule:
         
         echo $(d1 - d0)
     else:
-        case paramStr(0):
-            of "import":
-                if paramCount() < 2:
-                    raise newException(Exception, "file name not specified")
-                
-                path_csv = paramStr(1)
+        if opts.import.isSome:
+            raise newException(Exception, "not implemented 'import'")
 
-                if paramCount() < 3:
-                    raise newException(Exception, "encoding not specified")
+        if opts.task.isSome:
+            let path = opts.task.get.path
+            var pages = opts.task.get.pages.split(",")
+            let fields_keys = opts.task.get.fields_keys.split(",")
+            let fields_vals = opts.task.get.fields_vals.split(",")
 
-                case paramStr(2).toLower():
-                    of "utf8":
-                        encoding = Encodings.ENC_UTF8
-                    of "utf16":
-                        encoding = Encodings.ENC_UTF16
-                    else:
-                        raise newException(Exception, "encoding not supported 'utf8|utf16'")
-            of "task":
-                raise newException(Exception, "'task' not implemented")
-            else:
-                raise newException(Exception, "first parameter must be 'import|task'")
+            var field_relation = collect:
+                for (k, v) in zip(fields_keys, fields_vals):
+                    {parseUInt(k): parseUInt(v)}
 
-        
+            let offset = parseUInt(opts.task.get.offset)
+            let count = parseInt(opts.task.get.count)
+
+            # text_reader_task(path, encoding, dia, pages, field_relation, offset, count)
+            text_reader_task(path, encoding, dialect, pages, field_relation, offset, count)
