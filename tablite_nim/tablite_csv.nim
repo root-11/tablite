@@ -27,7 +27,7 @@
 #     return Rank(items: items)
 
 import std/enumerate
-import os, sugar, times, tables, sequtils, json, unicode
+import os, sugar, times, tables, sequtils, json, unicode, encodings, bitops
 
 type Encodings {.pure.} = enum ENC_UTF8, ENC_UTF16
 
@@ -588,8 +588,6 @@ proc write_numpy_header(fh: File, dtype: string, shape: uint): void =
 
     copyMem(padding_bytes[0].unsafeAddr, padding_header.unsafeAddr, padding_bytes.len)
 
-    echo padding_header
-
     fh.write(magic)
     fh.write(major)
     fh.write(minor)
@@ -601,7 +599,6 @@ proc write_numpy_header(fh: File, dtype: string, shape: uint): void =
     for i in 0..padding-2:
         fh.write(" ")
     fh.write("\n")
-
 
 proc text_reader_task(
     path: string, encoding: Encodings, dialect: Dialect, 
@@ -619,8 +616,6 @@ proc text_reader_task(
             for p in destinations:
                 open(p, fmWrite)
 
-        echo "-- starting first operation"
-
         var longest_str = newSeq[uint](destinations.len)
         var n_rows: uint = 0
 
@@ -633,20 +628,14 @@ proc text_reader_task(
                     continue
 
                 let fidx = field_relation[uint idx]
+                let field = fields[idx]
 
-                longest_str[fidx] = max(uint fields[idx].len, longest_str[fidx])
+                longest_str[fidx] = max(uint field.runeLen, longest_str[fidx])
 
             inc n_rows
 
-            # echo $columns
-
-            # inc read_row_count
-
         for (fh, i) in zip(page_file_handlers, longest_str):
             fh.write_numpy_header("<U" & $i, n_rows)
-
-
-        echo "-- first iteration went through"
 
         fh.setFilePos(int64 row_offset, fspSet)
 
@@ -665,17 +654,15 @@ proc text_reader_task(
                 var fh = page_file_handlers[fidx]
 
                 for rune in str.toRunes():
-                    var ch = $rune
-                    zeroMem(addr ch_arr, 4)
-                    copyMem(addr ch_arr, ch[0].addr, rune.size())
-                    echo rune
-                    echo ch_arr
+                    var ch = uint32(rune)
+                    copyMem(addr ch_arr, ch.unsafeAddr, 4)
                     discard fh.writeBytes(ch_arr, 0, ch_arr.len)
 
-            # raise newException(Exception, "not implemented")
+                let dt = longest_str[fidx] - (uint str.runeLen)
 
-        echo "-- end second operation"
-        
+                for i in 1..dt:
+                    fh.write("\x00\x00\x00\x00")
+
         for f in page_file_handlers:
             f.close()
 
@@ -742,86 +729,66 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
             for ix, name in new_fields.pairs:
                 {ix: name}
 
-
-        var pages = newSeq[string](fields.len)
-
-        for idx in 0..fields.len - 1:
-            pages[idx] = dirname & "/" & $idx & ".npy"
-
-        echo $pages
-
         var field_relation = collect:
             for i, c in enumerate(inp_fields.keys):
                 {c: uint i}
 
-        text_reader_task(path, encoding, dia, pages, field_relation, newline_offsets[1], -1)
+        var page_idx: uint32 = 1
+        var row_idx: uint = 1
+        var page_size: uint = 1_000_000
+
+
+        while row_idx < newlines:
+            var pages = newSeq[string](fields.len)
+
+            for idx in 0..fields.len - 1:
+                pages[idx] = dirname & "/" & $page_idx & ".npy"
+                inc page_idx
+
+            # text_reader_task(path, encoding, dia, pages, field_relation, newline_offsets[1], -1)
+            
+
+            row_idx = row_idx + page_size
 
 if isMainModule:
+    var path_csv: string
+    var encoding: Encodings
+    var dialect: Dialect
 
-    # let (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/bad_empty.csv", ENC_UTF8)
-    # let (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", ENC_UTF8)
-    # let (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
-    let (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_be.csv", ENC_UTF16)
-    # let (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_le.csv", ENC_UTF16)
-    let dia = newDialect()
+    if paramCount() == 0:
+        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/bad_empty.csv", ENC_UTF8)
+        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", ENC_UTF8)
+        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
+        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_be.csv", ENC_UTF16)
+        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_le.csv", ENC_UTF16)
+        dialect = newDialect()
 
-    # test_perf(path_csv, encoding, dia)
+        let d0 = getTime()
+        import_file(path_csv, encoding, dialect, nil)
+        let d1 = getTime()
+        
+        echo $(d1 - d0)
+    else:
+        case paramStr(0):
+            of "import":
+                if paramCount() < 2:
+                    raise newException(Exception, "file name not specified")
+                
+                path_csv = paramStr(1)
 
-    import_file(path_csv, encoding, dia, nil)
-    
-    # echo newline_offsets
+                if paramCount() < 3:
+                    raise newException(Exception, "encoding not specified")
 
-    
+                case paramStr(2).toLower():
+                    of "utf8":
+                        encoding = Encodings.ENC_UTF8
+                    of "utf16":
+                        encoding = Encodings.ENC_UTF16
+                    else:
+                        raise newException(Exception, "encoding not supported 'utf8|utf16'")
+            of "task":
+                raise newException(Exception, "'task' not implemented")
+            else:
+                raise newException(Exception, "first parameter must be 'import|task'")
 
-# if isMainModule:
-#     let path_csv = "/home/ratchet/Documents/dematic/tablite/tests/data/book1.csv"
-
-#     for i in 1..10:
-#         let d0 = getTime()
-
-#         let (newline_offsets, newlines) = find_newlines(path_csv)
-
-#         let d1 = getTime()
-
-#         echo $(d1 - d0)
-
-#     for i in 1..10:
-#         let d0 = getTime()
-
-#         let (newline_offsets, newlines) = find_newlines_cached(path_csv)
-
-#         let d1 = getTime()
-
-#         echo $(d1 - d0)
-
-#     # let parser {.noalias.} = create csv.CsvParser
-#     # let fh = open(path_csv, FileMode.fmRead)
-
-#     # let separator = ','
-#     # let quote = '"'
-#     # let escape = '\\'
-
-#     # parser[].open(fh, separator, quote, escape)
-#     # parser[].readHeaderRow()
-
-#     # echo "0000000000:" & $parser[] & "\n"
-#     # echo "newline_offsets: " & $newline_offsets & "\n"
-
-#     # parser[].bufpos = 63
-#     # discard parser[].handleCR(63)
-#     # echo "1111111111: " & $parser[]
-#     # fh.setFilePos(newline_offsets[3])
-#     # parser[].bufpos = newline_offsets[2]
-    
-#     # while likely(parser[].readRow()):
-#     #     for column in parser[].headers().mitems:
-#     #         echo parser[].get_row_entry(column)
-#     #     break
-
-#     # for column in parser[].headers.mitems:
-#     #     echo column
-
-#     # echo $newline_offsets & " hi " & $newlines
-
-#     # parser[].close()
-#     # if likely(parser != nil): dealloc parser
+        
