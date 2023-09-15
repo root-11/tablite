@@ -1,34 +1,9 @@
-# import faster_than_csv as csv
-
-# type DataTypes = enum
-#     INT, BOOLEAN, FLOAT,
-#     STRING,
-#     DATE, TIME, DATETIME,
-#     MAX_ELEMENTS
-
-
-# type Rank = object
-#     items: array[DataTypes.MAX_ELEMENTS, int]
-#     ranks: array[DataTypes.MAX_ELEMENTS, int]
-
-# iterator iter(rank: Rank): DataTypes {.closure.} =
-#     var x = 0
-#     let max = int(DataTypes.MAX_ELEMENTS)
-#     while x < max:
-#         yield DataTypes(x)
-#         inc x
-
-# proc newRank(): Rank =
-#     var items: array[int(DataTypes.MAX_ELEMENTS), int]
-
-#     for i in 0..(int(DataTypes.MAX_ELEMENTS)-1):
-#         items[i] = i
-
-#     return Rank(items: items)
-
 import argparse
 import std/enumerate
-import os, sugar, times, tables, sequtils, json, unicode, parseutils, encodings, bitops, osproc
+import os, sugar, times, tables, sequtils, json, unicode, parseutils, encodings, bitops, osproc, lists
+
+const NOT_SET = uint32.high
+const EOL = uint32.high - 1
 
 type Encodings {.pure.} = enum ENC_UTF8, ENC_UTF16
 
@@ -38,6 +13,49 @@ type BaseEncodedFile = ref object of RootObj
 type FileUTF8 = ref object of BaseEncodedFile
 type FileUTF16 = ref object of BaseEncodedFile
     endianness: Endianness
+
+type DataTypes = enum
+    DT_INT, DT_BOOLEAN, DT_FLOAT,
+    DT_STRING,
+    DT_DATE, DT_TIME, DT_DATETIME,
+    DT_MAX_ELEMENTS
+
+proc parse_int(str: ptr string): int = parseInt(str[])
+proc parse_float(str: ptr string): float = parseFloat(str[])
+
+proc parse_bool(str: ptr string): bool =
+    if str[].toLower() == "true":
+        return true
+    elif str[].toLower() == "false":
+        return false
+
+    raise newException(ValueError, "not a boolean value")
+
+proc parse_date(str: ptr string): DateTime =
+    raise newException(Exception, "not implemented error")
+
+proc parse_time(str: ptr string): Time =
+    raise newException(Exception, "not implemented error")
+
+proc parse_datetime(str: ptr string): DateTime =
+    raise newException(Exception, "not implemented error")
+
+type Rank = array[int(DataTypes.DT_MAX_ELEMENTS), (DataTypes, uint)]
+
+iterator iter(rank: var Rank): ptr (DataTypes, uint) {.closure.} =
+    var x = 0
+    let max = int(DataTypes.DT_MAX_ELEMENTS)
+    while x < max:
+        yield rank[x].unsafeAddr
+        inc x
+
+proc newRank(): Rank =
+    var ranks {.noinit.}: Rank
+
+    for i in 0..(int(DataTypes.DT_MAX_ELEMENTS)-1):
+        ranks[i] = (DataTypes(i), uint 0)
+
+    return ranks
 
 proc endOfFile(f: BaseEncodedFile): bool = f.fh.endOfFile()
 proc getFilePos(f: BaseEncodedFile): uint = uint f.fh.getFilePos()
@@ -109,7 +127,6 @@ proc newFileUTF16(filename: string): FileUTF16 =
     return FileUTF16(fh: fh, endianness: endianness)
 
 proc newFile(filename: string, encoding: Encodings): BaseEncodedFile =
-    var f: BaseEncodedFile
     case encoding:
         of ENC_UTF8:
             return FileUTF8(fh: open(filename, fmRead))
@@ -117,27 +134,6 @@ proc newFile(filename: string, encoding: Encodings): BaseEncodedFile =
             return newFileUTF16(filename)
         else:
             raise newException(Exception, "encoding not implemented")
-
-
-proc peek_char(fh: File): (bool, char) =
-    if unlikely(fh.endOfFile()):
-        return (false, ' ')
-
-    let ox = fh.getFilePos()
-    let peeked = fh.readChar()
-
-    fh.setFilePos(ox, FileSeekPos.fspSet)
-
-    return (true, peeked)
-
-proc seek_next_line(fh: File): bool =
-    while likely(not fh.endOfFile()):
-        let ch = fh.readChar()
-
-        if unlikely(ch == '\n'):
-            return true
-
-    return false
 
 proc find_newlines(fh: BaseEncodedFile): (seq[uint], uint) =
     var newline_offsets = newSeq[uint](1)
@@ -159,45 +155,6 @@ proc find_newlines(path: string, encoding: Encodings): (seq[uint], uint) =
         return find_newlines(fh)
     finally:
         fh.close()
-
-# proc find_newlines_cached(path: string, encoding: Encodings): (seq[int], int) =
-#     let fh = newFile(path, encoding)
-#     try:
-#         var newline_offsets = newSeq[int](1)
-#         var ring_buffer: array[8192, char]
-#         var bufpos = 0
-#         var bufsize = 0
-#         var bufoffset = 0
-
-#         var total_lines: int = 0
-
-#         newline_offsets[0] = 0
-
-#         while likely(not fh.endOfFile):
-#             if bufpos > bufsize:
-#                 bufpos = 0
-#                 bufoffset = bufsize
-#                 bufsize = fh.readBuffer(addr ring_buffer, ring_buffer.len)
-
-#             let ch = ring_buffer[bufpos]
-#             inc bufpos
-
-#             if ch == '\n':
-#                 inc total_lines
-#                 newline_offsets.add(bufoffset + bufpos)
-
-#         # while likely(fh.seek_next_line()):
-#         #     inc total_lines
-
-#         #     newline_offsets.add(int fh.getFilePos())
-
-#         return (newline_offsets, total_lines)
-#     finally:
-#         fh.close()
-
-# import streams, lexbase, times
-
-import lists
 
 type Quoting {.pure.} = enum
     QUOTE_MINIMAL, QUOTE_ALL, QUOTE_NONNUMERIC, QUOTE_NONE,
@@ -221,29 +178,7 @@ type Dialect = object
 proc newDialect(delimiter: char = ',', quotechar: char = '"', escapechar: char = '\\', doublequote: bool = true, quoting: Quoting = QUOTE_MINIMAL, skipinitialspace: bool = false, lineterminator: char = '\n'): Dialect =
     Dialect(delimiter:delimiter, quotechar:quotechar, escapechar:escapechar, doublequote:doublequote, quoting:quoting, skipinitialspace:skipinitialspace, lineterminator:lineterminator)
 
-const fields_count: uint = 128;
 const field_limit: uint = 128 * 1024;
-
-type BufType = array[field_limit, uint8]
-
-type StringContainer = object
-    buf: seq[BufType]
-    szs: seq[uint]
-    els: uint
-
-proc newStringContainer(): StringContainer =
-    StringContainer(
-        buf: newSeq[BufType](fields_count),
-        szs: newSeq[uint](fields_count)
-    )
-
-# type HeapString = object
-#     str: string
-
-# proc newHeapString(str: var string): ref HeapString =
-#   var heapValue = new(type(HeapString))
-#   heapValue[].str = str
-#   heapValue
 
 type ReaderObj = object
     numeric_field: bool
@@ -254,30 +189,13 @@ type ReaderObj = object
     field_size: uint
     field: seq[char]
 
-    # container: StringContainer
     fields: seq[string]
-    # fields: seq[ref HeapString]
-    # fields: SinglyLinkedList[string]
     field_count: uint
 
 var readerAlloc = newSeq[string](1024)
-# var readerAlloc = newSeq[ptr string](1024)
-# var readerAlloc = newSeq[ref HeapString](1024)
-# var readerAlloc = initSinglyLinkedList()
-
-# var arr = newSeq[array[field_limit, uint8]](1024)
-# var container = newStringContainer()
 
 proc newReaderObj(dialect: Dialect): ReaderObj =
     ReaderObj(dialect: dialect, fields: readerAlloc)
-    # ReaderObj(dialect: dialect, container: container)
-
-# proc add_field(self: var ReaderObj): void =
-#     if self.field_len > 0:
-#         copyMem(self.container[self.container.els].unsafeAddr, self.field[0].unsafeAddr, self.field_len)
-
-#     self.container[self.container.els] = self.field_len
-#     inc self.container.els
 
 proc parse_grow_buff(self: var ReaderObj): bool =
     let field_size_new: uint = (if self.field_size > 0: 2u * self.field_size else: 4096u)
@@ -299,33 +217,17 @@ proc parse_add_char(self: var ReaderObj, state: var ParserState, c: char): bool 
 
     return true
 
-
-
 proc parse_save_field(self: var ReaderObj): bool =
-    # self.field_len = 0
-    # return true
-    # self.field_len = 0
-
     if self.numeric_field:
         self.numeric_field = false
 
         raise newException(Exception, "not yet implemented: parse_save_field numeric_field")
 
     var field {.noinit.} = newString(self.field_len)
-    # var field = new(type(string))
-    
-    # var field = self.fields[self.field_count]
-    # field.setLen(self.field_len)
-
-    # echo "save field len: " & $self.field_len# & " field: " & $self.field
 
     if likely(self.field_len > 0):
         copyMem(field[0].unsafeAddr, self.field[0].unsafeAddr, self.field_len)
 
-    # echo "save field: '" & field & "'"
-    # self.fields.add(newSinglyLinkedNode(field))
-    # self.fields[self.field_count] = newHeapString(field)
-    # self.fields[self.field_count] = addr field
     if unlikely(self.field_count + 1 >= (uint self.field.high)):
         self.field.setLen(self.field.len() * 2)
 
@@ -333,26 +235,9 @@ proc parse_save_field(self: var ReaderObj): bool =
 
     inc self.field_count
 
-    # echo "--- capacity: " & $self.container.buf.high
-
-    # if (uint self.container.buf.high) < self.container.els:
-    #     var arr {.noinit.}: BufType
-
-    #     self.container.buf.add(arr)
-    #     self.container.szs.add(0)
-
-    # if self.field_len > 0:
-    #     copyMem(self.container.buf[self.container.els].unsafeAddr, self.field[0].unsafeAddr, self.field_len)
-
-    # self.container.szs[self.container.els] = self.field_len
-    # inc self.container.els
-
     self.field_len = 0
 
     return true
-
-let NOT_SET = uint32.high
-let EOL = uint32.high - 1
 
 proc parse_process_char(self: var ReaderObj, state: var ParserState, cc: uint32): bool =
     let dia = self.dialect
@@ -472,8 +357,6 @@ proc parse_process_char(self: var ReaderObj, state: var ParserState, cc: uint32)
 
     return true
 
-# import encodings
-
 iterator parse_csv(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[string], uint) =
     let dia = self.dialect
 
@@ -502,41 +385,20 @@ iterator parse_csv(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[str
         linelen = uint line.len
         pos = 0
 
-        # echo "line: '" & line & "'"
-        # echo "state: " & $state
-
-        # state = START_RECORD
-
         while pos < linelen:
             if unlikely(not self.parse_process_char(state, uint32 line[pos])):
-                # echo $state & " " & line[pos] & " " & $obj.fields & " " & $obj.field_len
                 raise newException(Exception, "illegal")
             
             inc pos
 
-        # if unlikely(not obj.parse_process_char(state, uint32 '\n')):
-        #     raise newException(Exception, "illegal")
-
         if unlikely(not self.parse_process_char(state, EOL)):
             raise newException(Exception, "illegal")
 
-        # for i in 0..32:
-        #     obj.fields.add(cunny_fields[i])
-
-        # var addr_fields = addr obj.fields
-        # yield it
-        # obj.fields = initSinglyLinkedList[string]()
-        # obj.fields.setLen(0)
-        # yield (addr obj.fields, obj.field_count)
-        # yield line_num
         yield (line_num, addr self.fields, self.field_count)
 
         self.field_count = 0
-        # self.container.els = 0
 
         inc line_num
-
-        # raise newException(Exception, "not yet implemented")
 
 iterator parse_csv(self: var ReaderObj, path: string, encoding: Encodings): (uint, ptr seq[string], uint) =
     var fh = newFile(path, encoding)
@@ -546,21 +408,6 @@ iterator parse_csv(self: var ReaderObj, path: string, encoding: Encodings): (uin
             yield it
     finally:
         fh.close()
-
-
-# iterator iter_fields(self: var ReaderObj): ptr string =
-#     for i in 0..self.container.els - 1:
-#         let sz = self.container.szs[i]
-#         let pt = self.container.buf[i]
-
-#         var st {.noinit.} = newString(sz)
-
-#         if sz > 0:
-#             copyMem(st[0].addr, pt[0].unsafeAddr, sz)
-
-#         # echo $i & " -> " & $st
-
-#         yield addr st
 
 proc read_columns(path: string, encoding: Encodings, dialect: Dialect, row_offset: uint): seq[string] =
     let fh = newFile(path, encoding)
@@ -601,14 +448,79 @@ proc write_numpy_header(fh: File, dtype: string, shape: uint): void =
         fh.write(" ")
     fh.write("\n")
 
+proc `<` (a: (DataTypes, uint), b: (DataTypes, uint)): bool = a[1] < b[1]
+proc `>` (a: (DataTypes, uint), b: (DataTypes, uint)): bool = a[1] > b[1]
+
+proc insert_sort[T](a: var openarray[T]) =
+    # our array is likely to be nearly sorted or already sorted, therefore the complexity is better than bubble sort
+    for i in 1 .. a.high:
+        let value = a[i]
+        var j = i
+        while j > 0 and value > a[j-1]:
+            a[j] = a[j-1]
+            dec j
+        a[j] = value
+
+proc update_rank(rank: var Rank, str: ptr string): (bool, DataTypes) =
+    var rank_dtype: DataTypes
+    var index: int
+    var rank_count: uint
+    var is_none: bool = false
+
+    for i, r_addr in enumerate(rank.iter()):
+        try:
+            case r_addr[0]:
+                of DataTypes.DT_INT:
+                    discard str.parse_int()
+                of DataTypes.DT_FLOAT:
+                    discard str.parse_float()
+                of DataTypes.DT_BOOLEAN:
+                    discard str.parse_bool()
+                of DataTypes.DT_DATE:
+                    discard str.parse_date()
+                of DataTypes.DT_TIME:
+                    discard str.parse_time()
+                of DataTypes.DT_DATETIME:
+                    discard str.parse_datetime()
+                of DataTypes.DT_STRING:
+                    if str[] in ["null", "Null", "NULL", "#N/A", "#n/a", "", "None"]:
+                        is_none = true
+                else:
+                    raise newException(Exception, "invalid type")
+        except ValueError:
+            continue
+
+        rank_dtype = r_addr[0]
+        rank_count = r_addr[1]
+        index = i
+
+        break
+
+    if is_none:
+        return (true, rank_dtype)
+
+    rank[index] = (rank_dtype, rank_count + 1)
+    rank.insert_sort()
+
+    return (false, rank_dtype)
+
 proc text_reader_task(
     path: string, encoding: Encodings, dialect: Dialect, 
     destinations: var seq[string], field_relation: var OrderedTable[uint, uint], 
     row_offset: uint, row_count: int): void =
     var obj = newReaderObj(dialect)
-    let fh = newFile(path, encoding)
     
+    let fh = newFile(path, encoding)
     let keys_field_relation = collect: (for k in field_relation.keys: k)
+    let n_columns = keys_field_relation.len()
+    let guess_dtypes = true
+    
+    var ranks: seq[Rank]
+    
+    if guess_dtypes:
+        ranks = collect(newSeqOfCap(n_columns)):
+            for _ in 0..n_columns-1:
+                newRank()
 
     try:
         fh.setFilePos(int64 row_offset, fspSet)
@@ -631,12 +543,52 @@ proc text_reader_task(
                 let fidx = field_relation[uint idx]
                 let field = fields[idx]
 
-                longest_str[fidx] = max(uint field.runeLen, longest_str[fidx])
+                if not guess_dtypes:
+                    longest_str[fidx] = max(uint field.runeLen, longest_str[fidx])
+                else:
+                    let rank = addr ranks[fidx]
+                    let (is_none, dt) = rank[].update_rank(field.unsafeAddr)
+
+                    if dt == DataTypes.DT_STRING and not is_none:
+                        longest_str[fidx] = max(uint field.runeLen, longest_str[fidx])
 
             inc n_rows
 
-        for (fh, i) in zip(page_file_handlers, longest_str):
-            fh.write_numpy_header("<U" & $i, n_rows)
+        if not guess_dtypes:
+            for (fh, i) in zip(page_file_handlers, longest_str):
+                fh.write_numpy_header("<U" & $i, n_rows)
+        else:
+            for i in 0..destinations.len-1:
+                let fh = page_file_handlers[i]
+                let rank = addr ranks[i]
+                var dtype = ""
+
+                for it in rank[].iter():
+                    let dt = it[0]
+                    let count = it[1]
+    
+                    if count == 0:
+                        break
+
+                    if dtype == "":
+                        case dt:
+                            of DataTypes.DT_INT: dtype = "i"
+                            of DataTypes.DT_FLOAT: dtype = "f"
+                            of DataTypes.DT_STRING: dtype = "U"
+                            of DataTypes.DT_BOOLEAN: dtype = "?"
+                            else: dtype = "|O"
+                        continue
+
+                    if dtype == "f" and dt == DataTypes.DT_INT: discard
+                    elif dtype == "i" and dt == DataTypes.DT_FLOAT: dtype = "f"
+                    else: dtype = "|O"
+                
+                if dtype == "U":
+                    dtype = "<U" & $ longest_str[i]
+
+                echo dtype
+
+                raise newException(Exception, "not implemented")
 
         fh.setFilePos(int64 row_offset, fspSet)
 
@@ -670,40 +622,7 @@ proc text_reader_task(
     finally:
         fh.close()
 
-proc test_perf(path: string, encoding: Encodings, dialect: Dialect): void =
-    
-
-    var obj = newReaderObj(dialect)
-    let fh = newFile(path, encoding)
-
-    try:
-
-        let d0 = getTime()
-
-        # var elements = 0
-
-        for (row_idx, fields, field_count) in obj.parse_csv(fh):
-            discard
-            # echo $fields[0..field_count-1]
-            # echo $obj.container.szs
-            # for s in obj.iter_fields():
-            #     # echo "'" & s[] & "'"
-            #     discard
-            # var str_ptrs = strings[0..field_count-1]
-            # echo $str_ptrs[0][]
-            # echo $strings[0..field_count-1][]
-            # inc elements
-
-            # if elements mod 1_000_000 == 0:
-            #     echo $elements & " | time: " & $(getTime() - d0)
-
-        let d1 = getTime()
-
-        echo $(d1 - d0)
-    finally:
-        fh.close()
-
-proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr seq[string], execute: bool): void =
+proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr seq[string], execute: bool, multiprocess: bool): void =
     echo "Collecting tasks: '" & path & "'"
     let (newline_offsets, newlines) = find_newlines(path, encoding)
 
@@ -759,6 +678,9 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
                 pages[idx] = dirname & "/" & $page_idx & ".npy"
                 inc page_idx
 
+            if not multiprocess:
+                text_reader_task(path, encoding, dia, pages, field_relation, newline_offsets[row_idx], int page_size)
+
             ft.write("\"" & getAppFilename() & "\" ")
 
             case encoding:
@@ -775,7 +697,6 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
             ft.write("--skipinitialspace=" & $dia.skipinitialspace & " ")
             ft.write("--quoting=" & $dia.quoting & " ")
 
-            # ft.write("\"/home/ratchet/Documents/dematic/tablite/build/tablite_csv\" ")
             ft.write("task ")
 
             ft.write("--pages=\"" & pages.join(",") & "\" ")
@@ -788,13 +709,11 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
 
             ft.write("\n")
 
-            # text_reader_task(path, encoding, dia, pages, field_relation, newline_offsets[1], -1)
-
             row_idx = row_idx + page_size
 
         ft.close()
 
-        if execute:
+        if multiprocess and execute:
             echo "Executing tasks: '" & path & "'"
             let args = @[
                 "--progress",
@@ -805,9 +724,6 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
             let para = "/usr/bin/parallel"
 
             let ret_code = execCmd(para & " " & args.join(" "))
-
-            # let process = startProcess("/usr/bin/parallel", args=args)
-            # let ret_code = process.waitForExit()
 
             if ret_code != 0:
                 raise newException(Exception, "Process failed with errcode: " & $ret_code)
@@ -873,9 +789,9 @@ if isMainModule:
         command("import"):
             arg("path", help="file path")
             arg("execute", help="execute immediatly")
+            arg("multiprocess", help="use multiprocessing")
             run:
                 discard
-                # echo opts.parentOpts.encoding
         command("task"):
             option("--pages", help="task pages", required = true)
             option("--fields_keys", help="field keys", required = true)
@@ -933,26 +849,26 @@ if isMainModule:
 
     if opts.import.isNone and opts.task.isNone:
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/bad_empty.csv", ENC_UTF8)
-        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", ENC_UTF8)
+        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/gesaber_data.csv", ENC_UTF8)
-        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_be.csv", ENC_UTF16)
+        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_be.csv", ENC_UTF16)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_le.csv", ENC_UTF16)
-        # dialect = newDialect()
 
         let d0 = getTime()
-        import_file(path_csv, encoding, dialect, nil, true)
+        import_file(path_csv, encoding, dialect, nil, true, false)
         let d1 = getTime()
         
         echo $(d1 - d0)
     else:
         if opts.import.isSome:
             let execute = opts.import.get.execute in boolean_true_choices
+            let multiprocess = opts.import.get.multiprocess in boolean_true_choices
             let path_csv = opts.import.get.path
             echo "Importing: '" & path_csv & "'"
             
             let d0 = getTime()
-            import_file(path_csv, encoding, dialect, nil, execute)
+            import_file(path_csv, encoding, dialect, nil, execute, multiprocess)
             let d1 = getTime()
             
             echo $(d1 - d0)
@@ -970,5 +886,4 @@ if isMainModule:
             let offset = parseUInt(opts.task.get.offset)
             let count = parseInt(opts.task.get.count)
 
-            # text_reader_task(path, encoding, dia, pages, field_relation, offset, count)
             text_reader_task(path, encoding, dialect, pages, field_relation, offset, count)
