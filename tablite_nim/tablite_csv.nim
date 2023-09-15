@@ -28,7 +28,7 @@
 
 import argparse
 import std/enumerate
-import os, sugar, times, tables, sequtils, json, unicode, parseutils, encodings, bitops
+import os, sugar, times, tables, sequtils, json, unicode, parseutils, encodings, bitops, osproc
 
 type Encodings {.pure.} = enum ENC_UTF8, ENC_UTF16
 
@@ -603,7 +603,7 @@ proc write_numpy_header(fh: File, dtype: string, shape: uint): void =
 
 proc text_reader_task(
     path: string, encoding: Encodings, dialect: Dialect, 
-    destinations: var seq[string], field_relation: var Table[uint, uint], 
+    destinations: var seq[string], field_relation: var OrderedTable[uint, uint], 
     row_offset: uint, row_count: int): void =
     var obj = newReaderObj(dialect)
     let fh = newFile(path, encoding)
@@ -703,12 +703,13 @@ proc test_perf(path: string, encoding: Encodings, dialect: Dialect): void =
     finally:
         fh.close()
 
-proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr seq[string]): void =
+proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr seq[string], execute: bool): void =
+    echo "Collecting tasks: '" & path & "'"
     let (newline_offsets, newlines) = find_newlines(path, encoding)
 
     let dirname = "/media/ratchet/hdd/tablite/nim/page"
 
-    if not existsDir(dirname):
+    if not dirExists(dirname):
         createDir(dirname)
 
     if newlines > 0:
@@ -721,16 +722,16 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
         else:
             raise newException(Exception, "not implemented error:column selection")
 
-        let new_fields = collect:
+        let new_fields = collect(initOrderedTable()):
             for ix, name in enumerate(fields):
                 if name in imp_columns:
                     {uint ix: name}
 
-        let inp_fields = collect:
+        let inp_fields = collect(initOrderedTable()):
             for ix, name in new_fields.pairs:
                 {ix: name}
 
-        var field_relation = collect:
+        var field_relation = collect(initOrderedTable()):
             for i, c in enumerate(inp_fields.keys):
                 {c: uint i}
 
@@ -738,7 +739,8 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
         var row_idx: uint = 1
         var page_size: uint = 1_000_000
 
-        let ft = open(dirname & "/tasks.txt", fmWrite)
+        let path_task = dirname & "/tasks.txt"
+        let ft = open(path_task, fmWrite)
 
         var delimiter = ""
         delimiter.addEscapedChar(dia.delimiter)
@@ -749,6 +751,7 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
         var lineterminator = ""
         lineterminator.addEscapedChar(dia.lineterminator)
 
+        echo "Dumping tasks: '" & path & "'"
         while row_idx < newlines:
             var pages = newSeq[string](fields.len)
 
@@ -756,21 +759,23 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
                 pages[idx] = dirname & "/" & $page_idx & ".npy"
                 inc page_idx
 
-            # case encoding:
-            #     of ENC_UTF8:
-            #         ft.write("--encoding=" & "utf8" & " ")
-            #     of ENC_UTF16:
-            #         ft.write("--encoding" & "utf16" & " ")
+            ft.write("\"" & getAppFilename() & "\" ")
 
-            # ft.write("--delimiter=\"" & delimiter & "\" ")
-            # ft.write("--quotechar=\"" & quotechar & "\" ")
-            # ft.write("--escapechar=\"" & escapechar & "\" ")
-            # ft.write("--lineterminator=\"" & lineterminator & "\" ")
-            # ft.write("--doublequote=" & $dia.doublequote & " ")
-            # ft.write("--skipinitialspace=" & $dia.skipinitialspace & " ")
-            # ft.write("--quoting=" & $dia.quoting & " ")
+            case encoding:
+                of ENC_UTF8:
+                    ft.write("--encoding=" & "UTF8" & " ")
+                of ENC_UTF16:
+                    ft.write("--encoding" & "UTF16" & " ")
 
-            ft.write("\"/home/ratchet/Documents/dematic/tablite/build/tablite_csv\" ")
+            ft.write("--delimiter=\"" & delimiter & "\" ")
+            ft.write("--quotechar=\"" & quotechar & "\" ")
+            ft.write("--escapechar=\"" & escapechar & "\" ")
+            ft.write("--lineterminator=\"" & lineterminator & "\" ")
+            ft.write("--doublequote=" & $dia.doublequote & " ")
+            ft.write("--skipinitialspace=" & $dia.skipinitialspace & " ")
+            ft.write("--quoting=" & $dia.quoting & " ")
+
+            # ft.write("\"/home/ratchet/Documents/dematic/tablite/build/tablite_csv\" ")
             ft.write("task ")
 
             ft.write("--pages=\"" & pages.join(",") & "\" ")
@@ -789,6 +794,24 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
 
         ft.close()
 
+        if execute:
+            echo "Executing tasks: '" & path & "'"
+            let args = @[
+                "--progress",
+                "-a",
+                "\"" & path_task & "\""
+            ]
+
+            let para = "/usr/bin/parallel"
+
+            let ret_code = execCmd(para & " " & args.join(" "))
+
+            # let process = startProcess("/usr/bin/parallel", args=args)
+            # let ret_code = process.waitForExit()
+
+            if ret_code != 0:
+                raise newException(Exception, "Process failed with errcode: " & $ret_code)
+
 proc unescape_seq(str: string): string = # nim has no true unescape
     case str:
         of "\\n": return "\n"
@@ -800,6 +823,10 @@ if isMainModule:
     var path_csv: string
     var encoding: Encodings
     var dialect: Dialect
+
+    const boolean_true_choices = ["true", "yes", "t", "y"]
+    # const boolean_false_choices = ["false", "no", "f", "n"]
+    const boolean_choices = ["true", "false", "yes", "no", "t", "f", "y", "n"]
 
     var p = newParser:
         help("Imports tablite pages")
@@ -818,14 +845,14 @@ if isMainModule:
         option(
             "--doublequote",
             help="text doublequote",
-            choices = @["true", "false", "yes", "no", "t", "f", "y", "n"],
+            choices = @boolean_choices,
             default=some("true")
         )
 
         option(
             "--skipinitialspace",
             help="text skipinitialspace",
-            choices = @["true", "false", "yes", "no", "t", "f", "y", "n"],
+            choices = @boolean_choices,
             default=some("false")
         )
 
@@ -845,6 +872,7 @@ if isMainModule:
 
         command("import"):
             arg("path", help="file path")
+            arg("execute", help="execute immediatly")
             run:
                 discard
                 # echo opts.parentOpts.encoding
@@ -873,7 +901,7 @@ if isMainModule:
                 delimiter = delimiter[0],
                 quotechar = quotechar[0],
                 escapechar = escapechar[0],
-                doublequote = opts.doublequote in ["true", "yes", "y", "t"],
+                doublequote = opts.doublequote in boolean_true_choices,
                 quoting = (
                     case opts.quoting.toUpper():
                         of "QUOTE_MINIMAL":
@@ -891,7 +919,7 @@ if isMainModule:
                         else:
                             raise newException(Exception, "invalid 'quoting'")
                 ),
-                skipinitialspace = opts.skipinitialspace in ["true", "yes", "y", "t"],
+                skipinitialspace = opts.skipinitialspace in boolean_true_choices,
                 lineterminator = lineterminator[0],
             )
 
@@ -905,21 +933,29 @@ if isMainModule:
 
     if opts.import.isNone and opts.task.isNone:
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/bad_empty.csv", ENC_UTF8)
-        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", ENC_UTF8)
+        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
-        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/gesaber_data.csv", ENC_UTF8)
+        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/gesaber_data.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_be.csv", ENC_UTF16)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_le.csv", ENC_UTF16)
         # dialect = newDialect()
 
         let d0 = getTime()
-        import_file(path_csv, encoding, dialect, nil)
+        import_file(path_csv, encoding, dialect, nil, true)
         let d1 = getTime()
         
         echo $(d1 - d0)
     else:
         if opts.import.isSome:
-            raise newException(Exception, "not implemented 'import'")
+            let execute = opts.import.get.execute in boolean_true_choices
+            let path_csv = opts.import.get.path
+            echo "Importing: '" & path_csv & "'"
+            
+            let d0 = getTime()
+            import_file(path_csv, encoding, dialect, nil, execute)
+            let d1 = getTime()
+            
+            echo $(d1 - d0)
 
         if opts.task.isSome:
             let path = opts.task.get.path
@@ -927,7 +963,7 @@ if isMainModule:
             let fields_keys = opts.task.get.fields_keys.split(",")
             let fields_vals = opts.task.get.fields_vals.split(",")
 
-            var field_relation = collect:
+            var field_relation = collect(initOrderedTable()):
                 for (k, v) in zip(fields_keys, fields_vals):
                     {parseUInt(k): parseUInt(v)}
 
