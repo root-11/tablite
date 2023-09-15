@@ -586,8 +586,6 @@ proc text_reader_task(
                 if dtype == "U":
                     dtype = "<U" & $ longest_str[i]
 
-                echo dtype
-
                 raise newException(Exception, "not implemented")
 
         fh.setFilePos(int64 row_offset, fspSet)
