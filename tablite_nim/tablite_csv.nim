@@ -1,6 +1,6 @@
 import argparse
 import std/enumerate
-import os, sugar, times, tables, sequtils, json, unicode, parseutils, encodings, bitops, osproc, lists
+import os, sugar, times, tables, sequtils, json, unicode, parseutils, encodings, bitops, osproc, lists, endians
 
 const NOT_SET = uint32.high
 const EOL = uint32.high - 1
@@ -430,17 +430,13 @@ proc write_numpy_header(fh: File, dtype: string, shape: uint): void =
     let header_len = len(header)
     let padding = (64 - ((len(magic) + len(major) + len(minor) + 2 + header_len)) mod 64)
     
-    var padding_bytes: array[2, uint8] # how the hell do we write a binary file in nim??! there's no resources, is there really no way other than casting to bytes?
-
     let padding_header = uint16 (padding + header_len)
-
-    copyMem(padding_bytes[0].unsafeAddr, padding_header.unsafeAddr, padding_bytes.len)
 
     fh.write(magic)
     fh.write(major)
     fh.write(minor)
 
-    discard fh.writeBytes(padding_bytes, 0, padding_bytes.len)
+    discard fh.writeBuffer(padding_header.unsafeAddr, 2)
 
     fh.write(header)
 
@@ -504,6 +500,196 @@ proc update_rank(rank: var Rank, str: ptr string): (bool, DataTypes) =
 
     return (false, rank_dtype)
 
+const PKL_BINPUT = 'q'
+const PKL_TUPLE1 = '\x85'
+const PKL_TUPLE2 = '\x85'
+const PKL_TUPLE3 = '\x87'
+const PKL_TUPLE = 't'
+const PKL_PROTO = '\x80'
+const PKL_GLOBAL = 'c'
+const PKL_BININT1 = 'K'
+const PKL_BININT2 = 'M'
+const PKL_BININT = 'J'
+const PKL_SHORT_BINBYTES = 'C'
+const PKL_REDUCE = 'R'
+const PKL_MARK = '('
+const PKL_BINUNICODE = 'X'
+const PKL_NEWFALSE = '\x89'
+const PKL_NEWTRUE = '\x88'
+const PKL_NONE = 'N'
+const PKL_BUILD = 'b'
+const PKL_EMPTY_LIST = ']'
+const PKL_STOP = '.'
+const PKL_APPENDS = 'e'
+const PKL_BINFLOAT = 'G'
+
+proc write_pickle_binput(fh: ptr File, binput: var uint8): void =
+    fh[].write(PKL_BINPUT)
+    discard fh[].writeBuffer(binput.unsafeAddr, 1)
+    inc binput
+
+proc write_pickle_global(fh: ptr File, module_name: string, import_name: string): void = 
+    fh[].write(PKL_GLOBAL)
+
+    fh[].write(module_name)
+    fh[].write('\x0A')
+
+    fh[].write(import_name)
+    fh[].write('\x0A')
+
+proc write_pickle_proto(fh: ptr File): void =
+    fh[].write(PKL_PROTO)
+    fh[].write("\3")
+
+proc write_pickle_binint_generic[T:uint8|uint16|uint32](fh: ptr File, value: T): void =
+    when T is uint8:
+        fh[].write(PKL_BININT1)
+        discard fh[].writeBuffer(value.unsafeAddr, 1)
+    when T is uint16:
+        fh[].write(PKL_BININT2)
+        discard fh[].writeBuffer(value.unsafeAddr, 2)
+    when T is uint32:
+        fh[].write(PKL_BININT)
+        discard fh[].writeBuffer(value.unsafeAddr, 4)
+
+proc write_pickle_binfloat(fh: ptr File, value: float): void =
+    # pickle stores floats big-endian
+    var f: float
+
+    f.unsafeAddr.bigEndian64(value.unsafeAddr)
+
+    echo $value
+    fh[].write(PKL_BINFLOAT)
+    discard fh[].writeBuffer(f.unsafeAddr, 8)
+
+proc write_pickle_binint[T: int|uint](fh: ptr File, value: T): void =
+    when T is int:
+        if value < 0:
+            fh.write_pickle_binint_generic(uint32 value)
+            return
+
+    if value <= 0xff:
+        fh.write_pickle_binint_generic(uint8 value)
+        return
+
+    if value <= 0xffff:
+        fh.write_pickle_binint_generic(uint16 value)
+        return
+
+    fh.write_pickle_binint_generic(uint32 value)
+
+proc write_pickle_shortbinbytes(fh: ptr File, value: string): void =
+    fh[].write(PKL_SHORT_BINBYTES)
+
+    let len = value.len()
+
+    discard fh[].writeBuffer(len.unsafeAddr, 1)
+    discard fh[].writeBuffer(value[0].unsafeAddr, value.len)
+
+proc write_pickle_binunicode(fh: ptr File, value: string): void =
+    let len = uint32 value.len
+    
+    fh[].write(PKL_BINUNICODE)
+    discard fh[].writeBuffer(len.unsafeAddr, 4)
+    discard fh[].writeBuffer(value[0].unsafeAddr, len)
+
+proc write_pickle_boolean(fh: ptr File, value: bool): void =
+    if value == true:
+        fh[].write(PKL_NEWTRUE)
+    else:
+        fh[].write(PKL_NEWFALSE)
+
+proc write_pickle_start(fh: ptr File, binput: var uint8, elem_count: uint): void =
+    binput = 0
+
+    fh.write_pickle_proto()
+    fh.write_pickle_global("numpy.core.multiarray", "_reconstruct")
+    fh.write_pickle_binput(binput)
+    fh.write_pickle_global("numpy", "ndarray")
+    fh.write_pickle_binput(binput)
+    fh.write_pickle_binint(0)
+    fh[].write(PKL_TUPLE1)
+    fh.write_pickle_binput(binput)
+    fh.write_pickle_shortbinbytes("b")
+    fh.write_pickle_binput(binput)
+    fh[].write(PKL_TUPLE3)
+    fh.write_pickle_binput(binput)
+    fh[].write(PKL_REDUCE)
+    fh.write_pickle_binput(binput)
+    fh[].write(PKL_MARK)
+
+    if true:
+        fh.write_pickle_binint(1)
+        fh.write_pickle_binint(elem_count)
+        fh[].write(PKL_TUPLE1)
+        fh.write_pickle_binput(binput)
+        fh.write_pickle_global("numpy", "dtype")
+        fh.write_pickle_binput(binput)
+        fh.write_pickle_binunicode("O8")
+        fh.write_pickle_binput(binput)
+        fh.write_pickle_boolean(false)
+        fh.write_pickle_boolean(true)
+        fh[].write(PKL_TUPLE3)
+        fh.write_pickle_binput(binput)
+        fh[].write(PKL_REDUCE)
+        fh.write_pickle_binput(binput)
+        fh[].write(PKL_MARK)
+
+        if true:
+            fh.write_pickle_binint(3)
+            fh.write_pickle_binunicode("|")
+            fh.write_pickle_binput(binput)
+            fh[].write(PKL_NONE)
+            fh[].write(PKL_NONE)
+            fh[].write(PKL_NONE)
+            fh.write_pickle_binint(-1)
+            fh.write_pickle_binint(-1)
+            fh.write_pickle_binint(63)
+            fh[].write(PKL_TUPLE)
+
+        fh.write_pickle_binput(binput)
+        fh[].write(PKL_BUILD)
+        fh.write_pickle_boolean(false)
+        fh[].write(PKL_EMPTY_LIST)
+        fh.write_pickle_binput(binput)
+
+        # now we dump objects
+
+        if elem_count > 0:
+            fh[].write(PKL_MARK)
+
+        # fh[].write(PKL_APPENDS)
+
+proc write_pickle_finish(fh: ptr File, binput: var uint8, elem_count: uint): void =
+    if elem_count > 0:
+        fh[].write(PKL_APPENDS)
+    
+    fh[].write(PKL_TUPLE)
+    fh.write_pickle_binput(binput)
+    fh[].write(PKL_BUILD)
+    fh[].write(PKL_STOP)
+
+type PY_NoneT = object
+let PY_None = PY_NoneT()
+
+proc write_pickle_obj[T: int|float|PY_NoneT|string|bool](fh: ptr File, value: T): void =
+    when T is PY_NoneT:
+        fh[].write(PKL_NONE)
+        return
+    when T is int:
+        fh.write_pickle_binint(value)
+        return
+    when T is float:
+        fh.write_pickle_binfloat(value)
+        return
+    when T is string:
+        fh.write_pickle_binunicode(value)
+        return
+    when T is bool:
+        fh.write_pickle_boolean(value)
+        return
+    raise newException(Exception, "not implemented error")
+
 proc text_reader_task(
     path: string, encoding: Encodings, dialect: Dialect, 
     destinations: var seq[string], field_relation: var OrderedTable[uint, uint], 
@@ -514,6 +700,7 @@ proc text_reader_task(
     let keys_field_relation = collect: (for k in field_relation.keys: k)
     let n_columns = keys_field_relation.len()
     let guess_dtypes = true
+    let n_pages = destinations.len
     
     var ranks: seq[Rank]
     
@@ -525,12 +712,15 @@ proc text_reader_task(
     try:
         fh.setFilePos(int64 row_offset, fspSet)
 
-        let page_file_handlers = collect(newSeqOfCap(destinations.len)):
+        let page_file_handlers = collect(newSeqOfCap(n_pages)):
             for p in destinations:
                 open(p, fmWrite)
 
-        var longest_str = newSeq[uint](destinations.len)
+        var longest_str = newSeq[uint](n_pages)
+        var column_dtypes = newSeq[char](n_pages)
+        var column_nones = newSeq[bool](n_pages)
         var n_rows: uint = 0
+        var binput: uint8 = 0
 
         for (row_idx, fields, field_count) in obj.parse_csv(fh):
             if row_count >= 0 and row_idx >= (uint row_count):
@@ -552,16 +742,21 @@ proc text_reader_task(
                     if dt == DataTypes.DT_STRING and not is_none:
                         longest_str[fidx] = max(uint field.runeLen, longest_str[fidx])
 
+                    if is_none:
+                        column_nones[fidx] = true
+
             inc n_rows
 
         if not guess_dtypes:
-            for (fh, i) in zip(page_file_handlers, longest_str):
+            for idx, (fh, i) in enumerate(zip(page_file_handlers, longest_str)):
+                column_dtypes[idx] = 'U'
                 fh.write_numpy_header("<U" & $i, n_rows)
         else:
-            for i in 0..destinations.len-1:
+            for i in 0..n_pages-1:
                 let fh = page_file_handlers[i]
                 let rank = addr ranks[i]
-                var dtype = ""
+                var dtype = column_dtypes[i]
+                var nilish = column_nones[i]
 
                 for it in rank[].iter():
                     let dt = it[0]
@@ -570,27 +765,41 @@ proc text_reader_task(
                     if count == 0:
                         break
 
-                    if dtype == "":
+                    if dtype == '\x00':
                         case dt:
-                            of DataTypes.DT_INT: dtype = "i"
-                            of DataTypes.DT_FLOAT: dtype = "f"
-                            of DataTypes.DT_STRING: dtype = "U"
-                            of DataTypes.DT_BOOLEAN: dtype = "?"
-                            else: dtype = "|O"
+                            of DataTypes.DT_INT: dtype = 'i'
+                            of DataTypes.DT_FLOAT: dtype = 'f'
+                            of DataTypes.DT_STRING: dtype = 'U'
+                            of DataTypes.DT_BOOLEAN: dtype ='?'
+                            else: dtype = 'O'
                         continue
 
-                    if dtype == "f" and dt == DataTypes.DT_INT: discard
-                    elif dtype == "i" and dt == DataTypes.DT_FLOAT: dtype = "f"
-                    else: dtype = "|O"
+                    if dtype == 'f' and dt == DataTypes.DT_INT: discard
+                    elif dtype == 'i' and dt == DataTypes.DT_FLOAT: dtype = 'f'
+                    else: dtype = 'O'
                 
-                if dtype == "U":
-                    dtype = "<U" & $ longest_str[i]
+                if nilish:
+                    fh.write_numpy_header("|O", n_rows)
+                else:
+                    case dtype:
+                        of 'U': fh.write_numpy_header("<U" & $ longest_str[i], n_rows)
+                        of 'i': fh.write_numpy_header("<i8", n_rows)
+                        of 'f': fh.write_numpy_header("<f8", n_rows)
+                        of '?': fh.write_numpy_header("|b1", n_rows)
+                        of 'O': fh.write_numpy_header("|O", n_rows)
+                        else: raise newException(Exception, "invalid")
 
-                raise newException(Exception, "not implemented")
+                column_dtypes[i] = dtype
+
+            for idx in 0..n_pages-1:
+                let fh = page_file_handlers[idx].unsafeAddr
+                let dt = column_dtypes[idx]
+                let nilish = column_nones[idx]
+                if dt == 'O' or nilish:
+                    fh.write_pickle_start(binput, n_rows)
+
 
         fh.setFilePos(int64 row_offset, fspSet)
-
-        var ch_arr {.noinit.}: array[4, uint8]
 
         for (row_idx, fields, field_count) in obj.parse_csv(fh):
             if row_count >= 0 and row_idx >= (uint row_count):
@@ -602,17 +811,89 @@ proc text_reader_task(
 
                 var str = fields[idx]
                 let fidx = field_relation[uint idx]
-                var fh = page_file_handlers[fidx]
+                var fh = page_file_handlers[fidx].unsafeAddr
 
-                for rune in str.toRunes():
-                    var ch = uint32(rune)
-                    copyMem(addr ch_arr, ch.unsafeAddr, 4)
-                    discard fh.writeBytes(ch_arr, 0, ch_arr.len)
+                if not guess_dtypes:
+                    for rune in str.toRunes():
+                        var ch = uint32(rune)
+                        discard fh[].writeBuffer(ch.unsafeAddr, 4)
 
-                let dt = longest_str[fidx] - (uint str.runeLen)
+                    let dt = longest_str[fidx] - (uint str.runeLen)
 
-                for i in 1..dt:
-                    fh.write("\x00\x00\x00\x00")
+                    for i in 1..dt:
+                        fh[].write("\x00\x00\x00\x00")
+                else:
+                    let dt = column_dtypes[idx]
+                    let nilish = column_nones[idx]
+                    var rank = ranks[idx]
+
+                    case dt:
+                        of 'U':
+                            for rune in str.toRunes():
+                                var ch = uint32(rune)
+                                discard fh[].writeBuffer(ch.unsafeAddr, 4)
+
+                            let dt = longest_str[fidx] - (uint str.runeLen)
+
+                            for i in 1..dt:
+                                fh[].write("\x00\x00\x00\x00")
+                        of 'i':
+                            if not nilish:
+                                let parsed = parseInt(str)
+                                discard fh[].writeBuffer(parsed.unsafeAddr, 8)
+                            else:
+                                try:
+                                    fh.write_pickle_obj(parseInt(str))
+                                except ValueError:
+                                    fh.write_pickle_obj(PY_None)
+                        of 'f':
+                            if not nilish:
+                                let parsed = parseFloat(str)
+                                discard fh[].writeBuffer(parsed.unsafeAddr, 8)
+                            else:
+                                try:
+                                    fh.write_pickle_obj(parseFloat(str))
+                                except ValueError:
+                                    fh.write_pickle_obj(PY_None)
+                        of '?': fh[].write((if str.toLower() == "true": '\x01' else: '\x00'))
+                        of 'O': 
+                            for r_addr in rank.iter():
+                                let dt = r_addr[0]
+                                try:
+                                    case dt:
+                                        of DataTypes.DT_INT:
+                                            fh.write_pickle_obj(str.parse_int())
+                                        of DataTypes.DT_FLOAT:
+                                            fh.write_pickle_obj(str.parse_float())
+                                        of DataTypes.DT_BOOLEAN:
+                                            fh.write_pickle_obj(str.parse_bool())
+                                        of DataTypes.DT_DATE:
+                                            # discard str.parse_date()
+                                            raise newException(Exception, "not yet implemented")
+                                        of DataTypes.DT_TIME:
+                                            # discard str.parse_time()
+                                            raise newException(Exception, "not yet implemented")
+                                        of DataTypes.DT_DATETIME:
+                                            # discard str.parse_datetime()
+                                            raise newException(Exception, "not yet implemented")
+                                        of DataTypes.DT_STRING:
+                                            if str in ["null", "Null", "NULL", "#N/A", "#n/a", "", "None"]:
+                                                fh.write_pickle_obj(PY_None)
+                                            else:
+                                                fh.write_pickle_obj(str)
+                                        else:
+                                            raise newException(Exception, "invalid type")
+                                except ValueError:
+                                    continue
+                                break
+                        else: raise newException(Exception, "invalid")
+
+        for idx in 0..n_pages-1:
+            let fh = page_file_handlers[idx].unsafeAddr
+            let dt = column_dtypes[idx]
+            let nilish = column_nones[idx]
+            if dt == 'O' or nilish:
+                fh.write_pickle_finish(binput, n_rows)
 
         for f in page_file_handlers:
             f.close()
