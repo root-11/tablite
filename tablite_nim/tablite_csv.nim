@@ -16,9 +16,23 @@ type FileUTF16 = ref object of BaseEncodedFile
 
 type DataTypes = enum
     DT_INT, DT_BOOLEAN, DT_FLOAT,
+    DT_DATE, 
     DT_STRING,
-    DT_DATE, DT_TIME, DT_DATETIME,
+    DT_TIME, DT_DATETIME,
     DT_MAX_ELEMENTS
+
+type PY_NoneT = object
+let PY_None = PY_NoneT()
+
+type PY_Date = object
+    year: uint16
+    month, day: uint8
+
+proc newPyDate(d: DateTime): PY_Date =
+    let year = uint16 d.year
+    let month = uint8 d.month
+    let day = uint8 d.monthday
+    return PY_Date(year: year, month: month, day: day)
 
 proc parse_int(str: ptr string): int = parseInt(str[])
 proc parse_float(str: ptr string): float = parseFloat(str[])
@@ -31,14 +45,67 @@ proc parse_bool(str: ptr string): bool =
 
     raise newException(ValueError, "not a boolean value")
 
-proc parse_date(str: ptr string): DateTime =
-    raise newException(Exception, "not implemented error")
+const ValidDateFormats = @[
+    "yyyy-MM-d",
+    "yyyy-M-d",
+    "yyyy-MM-N",
+    "yyyy-M-N",
+    "d-MM-yyyy",
+    "N-MM-yyyy",
+    "d-M-yyyy",
+    "N-N-yyyy",
+    "!yyyy-MM-d", # nim doesn't support dot types, check if starts with '!' and replace with other '-'
+    "!yyyy-M-d",
+    "!yyyy-MM-N",
+    "!yyyy-M-N",
+    "!d.MM.yyyy",
+    "!N.MM.yyyy",
+    "!d.M.yyyy",
+    "!N.M.yyyy",
+    "yyyy/MM/d",
+    "yyyy/M/d",
+    "yyyy/MM/N",
+    "yyyy/M/N",
+    "d/MM/yyyy",
+    "N/MM/yyyy",
+    "d/M/yyyy",
+    "N/M/yyyy",
+    "yyyy MM d",
+    "yyyy M d",
+    "yyyy MM N",
+    "yyyy M N",
+    "d MM yyyy",
+    "N M yyyy",
+    "d M yyyy",
+    "N MM yyyy",
+    "yyyyMMdd",
+]
+
+
+proc parse_date(str: ptr string): PY_Date =
+    echo $str[]
+    for fmt in ValidDateFormats:
+        if fmt[0] == '!':
+            let replaced_str = str[].replace(".", "-")
+            let replaced_fmt = fmt.substr(1)
+            
+            try:
+                return newPyDate(parse(replaced_str, replaced_fmt))
+            except ValueError:
+                continue
+
+        try:
+            return newPyDate(parse(str[], fmt))
+        except ValueError:
+            continue
+
+    raise newException(ValueError, "not a date")
 
 proc parse_time(str: ptr string): Time =
-    raise newException(Exception, "not implemented error")
+    raise newException(Exception, "not implemented error: parse_time")
 
 proc parse_datetime(str: ptr string): DateTime =
-    raise newException(Exception, "not implemented error")
+    raise newException(Exception, "not implemented error: parse_datetime")
 
 type Rank = array[int(DataTypes.DT_MAX_ELEMENTS), (DataTypes, uint)]
 
@@ -501,6 +568,7 @@ proc update_rank(rank: var Rank, str: ptr string): (bool, DataTypes) =
     return (false, rank_dtype)
 
 const PKL_BINPUT = 'q'
+const PKL_LONG_BINPUT = 'r'
 const PKL_TUPLE1 = '\x85'
 const PKL_TUPLE2 = '\x85'
 const PKL_TUPLE3 = '\x87'
@@ -523,9 +591,15 @@ const PKL_STOP = '.'
 const PKL_APPENDS = 'e'
 const PKL_BINFLOAT = 'G'
 
-proc write_pickle_binput(fh: ptr File, binput: var uint8): void =
-    fh[].write(PKL_BINPUT)
-    discard fh[].writeBuffer(binput.unsafeAddr, 1)
+proc write_pickle_binput(fh: ptr File, binput: var uint32): void =
+    if binput <= 0xff:
+        fh[].write(PKL_BINPUT)
+        discard fh[].writeBuffer(binput.unsafeAddr, 1)
+        inc binput
+        return
+    
+    fh[].write(PKL_LONG_BINPUT)
+    discard fh[].writeBuffer(binput.unsafeAddr, 4)
     inc binput
 
 proc write_pickle_global(fh: ptr File, module_name: string, import_name: string): void = 
@@ -599,7 +673,7 @@ proc write_pickle_boolean(fh: ptr File, value: bool): void =
     else:
         fh[].write(PKL_NEWFALSE)
 
-proc write_pickle_start(fh: ptr File, binput: var uint8, elem_count: uint): void =
+proc write_pickle_start(fh: ptr File, binput: var uint32, elem_count: uint): void =
     binput = 0
 
     fh.write_pickle_proto()
@@ -660,7 +734,7 @@ proc write_pickle_start(fh: ptr File, binput: var uint8, elem_count: uint): void
 
         # fh[].write(PKL_APPENDS)
 
-proc write_pickle_finish(fh: ptr File, binput: var uint8, elem_count: uint): void =
+proc write_pickle_finish(fh: ptr File, binput: var uint32, elem_count: uint): void =
     if elem_count > 0:
         fh[].write(PKL_APPENDS)
     
@@ -669,10 +743,16 @@ proc write_pickle_finish(fh: ptr File, binput: var uint8, elem_count: uint): voi
     fh[].write(PKL_BUILD)
     fh[].write(PKL_STOP)
 
-type PY_NoneT = object
-let PY_None = PY_NoneT()
+proc write_pickle_date(fh: ptr File, value: PY_Date, binput: var uint32): void =
+    fh.write_pickle_global("datetime", "date")
+    fh.write_pickle_binput(binput)
+    # fh[].write(PKL_SHORT_BINBYTES)
+    # discard fh[].writeBuffer(value.year.unsafeAddr, 2)
+    # discard fh[].writeBuffer(value.month.unsafeAddr, 1)
+    # discard fh[].writeBuffer(value.day.unsafeAddr, 1)
 
-proc write_pickle_obj[T: int|float|PY_NoneT|string|bool](fh: ptr File, value: T): void =
+
+proc write_pickle_obj[T: int|float|PY_NoneT|string|bool|PY_Date](fh: ptr File, value: T, binput: var uint32): void =
     when T is PY_NoneT:
         fh[].write(PKL_NONE)
         return
@@ -688,7 +768,10 @@ proc write_pickle_obj[T: int|float|PY_NoneT|string|bool](fh: ptr File, value: T)
     when T is bool:
         fh.write_pickle_boolean(value)
         return
-    raise newException(Exception, "not implemented error")
+    when T is PY_Date:
+        fh.write_pickle_date(value, binput)
+        return
+    raise newException(Exception, "not implemented error: " & $value)
 
 proc text_reader_task(
     path: string, encoding: Encodings, dialect: Dialect, 
@@ -720,7 +803,7 @@ proc text_reader_task(
         var column_dtypes = newSeq[char](n_pages)
         var column_nones = newSeq[bool](n_pages)
         var n_rows: uint = 0
-        var binput: uint8 = 0
+        var binput: uint32 = 0
 
         for (row_idx, fields, field_count) in obj.parse_csv(fh):
             if row_count >= 0 and row_idx >= (uint row_count):
@@ -843,18 +926,18 @@ proc text_reader_task(
                                 discard fh[].writeBuffer(parsed.unsafeAddr, 8)
                             else:
                                 try:
-                                    fh.write_pickle_obj(parseInt(str))
+                                    fh.write_pickle_obj(parseInt(str), binput)
                                 except ValueError:
-                                    fh.write_pickle_obj(PY_None)
+                                    fh.write_pickle_obj(PY_None, binput)
                         of 'f':
                             if not nilish:
                                 let parsed = parseFloat(str)
                                 discard fh[].writeBuffer(parsed.unsafeAddr, 8)
                             else:
                                 try:
-                                    fh.write_pickle_obj(parseFloat(str))
+                                    fh.write_pickle_obj(parseFloat(str), binput)
                                 except ValueError:
-                                    fh.write_pickle_obj(PY_None)
+                                    fh.write_pickle_obj(PY_None, binput)
                         of '?': fh[].write((if str.toLower() == "true": '\x01' else: '\x00'))
                         of 'O': 
                             for r_addr in rank.iter():
@@ -862,14 +945,13 @@ proc text_reader_task(
                                 try:
                                     case dt:
                                         of DataTypes.DT_INT:
-                                            fh.write_pickle_obj(str.parse_int())
+                                            fh.write_pickle_obj(str.parse_int(), binput)
                                         of DataTypes.DT_FLOAT:
-                                            fh.write_pickle_obj(str.parse_float())
+                                            fh.write_pickle_obj(str.parse_float(), binput)
                                         of DataTypes.DT_BOOLEAN:
-                                            fh.write_pickle_obj(str.parse_bool())
+                                            fh.write_pickle_obj(str.parse_bool(), binput)
                                         of DataTypes.DT_DATE:
-                                            # discard str.parse_date()
-                                            raise newException(Exception, "not yet implemented")
+                                            fh.write_pickle_obj(str.unsafeAddr.parse_date(), binput)
                                         of DataTypes.DT_TIME:
                                             # discard str.parse_time()
                                             raise newException(Exception, "not yet implemented")
@@ -878,9 +960,9 @@ proc text_reader_task(
                                             raise newException(Exception, "not yet implemented")
                                         of DataTypes.DT_STRING:
                                             if str in ["null", "Null", "NULL", "#N/A", "#n/a", "", "None"]:
-                                                fh.write_pickle_obj(PY_None)
+                                                fh.write_pickle_obj(PY_None, binput)
                                             else:
-                                                fh.write_pickle_obj(str)
+                                                fh.write_pickle_obj(str, binput)
                                         else:
                                             raise newException(Exception, "invalid type")
                                 except ValueError:
