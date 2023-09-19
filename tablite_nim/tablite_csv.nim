@@ -15,8 +15,8 @@ type FileUTF16 = ref object of BaseEncodedFile
     endianness: Endianness
 
 type DataTypes = enum
-    DT_INT, DT_BOOLEAN, DT_FLOAT,
     DT_DATE, DT_TIME,
+    DT_INT, DT_BOOLEAN, DT_FLOAT,
     DT_STRING,
     DT_DATETIME,
     DT_MAX_ELEMENTS
@@ -33,12 +33,6 @@ type PY_Time = object
     microsecond: uint32
     has_tz: bool
     tz_days, tz_seconds, tz_microseconds: int32
-
-proc newPyDate(d: DateTime): PY_Date =
-    let year = uint16 d.year
-    let month = uint8 d.month
-    let day = uint8 d.monthday
-    return PY_Date(year: year, month: month, day: day)
 
 proc newPyTime(hour: uint8, minute: uint8, second: uint8, microsecond: uint32): PY_Time =
     return PY_Time(hour: hour, minute: minute, second: second, microsecond: microsecond)
@@ -65,94 +59,203 @@ proc parse_bool(str: ptr string): bool =
 
     raise newException(ValueError, "not a boolean value")
 
-const ValidDateFormats = @[
-    "yyyy-MM-d",
-    "yyyy-M-d",
-    "yyyy-MM-N",
-    "yyyy-M-N",
-    "d-MM-yyyy",
-    "N-MM-yyyy",
-    "d-M-yyyy",
-    "N-N-yyyy",
-    "!yyyy-MM-d", # nim doesn't support dot types, check if starts with '!' and replace with other '-'
-    "!yyyy-M-d",
-    "!yyyy-MM-N",
-    "!yyyy-M-N",
-    "!d.MM.yyyy",
-    "!N.MM.yyyy",
-    "!d.M.yyyy",
-    "!N.M.yyyy",
-    "yyyy/MM/d",
-    "yyyy/M/d",
-    "yyyy/MM/N",
-    "yyyy/M/N",
-    "d/MM/yyyy",
-    "N/MM/yyyy",
-    "d/M/yyyy",
-    "N/M/yyyy",
-    "yyyy MM d",
-    "yyyy M d",
-    "yyyy MM N",
-    "yyyy M N",
-    "d MM yyyy",
-    "N M yyyy",
-    "d M yyyy",
-    "N MM yyyy",
-    "yyyyMMdd",
-]
+# const ValidDateFormats = @[
+#     "yyyy-MM-d",
+#     "yyyy-M-d",
+#     "yyyy-MM-N",
+#     "yyyy-M-N",
+#     "d-MM-yyyy",
+#     "N-MM-yyyy",
+#     "d-M-yyyy",
+#     "N-N-yyyy",
+#     "!yyyy-MM-d", # nim doesn't support dot types, check if starts with '!' and replace with other '-'
+#     "!yyyy-M-d",
+#     "!yyyy-MM-N",
+#     "!yyyy-M-N",
+#     "!d.MM.yyyy",
+#     "!N.MM.yyyy",
+#     "!d.M.yyyy",
+#     "!N.M.yyyy",
+#     "yyyy/MM/d",
+#     "yyyy/M/d",
+#     "yyyy/MM/N",
+#     "yyyy/M/N",
+#     "d/MM/yyyy",
+#     "N/MM/yyyy",
+#     "d/M/yyyy",
+#     "N/M/yyyy",
+#     "yyyy MM d",
+#     "yyyy M d",
+#     "yyyy MM N",
+#     "yyyy M N",
+#     "d MM yyyy",
+#     "N M yyyy",
+#     "d M yyyy",
+#     "N MM yyyy",
+#     "yyyyMMdd",
+# ]
+
+# type DateFormats = enum
+#     DF_YYYY_MM_DD
+#     DF_YYYY_0M_DD
+#     DF_YYYY_MM_0D
+#     DF_YYYY_0M_0D
+#     DF_DD_MM_YYYY
+#     DF_DD_0M_YYYY
+#     DF_0D_MM_YYYY
+#     DF_0D_0M_YYYY
+#     DF_MM_DD_YYYY
+#     DF_0M_DD_YYYY
+#     DF_MM_0D_YYYY
+#     DF_0M_0D_YYYY
 
 
-proc parse_date(str: ptr string): PY_Date =
-    echo $str[]
-    for fmt in ValidDateFormats:
-        if fmt[0] == '!':
-            let replaced_str = str[].replace(".", "-")
-            let replaced_fmt = fmt.substr(1)
-            
-            try:
-                return newPyDate(parse(replaced_str, replaced_fmt))
-            except ValueError:
-                continue
+proc parse_date_words(str: ptr string): (array[3, string], int) =
+    const accepted_tokens = [' ', '.', '-', '/']
+
+    var has_tokens = false
+    
+    for rune in str[].toRunes():
+        var ch: char
 
         try:
-            return newPyDate(parse(str[], fmt))
-        except ValueError:
+            ch = char rune
+        except Exception: # bad encoding
+            raise newException(ValueError, "not a date")
+
+        if ch.isDigit:
             continue
 
-    raise newException(ValueError, "not a date")
+        if not (ch in accepted_tokens): # not a digit, nor an accepted token
+            raise newException(ValueError, "not a date")
+            
 
-# # Format supported is HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]
-# const ValidTimeFormats = @[
-#     initTimeFormat("HH"),
-#     initTimeFormat("HH:mm"),
-#     initTimeFormat("HH:mm:ss"),
-#     initTimeFormat("HH:mm:ss.fff"),
-#     initTimeFormat("HH:mm:ss.ffffff"),
+    for token in accepted_tokens:
+        if token in str[]:
+            has_tokens = true
+            break
 
-#     initTimeFormat("HH+HH:mm"),
-#     initTimeFormat("HH+HH:mm:ss"),
-#     initTimeFormat("HH+HH:mm:ss.ffffff"),
-    
-#     initTimeFormat("HH:mm"),
-#     initTimeFormat("HH:mm+HH:mm"),
-#     initTimeFormat("HH:mm+HH:mm:ss"),
-#     initTimeFormat("HH:mm+HH:mm:ss.ffffff"),
+    var substrings: array[3, string]
+    let str_len = str[].runeLen
 
-#     initTimeFormat("HH:mm:ss"),
-#     initTimeFormat("HH:mm:ss+HH:mm"),
-#     initTimeFormat("HH:mm:ss+HH:mm:ss"),
-#     initTimeFormat("HH:mm:ss+HH:mm:ss.ffffff"),
+    if has_tokens:
+        var active_token = '\x00'
+        var slice_start: int
+        var was_digit = false
+        var substring_count: int
+        var idx = 0
 
-#     initTimeFormat("HH:mm:ss.fff"),
-#     initTimeFormat("HH:mm:ss.fff+HH:mm"),
-#     initTimeFormat("HH:mm:ss.fff+HH:mm:ss"),
-#     initTimeFormat("HH:mm:ss.fff+HH:mm:ss.fffffff"),
+        while idx < str_len:
+            let ch = str[idx]
 
-#     initTimeFormat("HH:mm:ss.ffffff"),
-#     initTimeFormat("HH:mm:ss.ffffff+HH:mm"),
-#     initTimeFormat("HH:mm:ss.ffffff+HH:mm:ss"),
-#     initTimeFormat("HH:mm:ss.ffffff+HH:mm:ss.ffffff"),
-# ]
+            if idx == 0 and not ch.isDigit: # dates always start with a digit
+                raise newException(ValueError, "not a date")
+
+            if ch.isDigit:
+                if not was_digit:
+                    slice_start = idx
+                was_digit = true
+                inc idx
+                continue
+            
+            if active_token == '\x00':
+                active_token = ch
+            elif active_token != ch: # date tokens do should not change
+                raise newException(ValueError, "not a date")
+
+            substrings[substring_count] = $str[].substr(slice_start, idx-1)
+            inc substring_count
+
+            was_digit = false
+            inc idx
+
+            if substring_count == 3:
+                return (substrings, idx)
+
+        if substring_count != 2 or (str_len - slice_start) == 0:
+            raise newException(ValueError, "not a date") # should have 2 substrings and some leftover
+
+        substrings[substring_count] = $str[].substr(slice_start)
+
+        return (substrings, idx)
+
+    # YYYYMMDD
+    if str_len < 8:
+        raise newException(ValueError, "not a date")
+
+    substrings[0] = str[].substr(0, 3)
+    substrings[1] = str[].substr(4, 5)
+    substrings[2] = str[].substr(6, 7)
+
+    return (substrings, 8)
+
+
+proc parse_date(str: ptr string, tiebreaker_american: bool = false, force_american: bool = false): PY_Date =
+    echo $str[]
+
+    let str_len = str[].runeLen
+
+    if str_len > 10 or str_len < 6: # string len will never match
+        raise newException(ValueError, "not a date")
+
+    var year, month, day: int
+
+    let (date_words, size) = str.parse_date_words()
+    var month_or_day: array[2, int]
+
+    echo $size
+
+    if date_words[0].len == 4:
+        year = parseInt(date_words[0])
+        month_or_day[0] = parseInt(date_words[1])
+        month_or_day[1] = parseInt(date_words[2])
+
+        if force_american:
+            raise newException(ValueError, "invalid date")
+    elif date_words[2].len == 4:
+        year = parseInt(date_words[2])
+        month_or_day[0] = parseInt(date_words[0])
+        month_or_day[1] = parseInt(date_words[1])
+
+    if year < 0 or year > 9999:
+        raise newException(Exception, "date out of range")
+
+    if month_or_day[0] <= 0 or month_or_day[1] <= 0 or month_or_day[0] > 12 and month_or_day[1] > 12:
+        raise newException(Exception, "date out of range")
+
+    if month_or_day[0] <= 12 and month_or_day[1] <= 12:
+        # if both under 12, use tie breaker
+        if unlikely(tiebreaker_american or force_american):
+            month = month_or_day[0]
+            day = month_or_day[1]
+        else:
+            month = month_or_day[1]
+            day = month_or_day[0]
+    elif month_or_day[0] < 12:
+        if force_american:
+            # day
+            day = month_or_day[0]
+            month = month_or_day[1]
+        else:
+            # month
+            day = month_or_day[1]
+            month = month_or_day[0]
+    elif month_or_day[1] < 12:
+        if force_american:
+            # day
+            day = month_or_day[1]
+            month = month_or_day[0]
+        else:
+            # month
+            day = month_or_day[0]
+            month = month_or_day[1]
+    else:
+        raise newException(Exception, "date out of range")
+
+    # validate day range
+
+    return PY_Date(year: uint16 year, month: uint8 month, day: uint8 day)
+
 
 proc divmod(x: int, y: int): (int, int) =
     let z = int(floor(x / y))
