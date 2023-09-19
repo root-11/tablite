@@ -189,6 +189,12 @@ proc parse_date_words(str: ptr string): (array[3, string], int) =
 
     return (substrings, 8)
 
+const DAYS_IN_MONTH = [-1, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+proc is_leap_year(year: int): bool = year mod 4 == 0 and (year mod 100 != 0 or year mod 400 == 0)
+proc days_in_month(year, month: int): int =
+    if month == 2 and is_leap_year(year):
+        return 29
+    return DAYS_IN_MONTH[month]
 
 proc parse_date(str: ptr string, tiebreaker_american: bool = false, force_american: bool = false): PY_Date =
     echo $str[]
@@ -218,10 +224,10 @@ proc parse_date(str: ptr string, tiebreaker_american: bool = false, force_americ
         month_or_day[1] = parseInt(date_words[1])
 
     if year < 0 or year > 9999:
-        raise newException(Exception, "date out of range")
+        raise newException(ValueError, "date out of range")
 
     if month_or_day[0] <= 0 or month_or_day[1] <= 0 or month_or_day[0] > 12 and month_or_day[1] > 12:
-        raise newException(Exception, "date out of range")
+        raise newException(ValueError, "date out of range")
 
     if month_or_day[0] <= 12 and month_or_day[1] <= 12:
         # if both under 12, use tie breaker
@@ -250,9 +256,10 @@ proc parse_date(str: ptr string, tiebreaker_american: bool = false, force_americ
             day = month_or_day[0]
             month = month_or_day[1]
     else:
-        raise newException(Exception, "date out of range")
+        raise newException(ValueError, "date out of range")
 
-    # validate day range
+    if days_in_month(year, month) < day:
+        raise newException(ValueError, "day out of range")
 
     return PY_Date(year: uint16 year, month: uint8 month, day: uint8 day)
 
