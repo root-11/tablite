@@ -1,6 +1,6 @@
 import argparse
 import std/enumerate
-import os, sugar, times, tables, sequtils, json, unicode, parseutils, encodings, bitops, osproc, lists, endians
+import os, math, sugar, times, tables, sequtils, json, unicode, parseutils, encodings, bitops, osproc, lists, endians
 
 const NOT_SET = uint32.high
 const EOL = uint32.high - 1
@@ -16,23 +16,43 @@ type FileUTF16 = ref object of BaseEncodedFile
 
 type DataTypes = enum
     DT_INT, DT_BOOLEAN, DT_FLOAT,
-    DT_DATE, 
+    DT_DATE, DT_TIME,
     DT_STRING,
-    DT_TIME, DT_DATETIME,
+    DT_DATETIME,
     DT_MAX_ELEMENTS
 
-type PY_NoneT = object
-let PY_None = PY_NoneT()
+type PY_NoneType = object
+let PY_None = PY_NoneType()
 
 type PY_Date = object
     year: uint16
     month, day: uint8
+
+type PY_Time = object
+    hour, minute, second: uint8
+    microsecond: uint32
+    has_tz: bool
+    tz_days, tz_seconds, tz_microseconds: int32
 
 proc newPyDate(d: DateTime): PY_Date =
     let year = uint16 d.year
     let month = uint8 d.month
     let day = uint8 d.monthday
     return PY_Date(year: year, month: month, day: day)
+
+proc newPyTime(hour: uint8, minute: uint8, second: uint8, microsecond: uint32): PY_Time =
+    return PY_Time(hour: hour, minute: minute, second: second, microsecond: microsecond)
+
+proc newPyTime(hour: uint8, minute: uint8, second: uint8, microsecond: uint32, tz_days: int32, tz_seconds: int32, tz_microseconds: int32): PY_Time =
+    if tz_days == 0 and tz_seconds == 0:
+        return newPyTime(hour, minute, second, microsecond)
+    
+    return PY_Time(
+            hour: hour, minute: minute, second: second, microsecond: microsecond,
+            has_tz: true,
+            tz_days: tz_days, tz_seconds: tz_seconds, tz_microseconds: tz_microseconds
+        )
+
 
 proc parse_int(str: ptr string): int = parseInt(str[])
 proc parse_float(str: ptr string): float = parseFloat(str[])
@@ -101,11 +121,171 @@ proc parse_date(str: ptr string): PY_Date =
 
     raise newException(ValueError, "not a date")
 
-proc parse_time(str: ptr string): Time =
-    raise newException(Exception, "not implemented error: parse_time")
+# # Format supported is HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]
+# const ValidTimeFormats = @[
+#     initTimeFormat("HH"),
+#     initTimeFormat("HH:mm"),
+#     initTimeFormat("HH:mm:ss"),
+#     initTimeFormat("HH:mm:ss.fff"),
+#     initTimeFormat("HH:mm:ss.ffffff"),
+
+#     initTimeFormat("HH+HH:mm"),
+#     initTimeFormat("HH+HH:mm:ss"),
+#     initTimeFormat("HH+HH:mm:ss.ffffff"),
+    
+#     initTimeFormat("HH:mm"),
+#     initTimeFormat("HH:mm+HH:mm"),
+#     initTimeFormat("HH:mm+HH:mm:ss"),
+#     initTimeFormat("HH:mm+HH:mm:ss.ffffff"),
+
+#     initTimeFormat("HH:mm:ss"),
+#     initTimeFormat("HH:mm:ss+HH:mm"),
+#     initTimeFormat("HH:mm:ss+HH:mm:ss"),
+#     initTimeFormat("HH:mm:ss+HH:mm:ss.ffffff"),
+
+#     initTimeFormat("HH:mm:ss.fff"),
+#     initTimeFormat("HH:mm:ss.fff+HH:mm"),
+#     initTimeFormat("HH:mm:ss.fff+HH:mm:ss"),
+#     initTimeFormat("HH:mm:ss.fff+HH:mm:ss.fffffff"),
+
+#     initTimeFormat("HH:mm:ss.ffffff"),
+#     initTimeFormat("HH:mm:ss.ffffff+HH:mm"),
+#     initTimeFormat("HH:mm:ss.ffffff+HH:mm:ss"),
+#     initTimeFormat("HH:mm:ss.ffffff+HH:mm:ss.ffffff"),
+# ]
+
+proc divmod(x: int, y: int): (int, int) =
+    let z = int(floor(x / y))
+
+    return (z, x - y * z)
+
+proc to_timedelta(
+    weeks = 0, days = 0, hours = 0, minutes = 0, seconds = 0, milliseconds = 0, microseconds: int = 0
+): (int, int, int) =
+    var d, s, us: int
+
+    var v_weeks = weeks
+    var v_days = days
+    var v_hours = hours
+    var v_minutes = minutes
+    var v_seconds = seconds
+    var v_milliseconds = milliseconds
+    var v_microseconds = microseconds
+
+    # Normalize everything to days, seconds, microseconds.
+    v_days += v_weeks*7
+    v_seconds += v_minutes*60 + v_hours*3600
+    v_microseconds += v_milliseconds*1000
+
+    d = v_days
+
+    (v_days, v_seconds) = divmod(v_seconds, 24*3600)
+
+    d += v_days
+    s += int(v_seconds)    # can't overflow
+
+    v_microseconds = int(v_microseconds)
+    (v_seconds, v_microseconds) = divmod(v_microseconds, 1000000)
+    (v_days, v_seconds) = divmod(v_seconds, 24*3600)
+    d += v_days
+    s += v_seconds
+
+    # Just a little bit of carrying possible for microseconds and seconds.
+    (v_seconds, us) = divmod(v_microseconds, 1000000)
+    s += v_seconds
+    (v_days, s) = divmod(s, 24*3600)
+    d += v_days
+
+
+    return (d, s, us)
+
+proc parse_hh_mm_ss_ff(tstr: ptr string): (uint8, uint8, uint8, uint32) =
+    # Parses things of the form HH[:MM[:SS[.fff[fff]]]]
+    let len_str = tstr[].len
+
+    var time_comps: array[4, int]
+    var pos = 0
+
+    for comp in 0..2:
+        if (len_str - pos) < 2:
+            raise newException(ValueError, "Incomplete time component")
+
+        let substr = tstr[].substr(pos, pos+1)
+
+        time_comps[comp] = parseInt(substr)
+
+        pos += 2
+
+        if pos >= len_str or comp >= 2:
+            break
+        
+        let next_char = tstr[pos]
+
+        if next_char != ':':
+            raise newException(ValueError, "Invalid time separator: " & $next_char)
+
+        pos += 1
+
+    if pos < len_str:
+        if tstr[pos] != '.':
+            raise newException(ValueError, "Invalid microsecond component")
+        else:
+            pos += 1
+
+            let len_remainder = len_str - pos
+            if not (len_remainder in [3, 6]):
+                raise newException(ValueError, "Invalid microsecond component")
+
+            time_comps[3] = parseInt(tstr[].substr(pos))
+            if len_remainder == 3:
+                time_comps[3] *= 1000
+
+    return (uint8 time_comps[0], uint8 time_comps[1], uint8 time_comps[2], uint32 time_comps[3])
+
+proc parse_time(str: ptr string): PY_Time =
+    # Format supported is HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]
+    if not (":" in str[]) or str[].len < 2:
+        raise newException(ValueError, "not a time")
+
+    let tz_pos_minus = str[].find("-")
+    let tz_pos_plus = str[].find("+")
+
+    var tz_pos = -1
+
+    if tz_pos_minus != -1 and tz_pos_plus != -1:
+        raise newException(ValueError, "not a time")
+    elif tz_pos_plus != -1:
+        tz_pos = tz_pos_plus
+    elif tz_pos_minus != -1:
+        tz_pos = tz_pos_minus
+
+    var timestr = (if tz_pos == -1: str[] else: str[].substr(0, tz_pos-1))
+
+    let (hour, minute, second, microsecond) = parse_hh_mm_ss_ff(timestr.unsafeAddr)
+
+    if tz_pos >= 0:
+        let tzstr = str[].substr(tz_pos + 1)
+
+        if not (tzstr.len in [5, 8, 15]):
+            raise newException(Exception, "invalid timezone")
+
+        echo $str[tz_pos]
+
+        let tz_sign: int8 = (if str[tz_pos] == '-': -1 else: 1)
+        let (tz_hours_p, tz_minutes_p, tz_seconds_p, tz_microseconds_p) = parse_hh_mm_ss_ff(tzstr.unsafeAddr)
+        var (tz_days, tz_seconds, tz_microseconds) = to_timedelta(
+            hours = tz_sign * int tz_hours_p,
+            minutes = tz_sign * int tz_minutes_p,
+            seconds = tz_sign * int tz_seconds_p,
+            microseconds = tz_sign * int tz_microseconds_p
+        )
+
+        return newPyTime(hour, minute, second, microsecond, int32 tz_days, int32 tz_seconds, int32 tz_microseconds)
+    
+    return newPyTime(hour, minute, second, microsecond)
 
 proc parse_datetime(str: ptr string): DateTime =
-    raise newException(Exception, "not implemented error: parse_datetime")
+    raise newException(Exception, "not implemented error: parse_datetime (" & $str[] & ")")
 
 type Rank = array[int(DataTypes.DT_MAX_ELEMENTS), (DataTypes, uint)]
 
@@ -570,7 +750,7 @@ proc update_rank(rank: var Rank, str: ptr string): (bool, DataTypes) =
 const PKL_BINPUT = 'q'
 const PKL_LONG_BINPUT = 'r'
 const PKL_TUPLE1 = '\x85'
-const PKL_TUPLE2 = '\x85'
+const PKL_TUPLE2 = '\x86'
 const PKL_TUPLE3 = '\x87'
 const PKL_TUPLE = 't'
 const PKL_PROTO = '\x80'
@@ -636,8 +816,8 @@ proc write_pickle_binfloat(fh: ptr File, value: float): void =
     fh[].write(PKL_BINFLOAT)
     discard fh[].writeBuffer(f.unsafeAddr, 8)
 
-proc write_pickle_binint[T: int|uint](fh: ptr File, value: T): void =
-    when T is int:
+proc write_pickle_binint[T: int|uint|int32|uint32](fh: ptr File, value: T): void =
+    when T is int or T is int32:
         if value < 0:
             fh.write_pickle_binint_generic(uint32 value)
             return
@@ -746,14 +926,65 @@ proc write_pickle_finish(fh: ptr File, binput: var uint32, elem_count: uint): vo
 proc write_pickle_date(fh: ptr File, value: PY_Date, binput: var uint32): void =
     fh.write_pickle_global("datetime", "date")
     fh.write_pickle_binput(binput)
-    # fh[].write(PKL_SHORT_BINBYTES)
-    # discard fh[].writeBuffer(value.year.unsafeAddr, 2)
-    # discard fh[].writeBuffer(value.month.unsafeAddr, 1)
-    # discard fh[].writeBuffer(value.day.unsafeAddr, 1)
+    fh[].write(PKL_SHORT_BINBYTES)
+    fh[].write('\4') # date has 4 bytes 2(y)-1(m)-1(d)
 
+    var year: uint16
+    year.unsafeAddr.bigEndian16(value.year.unsafeAddr)
 
-proc write_pickle_obj[T: int|float|PY_NoneT|string|bool|PY_Date](fh: ptr File, value: T, binput: var uint32): void =
-    when T is PY_NoneT:
+    discard fh[].writeBuffer(year.unsafeAddr, 2)
+    discard fh[].writeBuffer(value.month.unsafeAddr, 1)
+    discard fh[].writeBuffer(value.day.unsafeAddr, 1)
+
+    fh.write_pickle_binput(binput)
+    fh[].write(PKL_TUPLE1)
+    fh.write_pickle_binput(binput)
+    fh[].write(PKL_REDUCE)
+    fh.write_pickle_binput(binput)
+
+proc write_pickle_time(fh: ptr File, value: PY_Time, binput: var uint32): void =
+    fh.write_pickle_global("datetime", "time")
+    fh.write_pickle_binput(binput)
+    fh[].write(PKL_SHORT_BINBYTES)
+    fh[].write('\6')
+
+    var microsecond: uint32
+    microsecond.unsafeAddr.bigEndian32(value.microsecond.unsafeAddr)
+
+    var ptr_microseconds = cast[pointer](cast[int](microsecond.unsafeAddr) + 1)
+
+    discard fh[].writeBuffer(value.hour.unsafeAddr, 1)
+    discard fh[].writeBuffer(value.minute.unsafeAddr, 1)
+    discard fh[].writeBuffer(value.second.unsafeAddr, 1)
+    discard fh[].writeBuffer(ptr_microseconds, 3)
+    fh.write_pickle_binput(binput)
+
+    if not value.has_tz:
+        fh[].write(PKL_TUPLE1)
+    else:
+        fh.write_pickle_global("datetime", "timezone")
+        fh.write_pickle_binput(binput)
+        fh.write_pickle_global("datetime", "timedelta")
+        fh.write_pickle_binput(binput)
+        fh.write_pickle_binint(value.tz_days)
+        fh.write_pickle_binint(value.tz_seconds)
+        fh.write_pickle_binint(value.tz_microseconds)
+        fh[].write(PKL_TUPLE3)
+        fh.write_pickle_binput(binput)
+        fh[].write(PKL_REDUCE)
+        fh.write_pickle_binput(binput)
+        fh[].write(PKL_TUPLE1)
+        fh.write_pickle_binput(binput)
+        fh[].write(PKL_REDUCE)
+        fh.write_pickle_binput(binput)
+        fh[].write(PKL_TUPLE2)
+
+    fh.write_pickle_binput(binput)
+    fh[].write(PKL_REDUCE)
+    fh.write_pickle_binput(binput)
+
+proc write_pickle_obj[T: int|float|PY_NoneType|string|bool|PY_Date|PY_Time](fh: ptr File, value: T, binput: var uint32): void =
+    when T is PY_NoneType:
         fh[].write(PKL_NONE)
         return
     when T is int:
@@ -770,6 +1001,9 @@ proc write_pickle_obj[T: int|float|PY_NoneT|string|bool|PY_Date](fh: ptr File, v
         return
     when T is PY_Date:
         fh.write_pickle_date(value, binput)
+        return
+    when T is PY_Time:
+        fh.write_pickle_time(value, binput)
         return
     raise newException(Exception, "not implemented error: " & $value)
 
@@ -953,11 +1187,10 @@ proc text_reader_task(
                                         of DataTypes.DT_DATE:
                                             fh.write_pickle_obj(str.unsafeAddr.parse_date(), binput)
                                         of DataTypes.DT_TIME:
-                                            # discard str.parse_time()
-                                            raise newException(Exception, "not yet implemented")
+                                            fh.write_pickle_obj(str.unsafeAddr.parse_time(), binput)
                                         of DataTypes.DT_DATETIME:
                                             # discard str.parse_datetime()
-                                            raise newException(Exception, "not yet implemented")
+                                            raise newException(Exception, "not yet implemented: " & $dt)
                                         of DataTypes.DT_STRING:
                                             if str in ["null", "Null", "NULL", "#N/A", "#n/a", "", "None"]:
                                                 fh.write_pickle_obj(PY_None, binput)
