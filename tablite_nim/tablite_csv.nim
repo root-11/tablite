@@ -101,15 +101,14 @@ proc text_reader_task(
     
     let fh = newFile(path, encoding)
     let keys_field_relation = collect: (for k in field_relation.keys: k)
-    let n_columns = keys_field_relation.len()
     let guess_dtypes = true
     let n_pages = destinations.len
     
     var ranks: seq[Rank]
     
     if guess_dtypes:
-        ranks = collect(newSeqOfCap(n_columns)):
-            for _ in 0..n_columns-1:
+        ranks = collect(newSeqOfCap(n_pages)):
+            for _ in 0..n_pages-1:
                 newRank()
 
     try:
