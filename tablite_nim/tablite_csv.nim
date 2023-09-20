@@ -4,44 +4,13 @@ import os, math, sugar, times, tables, sequtils, json, unicode, parseutils, enco
 
 include encfile
 include csvparse
-
-
+include pickling
 
 type DataTypes = enum
     DT_DATETIME, DT_DATE, DT_TIME,
     DT_INT, DT_BOOLEAN, DT_FLOAT,
     DT_STRING,
     DT_MAX_ELEMENTS
-
-type PY_NoneType = object
-let PY_None = PY_NoneType()
-
-type PY_Date = object
-    year: uint16
-    month, day: uint8
-
-type PY_Time = object
-    hour, minute, second: uint8
-    microsecond: uint32
-    has_tz: bool
-    tz_days, tz_seconds, tz_microseconds: int32
-
-type PY_DateTime = object
-    date: PY_Date
-    time: PY_Time
-
-proc newPyTime(hour: uint8, minute: uint8, second: uint8, microsecond: uint32): PY_Time =
-    return PY_Time(hour: hour, minute: minute, second: second, microsecond: microsecond)
-
-proc newPyTime(hour: uint8, minute: uint8, second: uint8, microsecond: uint32, tz_days: int32, tz_seconds: int32, tz_microseconds: int32): PY_Time =
-    if tz_days == 0 and tz_seconds == 0:
-        return newPyTime(hour, minute, second, microsecond)
-    
-    return PY_Time(
-            hour: hour, minute: minute, second: second, microsecond: microsecond,
-            has_tz: true,
-            tz_days: tz_days, tz_seconds: tz_seconds, tz_microseconds: tz_microseconds
-        )
 
 
 proc parse_int(str: ptr string): int = parseInt(str[])
@@ -507,287 +476,9 @@ proc update_rank(rank: var Rank, str: ptr string): (bool, DataTypes) =
 
     return (false, rank_dtype)
 
-const PKL_BINPUT = 'q'
-const PKL_LONG_BINPUT = 'r'
-const PKL_TUPLE1 = '\x85'
-const PKL_TUPLE2 = '\x86'
-const PKL_TUPLE3 = '\x87'
-const PKL_TUPLE = 't'
-const PKL_PROTO = '\x80'
-const PKL_GLOBAL = 'c'
-const PKL_BININT1 = 'K'
-const PKL_BININT2 = 'M'
-const PKL_BININT = 'J'
-const PKL_SHORT_BINBYTES = 'C'
-const PKL_REDUCE = 'R'
-const PKL_MARK = '('
-const PKL_BINUNICODE = 'X'
-const PKL_NEWFALSE = '\x89'
-const PKL_NEWTRUE = '\x88'
-const PKL_NONE = 'N'
-const PKL_BUILD = 'b'
-const PKL_EMPTY_LIST = ']'
-const PKL_STOP = '.'
-const PKL_APPENDS = 'e'
-const PKL_BINFLOAT = 'G'
-
-proc write_pickle_binput(fh: ptr File, binput: var uint32): void =
-    if binput <= 0xff:
-        fh[].write(PKL_BINPUT)
-        discard fh[].writeBuffer(binput.unsafeAddr, 1)
-        inc binput
-        return
-    
-    fh[].write(PKL_LONG_BINPUT)
-    discard fh[].writeBuffer(binput.unsafeAddr, 4)
-    inc binput
-
-proc write_pickle_global(fh: ptr File, module_name: string, import_name: string): void = 
-    fh[].write(PKL_GLOBAL)
-
-    fh[].write(module_name)
-    fh[].write('\x0A')
-
-    fh[].write(import_name)
-    fh[].write('\x0A')
-
-proc write_pickle_proto(fh: ptr File): void =
-    fh[].write(PKL_PROTO)
-    fh[].write("\3")
-
-proc write_pickle_binint_generic[T:uint8|uint16|uint32](fh: ptr File, value: T): void =
-    when T is uint8:
-        fh[].write(PKL_BININT1)
-        discard fh[].writeBuffer(value.unsafeAddr, 1)
-    when T is uint16:
-        fh[].write(PKL_BININT2)
-        discard fh[].writeBuffer(value.unsafeAddr, 2)
-    when T is uint32:
-        fh[].write(PKL_BININT)
-        discard fh[].writeBuffer(value.unsafeAddr, 4)
-
-proc write_pickle_binfloat(fh: ptr File, value: float): void =
-    # pickle stores floats big-endian
-    var f: float
-
-    f.unsafeAddr.bigEndian64(value.unsafeAddr)
-
-    echo $value
-    fh[].write(PKL_BINFLOAT)
-    discard fh[].writeBuffer(f.unsafeAddr, 8)
-
-proc write_pickle_binint[T: int|uint|int32|uint32](fh: ptr File, value: T): void =
-    when T is int or T is int32:
-        if value < 0:
-            fh.write_pickle_binint_generic(uint32 value)
-            return
-
-    if value <= 0xff:
-        fh.write_pickle_binint_generic(uint8 value)
-        return
-
-    if value <= 0xffff:
-        fh.write_pickle_binint_generic(uint16 value)
-        return
-
-    fh.write_pickle_binint_generic(uint32 value)
-
-proc write_pickle_shortbinbytes(fh: ptr File, value: string): void =
-    fh[].write(PKL_SHORT_BINBYTES)
-
-    let len = value.len()
-
-    discard fh[].writeBuffer(len.unsafeAddr, 1)
-    discard fh[].writeBuffer(value[0].unsafeAddr, value.len)
-
-proc write_pickle_binunicode(fh: ptr File, value: string): void =
-    let len = uint32 value.len
-    
-    fh[].write(PKL_BINUNICODE)
-    discard fh[].writeBuffer(len.unsafeAddr, 4)
-    discard fh[].writeBuffer(value[0].unsafeAddr, len)
-
-proc write_pickle_boolean(fh: ptr File, value: bool): void =
-    if value == true:
-        fh[].write(PKL_NEWTRUE)
-    else:
-        fh[].write(PKL_NEWFALSE)
-
-proc write_pickle_start(fh: ptr File, binput: var uint32, elem_count: uint): void =
-    binput = 0
-
-    fh.write_pickle_proto()
-    fh.write_pickle_global("numpy.core.multiarray", "_reconstruct")
-    fh.write_pickle_binput(binput)
-    fh.write_pickle_global("numpy", "ndarray")
-    fh.write_pickle_binput(binput)
-    fh.write_pickle_binint(0)
-    fh[].write(PKL_TUPLE1)
-    fh.write_pickle_binput(binput)
-    fh.write_pickle_shortbinbytes("b")
-    fh.write_pickle_binput(binput)
-    fh[].write(PKL_TUPLE3)
-    fh.write_pickle_binput(binput)
-    fh[].write(PKL_REDUCE)
-    fh.write_pickle_binput(binput)
-    fh[].write(PKL_MARK)
-
-    if true:
-        fh.write_pickle_binint(1)
-        fh.write_pickle_binint(elem_count)
-        fh[].write(PKL_TUPLE1)
-        fh.write_pickle_binput(binput)
-        fh.write_pickle_global("numpy", "dtype")
-        fh.write_pickle_binput(binput)
-        fh.write_pickle_binunicode("O8")
-        fh.write_pickle_binput(binput)
-        fh.write_pickle_boolean(false)
-        fh.write_pickle_boolean(true)
-        fh[].write(PKL_TUPLE3)
-        fh.write_pickle_binput(binput)
-        fh[].write(PKL_REDUCE)
-        fh.write_pickle_binput(binput)
-        fh[].write(PKL_MARK)
-
-        if true:
-            fh.write_pickle_binint(3)
-            fh.write_pickle_binunicode("|")
-            fh.write_pickle_binput(binput)
-            fh[].write(PKL_NONE)
-            fh[].write(PKL_NONE)
-            fh[].write(PKL_NONE)
-            fh.write_pickle_binint(-1)
-            fh.write_pickle_binint(-1)
-            fh.write_pickle_binint(63)
-            fh[].write(PKL_TUPLE)
-
-        fh.write_pickle_binput(binput)
-        fh[].write(PKL_BUILD)
-        fh.write_pickle_boolean(false)
-        fh[].write(PKL_EMPTY_LIST)
-        fh.write_pickle_binput(binput)
-
-        # now we dump objects
-
-        if elem_count > 0:
-            fh[].write(PKL_MARK)
-
-        # fh[].write(PKL_APPENDS)
-
-proc write_pickle_finish(fh: ptr File, binput: var uint32, elem_count: uint): void =
-    if elem_count > 0:
-        fh[].write(PKL_APPENDS)
-    
-    fh[].write(PKL_TUPLE)
-    fh.write_pickle_binput(binput)
-    fh[].write(PKL_BUILD)
-    fh[].write(PKL_STOP)
-
-proc write_pickle_date_body(fh: ptr File, value: ptr PY_Date, binput: var uint32): void =
-    var year: uint16
-    year.unsafeAddr.bigEndian16(value.year.unsafeAddr)
-
-    discard fh[].writeBuffer(year.unsafeAddr, 2)
-    discard fh[].writeBuffer(value.month.unsafeAddr, 1)
-    discard fh[].writeBuffer(value.day.unsafeAddr, 1)
 
 
 
-proc write_pickle_date(fh: ptr File, value: PY_Date, binput: var uint32): void =
-    fh.write_pickle_global("datetime", "date")
-    fh.write_pickle_binput(binput)
-    fh[].write(PKL_SHORT_BINBYTES)
-    fh[].write('\4') # date has 4 bytes 2(y)-1(m)-1(d)
-
-    fh.write_pickle_date_body(value.unsafeAddr, binput)
-
-    fh.write_pickle_binput(binput)
-    fh[].write(PKL_TUPLE1)
-    fh.write_pickle_binput(binput)
-    fh[].write(PKL_REDUCE)
-    fh.write_pickle_binput(binput)
-
-proc write_pickle_time_body(fh: ptr File, value: ptr PY_Time, binput: var uint32): void =
-    var microsecond: uint32
-    microsecond.unsafeAddr.bigEndian32(value.microsecond.unsafeAddr)
-
-    var ptr_microseconds = cast[pointer](cast[int](microsecond.unsafeAddr) + 1)
-
-    discard fh[].writeBuffer(value.hour.unsafeAddr, 1)
-    discard fh[].writeBuffer(value.minute.unsafeAddr, 1)
-    discard fh[].writeBuffer(value.second.unsafeAddr, 1)
-    discard fh[].writeBuffer(ptr_microseconds, 3)
-    fh.write_pickle_binput(binput)
-
-    if not value.has_tz:
-        fh[].write(PKL_TUPLE1)
-    else:
-        fh.write_pickle_global("datetime", "timezone")
-        fh.write_pickle_binput(binput)
-        fh.write_pickle_global("datetime", "timedelta")
-        fh.write_pickle_binput(binput)
-        fh.write_pickle_binint(value.tz_days)
-        fh.write_pickle_binint(value.tz_seconds)
-        fh.write_pickle_binint(value.tz_microseconds)
-        fh[].write(PKL_TUPLE3)
-        fh.write_pickle_binput(binput)
-        fh[].write(PKL_REDUCE)
-        fh.write_pickle_binput(binput)
-        fh[].write(PKL_TUPLE1)
-        fh.write_pickle_binput(binput)
-        fh[].write(PKL_REDUCE)
-        fh.write_pickle_binput(binput)
-        fh[].write(PKL_TUPLE2)
-
-    fh.write_pickle_binput(binput)
-    fh[].write(PKL_REDUCE)
-    fh.write_pickle_binput(binput)
-
-proc write_pickle_time(fh: ptr File, value: PY_Time, binput: var uint32): void =
-    fh.write_pickle_global("datetime", "time")
-    fh.write_pickle_binput(binput)
-    fh[].write(PKL_SHORT_BINBYTES)
-    fh[].write('\6')
-
-    fh.write_pickle_time_body(value.unsafeAddr, binput)
-
-proc write_pickle_datetime(fh: ptr File, value: PY_DateTime, binput: var uint32): void =
-    fh.write_pickle_global("datetime", "datetime")
-    fh.write_pickle_binput(binput)
-    fh[].write(PKL_SHORT_BINBYTES)
-    fh[].write('\10')
-
-    fh.write_pickle_date_body(value.date.unsafeAddr, binput)
-    fh.write_pickle_time_body(value.time.unsafeAddr, binput)
-
-    # raise newException(Exception, "not implemented")
-
-proc write_pickle_obj[T: int|float|PY_NoneType|string|bool|PY_Date|PY_Time|PY_DateTime](fh: ptr File, value: T, binput: var uint32): void =
-    when T is PY_NoneType:
-        fh[].write(PKL_NONE)
-        return
-    when T is int:
-        fh.write_pickle_binint(value)
-        return
-    when T is float:
-        fh.write_pickle_binfloat(value)
-        return
-    when T is string:
-        fh.write_pickle_binunicode(value)
-        return
-    when T is bool:
-        fh.write_pickle_boolean(value)
-        return
-    when T is PY_Date:
-        fh.write_pickle_date(value, binput)
-        return
-    when T is PY_Time:
-        fh.write_pickle_time(value, binput)
-        return
-    when T is PY_DateTime:
-        fh.write_pickle_datetime(value, binput)
-        return
-    raise newException(Exception, "not implemented error: " & $value)
 
 proc text_reader_task(
     path: string, encoding: Encodings, dialect: Dialect, 
@@ -897,7 +588,7 @@ proc text_reader_task(
                 let dt = column_dtypes[idx]
                 let nilish = column_nones[idx]
                 if dt == 'O' or nilish:
-                    fh.write_pickle_start(binput, n_rows)
+                    fh.writePickleStart(binput, n_rows)
 
 
         fh.setFilePos(int64 row_offset, fspSet)
@@ -941,29 +632,29 @@ proc text_reader_task(
                                     fh[].write("\x00\x00\x00\x00")
                             else:
                                 if str in ["null", "Null", "NULL", "#N/A", "#n/a", "", "None"]:
-                                    fh.write_pickle_obj(PY_None, binput)
+                                    fh.writePicklePyObj(PY_None, binput)
                                 else:
-                                    fh.write_pickle_obj(str, binput)
+                                    fh.writePicklePyObj(str, binput)
                         of 'i':
                             if not nilish:
                                 let parsed = parseInt(str)
                                 discard fh[].writeBuffer(parsed.unsafeAddr, 8)
                             else:
                                 try:
-                                    fh.write_pickle_obj(parseInt(str), binput)
+                                    fh.writePicklePyObj(parseInt(str), binput)
                                 except ValueError as e:
                                     echo "dump failed: '" & $str & "' -> " & e.msg & "\n---\n" & e.getStackTrace() & "--------"
-                                    fh.write_pickle_obj(PY_None, binput)
+                                    fh.writePicklePyObj(PY_None, binput)
                         of 'f':
                             if not nilish:
                                 let parsed = parseFloat(str)
                                 discard fh[].writeBuffer(parsed.unsafeAddr, 8)
                             else:
                                 try:
-                                    fh.write_pickle_obj(parseFloat(str), binput)
+                                    fh.writePicklePyObj(parseFloat(str), binput)
                                 except ValueError as e:
                                     echo "dump failed: '" & $str & "' -> " & e.msg & "\n---\n" & e.getStackTrace() & "--------"
-                                    fh.write_pickle_obj(PY_None, binput)
+                                    fh.writePicklePyObj(PY_None, binput)
                         of '?': fh[].write((if str.toLower() == "true": '\x01' else: '\x00'))
                         of 'O': 
                             for r_addr in rank.iter():
@@ -971,22 +662,22 @@ proc text_reader_task(
                                 try:
                                     case dt:
                                         of DataTypes.DT_INT:
-                                            fh.write_pickle_obj(str.parse_int(), binput)
+                                            fh.writePicklePyObj(str.parse_int(), binput)
                                         of DataTypes.DT_FLOAT:
-                                            fh.write_pickle_obj(str.parse_float(), binput)
+                                            fh.writePicklePyObj(str.parse_float(), binput)
                                         of DataTypes.DT_BOOLEAN:
-                                            fh.write_pickle_obj(str.parse_bool(), binput)
+                                            fh.writePicklePyObj(str.parse_bool(), binput)
                                         of DataTypes.DT_DATE:
-                                            fh.write_pickle_obj(str.unsafeAddr.parse_date(), binput)
+                                            fh.writePicklePyObj(str.unsafeAddr.parse_date(), binput)
                                         of DataTypes.DT_TIME:
-                                            fh.write_pickle_obj(str.unsafeAddr.parse_time(), binput)
+                                            fh.writePicklePyObj(str.unsafeAddr.parse_time(), binput)
                                         of DataTypes.DT_DATETIME:
-                                            fh.write_pickle_obj(str.unsafeAddr.parse_datetime(), binput)
+                                            fh.writePicklePyObj(str.unsafeAddr.parse_datetime(), binput)
                                         of DataTypes.DT_STRING:
                                             if str in ["null", "Null", "NULL", "#N/A", "#n/a", "", "None"]:
-                                                fh.write_pickle_obj(PY_None, binput)
+                                                fh.writePicklePyObj(PY_None, binput)
                                             else:
-                                                fh.write_pickle_obj(str, binput)
+                                                fh.writePicklePyObj(str, binput)
                                         else:
                                             raise newException(Exception, "invalid type")
                                 except ValueError as e:
@@ -1000,7 +691,7 @@ proc text_reader_task(
             let dt = column_dtypes[idx]
             let nilish = column_nones[idx]
             if dt == 'O' or nilish:
-                fh.write_pickle_finish(binput, n_rows)
+                fh.writePickleFinish(binput, n_rows)
 
         for f in page_file_handlers:
             f.close()
