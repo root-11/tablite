@@ -3,9 +3,9 @@ import std/enumerate
 import os, math, sugar, times, tables, sequtils, json, unicode, parseutils, encodings, bitops, osproc, lists, endians
 
 include encfile
+include csvparse
 
-const NOT_SET = uint32.high
-const EOL = uint32.high - 1
+
 
 type DataTypes = enum
     DT_DATETIME, DT_DATE, DT_TIME,
@@ -413,270 +413,17 @@ proc newRank(): Rank =
 
 
 
-type Quoting {.pure.} = enum
-    QUOTE_MINIMAL, QUOTE_ALL, QUOTE_NONNUMERIC, QUOTE_NONE,
-    QUOTE_STRINGS, QUOTE_NOTNULL
 
-type ParserState {.pure.} = enum
-    START_RECORD, START_FIELD, ESCAPED_CHAR, IN_FIELD,
-    IN_QUOTED_FIELD, ESCAPE_IN_QUOTED_FIELD, QUOTE_IN_QUOTED_FIELD,
-    EAT_CRNL, AFTER_ESCAPED_CRNL
 
-type Dialect = object
-    delimiter: char
-    quotechar: char
-    escapechar: char
-    doublequote: bool
-    quoting: Quoting
-    skipinitialspace: bool
-    lineterminator: char
-    strict: bool
 
-proc newDialect(delimiter: char = ',', quotechar: char = '"', escapechar: char = '\\', doublequote: bool = true, quoting: Quoting = QUOTE_MINIMAL, skipinitialspace: bool = false, lineterminator: char = '\n'): Dialect =
-    Dialect(delimiter:delimiter, quotechar:quotechar, escapechar:escapechar, doublequote:doublequote, quoting:quoting, skipinitialspace:skipinitialspace, lineterminator:lineterminator)
 
-const field_limit: uint = 128 * 1024;
 
-type ReaderObj = object
-    numeric_field: bool
-    line_num: uint
-    dialect: Dialect
 
-    field_len: uint
-    field_size: uint
-    field: seq[char]
 
-    fields: seq[string]
-    field_count: uint
 
-var readerAlloc = newSeq[string](1024)
 
-proc newReaderObj(dialect: Dialect): ReaderObj =
-    ReaderObj(dialect: dialect, fields: readerAlloc)
 
-proc parse_grow_buff(self: var ReaderObj): bool =
-    let field_size_new: uint = (if self.field_size > 0: 2u * self.field_size else: 4096u)
-    
-    self.field.setLen(field_size_new)
-    self.field_size = field_size_new
 
-    return true
-
-proc parse_add_char(self: var ReaderObj, state: var ParserState, c: char): bool =
-    if self.field_len >= field_limit:
-        return false
-
-    if unlikely(self.field_len == self.field_size and not self.parse_grow_buff()):
-        return false
-
-    self.field[self.field_len] = c
-    inc self.field_len
-
-    return true
-
-proc parse_save_field(self: var ReaderObj): bool =
-    if self.numeric_field:
-        self.numeric_field = false
-
-        raise newException(Exception, "not yet implemented: parse_save_field numeric_field")
-
-    var field {.noinit.} = newString(self.field_len)
-
-    if likely(self.field_len > 0):
-        copyMem(field[0].unsafeAddr, self.field[0].unsafeAddr, self.field_len)
-
-    if unlikely(self.field_count + 1 >= (uint self.field.high)):
-        self.field.setLen(self.field.len() * 2)
-
-    self.fields[self.field_count] = field
-
-    inc self.field_count
-
-    self.field_len = 0
-
-    return true
-
-proc parse_process_char(self: var ReaderObj, state: var ParserState, cc: uint32): bool =
-    let dia = self.dialect
-    var ch_code = cc
-    var c = (if ch_code < EOL: char ch_code else: '\x00')
-
-    case state:
-        of START_RECORD, START_FIELD:
-            if ch_code == EOL:
-                return true
-
-            if state == START_RECORD: # nim cannot fall through
-                if unlikely(c in ['\n', '\r']):
-                    state = EAT_CRNL
-                else:
-                    state = START_FIELD
-
-            if unlikely(c in ['\n', '\r'] or unlikely(ch_code == EOL)):
-                if unlikely(not self.parse_save_field()):
-                    return false
-
-                state = (if ch_code == EOL: START_RECORD else: EAT_CRNL)
-            elif unlikely(c == dia.quotechar and dia.quoting != QUOTE_NONE):
-                state = IN_QUOTED_FIELD
-            elif unlikely(c == dia.escapechar):
-                state = ESCAPED_CHAR
-            elif unlikely(c == ' ' and dia.skipinitialspace):
-                discard
-            elif unlikely(c == dia.delimiter):
-                if unlikely(not self.parse_save_field()):
-                    return false
-            else:
-                if dia.quoting == QUOTE_NONNUMERIC:
-                    self.numeric_field = true
-                if unlikely(not self.parse_add_char(state, c)):
-                    return false
-                state = IN_FIELD
-        of ESCAPED_CHAR:
-            if c in ['\n', '\r']:
-                if unlikely(not self.parse_add_char(state, c)):
-                    return false
-                state = AFTER_ESCAPED_CRNL
-
-            if ch_code == EOL:
-                c = '\n'
-                ch_code = uint32 c
-
-            if unlikely(not self.parse_add_char(state, c)):
-                return false
-
-            state = IN_FIELD
-        of AFTER_ESCAPED_CRNL, IN_FIELD:
-            if state == AFTER_ESCAPED_CRNL and ch_code == EOL:
-                return true # nim is stupid
-
-            if unlikely(c in ['\n', '\r'] or unlikely(ch_code == EOL)):
-                if unlikely(not self.parse_save_field()):
-                    return false
-                state = (if ch_code == EOL: START_RECORD else: EAT_CRNL)
-            elif c == dia.escapechar:
-                state = ESCAPED_CHAR
-            elif c == dia.delimiter:
-                if unlikely(not self.parse_save_field()):
-                    return false
-                state = START_FIELD
-            else:
-                if unlikely(not self.parse_add_char(state, c)):
-                    return false
-        of IN_QUOTED_FIELD:
-            if ch_code == EOL:
-                discard
-            elif c == dia.escapechar:
-                state = ESCAPE_IN_QUOTED_FIELD
-            elif c == dia.quotechar and dia.quoting != QUOTE_NONE:
-                if dia.doublequote:
-                    state = QUOTE_IN_QUOTED_FIELD
-                else:
-                    state = IN_FIELD
-            else:
-                if unlikely(not self.parse_add_char(state, c)):
-                    return false
-        of ESCAPE_IN_QUOTED_FIELD:
-            if ch_code == EOL:
-                c = '\n'
-                ch_code = uint32 c
-            
-            if unlikely(not self.parse_add_char(state, c)):
-                return false
-
-            state = IN_QUOTED_FIELD
-        of QUOTE_IN_QUOTED_FIELD:
-            if dia.quoting != QUOTE_NONE and c == dia.quotechar:
-                if unlikely(not self.parse_add_char(state, c)):
-                    return false
-                state = IN_QUOTED_FIELD
-            elif c == dia.delimiter:
-                if unlikely(not self.parse_save_field()):
-                    return false
-                state = START_FIELD
-            elif c in ['\n', '\r'] or ch_code == EOL:
-                if unlikely(not self.parse_save_field()):
-                    return false
-                state = (if ch_code == EOL: START_RECORD else: EAT_CRNL)
-            elif not dia.strict:
-                if unlikely(not self.parse_add_char(state, c)):
-                    return false
-                state = IN_FIELD
-            else:
-                return false
-        of EAT_CRNL:
-            if c in ['\n', '\r']:
-                discard
-            elif ch_code == EOL:
-                state = START_RECORD
-            else:
-                return false
-
-    return true
-
-iterator parse_csv(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[string], uint) =
-    let dia = self.dialect
-
-    var state: ParserState = START_RECORD
-    var line_num: uint = 0
-    var line = newStringOfCap(80)
-    var pos: uint
-    var linelen: uint;
-
-    self.field_len = 0
-    self.field_count = 0
-
-    while likely(not fh.endOfFile):
-        if not fh.readLine(line):
-            break
-
-        if self.field_len != 0 and state == IN_QUOTED_FIELD:
-            if dia.strict:
-                raise newException(Exception, "unexpected end of data")
-            elif self.parse_save_field():
-                break
-
-        line.add('\n')
-
-        
-        linelen = uint line.len
-        pos = 0
-
-        while pos < linelen:
-            if unlikely(not self.parse_process_char(state, uint32 line[pos])):
-                raise newException(Exception, "illegal")
-            
-            inc pos
-
-        if unlikely(not self.parse_process_char(state, EOL)):
-            raise newException(Exception, "illegal")
-
-        yield (line_num, addr self.fields, self.field_count)
-
-        self.field_count = 0
-
-        inc line_num
-
-iterator parse_csv(self: var ReaderObj, path: string, encoding: Encodings): (uint, ptr seq[string], uint) =
-    var fh = newFile(path, encoding)
-
-    try:
-        for it in self.parse_csv(fh):
-            yield it
-    finally:
-        fh.close()
-
-proc read_columns(path: string, encoding: Encodings, dialect: Dialect, row_offset: uint): seq[string] =
-    let fh = newFile(path, encoding)
-    var obj = newReaderObj(dialect)
-
-    try:
-        fh.setFilePos(int64 row_offset, fspSet)
-
-        for (row_idx, fields, field_count) in obj.parse_csv(fh):
-            return fields[0..field_count-1]
-    finally:
-        fh.close()
 
 proc write_numpy_header(fh: File, dtype: string, shape: uint): void =
     const magic = "\x93NUMPY"
@@ -1074,7 +821,7 @@ proc text_reader_task(
         var n_rows: uint = 0
         var binput: uint32 = 0
 
-        for (row_idx, fields, field_count) in obj.parse_csv(fh):
+        for (row_idx, fields, field_count) in obj.parseCSV(fh):
             if row_count >= 0 and row_idx >= (uint row_count):
                 break
                 
@@ -1155,7 +902,7 @@ proc text_reader_task(
 
         fh.setFilePos(int64 row_offset, fspSet)
 
-        for (row_idx, fields, field_count) in obj.parse_csv(fh):
+        for (row_idx, fields, field_count) in obj.parseCSV(fh):
             if row_count >= 0 and row_idx >= (uint row_count):
                 break
                 
@@ -1271,7 +1018,7 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
         createDir(dirname)
 
     if newlines > 0:
-        let fields = read_columns(path, encoding, dia, newline_offsets[0])
+        let fields = readColumns(path, encoding, dia, newline_offsets[0])
 
         var imp_columns: seq[string]
 
