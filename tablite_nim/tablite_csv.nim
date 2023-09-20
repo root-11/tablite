@@ -15,10 +15,9 @@ type FileUTF16 = ref object of BaseEncodedFile
     endianness: Endianness
 
 type DataTypes = enum
-    DT_DATE, DT_TIME,
+    DT_DATETIME, DT_DATE, DT_TIME,
     DT_INT, DT_BOOLEAN, DT_FLOAT,
     DT_STRING,
-    DT_DATETIME,
     DT_MAX_ELEMENTS
 
 type PY_NoneType = object
@@ -33,6 +32,10 @@ type PY_Time = object
     microsecond: uint32
     has_tz: bool
     tz_days, tz_seconds, tz_microseconds: int32
+
+type PY_DateTime = object
+    date: PY_Date
+    time: PY_Time
 
 proc newPyTime(hour: uint8, minute: uint8, second: uint8, microsecond: uint32): PY_Time =
     return PY_Time(hour: hour, minute: minute, second: second, microsecond: microsecond)
@@ -59,67 +62,21 @@ proc parse_bool(str: ptr string): bool =
 
     raise newException(ValueError, "not a boolean value")
 
-# const ValidDateFormats = @[
-#     "yyyy-MM-d",
-#     "yyyy-M-d",
-#     "yyyy-MM-N",
-#     "yyyy-M-N",
-#     "d-MM-yyyy",
-#     "N-MM-yyyy",
-#     "d-M-yyyy",
-#     "N-N-yyyy",
-#     "!yyyy-MM-d", # nim doesn't support dot types, check if starts with '!' and replace with other '-'
-#     "!yyyy-M-d",
-#     "!yyyy-MM-N",
-#     "!yyyy-M-N",
-#     "!d.MM.yyyy",
-#     "!N.MM.yyyy",
-#     "!d.M.yyyy",
-#     "!N.M.yyyy",
-#     "yyyy/MM/d",
-#     "yyyy/M/d",
-#     "yyyy/MM/N",
-#     "yyyy/M/N",
-#     "d/MM/yyyy",
-#     "N/MM/yyyy",
-#     "d/M/yyyy",
-#     "N/M/yyyy",
-#     "yyyy MM d",
-#     "yyyy M d",
-#     "yyyy MM N",
-#     "yyyy M N",
-#     "d MM yyyy",
-#     "N M yyyy",
-#     "d M yyyy",
-#     "N MM yyyy",
-#     "yyyyMMdd",
-# ]
-
-# type DateFormats = enum
-#     DF_YYYY_MM_DD
-#     DF_YYYY_0M_DD
-#     DF_YYYY_MM_0D
-#     DF_YYYY_0M_0D
-#     DF_DD_MM_YYYY
-#     DF_DD_0M_YYYY
-#     DF_0D_MM_YYYY
-#     DF_0D_0M_YYYY
-#     DF_MM_DD_YYYY
-#     DF_0M_DD_YYYY
-#     DF_MM_0D_YYYY
-#     DF_0M_0D_YYYY
-
-
-proc parse_date_words(str: ptr string): (array[3, string], int) =
+proc parse_date_words(str: ptr string, allow_time: bool): (array[3, string], int) =
     const accepted_tokens = [' ', '.', '-', '/']
 
     var has_tokens = false
+    let str_len = str[].runeLen
+
+    if str_len != str[].len: # datetimes are not in unicode
+        raise newException(ValueError, "not a value")
     
-    for rune in str[].toRunes():
+    
+    for i in 0..4: # date will have tokens in first 5 characters YYYY-/DD-/MM-
         var ch: char
 
         try:
-            ch = char rune
+            ch = char str[i]
         except Exception: # bad encoding
             raise newException(ValueError, "not a date")
 
@@ -127,16 +84,16 @@ proc parse_date_words(str: ptr string): (array[3, string], int) =
             continue
 
         if not (ch in accepted_tokens): # not a digit, nor an accepted token
-            raise newException(ValueError, "not a date")
-            
+            if ch in [':', 'T'] and allow_time: # time token but we allow parsin time
+                continue
+            raise newException(ValueError, "not a date: '" & ch & "'" & $allow_time)
 
-    for token in accepted_tokens:
-        if token in str[]:
-            has_tokens = true
-            break
+        has_tokens = true
+        echo $ch
+        break
 
     var substrings: array[3, string]
-    let str_len = str[].runeLen
+    
 
     if has_tokens:
         var active_token = '\x00'
@@ -161,7 +118,9 @@ proc parse_date_words(str: ptr string): (array[3, string], int) =
             if active_token == '\x00':
                 active_token = ch
             elif active_token != ch: # date tokens do should not change
-                raise newException(ValueError, "not a date")
+                if substring_count == 2 and allow_time and ch in [' ', 'T']: # time token and we can parse time
+                    break
+                raise newException(ValueError, "not a date: '" & $ch & "'")
 
             substrings[substring_count] = $str[].substr(slice_start, idx-1)
             inc substring_count
@@ -169,13 +128,10 @@ proc parse_date_words(str: ptr string): (array[3, string], int) =
             was_digit = false
             inc idx
 
-            if substring_count == 3:
-                return (substrings, idx)
-
-        if substring_count != 2 or (str_len - slice_start) == 0:
+        if substring_count != 2 or (idx - slice_start) == 0:
             raise newException(ValueError, "not a date") # should have 2 substrings and some leftover
 
-        substrings[substring_count] = $str[].substr(slice_start)
+        substrings[substring_count] = $str[].substr(slice_start, idx-1)
 
         return (substrings, idx)
 
@@ -196,20 +152,10 @@ proc days_in_month(year, month: int): int =
         return 29
     return DAYS_IN_MONTH[month]
 
-proc parse_date(str: ptr string, tiebreaker_american: bool = false, force_american: bool = false): PY_Date =
-    echo $str[]
-
-    let str_len = str[].runeLen
-
-    if str_len > 10 or str_len < 6: # string len will never match
-        raise newException(ValueError, "not a date")
-
+proc words_to_date(date_words: ptr array[3, string], tiebreaker_american: bool, force_american: bool): PY_Date =
     var year, month, day: int
-
-    let (date_words, size) = str.parse_date_words()
     var month_or_day: array[2, int]
-
-    echo $size
+    var can_be_american = false
 
     if date_words[0].len == 4:
         year = parseInt(date_words[0])
@@ -218,16 +164,23 @@ proc parse_date(str: ptr string, tiebreaker_american: bool = false, force_americ
 
         if force_american:
             raise newException(ValueError, "invalid date")
+
+        # if YYYY first it's always YYYY-MM-DD format
+        return PY_Date(year: uint16 year, month: uint8 month_or_day[0], day: uint8 month_or_day[1])
     elif date_words[2].len == 4:
         year = parseInt(date_words[2])
         month_or_day[0] = parseInt(date_words[0])
         month_or_day[1] = parseInt(date_words[1])
+
+        can_be_american = true
 
     if year < 0 or year > 9999:
         raise newException(ValueError, "date out of range")
 
     if month_or_day[0] <= 0 or month_or_day[1] <= 0 or month_or_day[0] > 12 and month_or_day[1] > 12:
         raise newException(ValueError, "date out of range")
+
+    echo $month_or_day
 
     if month_or_day[0] <= 12 and month_or_day[1] <= 12:
         # if both under 12, use tie breaker
@@ -262,6 +215,16 @@ proc parse_date(str: ptr string, tiebreaker_american: bool = false, force_americ
         raise newException(ValueError, "day out of range")
 
     return PY_Date(year: uint16 year, month: uint8 month, day: uint8 day)
+
+proc parse_date(str: ptr string, tiebreaker_american: bool = false, force_american: bool = false): PY_Date =
+    let str_len = str[].runeLen
+
+    if str_len > 10 or str_len < 8: # string len will never match
+        raise newException(ValueError, "not a date")
+
+    let (date_words, _) = str.parse_date_words(false)
+    
+    return words_to_date(date_words.unsafeAddr, tiebreaker_american, force_american)
 
 
 proc divmod(x: int, y: int): (int, int) =
@@ -305,7 +268,6 @@ proc to_timedelta(
     s += v_seconds
     (v_days, s) = divmod(s, 24*3600)
     d += v_days
-
 
     return (d, s, us)
 
@@ -353,10 +315,29 @@ proc parse_hh_mm_ss_ff(tstr: ptr string): (uint8, uint8, uint8, uint32) =
     return (uint8 time_comps[0], uint8 time_comps[1], uint8 time_comps[2], uint32 time_comps[3])
 
 proc parse_time(str: ptr string): PY_Time =
-    # Format supported is HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]
-    if not (":" in str[]) or str[].len < 2:
+    let str_len = str[].len
+
+    if str_len < 2:
         raise newException(ValueError, "not a time")
 
+    if not (":" in str[]):
+        # Format supported is HH[MM[SS]]
+        if str_len in [2, 4, 6]:
+            var hour, minute, second: uint8
+
+            hour = uint8 parseInt(str[].substr(0, 1))
+
+            if str_len >= 4:
+                minute = uint8 parseInt(str[].substr(2, 3))
+
+            if str_len >= 6:
+                second = uint8 parseInt(str[].substr(4, 5))
+
+            return newPyTime(hour, minute, second, uint32 0)
+
+        raise newException(ValueError, "not a time")
+
+    # Format supported is HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]
     let tz_pos_minus = str[].find("-")
     let tz_pos_plus = str[].find("+")
 
@@ -394,8 +375,29 @@ proc parse_time(str: ptr string): PY_Time =
     
     return newPyTime(hour, minute, second, microsecond)
 
-proc parse_datetime(str: ptr string): DateTime =
-    raise newException(Exception, "not implemented error: parse_datetime (" & $str[] & ")")
+proc parse_datetime(str: ptr string, tiebreaker_american: bool = false, force_american: bool = false): PY_DateTime =
+    echo $str[]
+
+    let str_len = str[].runeLen
+
+    if str_len > 42 or str_len < 10: # string len will never match
+        raise newException(ValueError, "not a datetime: " & $str_len)
+
+    let (date_words, toffset) = str.parse_date_words(true)
+    let first_tchar = str[toffset]
+    var tstr {.noinit.}: string
+    
+    if(first_tchar.isDigit):
+        tstr = str[].substr(toffset)
+    elif first_tchar in [' ', 'T']:
+        tstr = str[].substr(toffset + 1)
+    else:
+        raise newException(ValueError, "not a datetime")
+
+    let date = words_to_date(date_words.unsafeAddr, tiebreaker_american, force_american)
+    let time = parse_time(tstr.unsafeAddr)
+
+    return PY_DateTime(date: date, time: time)
 
 type Rank = array[int(DataTypes.DT_MAX_ELEMENTS), (DataTypes, uint)]
 
@@ -840,12 +842,15 @@ proc update_rank(rank: var Rank, str: ptr string): (bool, DataTypes) =
                         is_none = true
                 else:
                     raise newException(Exception, "invalid type")
-        except ValueError:
+        except ValueError as e:
+            echo "rank failed: '" & $str[] & "' -> " & e.msg & "\n---\n" & e.getStackTrace() & "--------"
             continue
 
         rank_dtype = r_addr[0]
         rank_count = r_addr[1]
         index = i
+
+        echo "selected " & $r_addr[0] & " for '" & $str[] & "'"
 
         break
 
@@ -1033,12 +1038,7 @@ proc write_pickle_finish(fh: ptr File, binput: var uint32, elem_count: uint): vo
     fh[].write(PKL_BUILD)
     fh[].write(PKL_STOP)
 
-proc write_pickle_date(fh: ptr File, value: PY_Date, binput: var uint32): void =
-    fh.write_pickle_global("datetime", "date")
-    fh.write_pickle_binput(binput)
-    fh[].write(PKL_SHORT_BINBYTES)
-    fh[].write('\4') # date has 4 bytes 2(y)-1(m)-1(d)
-
+proc write_pickle_date_body(fh: ptr File, value: ptr PY_Date, binput: var uint32): void =
     var year: uint16
     year.unsafeAddr.bigEndian16(value.year.unsafeAddr)
 
@@ -1046,18 +1046,23 @@ proc write_pickle_date(fh: ptr File, value: PY_Date, binput: var uint32): void =
     discard fh[].writeBuffer(value.month.unsafeAddr, 1)
     discard fh[].writeBuffer(value.day.unsafeAddr, 1)
 
+
+
+proc write_pickle_date(fh: ptr File, value: PY_Date, binput: var uint32): void =
+    fh.write_pickle_global("datetime", "date")
+    fh.write_pickle_binput(binput)
+    fh[].write(PKL_SHORT_BINBYTES)
+    fh[].write('\4') # date has 4 bytes 2(y)-1(m)-1(d)
+
+    fh.write_pickle_date_body(value.unsafeAddr, binput)
+
     fh.write_pickle_binput(binput)
     fh[].write(PKL_TUPLE1)
     fh.write_pickle_binput(binput)
     fh[].write(PKL_REDUCE)
     fh.write_pickle_binput(binput)
 
-proc write_pickle_time(fh: ptr File, value: PY_Time, binput: var uint32): void =
-    fh.write_pickle_global("datetime", "time")
-    fh.write_pickle_binput(binput)
-    fh[].write(PKL_SHORT_BINBYTES)
-    fh[].write('\6')
-
+proc write_pickle_time_body(fh: ptr File, value: ptr PY_Time, binput: var uint32): void =
     var microsecond: uint32
     microsecond.unsafeAddr.bigEndian32(value.microsecond.unsafeAddr)
 
@@ -1093,7 +1098,26 @@ proc write_pickle_time(fh: ptr File, value: PY_Time, binput: var uint32): void =
     fh[].write(PKL_REDUCE)
     fh.write_pickle_binput(binput)
 
-proc write_pickle_obj[T: int|float|PY_NoneType|string|bool|PY_Date|PY_Time](fh: ptr File, value: T, binput: var uint32): void =
+proc write_pickle_time(fh: ptr File, value: PY_Time, binput: var uint32): void =
+    fh.write_pickle_global("datetime", "time")
+    fh.write_pickle_binput(binput)
+    fh[].write(PKL_SHORT_BINBYTES)
+    fh[].write('\6')
+
+    fh.write_pickle_time_body(value.unsafeAddr, binput)
+
+proc write_pickle_datetime(fh: ptr File, value: PY_DateTime, binput: var uint32): void =
+    fh.write_pickle_global("datetime", "datetime")
+    fh.write_pickle_binput(binput)
+    fh[].write(PKL_SHORT_BINBYTES)
+    fh[].write('\10')
+
+    fh.write_pickle_date_body(value.date.unsafeAddr, binput)
+    fh.write_pickle_time_body(value.time.unsafeAddr, binput)
+
+    # raise newException(Exception, "not implemented")
+
+proc write_pickle_obj[T: int|float|PY_NoneType|string|bool|PY_Date|PY_Time|PY_DateTime](fh: ptr File, value: T, binput: var uint32): void =
     when T is PY_NoneType:
         fh[].write(PKL_NONE)
         return
@@ -1114,6 +1138,9 @@ proc write_pickle_obj[T: int|float|PY_NoneType|string|bool|PY_Date|PY_Time](fh: 
         return
     when T is PY_Time:
         fh.write_pickle_time(value, binput)
+        return
+    when T is PY_DateTime:
+        fh.write_pickle_datetime(value, binput)
         return
     raise newException(Exception, "not implemented error: " & $value)
 
@@ -1173,6 +1200,8 @@ proc text_reader_task(
                         column_nones[fidx] = true
 
             inc n_rows
+
+        echo $longest_str
 
         if not guess_dtypes:
             for idx, (fh, i) in enumerate(zip(page_file_handlers, longest_str)):
@@ -1256,14 +1285,20 @@ proc text_reader_task(
 
                     case dt:
                         of 'U':
-                            for rune in str.toRunes():
-                                var ch = uint32(rune)
-                                discard fh[].writeBuffer(ch.unsafeAddr, 4)
+                            if not nilish:
+                                for rune in str.toRunes():
+                                    var ch = uint32(rune)
+                                    discard fh[].writeBuffer(ch.unsafeAddr, 4)
 
-                            let dt = longest_str[fidx] - (uint str.runeLen)
+                                let dt = longest_str[fidx] - (uint str.runeLen)
 
-                            for i in 1..dt:
-                                fh[].write("\x00\x00\x00\x00")
+                                for i in 1..dt:
+                                    fh[].write("\x00\x00\x00\x00")
+                            else:
+                                if str in ["null", "Null", "NULL", "#N/A", "#n/a", "", "None"]:
+                                    fh.write_pickle_obj(PY_None, binput)
+                                else:
+                                    fh.write_pickle_obj(str, binput)
                         of 'i':
                             if not nilish:
                                 let parsed = parseInt(str)
@@ -1271,7 +1306,8 @@ proc text_reader_task(
                             else:
                                 try:
                                     fh.write_pickle_obj(parseInt(str), binput)
-                                except ValueError:
+                                except ValueError as e:
+                                    echo "dump failed: '" & $str & "' -> " & e.msg & "\n---\n" & e.getStackTrace() & "--------"
                                     fh.write_pickle_obj(PY_None, binput)
                         of 'f':
                             if not nilish:
@@ -1280,7 +1316,8 @@ proc text_reader_task(
                             else:
                                 try:
                                     fh.write_pickle_obj(parseFloat(str), binput)
-                                except ValueError:
+                                except ValueError as e:
+                                    echo "dump failed: '" & $str & "' -> " & e.msg & "\n---\n" & e.getStackTrace() & "--------"
                                     fh.write_pickle_obj(PY_None, binput)
                         of '?': fh[].write((if str.toLower() == "true": '\x01' else: '\x00'))
                         of 'O': 
@@ -1299,8 +1336,7 @@ proc text_reader_task(
                                         of DataTypes.DT_TIME:
                                             fh.write_pickle_obj(str.unsafeAddr.parse_time(), binput)
                                         of DataTypes.DT_DATETIME:
-                                            # discard str.parse_datetime()
-                                            raise newException(Exception, "not yet implemented: " & $dt)
+                                            fh.write_pickle_obj(str.unsafeAddr.parse_datetime(), binput)
                                         of DataTypes.DT_STRING:
                                             if str in ["null", "Null", "NULL", "#N/A", "#n/a", "", "None"]:
                                                 fh.write_pickle_obj(PY_None, binput)
@@ -1308,7 +1344,8 @@ proc text_reader_task(
                                                 fh.write_pickle_obj(str, binput)
                                         else:
                                             raise newException(Exception, "invalid type")
-                                except ValueError:
+                                except ValueError as e:
+                                    echo "dump failed: '" & $str & "' -> " & e.msg & "\n---\n" & e.getStackTrace() & "--------"
                                     continue
                                 break
                         else: raise newException(Exception, "invalid")
