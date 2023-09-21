@@ -4,112 +4,11 @@ import os, math, sugar, times, tables, sequtils, json, unicode, parseutils, enco
 
 import encfile
 import csvparse
-import pickling
-import infertypes
-import numpy
-import insertsort
-
-# const NONE_STRINGS = ["null", "Null", "NULL", "#N/A", "#n/a", "", "None"]
-# const BOOL_STRINGS = ["True", "true", "False", "false"]
-
-type DataTypes = enum
-    # sort by difficulty
-    DT_NONE, DT_BOOL, DT_DATETIME, DT_DATETIME_US, DT_DATE, DT_DATE_US, DT_TIME,
-    DT_INT, DT_FLOAT,
-    DT_STRING,
-    DT_MAX_ELEMENTS
-    
-
-type RankCounts = array[int(DataTypes.DT_MAX_ELEMENTS), (DataTypes, uint)]
-type Rank = object
-    counts: RankCounts
-    # bool_count: uint
-    # none_count: uint
-
-iterator iter(rank: var Rank): ptr (DataTypes, uint) {.closure.} =
-    var x = 0
-    let max = int(DataTypes.DT_MAX_ELEMENTS)
-    while x < max:
-        yield rank.counts[x].unsafeAddr
-        inc x
-
-proc newRank(): Rank =
-    var counts {.noinit.}: RankCounts
-
-    for i in 0..(int(DataTypes.DT_MAX_ELEMENTS)-1):
-        counts[i] = (DataTypes(i), uint 0)
-
-    return Rank(counts: counts)
-
-proc cmpDtypes(a: (DataTypes, uint), b: (DataTypes, uint)): bool = 
-    return a[1] > b[1]
-
-proc cmpDtypesStringless(a: (DataTypes, uint), b: (DataTypes, uint)): bool = 
-    # puts strings at the end of non-zero sequence
-    if a[0] == DataTypes.DT_STRING and b[1] > 0: return false
-    elif b[0] == DataTypes.DT_STRING and a[1] > 0: return true
-    return cmpDtypes(a, b)
-
-proc sortRanks(rank: var Rank, stringless: bool): void =
-    if stringless:
-        rank.counts.insertSort(cmpDtypesStringless)
-    else:
-        rank.counts.insertSort(cmpDtypes)
-
-proc update_rank(rank: var Rank, str: ptr string): DataTypes =
-    var rank_dtype: DataTypes
-    var index: int
-    var rank_count: uint
-
-    for i, r_addr in enumerate(rank.iter()):
-        try:
-            case r_addr[0]:
-                of DataTypes.DT_INT:
-                    discard str.inferInt()
-                of DataTypes.DT_FLOAT:
-                    discard str.inferFloat()
-                of DataTypes.DT_DATE:
-                    discard str.inferDate(false)
-                of DataTypes.DT_DATE_US:
-                    discard str.inferDate(true)
-                of DataTypes.DT_TIME:
-                    discard str.inferTime()
-                of DataTypes.DT_DATETIME:
-                    discard str.inferDatetime(false)
-                of DataTypes.DT_DATETIME_US:
-                    discard str.inferDatetime(true)
-                of DataTypes.DT_STRING:
-                    discard
-                of DataTypes.DT_BOOL:
-                    discard str.inferBool()
-                of DataTypes.DT_NONE:
-                    discard str.inferNone()
-                of DataTypes.DT_MAX_ELEMENTS:
-                    raise newException(Exception, "not a type")
-        except ValueError as e:
-            continue
-
-        rank_dtype = r_addr[0]
-        rank_count = r_addr[1]
-        index = i
-        break
-
-    rank.counts[index] = (rank_dtype, rank_count + 1)
-    rank.sortRanks(true)
-
-    return rank_dtype
-
-type PageType = enum
-    PG_UNSET,
-    PG_UNICODE,
-    PG_INT32,
-    PG_FLOAT32,
-    PG_BOOL,
-    PG_OBJECT
+import paging
 
 proc text_reader_task(
     path: string, encoding: Encodings, dialect: Dialect, 
-    destinations: var seq[string], field_relation: var OrderedTable[uint, uint], 
+    destinations: var seq[string], field_relation: var OrderedTable[uint, uint],
     row_offset: uint, row_count: int): void =
     var obj = newReaderObj(dialect)
     
@@ -117,185 +16,57 @@ proc text_reader_task(
     let keys_field_relation = collect: (for k in field_relation.keys: k)
     let guess_dtypes = true
     let n_pages = destinations.len
-    
-    var ranks: seq[Rank]
-    
-    if guess_dtypes:
-        ranks = collect(newSeqOfCap(n_pages)):
-            for _ in 0..n_pages-1:
-                newRank()
 
     try:
         fh.setFilePos(int64 row_offset, fspSet)
 
-        let page_file_handlers = collect(newSeqOfCap(n_pages)):
-            for p in destinations:
-                open(p, fmWrite)
+        var (n_rows, longest_str, ranks) = collectPageInfo(
+            obj=obj.unsafeAddr,
+            fh=fh.unsafeAddr,
+            guess_dtypes=guess_dtypes,
+            n_pages=n_pages,
+            row_count=row_count,
+            field_relation=field_relation,
+            keys_field_relation=keys_field_relation.unsafeAddr
+        )
 
-        var longest_str = newSeq[uint](n_pages)
-        var column_dtypes = newSeq[PageType](n_pages)
-        var n_rows: uint = 0
-        var binput: uint32 = 0
+        var (page_file_handlers, column_dtypes, binput) = dumpPageHeader(
+            destinations=destinations,
+            n_pages=n_pages,
+            n_rows=n_rows,
+            guess_dtypes=guess_dtypes,
+            longest_str=longest_str,
+            ranks=ranks,
+        )
 
-        for (row_idx, fields, field_count) in obj.parseCSV(fh):
-            if row_count >= 0 and row_idx >= (uint row_count):
-                break
-                
-            for idx in 0..field_count-1:
-                if not ((uint idx) in keys_field_relation):
-                    continue
+        try:
+            fh.setFilePos(int64 row_offset, fspSet)
 
-                let fidx = field_relation[uint idx]
-                let field = fields[idx]
+            dumpPageBody(
+                obj=obj.unsafeAddr,
+                fh=fh.unsafeAddr,
+                guess_dtypes=guess_dtypes,
+                n_pages=n_pages,
+                row_count=row_count,
+                field_relation=field_relation,
+                keys_field_relation=keys_field_relation.unsafeAddr,
+                page_file_handlers=page_file_handlers,
+                longest_str=longest_str,
+                ranks=ranks,
+                column_dtypes=column_dtypes,
+                binput=binput
+            )
 
-                if not guess_dtypes:
-                    longest_str[fidx] = max(uint field.runeLen, longest_str[fidx])
-                else:
-                    let rank = addr ranks[fidx]
-                    let dt = rank[].update_rank(field.unsafeAddr)
-
-                    if dt == DataTypes.DT_STRING:
-                        longest_str[fidx] = max(uint field.runeLen, longest_str[fidx])
-
-            inc n_rows
-
-        if not guess_dtypes:
-            for idx, (fh, i) in enumerate(zip(page_file_handlers, longest_str)):
-                column_dtypes[idx] = PageType.PG_UNICODE
-                fh.writeNumpyHeader("<U" & $i, n_rows)
-        else:
-            for i in 0..n_pages-1:
-                let fh = page_file_handlers[i]
-                let rank = addr ranks[i]
-                var dtype = column_dtypes[i]
-
-                rank[].sortRanks(false) # sort accounting for strings, so that if string is primary type, everything overlaps to string
-
-                for it in rank[].iter():
-                    let dt = it[0]
-                    let count = it[1]
-    
-                    if count == 0:
-                        break
-
-                    if dtype == PageType.PG_UNSET:
-                        case dt:
-                            of DataTypes.DT_INT: dtype = PageType.PG_INT32
-                            of DataTypes.DT_FLOAT: dtype = PageType.PG_FLOAT32
-                            of DataTypes.DT_STRING:
-                                dtype = PageType.PG_UNICODE
-                                break   # if the first type is string, everying is a subset of string
-                            else: dtype = PageType.PG_OBJECT
-                        continue
-
-                    # check overlapping types
-                    if dtype == PageType.PG_FLOAT32 and dt == DataTypes.DT_INT: discard                         # float overlaps ints
-                    elif dtype == PageType.PG_INT32 and dt == DataTypes.DT_FLOAT: dtype = PageType.PG_FLOAT32   # int is a subset of int, change to float
-                    else: dtype = PageType.PG_OBJECT                                                            # types cannot overlap
-
-                case dtype:
-                    of PageType.PG_UNICODE: fh.writeNumpyHeader("<U" & $ longest_str[i], n_rows)
-                    of PageType.PG_INT32: fh.writeNumpyHeader("<i8", n_rows)
-                    of PageType.PG_FLOAT32: fh.writeNumpyHeader("<f8", n_rows)
-                    of PageType.PG_BOOL: fh.writeNumpyHeader("|b1", n_rows)
-                    of PageType.PG_OBJECT:
-                        fh.writeNumpyHeader("|O", n_rows)
-                        rank[].sortRanks(true) # this is an object type, put string backs to the end
-                    else: raise newException(Exception, "invalid")
-
-                column_dtypes[i] = dtype
-
-            for idx in 0..n_pages-1:
-                let fh = page_file_handlers[idx].unsafeAddr
-                let dt = column_dtypes[idx]
-                if dt == PageType.PG_OBJECT:
-                    fh.writePickleStart(binput, n_rows)
-
-
-        fh.setFilePos(int64 row_offset, fspSet)
-
-        for (row_idx, fields, field_count) in obj.parseCSV(fh):
-            if row_count >= 0 and row_idx >= (uint row_count):
-                break
-                
-            for idx in 0..field_count-1:
-                if not ((uint idx) in keys_field_relation):
-                    continue
-
-                var str = fields[idx]
-                let fidx = field_relation[uint idx]
-                var fh = page_file_handlers[fidx].unsafeAddr
-
-                if not guess_dtypes:
-                    for rune in str.toRunes():
-                        var ch = uint32(rune)
-                        discard fh[].writeBuffer(ch.unsafeAddr, 4)
-
-                    let dt = longest_str[fidx] - (uint str.runeLen)
-
-                    for i in 1..dt:
-                        fh[].write("\x00\x00\x00\x00")
-                else:
-                    let dt = column_dtypes[idx]
-                    var rank = ranks[idx]
-
-                    case dt:
-                        of PageType.PG_UNICODE:
-                            for rune in str.toRunes():
-                                var ch = uint32(rune)
-                                discard fh[].writeBuffer(ch.unsafeAddr, 4)
-
-                            let dt = longest_str[fidx] - (uint str.runeLen)
-
-                            for i in 1..dt:
-                                fh[].write("\x00\x00\x00\x00")
-                        of PageType.PG_INT32:
-                            let parsed = parseInt(str)
-                            discard fh[].writeBuffer(parsed.unsafeAddr, 8)
-                        of PageType.PG_FLOAT32:
-                            let parsed = parseFloat(str)
-                            discard fh[].writeBuffer(parsed.unsafeAddr, 8)
-                        of PageType.PG_BOOL: fh[].write((if str.toLower() == "true": '\x01' else: '\x00'))
-                        of PageType.PG_OBJECT: 
-                            for r_addr in rank.iter():
-                                let dt = r_addr[0]
-                                try:
-                                    case dt:
-                                        of DataTypes.DT_INT:
-                                            fh.writePicklePyObj(str.unsafeAddr.inferInt(), binput)
-                                        of DataTypes.DT_FLOAT:
-                                            fh.writePicklePyObj(str.unsafeAddr.inferFloat(), binput)
-                                        of DataTypes.DT_BOOL:
-                                            fh.writePicklePyObj(str.unsafeAddr.inferBool(), binput)
-                                        of DataTypes.DT_DATE:
-                                            fh.writePicklePyObj(str.unsafeAddr.inferDate(false), binput)
-                                        of DataTypes.DT_DATE_US:
-                                            fh.writePicklePyObj(str.unsafeAddr.inferDate(true), binput)
-                                        of DataTypes.DT_TIME:
-                                            fh.writePicklePyObj(str.unsafeAddr.inferTime(), binput)
-                                        of DataTypes.DT_DATETIME:
-                                            fh.writePicklePyObj(str.unsafeAddr.inferDatetime(false), binput)
-                                        of DataTypes.DT_DATETIME_US:
-                                            fh.writePicklePyObj(str.unsafeAddr.inferDatetime(true), binput)
-                                        of DataTypes.DT_STRING:
-                                            fh.writePicklePyObj(str, binput)
-                                        of DataTypes.DT_NONE:
-                                            fh.writePicklePyObj(str.unsafeAddr.inferNone, binput)
-                                        of DataTypes.DT_MAX_ELEMENTS:
-                                            raise newException(Exception, "not a type")
-                                except ValueError as e:
-                                    continue
-                                break
-                        else: raise newException(Exception, "invalid")
-
-        for idx in 0..n_pages-1:
-            let fh = page_file_handlers[idx].unsafeAddr
-            let dt = column_dtypes[idx]
-            if dt == PageType.PG_OBJECT:
-                fh.writePickleFinish(binput, n_rows)
-
-        for f in page_file_handlers:
-            f.close()
+            dumpPageFooter(
+                n_pages=n_pages,
+                n_rows=n_rows,
+                page_file_handlers=page_file_handlers,
+                column_dtypes=column_dtypes,
+                binput=binput
+            )
+        finally:
+            for f in page_file_handlers:
+                f.close()
 
     finally:
         fh.close()
