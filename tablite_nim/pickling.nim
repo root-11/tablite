@@ -217,8 +217,6 @@ proc writePickleDatetime(fh: ptr File, value: PY_DateTime, binput: var uint32): 
     fh.writePickleDateBody(value.date.unsafeAddr, binput)
     fh.writePickleTimeBody(value.time.unsafeAddr, binput)
 
-    # raise newException(Exception, "not implemented")
-
 proc writePicklePyObj*[T: int|float|PY_NoneType|string|bool|PY_Date|PY_Time|PY_DateTime](fh: ptr File, value: T, binput: var uint32): void =
     when T is PY_NoneType:
         fh[].write(PKL_NONE)

@@ -3,12 +3,11 @@ import encfile, csvparse, paging
 
 proc text_reader_task(
     path: string, encoding: Encodings, dialect: Dialect, 
-    destinations: var seq[string], field_relation: var OrderedTable[uint, uint],
+    destinations: var seq[string], import_fields: ptr seq[uint],
     row_offset: uint, row_count: int): void =
     var obj = newReaderObj(dialect)
     
     let fh = newFile(path, encoding)
-    let keys_field_relation = collect: (for k in field_relation.keys: k)
     let guess_dtypes = true
     let n_pages = destinations.len
 
@@ -21,8 +20,7 @@ proc text_reader_task(
             guess_dtypes=guess_dtypes,
             n_pages=n_pages,
             row_count=row_count,
-            field_relation=field_relation,
-            keys_field_relation=keys_field_relation.unsafeAddr
+            import_fields=import_fields
         )
 
         var (page_file_handlers, column_dtypes, binput) = dumpPageHeader(
@@ -43,8 +41,7 @@ proc text_reader_task(
                 guess_dtypes=guess_dtypes,
                 n_pages=n_pages,
                 row_count=row_count,
-                field_relation=field_relation,
-                keys_field_relation=keys_field_relation.unsafeAddr,
+                import_fields=import_fields,
                 page_file_handlers=page_file_handlers,
                 longest_str=longest_str,
                 ranks=ranks,
@@ -66,6 +63,16 @@ proc text_reader_task(
     finally:
         fh.close()
 
+proc uniqueName(desired_name: string, name_list: seq[string]): string =
+    var name = desired_name
+    var idx = 1
+
+    while name in name_list:
+        name = desired_name & "_" & $idx
+        inc idx
+
+    return name
+
 proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr seq[string], execute: bool, multiprocess: bool): void =
     echo "Collecting tasks: '" & path & "'"
     let (newline_offsets, newlines) = findNewlines(path, encoding)
@@ -83,20 +90,36 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
         if columns == nil:
             imp_columns = fields
         else:
-            raise newException(Exception, "not implemented error:column selection")
+            var missing = newSeq[string]()
+            for column in columns[]:
+                if not (column in fields):
+                    missing.add("'" & column & "'")
+            if missing.len > 0:
+                raise newException(IOError, "Missing columns: [" & missing.join(", ") & "]")
+            imp_columns = columns[]
 
-        let new_fields = collect(initOrderedTable()):
+        var field_relation = collect(initOrderedTable()):
             for ix, name in enumerate(fields):
                 if name in imp_columns:
                     {uint ix: name}
+        let import_fields = collect: (for k in field_relation.keys: k)
 
-        let inp_fields = collect(initOrderedTable()):
-            for ix, name in new_fields.pairs:
-                {ix: name}
+        var field_relation_inv = collect(initOrderedTable()):
+            for (ix, name) in field_relation.pairs:
+                {name: ix}
 
-        var field_relation = collect(initOrderedTable()):
-            for i, c in enumerate(inp_fields.keys):
-                {c: uint i}
+        var page_list = collect(initOrderedTable()):
+            for (ix, name) in field_relation.pairs:
+                {ix: newSeq[string]()}
+
+        var name_list = newSeq[string]()
+        var table_columns = collect(initOrderedTable()):
+            for name in imp_columns:
+                let unq = uniqueName(name, name_list)
+                
+                name_list.add(unq)
+
+                {unq: field_relation_inv[name]}
 
         var page_idx: uint32 = 1
         var row_idx: uint = 1
@@ -116,14 +139,20 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
 
         echo "Dumping tasks: '" & path & "'"
         while row_idx < newlines:
-            var pages = newSeq[string](fields.len)
+            let page_count = field_relation.len
+            var pages = newSeq[string](page_count)
 
-            for idx in 0..fields.len - 1:
-                pages[idx] = dirname & "/" & $page_idx & ".npy"
+            for idx in 0..page_count - 1:
+                let pagepath =  dirname & "/" & $page_idx & ".npy"
+                let field_idx = import_fields[idx]
+
+                page_list[field_idx].add(pagepath)
+                pages[idx] = pagepath
+
                 inc page_idx
 
             if not multiprocess:
-                text_reader_task(path, encoding, dia, pages, field_relation, newline_offsets[row_idx], int page_size)
+                text_reader_task(path, encoding, dia, pages, import_fields.unsafeAddr, newline_offsets[row_idx], int page_size)
 
             ft.write("\"" & getAppFilename() & "\" ")
 
@@ -157,6 +186,9 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
 
         ft.close()
 
+        var table_layout = collect(newSeq(imp_columns.len)):
+            for 
+
         if multiprocess and execute:
             echo "Executing tasks: '" & path & "'"
             let args = @[
@@ -171,6 +203,8 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
 
             if ret_code != 0:
                 raise newException(Exception, "Process failed with errcode: " & $ret_code)
+    else:
+        raise newException(IOError, "end of file")
 
 proc unescape_seq(str: string): string = # nim has no true unescape
     case str:
@@ -302,7 +336,8 @@ if isMainModule:
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_le.csv", ENC_UTF16)
 
         let d0 = getTime()
-        import_file(path_csv, encoding, dialect, nil, true, multiprocess=false)
+        let cols = @["B", "A", "B"]
+        import_file(path_csv, encoding, dialect, cols.unsafeAddr, true, multiprocess=false)
         let d1 = getTime()
         
         echo $(d1 - d0)
@@ -327,9 +362,10 @@ if isMainModule:
 
             var field_relation = collect(initOrderedTable()):
                 for (k, v) in zip(fields_keys, fields_vals):
-                    {parseUInt(k): parseUInt(v)}
+                    {parseUInt(k): v}
+            let import_fields = collect: (for k in field_relation.keys: k)
 
             let offset = parseUInt(opts.task.get.offset)
             let count = parseInt(opts.task.get.count)
 
-            text_reader_task(path, encoding, dialect, pages, field_relation, offset, count)
+            text_reader_task(path, encoding, dialect, pages, import_fields.unsafeAddr, offset, count)

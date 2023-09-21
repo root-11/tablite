@@ -15,7 +15,7 @@ type PageType = enum
 proc collectPageInfo*(
         obj: ptr ReaderObj, fh: ptr BaseEncodedFile,
         guess_dtypes: bool, n_pages: int, row_count: int,
-        field_relation: var OrderedTable[uint, uint], keys_field_relation: ptr seq[uint]
+        import_fields: ptr seq[uint]
     ): (uint, seq[uint], seq[Rank]) =
     var ranks {.noinit.}: seq[Rank]
     var longest_str = newSeq[uint](n_pages)
@@ -30,11 +30,15 @@ proc collectPageInfo*(
         if row_count >= 0 and row_idx >= (uint row_count):
             break
             
+        var fidx = -1
+
         for idx in 0..field_count-1:
-            if not ((uint idx) in keys_field_relation[]):
+            if not ((uint idx) in import_fields[]):
                 continue
 
-            let fidx = field_relation[uint idx]
+            inc fidx
+
+            # let fidx = uint idx
             let field = fields[idx]
 
             if not guess_dtypes:
@@ -131,7 +135,7 @@ proc dumpPageHeader*(
 proc dumpPageBody*(
         obj: ptr ReaderObj, fh: ptr BaseEncodedFile,
         guess_dtypes: bool, n_pages: int, row_count: int,
-        field_relation: var OrderedTable[uint, uint], keys_field_relation: ptr seq[uint],
+        import_fields: ptr seq[uint],
         page_file_handlers: var seq[File],
         longest_str: var seq[uint], ranks: var seq[Rank], column_dtypes: var seq[PageType],
         binput: var uint32
@@ -139,19 +143,23 @@ proc dumpPageBody*(
     for (row_idx, fields, field_count) in obj[].parseCSV(fh[]):
         if row_count >= 0 and row_idx >= (uint row_count):
             break
-            
+
+        var fidx = -1
+
         for idx in 0..field_count-1:
-            if not ((uint idx) in keys_field_relation[]):
+            if not ((uint idx) in import_fields[]):
                 continue
 
+            inc fidx
+
             var str = fields[idx]
-            let fidx = field_relation[uint idx]
+            # let fidx = uint idx
             var fh = page_file_handlers[fidx].unsafeAddr
 
             if not guess_dtypes:
                 fh.writeNumpyUnicode(str, longest_str[fidx])
             else:
-                let dt = column_dtypes[idx]
+                let dt = column_dtypes[fidx]
 
                 case dt:
                     of PageType.PG_UNICODE: fh.writeNumpyUnicode(str, longest_str[fidx])
@@ -191,7 +199,7 @@ proc dumpPageBody*(
                             except ValueError as e:
                                 continue
                             break
-                    else: raise newException(Exception, "invalid")
+                    else: raise newException(Exception, "invalid: " & $dt)
 
 proc dumpPageFooter*(
     n_pages: int, n_rows: uint,
