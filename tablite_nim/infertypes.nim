@@ -6,10 +6,15 @@ import pickling
 
 const DAYS_IN_MONTH = [-1, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
+proc inferNone*(str: ptr string): PY_NoneType =
+    if str[] in ["null", "Null", "NULL", "#N/A", "#n/a", "", "None"]:
+        return PY_None
+    raise newException(ValueError, "not a none")
+
 proc inferBool*(str: ptr string): bool =
-    if str[].toLower() == "true":
+    if str[] in ["True", "true"]:
         return true
-    elif str[].toLower() == "false":
+    elif str[] in ["False", "false"]:
         return false
 
     raise newException(ValueError, "not a boolean value")
@@ -46,7 +51,6 @@ proc parseDateWords(str: ptr string, allow_time: bool): (array[3, string], int) 
             raise newException(ValueError, "not a date: '" & ch & "'" & $allow_time)
 
         has_tokens = true
-        echo $ch
         break
 
     var substrings: array[3, string]
@@ -132,8 +136,6 @@ proc wordsToDate(date_words: ptr array[3, string], is_american: bool): PY_Date =
 
     if month_or_day[0] <= 0 or month_or_day[1] <= 0 or month_or_day[0] > 12 and month_or_day[1] > 12:
         raise newException(ValueError, "date out of range")
-
-    echo $month_or_day
 
     if month_or_day[0] <= 12 and month_or_day[1] <= 12: # MMDDYYYY/DDMMYYYY
         # if both under 12, use tie breaker
@@ -306,8 +308,6 @@ proc inferTime*(str: ptr string): PY_Time =
         if not (tzstr.len in [5, 8, 15]):
             raise newException(Exception, "invalid timezone")
 
-        echo $str[tz_pos]
-
         let tz_sign: int8 = (if str[tz_pos] == '-': -1 else: 1)
         let (tz_hours_p, tz_minutes_p, tz_seconds_p, tz_microseconds_p) = parse_hh_mm_ss_ff(tzstr.unsafeAddr)
         var (tz_days, tz_seconds, tz_microseconds) = toTimedelta(
@@ -323,8 +323,6 @@ proc inferTime*(str: ptr string): PY_Time =
 
 
 proc inferDatetime*(str: ptr string, is_american: bool): PY_DateTime =
-    echo $str[]
-
     let str_len = str[].runeLen
 
     if str_len > 42 or str_len < 10: # string len will never match
