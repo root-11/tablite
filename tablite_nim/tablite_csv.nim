@@ -124,7 +124,6 @@ proc import_file(path: string, encoding: Encodings, dia: Dialect, columns: ptr s
 
             if not multiprocess:
                 text_reader_task(path, encoding, dia, pages, field_relation, newline_offsets[row_idx], int page_size)
-                break
 
             ft.write("\"" & getAppFilename() & "\" ")
 
@@ -303,7 +302,7 @@ if isMainModule:
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_le.csv", ENC_UTF16)
 
         let d0 = getTime()
-        import_file(path_csv, encoding, dialect, nil, true, false)
+        import_file(path_csv, encoding, dialect, nil, true, multiprocess=false)
         let d1 = getTime()
         
         echo $(d1 - d0)
