@@ -1,10 +1,5 @@
-import argparse
-import std/enumerate
-import os, math, sugar, times, tables, sequtils, json, unicode, parseutils, encodings, bitops, osproc, lists, endians
-
-import encfile
-import csvparse
-import paging
+import argparse, os, std/enumerate, sugar, times, tables, sequtils, json, unicode, osproc
+import encfile, csvparse, paging
 
 proc text_reader_task(
     path: string, encoding: Encodings, dialect: Dialect, 

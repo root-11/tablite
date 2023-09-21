@@ -149,16 +149,21 @@ proc wordsToDate(date_words: ptr array[3, string], is_american: bool): PY_Date =
         if not is_american: # must be american
             raise newException(ValueError, "invalid format")
         # day
-        day = month_or_day[0]
-        month = month_or_day[1]
+        day = month_or_day[1]
+        month = month_or_day[0]
+
     elif month_or_day[1] < 12: # DDMMYYYY
         if is_american: # cannot be american
             raise newException(ValueError, "invalid format")
         # month
         day = month_or_day[0]
         month = month_or_day[1]
+
     else:
         raise newException(ValueError, "date out of range")
+
+    if month > 12:
+        raise newException(ObjectConversionDefect, "check algo")
 
     if getDaysInMonth(year, month) < day:
         raise newException(ValueError, "day out of range")
