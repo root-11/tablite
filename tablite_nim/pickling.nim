@@ -24,7 +24,7 @@ const PKL_STOP = '.'
 const PKL_APPENDS = 'e'
 const PKL_BINFLOAT = 'G'
 
-type PY_NoneType = object
+type PY_NoneType* = object
 let PY_None* = PY_NoneType()
 
 type PY_Date* = object
@@ -102,7 +102,6 @@ proc writePickleBinfloat(fh: ptr File, value: float): void =
 
     f.unsafeAddr.bigEndian64(value.unsafeAddr)
 
-    echo $value
     fh[].write(PKL_BINFLOAT)
     discard fh[].writeBuffer(f.unsafeAddr, 8)
 
