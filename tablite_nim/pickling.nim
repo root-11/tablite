@@ -1,3 +1,5 @@
+from std/endians import bigEndian16, bigEndian32, bigEndian64
+
 const PKL_BINPUT = 'q'
 const PKL_LONG_BINPUT = 'r'
 const PKL_TUPLE1 = '\x85'
@@ -23,26 +25,30 @@ const PKL_APPENDS = 'e'
 const PKL_BINFLOAT = 'G'
 
 type PY_NoneType = object
-let PY_None = PY_NoneType()
+let PY_None* = PY_NoneType()
 
-type PY_Date = object
+type PY_Date* = object
     year: uint16
     month, day: uint8
 
-type PY_Time = object
+
+type PY_Time* = object
     hour, minute, second: uint8
     microsecond: uint32
     has_tz: bool
     tz_days, tz_seconds, tz_microseconds: int32
 
-type PY_DateTime = object
+type PY_DateTime* = object
     date: PY_Date
     time: PY_Time
 
-proc newPyTime(hour: uint8, minute: uint8, second: uint8, microsecond: uint32): PY_Time =
+proc newPyDate*(year: uint16, month, day: uint8): PY_Date =
+    PY_Date(year: year, month: month, day: day)
+
+proc newPyTime*(hour: uint8, minute: uint8, second: uint8, microsecond: uint32): PY_Time =
     return PY_Time(hour: hour, minute: minute, second: second, microsecond: microsecond)
 
-proc newPyTime(hour: uint8, minute: uint8, second: uint8, microsecond: uint32, tz_days: int32, tz_seconds: int32, tz_microseconds: int32): PY_Time =
+proc newPyTime*(hour: uint8, minute: uint8, second: uint8, microsecond: uint32, tz_days: int32, tz_seconds: int32, tz_microseconds: int32): PY_Time =
     if tz_days == 0 and tz_seconds == 0:
         return newPyTime(hour, minute, second, microsecond)
 
@@ -51,6 +57,9 @@ proc newPyTime(hour: uint8, minute: uint8, second: uint8, microsecond: uint32, t
             has_tz: true,
             tz_days: tz_days, tz_seconds: tz_seconds, tz_microseconds: tz_microseconds
         )
+
+proc newPyDateTime*(date: PY_Date, time: PY_Time): PY_DateTime =
+    PY_DateTime(date: date, time: time)
 
 proc writePickleBinput(fh: ptr File, binput: var uint32): void =
     if binput <= 0xff:
@@ -134,8 +143,6 @@ proc writePickleBoolean(fh: ptr File, value: bool): void =
     else:
         fh[].write(PKL_NEWFALSE)
 
-
-
 proc writePickleDateBody(fh: ptr File, value: ptr PY_Date, binput: var uint32): void =
     var year: uint16
     year.unsafeAddr.bigEndian16(value.year.unsafeAddr)
@@ -143,8 +150,6 @@ proc writePickleDateBody(fh: ptr File, value: ptr PY_Date, binput: var uint32): 
     discard fh[].writeBuffer(year.unsafeAddr, 2)
     discard fh[].writeBuffer(value.month.unsafeAddr, 1)
     discard fh[].writeBuffer(value.day.unsafeAddr, 1)
-
-
 
 proc writePickleDate(fh: ptr File, value: PY_Date, binput: var uint32): void =
     fh.writePickleGlobal("datetime", "date")
@@ -215,7 +220,7 @@ proc writePickleDatetime(fh: ptr File, value: PY_DateTime, binput: var uint32): 
 
     # raise newException(Exception, "not implemented")
 
-proc writePicklePyObj[T: int|float|PY_NoneType|string|bool|PY_Date|PY_Time|PY_DateTime](fh: ptr File, value: T, binput: var uint32): void =
+proc writePicklePyObj*[T: int|float|PY_NoneType|string|bool|PY_Date|PY_Time|PY_DateTime](fh: ptr File, value: T, binput: var uint32): void =
     when T is PY_NoneType:
         fh[].write(PKL_NONE)
         return
@@ -242,7 +247,7 @@ proc writePicklePyObj[T: int|float|PY_NoneType|string|bool|PY_Date|PY_Time|PY_Da
         return
     raise newException(Exception, "not implemented error: " & $value)
 
-proc writePickleStart(fh: ptr File, binput: var uint32, elem_count: uint): void =
+proc writePickleStart*(fh: ptr File, binput: var uint32, elem_count: uint): void =
     binput = 0
 
     fh.writePickleProto()
@@ -303,7 +308,7 @@ proc writePickleStart(fh: ptr File, binput: var uint32, elem_count: uint): void 
 
         # fh[].write(PKL_APPENDS)
 
-proc writePickleFinish(fh: ptr File, binput: var uint32, elem_count: uint): void =
+proc writePickleFinish*(fh: ptr File, binput: var uint32, elem_count: uint): void =
     if elem_count > 0:
         fh[].write(PKL_APPENDS)
 

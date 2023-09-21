@@ -8,11 +8,11 @@ type DataTypes = enum
     DT_STRING,
     DT_MAX_ELEMENTS
 
-include encfile
-include csvparse
-include pickling
-include infertypes
-include numpy
+import encfile
+import csvparse
+import pickling
+import infertypes
+import numpy
 
 type Rank = array[int(DataTypes.DT_MAX_ELEMENTS), (DataTypes, uint)]
 
@@ -61,11 +61,11 @@ proc update_rank(rank: var Rank, str: ptr string): (bool, DataTypes) =
                 of DataTypes.DT_BOOLEAN:
                     discard str.inferBool()
                 of DataTypes.DT_DATE:
-                    discard str.inferDate()
+                    discard str.inferDate(false)
                 of DataTypes.DT_TIME:
                     discard str.inferTime()
                 of DataTypes.DT_DATETIME:
-                    discard str.inferDatetime()
+                    discard str.inferDatetime(false)
                 of DataTypes.DT_STRING:
                     if str[] in ["null", "Null", "NULL", "#N/A", "#n/a", "", "None"]:
                         is_none = true
@@ -280,11 +280,11 @@ proc text_reader_task(
                                         of DataTypes.DT_BOOLEAN:
                                             fh.writePicklePyObj(str.unsafeAddr.inferBool(), binput)
                                         of DataTypes.DT_DATE:
-                                            fh.writePicklePyObj(str.unsafeAddr.inferDate(), binput)
+                                            fh.writePicklePyObj(str.unsafeAddr.inferDate(false), binput)
                                         of DataTypes.DT_TIME:
                                             fh.writePicklePyObj(str.unsafeAddr.inferTime(), binput)
                                         of DataTypes.DT_DATETIME:
-                                            fh.writePicklePyObj(str.unsafeAddr.inferDatetime(), binput)
+                                            fh.writePicklePyObj(str.unsafeAddr.inferDatetime(false), binput)
                                         of DataTypes.DT_STRING:
                                             if str in ["null", "Null", "NULL", "#N/A", "#n/a", "", "None"]:
                                                 fh.writePicklePyObj(PY_None, binput)
