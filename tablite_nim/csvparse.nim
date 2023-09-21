@@ -24,7 +24,7 @@ type Dialect* = object
     strict*: bool
 
 
-type ReaderObj = object
+type ReaderObj* = object
     numeric_field: bool
     line_num: uint
     dialect: Dialect
