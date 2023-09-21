@@ -12,7 +12,8 @@ type PageType* = enum
 
 type DataTypes* = enum
     # sort by difficulty
-    DT_NONE, DT_BOOL, DT_DATETIME, DT_DATETIME_US, DT_DATE, DT_DATE_US, DT_TIME,
+    DT_NONE, DT_BOOL,
+    DT_DATETIME, DT_DATETIME_US, DT_DATE, DT_DATE_US, DT_TIME,
     DT_INT, DT_FLOAT,
     DT_STRING,
     DT_MAX_ELEMENTS
