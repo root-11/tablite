@@ -33,7 +33,6 @@ proc parseDateWords(str: ptr string, allow_time: bool): (array[3, string], int) 
     if str_len != str[].len: # datetimes are not in unicode
         raise newException(ValueError, "not a value")
 
-
     for i in 0..4: # date will have tokens in first 5 characters YYYY-/DD-/MM-
         var ch: char
 
@@ -54,7 +53,6 @@ proc parseDateWords(str: ptr string, allow_time: bool): (array[3, string], int) 
         break
 
     var substrings: array[3, string]
-
 
     if has_tokens:
         var active_token = '\x00'
@@ -112,7 +110,7 @@ proc getDaysInMonth(year, month: int): int =
         return 29
     return DAYS_IN_MONTH[month]
 
-proc wordsToDate(date_words: ptr array[3, string], is_american: bool): PY_Date =
+proc guessDate(date_words: ptr array[3, string], is_american: bool): (int, int, int) =
     var year, month, day: int
     var month_or_day: array[2, int]
 
@@ -125,14 +123,13 @@ proc wordsToDate(date_words: ptr array[3, string], is_american: bool): PY_Date =
             raise newException(ValueError, "invalid date")
 
         # if YYYY first it's always YYYY-MM-DD format
-        return newPyDate(uint16 year, uint8 month_or_day[0], uint8 month_or_day[1])
+        return (year, month_or_day[0], month_or_day[1])
     elif date_words[2].len == 4:
         year = parseInt(date_words[2])
         month_or_day[0] = parseInt(date_words[0])
         month_or_day[1] = parseInt(date_words[1])
-
-    if year < 0 or year > 9999:
-        raise newException(ValueError, "date out of range")
+    else:
+        raise newException(ValueError, "invalid date") # not YYYY pattern
 
     if month_or_day[0] <= 0 or month_or_day[1] <= 0 or month_or_day[0] > 12 and month_or_day[1] > 12:
         raise newException(ValueError, "date out of range")
@@ -158,14 +155,21 @@ proc wordsToDate(date_words: ptr array[3, string], is_american: bool): PY_Date =
         # month
         day = month_or_day[0]
         month = month_or_day[1]
-
     else:
         raise newException(ValueError, "date out of range")
 
-    if month > 12:
-        raise newException(ObjectConversionDefect, "check algo")
+    return (year, month, day)
 
-    if getDaysInMonth(year, month) < day:
+proc wordsToDate(date_words: ptr array[3, string], is_american: bool): PY_Date =
+    var (year, month, day) = guessDate(date_words, is_american)
+
+    if year < 0 or year > 9999:
+        raise newException(ValueError, "year out of range")
+
+    if month < 1 or month > 12:
+        raise newException(ValueError, "month out of range")
+
+    if getDaysInMonth(year, month) < day or day < 0:
         raise newException(ValueError, "day out of range")
 
     return newPyDate(uint16 year, uint8 month, uint8 day)

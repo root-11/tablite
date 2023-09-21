@@ -62,6 +62,7 @@ proc dumpPageHeader*(
             var dtype = column_dtypes[i]
 
             rank[].sortRanks(false) # sort accounting for strings, so that if string is primary type, everything overlaps to string
+            echo $rank[]
 
             for it in rank[].iter():
                 let dt = it[0]
