@@ -1,4 +1,4 @@
-proc writeNumpyHeader(fh: File, dtype: string, shape: uint): void =
+proc writeNumpyHeader*(fh: File, dtype: string, shape: uint): void =
     const magic = "\x93NUMPY"
     const major = "\x01"
     const minor = "\x00"

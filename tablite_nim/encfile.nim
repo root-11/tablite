@@ -1,16 +1,16 @@
-type Encodings {.pure.} = enum ENC_UTF8, ENC_UTF16
+type Encodings* {.pure.} = enum ENC_UTF8, ENC_UTF16
 
-type BaseEncodedFile = ref object of RootObj
+type BaseEncodedFile* = ref object of RootObj
     fh: File
 
 type FileUTF8 = ref object of BaseEncodedFile
 type FileUTF16 = ref object of BaseEncodedFile
     endianness: Endianness
 
-proc endOfFile(f: BaseEncodedFile): bool = f.fh.endOfFile()
-proc getFilePos(f: BaseEncodedFile): uint = uint f.fh.getFilePos()
-proc setFilePos(f: BaseEncodedFile, pos: int64, relativeTo: FileSeekPos): void = f.fh.setFilePos(pos, relativeTo)
-proc close(f: BaseEncodedFile): void = f.fh.close()
+proc endOfFile*(f: BaseEncodedFile): bool = f.fh.endOfFile()
+proc getFilePos*(f: BaseEncodedFile): uint = uint f.fh.getFilePos()
+proc setFilePos*(f: BaseEncodedFile, pos: int64, relativeTo: FileSeekPos): void = f.fh.setFilePos(pos, relativeTo)
+proc close*(f: BaseEncodedFile): void = f.fh.close()
 
 proc readLine(f: FileUTF8, str: var string): bool = f.fh.readLine(str)
 proc readLine(f: FileUTF16, str: var string): bool = 
@@ -45,7 +45,7 @@ proc readLine(f: FileUTF16, str: var string): bool =
 
     return true
 
-proc readLine(f: BaseEncodedFile, str: var string): bool = 
+proc readLine*(f: BaseEncodedFile, str: var string): bool = 
     if f of FileUTF8:
         return readLine(cast[FileUTF8](f), str)
     elif f of FileUTF16:
@@ -76,7 +76,7 @@ proc newFileUTF16(filename: string): FileUTF16 =
 
     return FileUTF16(fh: fh, endianness: endianness)
 
-proc newFile(filename: string, encoding: Encodings): BaseEncodedFile =
+proc newFile*(filename: string, encoding: Encodings): BaseEncodedFile =
     case encoding:
         of ENC_UTF8:
             return FileUTF8(fh: open(filename, fmRead))
@@ -85,7 +85,7 @@ proc newFile(filename: string, encoding: Encodings): BaseEncodedFile =
         else:
             raise newException(Exception, "encoding not implemented")
 
-proc findNewlines(fh: BaseEncodedFile): (seq[uint], uint) =
+proc findNewlines*(fh: BaseEncodedFile): (seq[uint], uint) =
     var newline_offsets = newSeq[uint](1)
     var total_lines: uint = 0
     var str: string
@@ -99,7 +99,7 @@ proc findNewlines(fh: BaseEncodedFile): (seq[uint], uint) =
 
     return (newline_offsets, total_lines)
 
-proc findNewlines(path: string, encoding: Encodings): (seq[uint], uint) =
+proc findNewlines*(path: string, encoding: Encodings): (seq[uint], uint) =
     let fh = newFile(path, encoding)
     try:
         return findNewlines(fh)

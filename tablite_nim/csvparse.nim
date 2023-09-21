@@ -1,8 +1,10 @@
+import encfile
+
 const NOT_SET = uint32.high
 const EOL = uint32.high - 1
 const field_limit: uint = 128 * 1024
 
-type Quoting {.pure.} = enum
+type Quoting* {.pure.} = enum
     QUOTE_MINIMAL, QUOTE_ALL, QUOTE_NONNUMERIC, QUOTE_NONE,
     QUOTE_STRINGS, QUOTE_NOTNULL
 
@@ -11,18 +13,16 @@ type ParserState {.pure.} = enum
     IN_QUOTED_FIELD, ESCAPE_IN_QUOTED_FIELD, QUOTE_IN_QUOTED_FIELD,
     EAT_CRNL, AFTER_ESCAPED_CRNL
 
-type Dialect = object
-    delimiter: char
-    quotechar: char
-    escapechar: char
-    doublequote: bool
-    quoting: Quoting
-    skipinitialspace: bool
-    lineterminator: char
-    strict: bool
+type Dialect* = object
+    delimiter*: char
+    quotechar*: char
+    escapechar*: char
+    doublequote*: bool
+    quoting*: Quoting
+    skipinitialspace*: bool
+    lineterminator*: char
+    strict*: bool
 
-proc newDialect(delimiter: char = ',', quotechar: char = '"', escapechar: char = '\\', doublequote: bool = true, quoting: Quoting = QUOTE_MINIMAL, skipinitialspace: bool = false, lineterminator: char = '\n'): Dialect =
-    Dialect(delimiter:delimiter, quotechar:quotechar, escapechar:escapechar, doublequote:doublequote, quoting:quoting, skipinitialspace:skipinitialspace, lineterminator:lineterminator)
 
 type ReaderObj = object
     numeric_field: bool
@@ -38,7 +38,10 @@ type ReaderObj = object
 
 var readerAlloc = newSeq[string](1024)
 
-proc newReaderObj(dialect: Dialect): ReaderObj =
+proc newDialect*(delimiter: char = ',', quotechar: char = '"', escapechar: char = '\\', doublequote: bool = true, quoting: Quoting = QUOTE_MINIMAL, skipinitialspace: bool = false, lineterminator: char = '\n'): Dialect =
+    Dialect(delimiter:delimiter, quotechar:quotechar, escapechar:escapechar, doublequote:doublequote, quoting:quoting, skipinitialspace:skipinitialspace, lineterminator:lineterminator)
+
+proc newReaderObj*(dialect: Dialect): ReaderObj =
     ReaderObj(dialect: dialect, fields: readerAlloc)
 
 proc parseGrowBuff(self: var ReaderObj): bool =
@@ -201,7 +204,7 @@ proc parseProcessChar(self: var ReaderObj, state: var ParserState, cc: uint32): 
 
     return true
 
-iterator parseCSV(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[string], uint) =
+iterator parseCSV*(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[string], uint) =
     let dia = self.dialect
 
     var state: ParserState = START_RECORD
@@ -244,7 +247,7 @@ iterator parseCSV(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[stri
 
         inc line_num
 
-proc readColumns(path: string, encoding: Encodings, dialect: Dialect, row_offset: uint): seq[string] =
+proc readColumns*(path: string, encoding: Encodings, dialect: Dialect, row_offset: uint): seq[string] =
     let fh = newFile(path, encoding)
     var obj = newReaderObj(dialect)
 
@@ -256,7 +259,7 @@ proc readColumns(path: string, encoding: Encodings, dialect: Dialect, row_offset
     finally:
         fh.close()
 
-iterator parseCSV(self: var ReaderObj, path: string, encoding: Encodings): (uint, ptr seq[string], uint) =
+iterator parseCSV*(self: var ReaderObj, path: string, encoding: Encodings): (uint, ptr seq[string], uint) =
     var fh = newFile(path, encoding)
 
     try:

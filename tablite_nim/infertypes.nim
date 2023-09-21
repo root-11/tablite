@@ -1,6 +1,12 @@
+from std/math import floor
+from std/unicode import runeLen
+import std/strutils
+import pickling
+
+
 const DAYS_IN_MONTH = [-1, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
-proc inferBool(str: ptr string): bool =
+proc inferBool*(str: ptr string): bool =
     if str[].toLower() == "true":
         return true
     elif str[].toLower() == "false":
@@ -8,8 +14,10 @@ proc inferBool(str: ptr string): bool =
 
     raise newException(ValueError, "not a boolean value")
 
-proc inferInt(str: ptr string): int = parseInt(str[])
-proc inferFloat(str: ptr string): float = parseFloat(str[])
+proc inferInt*(str: ptr string): int =
+    let sstr = str[]
+    return parseInt(sstr)
+proc inferFloat*(str: ptr string): float = parseFloat(str[])
 
 proc parseDateWords(str: ptr string, allow_time: bool): (array[3, string], int) =
     const accepted_tokens = [' ', '.', '-', '/']
@@ -100,27 +108,24 @@ proc getDaysInMonth(year, month: int): int =
         return 29
     return DAYS_IN_MONTH[month]
 
-proc wordsToDate(date_words: ptr array[3, string], tiebreaker_american: bool, force_american: bool): PY_Date =
+proc wordsToDate(date_words: ptr array[3, string], is_american: bool): PY_Date =
     var year, month, day: int
     var month_or_day: array[2, int]
-    var can_be_american = false
 
     if date_words[0].len == 4:
         year = parseInt(date_words[0])
         month_or_day[0] = parseInt(date_words[1])
         month_or_day[1] = parseInt(date_words[2])
 
-        if force_american:
+        if is_american:
             raise newException(ValueError, "invalid date")
 
         # if YYYY first it's always YYYY-MM-DD format
-        return PY_Date(year: uint16 year, month: uint8 month_or_day[0], day: uint8 month_or_day[1])
+        return newPyDate(uint16 year, uint8 month_or_day[0], uint8 month_or_day[1])
     elif date_words[2].len == 4:
         year = parseInt(date_words[2])
         month_or_day[0] = parseInt(date_words[0])
         month_or_day[1] = parseInt(date_words[1])
-
-        can_be_american = true
 
     if year < 0 or year > 9999:
         raise newException(ValueError, "date out of range")
@@ -130,41 +135,35 @@ proc wordsToDate(date_words: ptr array[3, string], tiebreaker_american: bool, fo
 
     echo $month_or_day
 
-    if month_or_day[0] <= 12 and month_or_day[1] <= 12:
+    if month_or_day[0] <= 12 and month_or_day[1] <= 12: # MMDDYYYY/DDMMYYYY
         # if both under 12, use tie breaker
-        if unlikely(tiebreaker_american or force_american):
+        if is_american:
             month = month_or_day[0]
             day = month_or_day[1]
         else:
             month = month_or_day[1]
             day = month_or_day[0]
-    elif month_or_day[0] < 12:
-        if force_american:
-            # day
-            day = month_or_day[0]
-            month = month_or_day[1]
-        else:
-            # month
-            day = month_or_day[1]
-            month = month_or_day[0]
-    elif month_or_day[1] < 12:
-        if force_american:
-            # day
-            day = month_or_day[1]
-            month = month_or_day[0]
-        else:
-            # month
-            day = month_or_day[0]
-            month = month_or_day[1]
+    elif month_or_day[0] < 12: # MMDDYYYY
+        if not is_american: # must be american
+            raise newException(ValueError, "invalid format")
+        # day
+        day = month_or_day[0]
+        month = month_or_day[1]
+    elif month_or_day[1] < 12: # DDMMYYYY
+        if is_american: # cannot be american
+            raise newException(ValueError, "invalid format")
+        # month
+        day = month_or_day[0]
+        month = month_or_day[1]
     else:
         raise newException(ValueError, "date out of range")
 
     if getDaysInMonth(year, month) < day:
         raise newException(ValueError, "day out of range")
 
-    return PY_Date(year: uint16 year, month: uint8 month, day: uint8 day)
+    return newPyDate(uint16 year, uint8 month, uint8 day)
 
-proc inferDate(str: ptr string, tiebreaker_american: bool = false, force_american: bool = false): PY_Date =
+proc inferDate*(str: ptr string, is_american: bool): PY_Date =
     let str_len = str[].runeLen
 
     if str_len > 10 or str_len < 8: # string len will never match
@@ -172,7 +171,7 @@ proc inferDate(str: ptr string, tiebreaker_american: bool = false, force_america
 
     let (date_words, _) = str.parseDateWords(false)
 
-    return wordsToDate(date_words.unsafeAddr, tiebreaker_american, force_american)
+    return wordsToDate(date_words.unsafeAddr, is_american)
 
 proc divmod(x: int, y: int): (int, int) =
     let z = int(floor(x / y))
@@ -261,7 +260,7 @@ proc parse_hh_mm_ss_ff(tstr: ptr string): (uint8, uint8, uint8, uint32) =
 
     return (uint8 time_comps[0], uint8 time_comps[1], uint8 time_comps[2], uint32 time_comps[3])
 
-proc inferTime(str: ptr string): PY_Time =
+proc inferTime*(str: ptr string): PY_Time =
     let str_len = str[].len
 
     if str_len < 2:
@@ -323,7 +322,7 @@ proc inferTime(str: ptr string): PY_Time =
     return newPyTime(hour, minute, second, microsecond)
 
 
-proc inferDatetime(str: ptr string, tiebreaker_american: bool = false, force_american: bool = false): PY_DateTime =
+proc inferDatetime*(str: ptr string, is_american: bool): PY_DateTime =
     echo $str[]
 
     let str_len = str[].runeLen
@@ -342,7 +341,7 @@ proc inferDatetime(str: ptr string, tiebreaker_american: bool = false, force_ame
     else:
         raise newException(ValueError, "not a datetime")
 
-    let date = wordsToDate(date_words.unsafeAddr, tiebreaker_american, force_american)
+    let date = wordsToDate(date_words.unsafeAddr, is_american)
     let time = inferTime(tstr.unsafeAddr)
 
-    return PY_DateTime(date: date, time: time)
+    return newPyDateTime(date, time)
