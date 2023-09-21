@@ -1,6 +1,17 @@
 import std/sugar, std/tables, std/sequtils, std/unicode, std/enumerate
 import numpy, pickling, ranking, infertypes, encfile, csvparse
 
+type PageType = enum
+    PG_UNSET,
+    PG_UNICODE,
+    PG_INT32,
+    PG_FLOAT32,
+    PG_BOOL,
+    PG_OBJECT,
+    PG_DATE,
+    PG_DATETIME
+    PG_DATE_SHORT
+
 proc collectPageInfo*(
         obj: ptr ReaderObj, fh: ptr BaseEncodedFile,
         guess_dtypes: bool, n_pages: int, row_count: int,
@@ -78,12 +89,22 @@ proc dumpPageHeader*(
                         of DataTypes.DT_STRING:
                             dtype = PageType.PG_UNICODE
                             break   # if the first type is string, everying is a subset of string
+                        of DataTypes.DT_DATETIME, DataTypes.DT_DATETIME_US:
+                            dtype = PageType.PG_DATETIME
+                        of DataTypes.DT_DATE, DataTypes.DT_DATE_US:
+                            dtype = PageType.PG_DATE
+                        of DataTypes.DT_DATE_SHORT:
+                            dtype = PageType.PG_DATE_SHORT
                         else: dtype = PageType.PG_OBJECT
                     continue
 
                 # check overlapping types
-                if dtype == PageType.PG_FLOAT32 and dt == DataTypes.DT_INT: discard                         # float overlaps ints
+                if dtype == PageType.PG_FLOAT32 and dt in [DataTypes.DT_INT, DataTypes.DT_DATE_SHORT]: discard                         # float overlaps ints
                 elif dtype == PageType.PG_INT32 and dt == DataTypes.DT_FLOAT: dtype = PageType.PG_FLOAT32   # int is a subset of int, change to float
+                elif dtype == PageType.PG_INT32 and dt == DataTypes.DT_DATE_SHORT: dtype = PageType.PG_INT32   # int is a subset of int, change to float
+                elif dtype == PageType.PG_DATE_SHORT:
+                    if dt == DataTypes.DT_FLOAT: dtype = PageType.PG_FLOAT32
+                    elif dt == DataTypes.DT_INT: dtype = PageType.PG_INT32
                 else: dtype = PageType.PG_OBJECT                                                            # types cannot overlap
 
             case dtype:
@@ -91,7 +112,8 @@ proc dumpPageHeader*(
                 of PageType.PG_INT32: fh.writeNumpyHeader("<i8", n_rows)
                 of PageType.PG_FLOAT32: fh.writeNumpyHeader("<f8", n_rows)
                 of PageType.PG_BOOL: fh.writeNumpyHeader("|b1", n_rows)
-                of PageType.PG_OBJECT:
+                of PageType.PG_OBJECT, PageType.PG_DATE, PageType.PG_DATETIME, PageType.PG_DATE_SHORT:
+                    dtype = PageType.PG_OBJECT
                     fh.writeNumpyHeader("|O", n_rows)
                     rank[].sortRanks(true) # this is an object type, put string backs to the end
                 else: raise newException(Exception, "invalid")
@@ -149,9 +171,11 @@ proc dumpPageBody*(
                                     of DataTypes.DT_BOOL:
                                         fh.writePicklePyObj(str.unsafeAddr.inferBool(), binput)
                                     of DataTypes.DT_DATE:
-                                        fh.writePicklePyObj(str.unsafeAddr.inferDate(false), binput)
+                                        fh.writePicklePyObj(str.unsafeAddr.inferDate(false, false), binput)
+                                    of DataTypes.DT_DATE_SHORT:
+                                        fh.writePicklePyObj(str.unsafeAddr.inferDate(true, false), binput)
                                     of DataTypes.DT_DATE_US:
-                                        fh.writePicklePyObj(str.unsafeAddr.inferDate(true), binput)
+                                        fh.writePicklePyObj(str.unsafeAddr.inferDate(false, true), binput)
                                     of DataTypes.DT_TIME:
                                         fh.writePicklePyObj(str.unsafeAddr.inferTime(), binput)
                                     of DataTypes.DT_DATETIME:

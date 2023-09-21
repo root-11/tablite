@@ -2,19 +2,12 @@ from std/enumerate import enumerate
 import insertsort
 import infertypes
 
-type PageType* = enum
-    PG_UNSET,
-    PG_UNICODE,
-    PG_INT32,
-    PG_FLOAT32,
-    PG_BOOL,
-    PG_OBJECT
-
 type DataTypes* = enum
     # sort by difficulty
     DT_NONE, DT_BOOL,
-    DT_DATETIME, DT_DATETIME_US, DT_DATE, DT_DATE_US, DT_TIME,
+    DT_DATE_SHORT,
     DT_INT, DT_FLOAT,
+    DT_DATETIME, DT_DATETIME_US, DT_DATE, DT_DATE_US, DT_TIME,
     DT_STRING,
     DT_MAX_ELEMENTS
 
@@ -63,9 +56,11 @@ proc updateRank*(rank: var Rank, str: ptr string): DataTypes =
                 of DataTypes.DT_FLOAT:
                     discard str.inferFloat()
                 of DataTypes.DT_DATE:
-                    discard str.inferDate(false)
+                    discard str.inferDate(false, false)
+                of DataTypes.DT_DATE_SHORT:
+                    discard str.inferDate(true, false)
                 of DataTypes.DT_DATE_US:
-                    discard str.inferDate(true)
+                    discard str.inferDate(false, true)
                 of DataTypes.DT_TIME:
                     discard str.inferTime()
                 of DataTypes.DT_DATETIME:
@@ -81,6 +76,7 @@ proc updateRank*(rank: var Rank, str: ptr string): DataTypes =
                 of DataTypes.DT_MAX_ELEMENTS:
                     raise newException(Exception, "not a type")
         except ValueError as e:
+            # echo $e.msg & " | " & $e.getStackTrace()
             continue
 
         rank_dtype = r_addr[0]

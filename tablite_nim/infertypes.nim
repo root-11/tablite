@@ -3,8 +3,12 @@ from std/unicode import runeLen
 import std/strutils
 import pickling
 
-
 const DAYS_IN_MONTH = [-1, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+type ParseShortDate = enum
+    DONT_CARE
+    NEVER,
+    REQUIRED
 
 proc inferNone*(str: ptr string): PY_NoneType =
     if str[] in ["null", "Null", "NULL", "#N/A", "#n/a", "", "None"]:
@@ -24,7 +28,7 @@ proc inferInt*(str: ptr string): int =
     return parseInt(sstr)
 proc inferFloat*(str: ptr string): float = parseFloat(str[])
 
-proc parseDateWords(str: ptr string, allow_time: bool): (array[3, string], int) =
+proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool): (array[3, string], int) =
     const accepted_tokens = [' ', '.', '-', '/']
 
     var has_tokens = false
@@ -55,6 +59,9 @@ proc parseDateWords(str: ptr string, allow_time: bool): (array[3, string], int) 
     var substrings: array[3, string]
 
     if has_tokens:
+        if is_short == ParseShortDate.REQUIRED:
+            raise newException(ValueError, "not a shortdate")
+    
         var active_token = '\x00'
         var slice_start: int
         var was_digit = false
@@ -95,7 +102,7 @@ proc parseDateWords(str: ptr string, allow_time: bool): (array[3, string], int) 
         return (substrings, idx)
 
     # YYYYMMDD
-    if str_len < 8:
+    if str_len < 8 or is_short == ParseShortDate.NEVER:
         raise newException(ValueError, "not a date")
 
     substrings[0] = str[].substr(0, 3)
@@ -144,14 +151,14 @@ proc guessDate(date_words: ptr array[3, string], is_american: bool): (int, int, 
             day = month_or_day[0]
     elif month_or_day[0] < 12: # MMDDYYYY
         if not is_american: # must be american
-            raise newException(ValueError, "invalid format")
+            raise newException(ValueError, "invalid date format, expected MMDDYYYY (us/short)")
         # day
         day = month_or_day[1]
         month = month_or_day[0]
 
     elif month_or_day[1] < 12: # DDMMYYYY
         if is_american: # cannot be american
-            raise newException(ValueError, "invalid format")
+            raise newException(ValueError, "invalid date format, expected DDMMYYYY (eu)")
         # month
         day = month_or_day[0]
         month = month_or_day[1]
@@ -174,13 +181,15 @@ proc wordsToDate(date_words: ptr array[3, string], is_american: bool): PY_Date =
 
     return newPyDate(uint16 year, uint8 month, uint8 day)
 
-proc inferDate*(str: ptr string, is_american: bool): PY_Date =
+proc inferDate*(str: ptr string, is_short: bool, is_american: bool): PY_Date =
+    assert not (is_short and is_american), "Short format cannot be mixed with american format"
+
     let str_len = str[].runeLen
 
     if str_len > 10 or str_len < 8: # string len will never match
         raise newException(ValueError, "not a date")
 
-    let (date_words, _) = str.parseDateWords(false)
+    let (date_words, _) = str.parseDateWords((if is_short: ParseShortDate.REQUIRED else: ParseShortDate.NEVER), false)
 
     return wordsToDate(date_words.unsafeAddr, is_american)
 
@@ -337,7 +346,7 @@ proc inferDatetime*(str: ptr string, is_american: bool): PY_DateTime =
     if str_len > 42 or str_len < 10: # string len will never match
         raise newException(ValueError, "not a datetime: " & $str_len)
 
-    let (date_words, toffset) = str.parseDateWords(true)
+    let (date_words, toffset) = str.parseDateWords(ParseShortDate.DONT_CARE, true)
     let first_tchar = str[toffset]
     var tstr {.noinit.}: string
 
