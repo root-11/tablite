@@ -347,6 +347,10 @@ proc inferDatetime*(str: ptr string, is_american: bool): PY_DateTime =
         raise newException(ValueError, "not a datetime: " & $str_len)
 
     let (date_words, toffset) = str.parseDateWords(ParseShortDate.DONT_CARE, true)
+    
+    if toffset >= str_len:
+        raise newException(ValueError, "not datetime")
+    
     let first_tchar = str[toffset]
     var tstr {.noinit.}: string
 

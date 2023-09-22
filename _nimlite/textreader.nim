@@ -1,10 +1,16 @@
 import std/[os, enumerate, sugar, tables, json, options, strutils]
-import encfile, csvparse, table, utils, paging
+import encfile, csvparse, table, utils, paging, taskargs
 
-proc textReaderTask*(
-    path: string, encoding: Encodings, dialect: Dialect, guess_dtypes: bool,
-    destinations: var seq[string], import_fields: ptr seq[uint],
-    row_offset: uint, row_count: int): void =
+proc textReaderTask*(task: TaskArgs): void =
+    var dialect = task.dialect
+    var encoding = task.encoding
+    var destinations = task.destinations
+    var path = task.path
+    var guess_dtypes = task.guess_dtypes
+    var row_count = task.row_count
+    var row_offset = task.row_offset
+    var import_fields = task.import_fields.unsafeAddr
+
     var obj = newReaderObj(dialect)
     
     let fh = newFile(path, encoding)
@@ -125,9 +131,10 @@ proc importTextFile*(
             for idx in 0..page_count - 1:
                 var pagepath = dirname & "/" & $page_idx & ".npy"
 
-                while fileExists(pagepath):
-                    inc page_idx
-                    pagepath = dirname & "/" & $page_idx & ".npy"
+                if not pid.endsWith("tablite/nim"):
+                    while fileExists(pagepath):
+                        inc page_idx
+                        pagepath = dirname & "/" & $page_idx & ".npy"
 
                 let field_idx = import_fields[idx]
 
