@@ -27,6 +27,7 @@ iterator iter*(rank: var Rank): ptr (DataTypes, uint) {.closure.} =
     while x < max:
         yield rank[x].unsafeAddr
         inc x
+    raise newException(ResourceExhaustedError, "stop iteration")
 
 proc cmpDtypes(a: (DataTypes, uint), b: (DataTypes, uint)): bool = 
     return a[1] > b[1]

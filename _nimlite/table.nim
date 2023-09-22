@@ -23,9 +23,9 @@ type TabliteTasks* = object
     encoding*: string
     dialect*: TabliteDialect
     tasks*: seq[TabliteTask]
-    import_fields: seq[uint]
-    page_size: uint
-    guess_dtypes: bool
+    import_fields*: seq[uint]
+    page_size*: uint
+    guess_dtypes*: bool
 
 type TabliteTable* = object
     task*: TabliteTasks
