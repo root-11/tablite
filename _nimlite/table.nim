@@ -25,6 +25,7 @@ type TabliteTasks* = object
     tasks*: seq[TabliteTask]
     import_fields: seq[uint]
     page_size: uint
+    guess_dtypes: bool
 
 type TabliteTable* = object
     task*: TabliteTasks
@@ -57,7 +58,7 @@ proc newTabliteTask*(pages: seq[string], offset: uint): TabliteTask =
 
 proc newTabliteTasks*(
     path: string, encoding: string, dialect: Dialect,
-    tasks: seq[TabliteTask], import_fields: seq[uint], page_size: uint): TabliteTasks =
+    tasks: seq[TabliteTask], import_fields: seq[uint], page_size: uint, guess_dtypes: bool): TabliteTasks =
     TabliteTasks(
         path: path,
         encoding: encoding,
@@ -65,6 +66,7 @@ proc newTabliteTasks*(
         tasks: tasks,
         import_fields: import_fields,
         page_size: page_size,
+        guess_dtypes: guess_dtypes
     )
 
 proc newTabliteColumn*(name: string, pages: seq[string]): TabliteColumn =
