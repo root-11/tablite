@@ -1,4 +1,4 @@
-import std/sugar, std/tables, std/sequtils, std/unicode, std/enumerate
+import std/[sugar, sequtils, unicode, enumerate]
 import numpy, pickling, ranking, infertypes, encfile, csvparse
 
 type PageType = enum

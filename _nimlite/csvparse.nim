@@ -1,6 +1,6 @@
 import encfile
 
-const NOT_SET = uint32.high
+# const NOT_SET = uint32.high
 const EOL = uint32.high - 1
 const field_limit: uint = 128 * 1024
 

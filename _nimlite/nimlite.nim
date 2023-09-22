@@ -159,6 +159,9 @@ proc text_reader(
 if isMainModule:
     echo "Nimlite imported"
 
+when isMainModule and appType != "lib":
+    echo "not lib"
+
 # import std/[os, enumerate, sugar, times, tables, sequtils, json, unicode, osproc, options]
 # import argparse
 # import encfile, csvparse, table, utils, textreader
