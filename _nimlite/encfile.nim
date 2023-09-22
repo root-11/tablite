@@ -82,8 +82,6 @@ proc newFile*(filename: string, encoding: Encodings): BaseEncodedFile =
             return FileUTF8(fh: open(filename, fmRead))
         of ENC_UTF16:
             return newFileUTF16(filename)
-        else:
-            raise newException(Exception, "encoding not implemented")
 
 proc findNewlines*(fh: BaseEncodedFile): (seq[uint], uint) =
     var newline_offsets = newSeq[uint](1)
