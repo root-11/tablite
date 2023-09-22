@@ -1,43 +1,6 @@
+import nimpy
 import std/[options, strutils]
-import nimpy, nimpy/py_lib
-import encfile, table, csvparse, textreader, utils
-
-let
-    builtins = pyBuiltinsModule()
-    PyNoneClass = builtins.None.getattr("__class__")
-
-proc is_none(py: PyObject): bool =
-    return builtins.isinstance(py, PyNoneClass).to(bool)
-
-proc textReader(
-    pid: string, path: string, encoding: Encodings,
-    columns: Option[seq[string]], first_row_has_headers: bool, header_row_index: uint,
-    start: Option[uint], limit: Option[uint],
-    guess_datatypes: bool,
-    newline: char, delimiter: char,
-    text_qualifier: char, strip_leading_and_tailing_whitespace: bool,
-    page_size: uint,
-    guess_dtypes: bool
-): TabliteTable =
-    var dialect = newDialect(
-        delimiter = delimiter,
-        quotechar = text_qualifier,
-        escapechar = '\\',
-        doublequote = true,
-        quoting = QUOTE_MINIMAL,
-        skipinitialspace = strip_leading_and_tailing_whitespace,
-        lineterminator = newline,
-    )
-
-    return importTextFile(
-        pid=pid,
-        path=path,
-        encoding=encoding,
-        dia=dialect,
-        columns=columns,
-        page_size=page_size,
-        guess_dtypes=guess_dtypes
-    )
+import encfile, table, csvparse, textreader, utils, pylayer
 
 proc text_reader_task(
     path: string,
@@ -124,7 +87,7 @@ proc text_reader(
     page_size: uint,
     guess_dtypes: bool
 ): TabliteTable {.exportpy.} =
-    var arg_cols = (if is_none(columns): none[seq[string]]() else: some(columns.to(seq[string])))
+    var arg_cols = (if isNone(columns): none[seq[string]]() else: some(columns.to(seq[string])))
     var arg_encoding: Encodings
 
     case encoding:
@@ -132,8 +95,8 @@ proc text_reader(
         of "ENC_UTF16": arg_encoding = ENC_UTF16
         else: raise newException(IOError, "invalid encoding: " & encoding)
 
-    var arg_start = (if is_none(start): none[uint]() else: some(start.to(uint)))
-    var arg_limit = (if is_none(limit): none[uint]() else: some(limit.to(uint)))
+    var arg_start = (if isNone(start): none[uint]() else: some(start.to(uint)))
+    var arg_limit = (if isNone(limit): none[uint]() else: some(limit.to(uint)))
     var arg_newline = (if newline.len == 1: newline[0] else: raise newException(Exception, "'newline' not a char"))
     var arg_delimiter = (if delimiter.len == 1: delimiter[0] else: raise newException(Exception, "'delimiter' not a char"))
     var arg_text_qualifier = (if text_qualifier.len == 1: text_qualifier[0] else: raise newException(Exception, "'text_qualifier' not a char"))
@@ -156,8 +119,9 @@ proc text_reader(
             guess_dtypes=guess_dtypes
     )
 
+
 if isMainModule:
-    echo "Nimlite imported"
+    echo "Nimlite imported!"
 
 when isMainModule and appType != "lib":
     echo "not lib"
