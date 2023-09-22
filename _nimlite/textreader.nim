@@ -1,4 +1,4 @@
-import std/[os, enumerate, sugar, tables, sequtils, json, osproc, options, strutils]
+import std/[os, enumerate, sugar, tables, json, options, strutils]
 import encfile, csvparse, table, utils, paging
 
 proc textReaderTask*(
