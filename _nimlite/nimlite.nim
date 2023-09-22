@@ -16,7 +16,8 @@ proc textReader(
     guess_datatypes: bool,
     newline: char, delimiter: char,
     text_qualifier: char, strip_leading_and_tailing_whitespace: bool,
-    page_size: uint
+    page_size: uint,
+    guess_dtypes: bool
 ): TabliteTable =
     var dialect = newDialect(
         delimiter = delimiter,
@@ -29,7 +30,13 @@ proc textReader(
     )
 
     return importTextFile(
-        pid, path, encoding, dialect, columns, page_size
+        pid=pid,
+        path=path,
+        encoding=encoding,
+        dia=dialect,
+        columns=columns,
+        page_size=page_size,
+        guess_dtypes=guess_dtypes
     )
 
 proc text_reader_task(
@@ -43,10 +50,11 @@ proc text_reader_task(
     dia_skipinitialspace: bool,
     dia_lineterminator: string,
     dia_strict: bool,
+    guess_dtypes: bool,
     tsk_pages: seq[string],
     tsk_offset: uint,
     import_fields: seq[uint],
-    count: int
+    count: int,
 ): void {.exportpy.} =
 
     var delimiter = dia_delimiter.unescapeSeq()
@@ -96,13 +104,14 @@ proc text_reader_task(
     var arg_import_fields = import_fields.unsafeAddr
 
     textReaderTask(
-        path,
-        arg_encoding,
-        dialect,
-        arg_pages,
-        arg_import_fields,
-        tsk_offset,
-        count
+        path=path,
+        encoding=arg_encoding,
+        dialect=dialect,
+        guess_dtypes=guess_dtypes,
+        destinations=arg_pages,
+        import_fields=arg_import_fields,
+        row_offset=tsk_offset,
+        row_count=count
     )
 
 proc text_reader(
@@ -112,7 +121,8 @@ proc text_reader(
     guess_datatypes: bool,
     newline: string, delimiter: string, text_qualifier: string,
     strip_leading_and_tailing_whitespace: bool,
-    page_size: uint
+    page_size: uint,
+    guess_dtypes: bool
 ): TabliteTable {.exportpy.} =
     var arg_cols = (if is_none(columns): none[seq[string]]() else: some(columns.to(seq[string])))
     var arg_encoding: Encodings
@@ -142,11 +152,12 @@ proc text_reader(
             delimiter = arg_delimiter,
             text_qualifier = arg_text_qualifier,
             strip_leading_and_tailing_whitespace = strip_leading_and_tailing_whitespace,
-            page_size=page_size
+            page_size=page_size,
+            guess_dtypes=guess_dtypes
     )
 
 if isMainModule:
-    echo "Nimlite imported!"
+    echo "Nimlite imported"
 
 # import std/[os, enumerate, sugar, times, tables, sequtils, json, unicode, osproc, options]
 # import argparse

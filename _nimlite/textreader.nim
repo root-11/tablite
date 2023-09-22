@@ -2,13 +2,12 @@ import std/[os, enumerate, sugar, tables, sequtils, json, osproc, options, strut
 import encfile, csvparse, table, utils, paging
 
 proc textReaderTask*(
-    path: string, encoding: Encodings, dialect: Dialect, 
+    path: string, encoding: Encodings, dialect: Dialect, guess_dtypes: bool,
     destinations: var seq[string], import_fields: ptr seq[uint],
     row_offset: uint, row_count: int): void =
     var obj = newReaderObj(dialect)
     
     let fh = newFile(path, encoding)
-    let guess_dtypes = true
     let n_pages = destinations.len
 
     try:
@@ -66,7 +65,7 @@ proc textReaderTask*(
 proc importTextFile*(
     pid: string, path: string, encoding: Encodings, dia: Dialect, 
     columns: Option[seq[string]],
-    page_size: uint): TabliteTable =
+    page_size: uint, guess_dtypes: bool): TabliteTable =
     echo "Collecting tasks: '" & path & "'"
     let (newline_offsets, newlines) = findNewlines(path, encoding)
 
@@ -149,7 +148,8 @@ proc importTextFile*(
             dialect=dia,
             tasks=task_list,
             import_fields=import_fields,
-            page_size=page_size
+            page_size=page_size,
+            guess_dtypes=guess_dtypes
         )
         let columns = collect(newSeqOfCap(table_columns.len)):
             for (column_name, page_index) in table_columns.pairs:
