@@ -50,8 +50,8 @@ proc text_reader_task(
     guess_dtypes: bool,
     tsk_pages: seq[string],
     tsk_offset: uint,
-    import_fields: seq[uint],
-    count: int,
+    tsk_count: int,
+    import_fields: seq[uint]
 ): void {.exportpy.} =
     try:
         toTaskArgs(
@@ -68,8 +68,8 @@ proc text_reader_task(
             guess_dtypes=guess_dtypes,
             tsk_pages=tsk_pages,
             tsk_offset=tsk_offset,
-            import_fields=import_fields,
-            count=count
+            tsk_count=uint tsk_count,
+            import_fields=import_fields
         ).textReaderTask
     except Exception as e:
         echo $e.msg & "\n" & $e.getStackTrace
@@ -94,8 +94,8 @@ proc text_reader(
             of "ENC_UTF16": arg_encoding = ENC_UTF16
             else: raise newException(IOError, "invalid encoding: " & encoding)
 
-        var arg_start = (if isNone(start): none[uint]() else: some(start.to(uint)))
-        var arg_limit = (if isNone(limit): none[uint]() else: some(limit.to(uint)))
+        var arg_start = (if isNone(start): none[int]() else: some(start.to(int)))
+        var arg_limit = (if isNone(limit): none[int]() else: some(limit.to(int)))
         var arg_newline = (if newline.len == 1: newline[0] else: raise newException(Exception, "'newline' not a char"))
         var arg_delimiter = (if delimiter.len == 1: delimiter[0] else: raise newException(Exception, "'delimiter' not a char"))
         var arg_text_qualifier = (if text_qualifier.len == 1: text_qualifier[0] else: raise newException(Exception, "'text_qualifier' not a char"))
@@ -131,7 +131,7 @@ if isMainModule:
     echo "Nimlite imported!!"
 
 
-proc runTask(path: string, encoding: string, dialect: TabliteDialect, task: TabliteTask, import_fields: seq[uint], count: int, guess_dtypes: bool): void =
+proc runTask(path: string, encoding: string, dialect: TabliteDialect, task: TabliteTask, import_fields: seq[uint], guess_dtypes: bool): void =
     toTaskArgs(
         path=path,
         encoding=encoding,
@@ -146,8 +146,8 @@ proc runTask(path: string, encoding: string, dialect: TabliteDialect, task: Tabl
         guess_dtypes=guess_dtypes,
         tsk_pages=task.pages,
         tsk_offset=task.offset,
-        import_fields=import_fields,
-        count=count
+        tsk_count=task.count,
+        import_fields=import_fields
     ).textReaderTask
 
 proc executeParallel(path: string): void =
@@ -295,6 +295,7 @@ when isMainModule and appType != "lib":
         guess_dtypes = true
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/bad_empty.csv", ENC_UTF8)
         (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.csv", ENC_UTF8)
+        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.txt", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data_1M.csv", ENC_UTF8)
@@ -304,10 +305,10 @@ when isMainModule and appType != "lib":
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_le.csv", ENC_UTF16)
 
         let multiprocess = false
-        let execute = false
+        let execute = true
         let d0 = getTime()
 
-        let table = importTextFile(pid, path_csv, encoding, dialect, cols, page_size, guess_dtypes)
+        let table = importTextFile(pid, path_csv, encoding, dialect, cols, page_size, guess_dtypes, some[int](0), some[int](1000000))
         let task = table.task
 
         if multiprocess:
@@ -318,7 +319,7 @@ when isMainModule and appType != "lib":
         else:
             if execute:
                 for column_task in task.tasks:
-                    runTask(task.path, task.encoding, task.dialect, column_task, task.import_fields, int task.page_size, task.guess_dtypes)
+                    runTask(task.path, task.encoding, task.dialect, column_task, task.import_fields, task.guess_dtypes)
 
         let d1 = getTime()
         echo $(d1 - d0)
@@ -328,11 +329,11 @@ when isMainModule and appType != "lib":
             raise newException(Exception, "not implemented: 'import'")
         elif opts.task.isSome:
             let tdia = newTabliteDialect(dialect)
-            let ttask = newTabliteTask(opts.task.get.pages.split(","), uint parseInt(opts.task.get.offset))
-            let fields = collect: (for k in opts.task.get.fields.split(","): uint parseInt(k))
             let count = parseInt(opts.task.get.count)
+            let ttask = newTabliteTask(opts.task.get.pages.split(","), uint parseInt(opts.task.get.offset), uint count)
+            let fields = collect: (for k in opts.task.get.fields.split(","): uint parseInt(k))
 
-            runTask(path_csv, $encoding, tdia, ttask, fields, count, guess_dtypes)
+            runTask(path_csv, $encoding, tdia, ttask, fields, guess_dtypes)
 
             # let fields = opts.task.get.fields.split(",")
             # let pages = 
