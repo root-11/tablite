@@ -25,7 +25,7 @@ jobs:
         python -m pip install -r requirements.txt
     - name: Generate Report
       run: |
-        pytest --cov=tablite /tests
+        pytest --cov=tablite tests/ --cov-report=xml
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:
