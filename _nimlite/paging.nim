@@ -25,6 +25,8 @@ proc collectPageInfo*(
         ranks = collect(newSeqOfCap(n_pages)):
             for _ in 0..n_pages-1:
                 newRank()
+    else:
+        ranks = newSeq[Rank](0)
 
     for (row_idx, fields, field_count) in obj[].parseCSV(fh[]):
         if row_count >= 0 and row_idx >= (uint row_count):

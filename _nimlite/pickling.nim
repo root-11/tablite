@@ -131,10 +131,14 @@ proc writePickleShortbinbytes(fh: ptr File, value: string): void =
 
 proc writePickleBinunicode(fh: ptr File, value: string): void =
     let len = uint32 value.len
+    # try:
 
     fh[].write(PKL_BINUNICODE)
     discard fh[].writeBuffer(len.unsafeAddr, 4)
-    discard fh[].writeBuffer(value[0].unsafeAddr, len)
+    fh[].write(value)
+    # discard fh[].writeBuffer(value[0].unsafeAddr, len)
+    # finally:
+    #     echo "failed to dump: '" & value & "' of size " & $len
 
 proc writePickleBoolean(fh: ptr File, value: bool): void =
     if value == true:
