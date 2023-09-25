@@ -33,13 +33,12 @@ jobs:
       run: |
         pip install codecov
         pip install pytest-cov
-        pytest --cov=/tests --cov-report=xml
-        codecov
+        python -m coverage xml
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3.1.4
+      uses: codecov/codecov-action@v3
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: ./coverage1.xml,./coverage2.xml # optional
-        flags: tests
+        files: ./coverage.xml
+        verbose: true
         fail_ci_if_error: true # optional (default = false)
-        verbose: true # optional (default = false)
+
