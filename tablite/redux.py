@@ -114,22 +114,32 @@ def _filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
                     f"Assymmetric dataset: {c1} has {len(dset_A)} values, whilst {c2} has {len(dset_B)} values."
                 )
             # Evaluate
-            if expr == ">":
-                result = dset_A > dset_B
-            elif expr == ">=":
-                result = dset_A >= dset_B
-            elif expr == "==":
-                result = dset_A == dset_B
-            elif expr == "<":
-                result = dset_A < dset_B
-            elif expr == "<=":
-                result = dset_A <= dset_B
-            elif expr == "!=":
-                result = dset_A != dset_B
-            else:  # it's a python evaluations (slow)
+            try:
+                if expr == ">":
+                    result = dset_A > dset_B
+                elif expr == ">=":
+                    result = dset_A >= dset_B
+                elif expr == "==":
+                    result = dset_A == dset_B
+                elif expr == "<":
+                    result = dset_A < dset_B
+                elif expr == "<=":
+                    result = dset_A <= dset_B
+                elif expr == "!=":
+                    result = dset_A != dset_B
+                else:  # it's a python evaluations (slow)
+                    f = filter_ops.get(expr)
+                    assert callable(f)
+                    result = list_to_np_array([f(a, b) for a, b in zip(dset_A, dset_B)])
+            except TypeError:
+                def safe_test(f, a, b):
+                    try:
+                        return f(a, b)
+                    except TypeError:
+                        return False
                 f = filter_ops.get(expr)
                 assert callable(f)
-                result = list_to_np_array([f(a, b) for a, b in zip(dset_A, dset_B)])
+                result = list_to_np_array([safe_test(f, a, b) for a, b in zip(dset_A, dset_B)])
             bitmap[bit_index, start:end] = result
 
     f = np.all if filter_type == "all" else np.any
