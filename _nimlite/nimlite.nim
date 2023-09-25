@@ -294,16 +294,17 @@ when isMainModule and appType != "lib":
     if opts.import.isNone and opts.task.isNone:
         guess_dtypes = true
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/bad_empty.csv", ENC_UTF8)
+        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", ENC_UTF8)
-        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
+        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data_1M.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data_1M_1col.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/gesaber_data.csv", ENC_UTF8)
-        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_be.csv", ENC_UTF16)
+        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_be.csv", ENC_UTF16)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_le.csv", ENC_UTF16)
 
-        let multiprocess = true
-        let execute = true
+        let multiprocess = false
+        let execute = false
         let d0 = getTime()
 
         let table = importTextFile(pid, path_csv, encoding, dialect, cols, page_size, guess_dtypes)
@@ -315,8 +316,9 @@ when isMainModule and appType != "lib":
             if execute:
                 executeParallel(task_path)
         else:
-            for column_task in task.tasks:
-                runTask(task.path, task.encoding, task.dialect, column_task, task.import_fields, int task.page_size, task.guess_dtypes)
+            if execute:
+                for column_task in task.tasks:
+                    runTask(task.path, task.encoding, task.dialect, column_task, task.import_fields, int task.page_size, task.guess_dtypes)
 
         let d1 = getTime()
         echo $(d1 - d0)
