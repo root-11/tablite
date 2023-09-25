@@ -76,10 +76,24 @@ proc newFileUTF16(filename: string): FileUTF16 =
 
     return FileUTF16(fh: fh, endianness: endianness)
 
+proc newFileUTF8(filename: string): FileUTF8 =
+    let fh = open(filename, fmRead)
+
+    var bom: array[3, uint8]
+    var bom_bytes = fh.readBytes(bom, 0, 3)
+
+    # detect bom
+    if bom_bytes != 3:
+        fh.setFilePos(0, FileSeekPos.fspSet)
+    elif bom[0] != 0xEF or bom[1] != 0xBB or bom[2] != 0xBF:
+        fh.setFilePos(0, FileSeekPos.fspSet)
+
+    return FileUTF8(fh: fh)
+
 proc newFile*(filename: string, encoding: Encodings): BaseEncodedFile =
     case encoding:
         of ENC_UTF8:
-            return FileUTF8(fh: open(filename, fmRead))
+            return newFileUTF8(filename)
         of ENC_UTF16:
             return newFileUTF16(filename)
 

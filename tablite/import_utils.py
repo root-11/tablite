@@ -522,247 +522,306 @@ def text_reader_task(
 
         [phf.close() for phf in page_file_handlers]
 
-def text_reader(
-    T,
-    path,
-    columns,
-    first_row_has_headers,
-    header_row_index,
-    encoding,
-    start,
-    limit,
-    newline,
-    guess_datatypes,
-    text_qualifier,
-    strip_leading_and_tailing_whitespace,
-    delimiter,
-    text_escape_openings,
-    text_escape_closures,
-    tqdm=_tqdm,
-    **kwargs,
-):
-    """
-    reads any text file
+if Config.BACKEND == Config.BACKEND_NIM:
+    import tablite.nimlite as nimlite
 
-    excess kwargs are ignored.
-    """
-    if not issubclass(T, Table):
-        raise TypeError("Expected subclass of Table")
-
-    if not isinstance(path, Path):
-        path = Path(path)
-    if not path.exists():
-        raise FileNotFoundError(str(path))
-
-    if path.stat().st_size == 0:
-        return T()  # NO DATA: EMPTY TABLE.
-
-    if encoding is None:
-        encoding = get_encoding(path, nbytes=ENCODING_GUESS_BYTES)
-
-    if delimiter is None:
-        try:
-            delimiter = get_delimiter(path, encoding)
-        except ValueError:
-            return T()  # NO DELIMITER: EMPTY TABLE.
-
-
-    read_stage, process_stage, dump_stage, consolidation_stage = (20, 10, 35, 35) if guess_datatypes else (20, 10, 50, 20)
-    assert sum([read_stage, process_stage, dump_stage, consolidation_stage]) == 100, "Must add to to a 100"
-    pbar_fname = path.name
-
-    if len(pbar_fname) > 20:
-        pbar_fname = pbar_fname[0:10] + "..." + pbar_fname[-7:]
-
-    file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
-
-    if not (isinstance(start, int) and start >= 0):
-        raise ValueError("expected start as an integer >= 0")
-    if not (isinstance(limit, int) and limit > 0):
-        raise ValueError("expected limit as an integer > 0")
-
-    # fmt:off
-    with tqdm(total=100, desc=f"importing: reading '{pbar_fname}' bytes", unit="%",
-              bar_format="{desc}: {percentage:3.2f}%|{bar}| [{elapsed}<{remaining}]", disable=Config.TQDM_DISABLE) as pbar:
-        # fmt:on
-        # task: find chunk ...
-        # Here is the problem in a nutshell:
-        # --------------------------------------------------------
-        # text = "this is my \n text".encode('utf-16')
-        # >>> text
-        # b'\xff\xfet\x00h\x00i\x00s\x00 \x00i\x00s\x00 \x00m\x00y\x00 \x00\n\x00 \x00t\x00e\x00x\x00t\x00'
-        # >>> newline = "\n".encode('utf-16')
-        # >>> newline in text
-        # False
-        # >>> newline.decode('utf-16') in text.decode('utf-16')
-        # True
-        # --------------------------------------------------------
-        # This means we can't read the encoded stream to check if in contains a particular character.
-        # We will need to decode it.
-        # furthermore fi.tell() will not tell us which character we a looking at.
-        # so the only option left is to read the file and split it in workable chunks.
-
-        if encoding.lower() == "utf-8":
-            newline_offsets, newlines = _find_newlines_fast(path, file_length, pbar, read_stage)
+    def text_reader(
+        T,
+        path,
+        columns,
+        first_row_has_headers,
+        header_row_index,
+        encoding,
+        start,
+        limit,
+        newline,
+        guess_datatypes,
+        text_qualifier,
+        strip_leading_and_tailing_whitespace,
+        delimiter,
+        text_escape_openings,
+        text_escape_closures,
+        tqdm=_tqdm,
+        **kwargs,
+    ):
+        if encoding is None or encoding.lower() == "utf8":
+            enc = "ENC_UTF8"
+        elif encoding.lower() == "utf16":
+            enc = "ENC_UTF16"
         else:
-            newline_offsets, newlines = _find_newlines_slow(path, file_length, encoding, pbar, read_stage)
+            raise NotImplementedError()
 
-        if newlines < 1:
-            raise ValueError(f"Using {newline} to split file, revealed {newlines} lines in the file.")
+        pid = Config.workdir / f"pid-{os.getpid()}"
+        kwargs = {}
 
-        if newlines <= start + header_row_index + (1 if first_row_has_headers else 0):  # Then start > end: Return EMPTY TABLE.
-            return Table(columns={n : [] for n in columns})
-        
-        pbar.desc = f"importing: processing '{pbar_fname}'"
-        pbar.update(read_stage - pbar.n)
+        if first_row_has_headers is not None:
+            kwargs["first_row_has_headers"] = first_row_has_headers
+        if header_row_index is not None:
+            kwargs["header_row_index"] = header_row_index
+        if columns is not None:
+            kwargs["columns"] = columns
+        if start is not None:
+            kwargs["start"] = start
+        if limit is not None:
+            kwargs["limit"] = limit
+        if guess_datatypes is not None:
+            kwargs["guess_datatypes"] = guess_datatypes
+        if newline is not None:
+            kwargs["newline"] = newline
+        if delimiter is not None:
+            kwargs["delimiter"] = delimiter
+        if text_qualifier is not None:
+            kwargs["text_qualifier"] = text_qualifier
+        if strip_leading_and_tailing_whitespace is not None:
+            kwargs["strip_leading_and_tailing_whitespace"] = strip_leading_and_tailing_whitespace
 
-        line_reader = TextEscape(
-            openings=text_escape_openings,
-            closures=text_escape_closures,
-            text_qualifier=text_qualifier,
-            delimiter=delimiter,
-            strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
+        return nimlite.text_reader(
+            T, pid, path, enc,
+            **kwargs,
+            tqdm=tqdm
+            
         )
+else:
+    def text_reader(
+        T,
+        path,
+        columns,
+        first_row_has_headers,
+        header_row_index,
+        encoding,
+        start,
+        limit,
+        newline,
+        guess_datatypes,
+        text_qualifier,
+        strip_leading_and_tailing_whitespace,
+        delimiter,
+        text_escape_openings,
+        text_escape_closures,
+        tqdm=_tqdm,
+        **kwargs,
+    ):
+        """
+        reads any text file
 
-        with path.open("r", encoding=encoding) as fi:
-            fi.seek(newline_offsets[header_row_index])
-            for line in fi:
-                if line == "":  # skip any empty line or header offset.
-                    continue
-                else:
-                    line = line.rstrip(newline)
-                    fields = line_reader(line)
-                    break
-            if not fields:
-                warnings.warn("file was empty: {path}")
-                return T()  # returning an empty table as there was no data.
+        excess kwargs are ignored.
+        """
+        if not issubclass(T, Table):
+            raise TypeError("Expected subclass of Table")
 
-        if columns is None:
-            columns = fields[:]
-        else:
-            type_check(columns, list)
-            if set(fields) < set(columns):
-                missing = [c for c in columns if c not in fields]
-                raise ValueError(f"missing columns {missing}")
+        if not isinstance(path, Path):
+            path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(str(path))
 
-        if first_row_has_headers is False:
-            new_fields = {}
-            for ix, name in enumerate(fields):
-                new_fields[ix] = f"{ix}"  # name starts on 0.
-            fields = new_fields
-        else:  # first_row_has_headers is True, but ...
-            new_fields, seen = {}, set()
-            for ix, name in enumerate(fields):
-                if name in columns:  # I may have to reduce to match user selection of columns.
-                    unseen_name = unique_name(name, seen)
-                    new_fields[ix] = unseen_name
-                    seen.add(unseen_name)
-            fields = {ix: name for ix, name in new_fields.items() if name in columns}
+        if path.stat().st_size == 0:
+            return T()  # NO DATA: EMPTY TABLE.
 
-        if not fields:
-            if columns is not None:
-                raise ValueError(f"Columns not found: {columns}")
+        if encoding is None:
+            encoding = get_encoding(path, nbytes=ENCODING_GUESS_BYTES)
+
+        if delimiter is None:
+            try:
+                delimiter = get_delimiter(path, encoding)
+            except ValueError:
+                return T()  # NO DELIMITER: EMPTY TABLE.
+
+
+        read_stage, process_stage, dump_stage, consolidation_stage = (20, 10, 35, 35) if guess_datatypes else (20, 10, 50, 20)
+        assert sum([read_stage, process_stage, dump_stage, consolidation_stage]) == 100, "Must add to to a 100"
+        pbar_fname = path.name
+
+        if len(pbar_fname) > 20:
+            pbar_fname = pbar_fname[0:10] + "..." + pbar_fname[-7:]
+
+        file_length = path.stat().st_size  # 9,998,765,432 = 10Gb
+
+        if not (isinstance(start, int) and start >= 0):
+            raise ValueError("expected start as an integer >= 0")
+        if not (isinstance(limit, int) and limit > 0):
+            raise ValueError("expected limit as an integer > 0")
+
+        # fmt:off
+        with tqdm(total=100, desc=f"importing: reading '{pbar_fname}' bytes", unit="%",
+                bar_format="{desc}: {percentage:3.2f}%|{bar}| [{elapsed}<{remaining}]", disable=Config.TQDM_DISABLE) as pbar:
+            # fmt:on
+            # task: find chunk ...
+            # Here is the problem in a nutshell:
+            # --------------------------------------------------------
+            # text = "this is my \n text".encode('utf-16')
+            # >>> text
+            # b'\xff\xfet\x00h\x00i\x00s\x00 \x00i\x00s\x00 \x00m\x00y\x00 \x00\n\x00 \x00t\x00e\x00x\x00t\x00'
+            # >>> newline = "\n".encode('utf-16')
+            # >>> newline in text
+            # False
+            # >>> newline.decode('utf-16') in text.decode('utf-16')
+            # True
+            # --------------------------------------------------------
+            # This means we can't read the encoded stream to check if in contains a particular character.
+            # We will need to decode it.
+            # furthermore fi.tell() will not tell us which character we a looking at.
+            # so the only option left is to read the file and split it in workable chunks.
+
+            if encoding.lower() == "utf-8":
+                newline_offsets, newlines = _find_newlines_fast(path, file_length, pbar, read_stage)
             else:
-                raise ValueError("No columns?")
+                newline_offsets, newlines = _find_newlines_slow(path, file_length, encoding, pbar, read_stage)
 
-        field_relation = {f: i for i, f in enumerate(fields.keys())}
-        inv_field_relation = dict(zip(field_relation.values(), field_relation.keys()))
+            if newlines < 1:
+                raise ValueError(f"Using {newline} to split file, revealed {newlines} lines in the file.")
 
-        task_config = TRconfig(
-            source=str(path),
-            destination=None,
-            start=1,
-            end=Config.PAGE_SIZE,
-            guess_datatypes=guess_datatypes,
-            delimiter=delimiter,
-            text_qualifier=text_qualifier,
-            text_escape_openings=text_escape_openings,
-            text_escape_closures=text_escape_closures,
-            strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
-            encoding=encoding,
-            newline_offsets=newline_offsets,
-            fields=field_relation
-        )
+            if newlines <= start + header_row_index + (1 if first_row_has_headers else 0):  # Then start > end: Return EMPTY TABLE.
+                return Table(columns={n : [] for n in columns})
+            
+            pbar.desc = f"importing: processing '{pbar_fname}'"
+            pbar.update(read_stage - pbar.n)
 
-        # make sure the tempdir is ready.
-        workdir = Path(Config.workdir) / f"pid-{os.getpid()}"
-        if not workdir.exists():
-            workdir.mkdir()
-            (workdir / "pages").mkdir()
+            line_reader = TextEscape(
+                openings=text_escape_openings,
+                closures=text_escape_closures,
+                text_qualifier=text_qualifier,
+                delimiter=delimiter,
+                strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
+            )
 
-        tasks, configs = [], []
+            with path.open("r", encoding=encoding) as fi:
+                fi.seek(newline_offsets[header_row_index])
+                for line in fi:
+                    if line == "":  # skip any empty line or header offset.
+                        continue
+                    else:
+                        line = line.rstrip(newline)
+                        fields = line_reader(line)
+                        break
+                if not fields:
+                    warnings.warn("file was empty: {path}")
+                    return T()  # returning an empty table as there was no data.
 
-        begin = header_row_index + 1 if first_row_has_headers else 0
-        # Creates task for n pages of size Config.PAGE_SIZE. Assigns a page index for each column.
-        for start in range(begin, newlines + 1, Config.PAGE_SIZE):
-            end = min(start + Config.PAGE_SIZE, newlines)
+            if columns is None:
+                columns = fields[:]
+            else:
+                type_check(columns, list)
+                if set(fields) < set(columns):
+                    missing = [c for c in columns if c not in fields]
+                    raise ValueError(f"missing columns {missing}")
 
-            cfg = task_config.copy()
-            cfg.start = start
-            cfg.end = end
-            cfg.destination = [workdir / "pages" / f"{next(Page.ids)}.npy" for _ in range(len(fields))]
-            tasks.append(Task(f=text_reader_task, **cfg.dict()))
-            configs.append(cfg)
+            if first_row_has_headers is False:
+                new_fields = {}
+                for ix, name in enumerate(fields):
+                    new_fields[ix] = f"{ix}"  # name starts on 0.
+                fields = new_fields
+            else:  # first_row_has_headers is True, but ...
+                new_fields, seen = {}, set()
+                for ix, name in enumerate(fields):
+                    if name in columns:  # I may have to reduce to match user selection of columns.
+                        unseen_name = unique_name(name, seen)
+                        new_fields[ix] = unseen_name
+                        seen.add(unseen_name)
+                fields = {ix: name for ix, name in new_fields.items() if name in columns}
 
-            start = end
+            if not fields:
+                if columns is not None:
+                    raise ValueError(f"Columns not found: {columns}")
+                else:
+                    raise ValueError("No columns?")
 
-        pbar.desc = f"importing: parsing '{pbar_fname}' to disk"
-        pbar.update((read_stage + process_stage) - pbar.n)
+            field_relation = {f: i for i, f in enumerate(fields.keys())}
+            inv_field_relation = dict(zip(field_relation.values(), field_relation.keys()))
 
-        len_tasks = len(tasks)
-        dump_size = dump_stage / len_tasks
+            task_config = TRconfig(
+                source=str(path),
+                destination=None,
+                start=1,
+                end=Config.PAGE_SIZE,
+                guess_datatypes=guess_datatypes,
+                delimiter=delimiter,
+                text_qualifier=text_qualifier,
+                text_escape_openings=text_escape_openings,
+                text_escape_closures=text_escape_closures,
+                strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
+                encoding=encoding,
+                newline_offsets=newline_offsets,
+                fields=field_relation
+            )
 
-        # TODO: Move external.
-        class PatchTqdm:  # we need to re-use the tqdm pbar, this will patch
-            # the tqdm to update existing pbar instead of creating a new one
-            def update(self, n=1):
-                pbar.update(n * dump_size)
+            # make sure the tempdir is ready.
+            workdir = Path(Config.workdir) / f"pid-{os.getpid()}"
+            if not workdir.exists():
+                workdir.mkdir()
+                (workdir / "pages").mkdir()
 
-        """
-            all modern processors have more than one thread per core intel has hyper-threading, amd has SMT
-            we don't want to stop using potentially half of our cores on other OS'es because windows can't that many file handles
-        """
-        is_windows = platform.system() == "Windows"
-        use_logical = False if is_windows else True
+            tasks, configs = [], []
 
-        cpus = max(psutil.cpu_count(logical=use_logical), 1)  # there's always at least one core.
-        
-        cpus_needed = min(len(tasks), cpus)  # 4 columns won't require 96 cpus ...!
-        if cpus_needed < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
-            for task in tasks:
-                # using execute captures and rethrows which messes up the call stack, just call the function directly
-                task.f(*task.args, **task.kwargs)
-                pbar.update(dump_size)
+            begin = header_row_index + 1 if first_row_has_headers else 0
+            # Creates task for n pages of size Config.PAGE_SIZE. Assigns a page index for each column.
+            for start in range(begin, newlines + 1, Config.PAGE_SIZE):
+                end = min(start + Config.PAGE_SIZE, newlines)
 
-        else:
-            with TaskManager(cpus_needed) as tm:
-                errors = tm.execute(tasks, pbar=PatchTqdm())  # I expects a list of None's if everything is ok.
-                if any(errors):
-                    raise Exception("\n".join(e for e in errors if e))
+                cfg = task_config.copy()
+                cfg.start = start
+                cfg.end = end
+                cfg.destination = [workdir / "pages" / f"{next(Page.ids)}.npy" for _ in range(len(fields))]
+                tasks.append(Task(f=text_reader_task, **cfg.dict()))
+                configs.append(cfg)
 
-        pbar.desc = f"importing: consolidating '{pbar_fname}'"
-        pbar.update((read_stage + process_stage + dump_stage) - pbar.n)
+                start = end
 
-        consolidation_size = consolidation_stage / len_tasks
+            pbar.desc = f"importing: parsing '{pbar_fname}' to disk"
+            pbar.update((read_stage + process_stage) - pbar.n)
 
-        # consolidate the task results
-        t = T()
-        for name in fields.values():
-            t[name] = Column(t.path)
-        for cfg in configs:
-            for idx, npy in ((inv_field_relation[idx], npy) for idx, npy in enumerate(cfg.destination)):
-                data = np.load(npy, allow_pickle=True, fix_imports=False)
+            len_tasks = len(tasks)
+            dump_size = dump_stage / len_tasks
 
-                if guess_datatypes:
-                    data = list_to_np_array(DataTypes.guess(data))
+            # TODO: Move external.
+            class PatchTqdm:  # we need to re-use the tqdm pbar, this will patch
+                # the tqdm to update existing pbar instead of creating a new one
+                def update(self, n=1):
+                    pbar.update(n * dump_size)
 
-                t[fields[idx]].extend(data)
-                os.remove(npy)
-            pbar.update(consolidation_size)
+            """
+                all modern processors have more than one thread per core intel has hyper-threading, amd has SMT
+                we don't want to stop using potentially half of our cores on other OS'es because windows can't that many file handles
+            """
+            is_windows = platform.system() == "Windows"
+            use_logical = False if is_windows else True
 
-        pbar.update(100 - pbar.n)
-        return t
+            cpus = max(psutil.cpu_count(logical=use_logical), 1)  # there's always at least one core.
+            
+            cpus_needed = min(len(tasks), cpus)  # 4 columns won't require 96 cpus ...!
+            if cpus_needed < 2 or Config.MULTIPROCESSING_MODE == Config.FALSE:
+                for task in tasks:
+                    # using execute captures and rethrows which messes up the call stack, just call the function directly
+                    task.f(*task.args, **task.kwargs)
+                    pbar.update(dump_size)
 
+            else:
+                with TaskManager(cpus_needed) as tm:
+                    errors = tm.execute(tasks, pbar=PatchTqdm())  # I expects a list of None's if everything is ok.
+                    if any(errors):
+                        raise Exception("\n".join(e for e in errors if e))
+
+            pbar.desc = f"importing: consolidating '{pbar_fname}'"
+            pbar.update((read_stage + process_stage + dump_stage) - pbar.n)
+
+            consolidation_size = consolidation_stage / len_tasks
+
+            # consolidate the task results
+            t = T()
+            for name in fields.values():
+                t[name] = Column(t.path)
+            for cfg in configs:
+                for idx, npy in ((inv_field_relation[idx], npy) for idx, npy in enumerate(cfg.destination)):
+                    data = np.load(npy, allow_pickle=True, fix_imports=False)
+
+                    if guess_datatypes:
+                        data = list_to_np_array(DataTypes.guess(data))
+
+                    t[fields[idx]].extend(data)
+                    os.remove(npy)
+                pbar.update(consolidation_size)
+
+            pbar.update(100 - pbar.n)
+            return t
 
 file_readers = {  # dict of file formats and functions used during Table.import_file
     "fods": excel_reader,

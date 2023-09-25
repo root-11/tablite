@@ -61,9 +61,11 @@ def text_reader(
         strip_leading_and_tailing_whitespace: bool = True,
         tqdm=_tqdm
     ):
+    assert isinstance(path, Path)
+    assert isinstance(pid, Path)
     table = nl.text_reader(
-        pid=pid,
-        path=path,
+        pid=str(pid),
+        path=str(path),
         encoding=encoding,
         first_row_has_headers=first_row_has_headers, header_row_index=header_row_index,
         columns=columns,
@@ -101,7 +103,7 @@ def text_reader(
             guess_dtypes=ti_guess_dtypes,
             import_fields=ti_import_fields,
             page_size=ti_page_size,
-            pid=Path(pid)
+            pid=pid
         ) for t in ti_tasks
     ]
 
@@ -126,7 +128,7 @@ def text_reader(
             if not all(isinstance(r, list) for r in res):
                 raise Exception("failed")
 
-    col_path = Path(pid)
+    col_path = pid
     column_dict = {
         cols["name"]: Column(col_path)
         for cols in task_columns
