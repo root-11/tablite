@@ -12,7 +12,7 @@ proc isNone*(py: PyObject): bool =
 proc textReader*(
     pid: string, path: string, encoding: Encodings,
     columns: Option[seq[string]], first_row_has_headers: bool, header_row_index: uint,
-    start: Option[uint], limit: Option[uint],
+    start: Option[int], limit: Option[int],
     guess_datatypes: bool,
     newline: char, delimiter: char,
     text_qualifier: char, strip_leading_and_tailing_whitespace: bool,
@@ -36,6 +36,8 @@ proc textReader*(
         dia=dialect,
         columns=columns,
         page_size=page_size,
-        guess_dtypes=guess_dtypes
+        guess_dtypes=guess_dtypes,
+        start=start,
+        limit=limit
     )
 

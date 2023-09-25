@@ -25,8 +25,8 @@ proc toTaskArgs*(
     guess_dtypes: bool,
     tsk_pages: seq[string],
     tsk_offset: uint,
-    import_fields: seq[uint],
-    count: int,
+    tsk_count: uint,
+    import_fields: seq[uint]
 ): TaskArgs =
     var delimiter = dia_delimiter.unescapeSeq()
     var quotechar = dia_quotechar.unescapeSeq()
@@ -80,5 +80,5 @@ proc toTaskArgs*(
         destinations: tsk_pages,
         import_fields: import_fields,
         row_offset: tsk_offset,
-        row_count: count
+        row_count: int tsk_count
     )

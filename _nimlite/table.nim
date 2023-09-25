@@ -7,6 +7,7 @@ type TabliteColumn* = object
 type TabliteTask* = object
     pages*: seq[string]
     offset*: uint
+    count*: uint
 
 type TabliteDialect* = object
     delimiter*: string
@@ -53,8 +54,8 @@ proc newTabliteDialect*(dialect: Dialect): TabliteDialect =
     )
 
 
-proc newTabliteTask*(pages: seq[string], offset: uint): TabliteTask =
-    TabliteTask(pages: pages, offset: offset)
+proc newTabliteTask*(pages: seq[string], offset: uint, count: uint): TabliteTask =
+    TabliteTask(pages: pages, offset: offset, count: count)
 
 proc newTabliteTasks*(
     path: string, encoding: string, dialect: Dialect,

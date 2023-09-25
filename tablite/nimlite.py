@@ -20,7 +20,7 @@ class TmpPage(Page):
 
         self._incr_refcount()
 
-def text_reader_task(*, pid, path, encoding, dialect, task, import_fields, page_size, guess_dtypes):
+def text_reader_task(*, pid, path, encoding, dialect, task, import_fields, guess_dtypes):
     nl.text_reader_task(
         path=path,
         encoding=encoding,
@@ -34,8 +34,8 @@ def text_reader_task(*, pid, path, encoding, dialect, task, import_fields, page_
         dia_strict=dialect["strict"],
         tsk_pages=task["pages"],
         tsk_offset=task["offset"],
+        tsk_count=task["count"],
         import_fields=import_fields,
-        count=page_size,
         guess_dtypes=guess_dtypes
     )
 
@@ -102,7 +102,6 @@ def text_reader(
             task=t,
             guess_dtypes=ti_guess_dtypes,
             import_fields=ti_import_fields,
-            page_size=ti_page_size,
             pid=pid
         ) for t in ti_tasks
     ]

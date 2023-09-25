@@ -71,10 +71,13 @@ proc textReaderTask*(task: TaskArgs): void =
 proc importTextFile*(
     pid: string, path: string, encoding: Encodings, dia: Dialect, 
     columns: Option[seq[string]],
-    page_size: uint, guess_dtypes: bool): TabliteTable =
+    page_size: uint, guess_dtypes: bool, start: Option[int] = none[int](), limit: Option[int] = none[int]()): TabliteTable =
+    
     echo "Collecting tasks: '" & path & "'"
+    
+    let opt_start = (if start.isSome: start.get else: 0)
+    let opt_limit = (if limit.isSome: limit.get else: -1)
     let (newline_offsets, newlines) = findNewlines(path, encoding)
-
     let dirname = pid & "/pages"
 
     if not dirExists(dirname):
@@ -120,12 +123,15 @@ proc importTextFile*(
                 {unq: field_relation_inv[name]}
 
         var page_idx: uint32 = 1
-        var row_idx: uint = 1
+        var row_idx: uint = uint opt_start + 1
         var task_list = newSeq[TabliteTask]()
+        let max_line = (if opt_limit >= 0: min(newlines, uint (opt_limit + opt_start) + 1) else: newlines)
 
         echo "Dumping tasks: '" & path & "'"
-        while row_idx < newlines:
+        while row_idx < max_line:
             let page_count = field_relation.len
+            let next_line = min(row_idx + page_size, max_line)
+            let row_count = next_line - row_idx
             var pages = newSeq[string](page_count)
 
             for idx in 0..page_count - 1:
@@ -143,11 +149,9 @@ proc importTextFile*(
 
                 inc page_idx
 
-            task_list.add(newTabliteTask(pages, newline_offsets[row_idx]))
-            # textReaderTask(path, encoding, dia, pages, import_fields.unsafeAddr, newline_offsets[row_idx], int page_size)
-            
-            row_idx = row_idx + page_size
+            task_list.add(newTabliteTask(pages, newline_offsets[row_idx], row_count))
 
+            row_idx = next_line
 
         let tasks = newTabliteTasks(
             path=path,
@@ -167,3 +171,4 @@ proc importTextFile*(
         return table
     else:
         raise newException(IOError, "end of file")
+

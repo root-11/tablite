@@ -562,7 +562,7 @@ if Config.BACKEND == Config.BACKEND_NIM:
             kwargs["columns"] = columns
         if start is not None:
             kwargs["start"] = start
-        if limit is not None:
+        if limit is not None and limit != sys.maxsize:
             kwargs["limit"] = limit
         if guess_datatypes is not None:
             kwargs["guess_datatypes"] = guess_datatypes
