@@ -58,7 +58,7 @@ def text_reader(
         start: int|None = None, limit: int|None = None,
         guess_datatypes: bool = False,
         newline: str = '\n', delimiter: str = ',', text_qualifier: str = '"',
-        strip_leading_and_tailing_whitespace: bool = True,
+        quoting: str, strip_leading_and_tailing_whitespace: bool = True,
         tqdm=_tqdm
     ):
     assert isinstance(path, Path)
@@ -73,6 +73,7 @@ def text_reader(
         start=start, limit=limit,
         guess_datatypes=guess_datatypes,
         newline=newline, delimiter=delimiter, text_qualifier=text_qualifier,
+        quoting=quoting,
         strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
         page_size=Config.PAGE_SIZE
     )
@@ -86,7 +87,6 @@ def text_reader(
     ti_guess_dtypes = task_info["guess_dtypes"]
     ti_tasks = task_info["tasks"]
     ti_import_fields = task_info["import_fields"]
-    ti_page_size = task_info["page_size"]
 
     is_windows = platform.system() == "Windows"
     use_logical = False if is_windows else True

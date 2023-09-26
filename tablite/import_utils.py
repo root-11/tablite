@@ -544,12 +544,15 @@ if Config.BACKEND == Config.BACKEND_NIM:
         tqdm=_tqdm,
         **kwargs,
     ):
-        if encoding is None or encoding.lower() == "utf8":
+        if encoding is None:
+            encoding = get_encoding(path, nbytes=ENCODING_GUESS_BYTES)
+
+        if encoding.lower() in ["utf8", "utf-8", "utf-8-sig"]:
             enc = "ENC_UTF8"
-        elif encoding.lower() == "utf16":
+        elif encoding.lower() in ["utf16", "utf-16"]:
             enc = "ENC_UTF16"
         else:
-            raise NotImplementedError()
+            raise NotImplementedError(f"encoding not implemented: {encoding}")
 
         pid = Config.workdir / f"pid-{os.getpid()}"
         kwargs = {}
@@ -572,6 +575,9 @@ if Config.BACKEND == Config.BACKEND_NIM:
             kwargs["delimiter"] = delimiter
         if text_qualifier is not None:
             kwargs["text_qualifier"] = text_qualifier
+            kwargs["quoting"] = "QUOTE_MINIMAL"
+        else:
+            kwargs["quoting"] = "QUOTE_NONE"
         if strip_leading_and_tailing_whitespace is not None:
             kwargs["strip_leading_and_tailing_whitespace"] = strip_leading_and_tailing_whitespace
 
