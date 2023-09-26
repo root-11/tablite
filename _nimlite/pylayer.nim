@@ -38,6 +38,7 @@ proc textReader*(
         dia = dialect,
         columns = columns,
         first_row_has_headers = first_row_has_headers,
+        header_row_index = header_row_index,
         page_size = page_size,
         guess_dtypes = guess_dtypes,
         start = start,

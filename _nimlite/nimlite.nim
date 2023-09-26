@@ -267,7 +267,7 @@ when isMainModule and appType != "lib":
         let execute = true
         let d0 = getTime()
 
-        let table = importTextFile(pid, path_csv, encoding, dialect, cols, false, page_size, guess_dtypes, some[int](0), some[int](5))
+        let table = importTextFile(pid, path_csv, encoding, dialect, cols, false, 0, page_size, guess_dtypes, some[int](0), some[int](5))
         let task = table.task
 
         echo $table
