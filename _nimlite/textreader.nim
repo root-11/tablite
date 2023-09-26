@@ -10,7 +10,6 @@ proc textReaderTask*(task: TaskArgs): void =
     var row_count = task.row_count
     var row_offset = task.row_offset
     var import_fields = task.import_fields.unsafeAddr
-
     var obj = newReaderObj(dialect)
 
     let fh = newFile(path, encoding)
@@ -87,7 +86,7 @@ proc importTextFile*(
 
     if newlines > 0 and newlines > header_row_index:
         let first_line = readColumns(path, encoding, dia, newline_offsets[header_row_index])
-        
+
         var fields {.noinit.}: seq[string]
 
         if first_row_has_headers:
