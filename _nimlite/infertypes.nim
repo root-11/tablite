@@ -24,9 +24,40 @@ proc inferBool*(str: ptr string): bool =
     raise newException(ValueError, "not a boolean value")
 
 proc inferInt*(str: ptr string): int =
-    let sstr = str[]
+    let sstr = str[].multiReplace(
+        ("\"", ""),
+        (" ", ""),
+        (",", "")
+    )
+
     return parseInt(sstr)
-proc inferFloat*(str: ptr string): float = parseFloat(str[])
+
+proc inferFloat*(str: ptr string): float =
+    let dot_index   = str[].find(".")
+    let comma_index = str[].find(",")
+
+    var sstr {.noinit.}: string 
+
+    if dot_index == -1 and comma_index == -1:
+        sstr = str[].replaceWord("\"", "")
+    elif 0 < dot_index and dot_index < comma_index:
+        sstr = str[].multiReplace(
+            ("\"", ""),
+            (".", ""),
+            (",", ".")
+        )
+    elif dot_index > comma_index and comma_index > 0:  # 1,234.678
+        sstr = str[].multiReplace(
+            ("\"", ""),
+            (",", "")
+        )
+    elif comma_index != 0 and dot_index == -1:
+        sstr = str[].multiReplace(
+            ("\"", ""),
+            (",", ".")
+        )
+
+    return parseFloat(sstr)
 
 proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool): (array[3, string], int) =
     const accepted_tokens = [' ', '.', '-', '/']

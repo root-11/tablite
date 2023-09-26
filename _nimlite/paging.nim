@@ -54,9 +54,6 @@ proc collectPageInfo*(
 
         inc n_rows
 
-    if guess_dtypes:
-        echo $ranks
-
     return (n_rows, longest_str, ranks)
 
 proc dumpPageHeader*(
