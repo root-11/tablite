@@ -38,13 +38,11 @@ type ReaderObj* = object
     fields: seq[string]
     field_count: uint
 
-var readerAlloc = newSeq[string](1024)
-
 proc newDialect*(delimiter: char = ',', quotechar: char = '"', escapechar: char = '\\', doublequote: bool = true, quoting: Quoting = QUOTE_MINIMAL, skipinitialspace: bool = false, skiptrailingspace: bool = false, lineterminator: char = '\n'): Dialect =
     Dialect(delimiter: delimiter, quotechar: quotechar, escapechar: escapechar, doublequote: doublequote, quoting: quoting, skipinitialspace: skipinitialspace, skiptrailingspace: skiptrailingspace, lineterminator: lineterminator)
 
 proc newReaderObj*(dialect: Dialect): ReaderObj =
-    ReaderObj(dialect: dialect, fields: readerAlloc)
+    ReaderObj(dialect: dialect, fields: newSeq[string](1024))
 
 proc parseGrowBuff(self: var ReaderObj): bool =
     let field_size_new: uint = (if self.field_size > 0: 2u * self.field_size else: 4096u)
@@ -81,7 +79,7 @@ proc parseSaveField(self: var ReaderObj, dia: Dialect): bool =
         self.field.setLen(self.field.len() * 2)
 
     if dia.skiptrailingspace:
-        field = field.strip(leading=false, trailing=true)
+        field = field.strip(leading = false, trailing = true)
 
     self.fields[self.field_count] = field
 

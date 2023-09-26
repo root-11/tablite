@@ -26,6 +26,7 @@ const PKL_BINFLOAT = 'G'
 
 type PY_NoneType* = object
 let PY_None* = PY_NoneType()
+# proc  PY_None*: PY_NoneType = PY_NoneType()
 
 type PY_Date* = object
     year: uint16
