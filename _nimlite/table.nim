@@ -16,6 +16,7 @@ type TabliteDialect* = object
     doublequote*: bool
     quoting*: string
     skipinitialspace*: bool
+    skiptrailingspace*: bool
     lineterminator*: string
     strict*: bool
 
@@ -49,6 +50,7 @@ proc newTabliteDialect*(dialect: Dialect): TabliteDialect =
         doublequote: dialect.doublequote,
         quoting: $dialect.quoting,
         skipinitialspace: dialect.skipinitialspace,
+        skiptrailingspace: dialect.skiptrailingspace,
         lineterminator: lineterminator,
         strict: dialect.strict,
     )

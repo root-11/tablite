@@ -1,41 +1,8 @@
 import std/[os, options, strutils, osproc, sugar]
 import encfile, table, csvparse, textreader, utils, pylayer, taskargs
 
-proc saveTasks(task: TabliteTasks, pid: string): string =
-    let task_path = pid & "/pages/tasks.txt"
-    let fh = open(task_path, fmWrite)
-
-    for column_task in task.tasks:
-        fh.write("\"" & getAppFilename() & "\" ")
-
-        fh.write("--encoding=" & task.encoding & " ")
-        fh.write("--guess_dtypes=" & $task.guess_dtypes & " ")
-
-        fh.write("--delimiter=\"" & task.dialect.delimiter & "\" ")
-        fh.write("--quotechar=\"" & task.dialect.quotechar & "\" ")
-        fh.write("--escapechar=\"" & task.dialect.escapechar & "\" ")
-        fh.write("--lineterminator=\"" & task.dialect.lineterminator & "\" ")
-        fh.write("--doublequote=" & $task.dialect.doublequote & " ")
-        fh.write("--skipinitialspace=" & $task.dialect.skipinitialspace & " ")
-        fh.write("--quoting=" & task.dialect.quoting & " ")
-
-        fh.write("task ")
-
-        fh.write("--pages=\"" & column_task.pages.join(",") & "\" ")
-        fh.write("--fields=\"" & task.import_fields.join(",") & "\" ")
-
-        fh.write("\"" & task.path & "\" ")
-        fh.write($column_task.offset & " ")
-        fh.write(task.page_size)
-
-        fh.write("\n")
-
-    fh.close()
-
-    return task_path
-
-import nimpy
 # include pylib
+import nimpy
 proc text_reader_task(
     path: string,
     encoding: string,
@@ -45,6 +12,7 @@ proc text_reader_task(
     dia_doublequote: bool,
     dia_quoting: string,
     dia_skipinitialspace: bool,
+    dia_skiptrailingspace: bool,
     dia_lineterminator: string,
     dia_strict: bool,
     guess_dtypes: bool,
@@ -63,6 +31,7 @@ proc text_reader_task(
             dia_doublequote=dia_doublequote,
             dia_quoting=dia_quoting,
             dia_skipinitialspace=dia_skipinitialspace,
+            dia_skiptrailingspace=dia_skiptrailingspace,
             dia_lineterminator=dia_lineterminator,
             dia_strict=dia_strict,
             guess_dtypes=guess_dtypes,
@@ -125,7 +94,7 @@ proc text_reader(
 
 
 if isMainModule:
-    echo "Nimlite imported!!"
+    echo "Nimlite imported"
 
 
 proc runTask(path: string, encoding: string, dialect: TabliteDialect, task: TabliteTask, import_fields: seq[uint], guess_dtypes: bool): void =
@@ -138,6 +107,7 @@ proc runTask(path: string, encoding: string, dialect: TabliteDialect, task: Tabl
         dia_doublequote=dialect.doublequote,
         dia_quoting=dialect.quoting,
         dia_skipinitialspace=dialect.skipinitialspace,
+        dia_skiptrailingspace=dialect.skiptrailingspace,
         dia_lineterminator=dialect.lineterminator,
         dia_strict=dialect.strict,
         guess_dtypes=guess_dtypes,
@@ -213,6 +183,13 @@ when isMainModule and appType != "lib":
         )
 
         option(
+            "--skiptrailingspace",
+            help="text skiptrailingspace",
+            choices = @boolean_choices,
+            default=some("false")
+        )
+
+        option(
             "--quoting",
             help="text quoting",
             choices = @[
@@ -255,6 +232,7 @@ when isMainModule and appType != "lib":
                 doublequote = opts.doublequote in boolean_true_choices,
                 quoting = str2quoting(opts.quoting),
                 skipinitialspace = opts.skipinitialspace in boolean_true_choices,
+                skiptrailingspace = opts.skiptrailingspace in boolean_true_choices,
                 lineterminator = lineterminator[0],
             )
 
@@ -285,8 +263,8 @@ when isMainModule and appType != "lib":
         dialect.quoting = Quoting.QUOTE_NONE
         dialect.delimiter = ';'
 
-        let multiprocess = false
-        let execute = true
+        let multiprocess = true
+        let execute = false
         let d0 = getTime()
 
         let table = importTextFile(pid, path_csv, encoding, dialect, cols, page_size, guess_dtypes, some[int](0), some[int](1000000))

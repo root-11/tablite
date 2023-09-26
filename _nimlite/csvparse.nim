@@ -21,6 +21,7 @@ type Dialect* = object
     doublequote*: bool
     quoting*: Quoting
     skipinitialspace*: bool
+    skiptrailingspace*: bool
     lineterminator*: char
     strict*: bool
 
@@ -39,15 +40,15 @@ type ReaderObj* = object
 
 var readerAlloc = newSeq[string](1024)
 
-proc newDialect*(delimiter: char = ',', quotechar: char = '"', escapechar: char = '\\', doublequote: bool = true, quoting: Quoting = QUOTE_MINIMAL, skipinitialspace: bool = false, lineterminator: char = '\n'): Dialect =
-    Dialect(delimiter:delimiter, quotechar:quotechar, escapechar:escapechar, doublequote:doublequote, quoting:quoting, skipinitialspace:skipinitialspace, lineterminator:lineterminator)
+proc newDialect*(delimiter: char = ',', quotechar: char = '"', escapechar: char = '\\', doublequote: bool = true, quoting: Quoting = QUOTE_MINIMAL, skipinitialspace: bool = false, skiptrailingspace: bool = false, lineterminator: char = '\n'): Dialect =
+    Dialect(delimiter: delimiter, quotechar: quotechar, escapechar: escapechar, doublequote: doublequote, quoting: quoting, skipinitialspace: skipinitialspace, skiptrailingspace: skiptrailingspace, lineterminator: lineterminator)
 
 proc newReaderObj*(dialect: Dialect): ReaderObj =
     ReaderObj(dialect: dialect, fields: readerAlloc)
 
 proc parseGrowBuff(self: var ReaderObj): bool =
     let field_size_new: uint = (if self.field_size > 0: 2u * self.field_size else: 4096u)
-    
+
     self.field.setLen(field_size_new)
     self.field_size = field_size_new
 
@@ -65,7 +66,7 @@ proc parseAddChar(self: var ReaderObj, state: var ParserState, c: char): bool =
 
     return true
 
-proc parseSaveField(self: var ReaderObj): bool =
+proc parseSaveField(self: var ReaderObj, dia: Dialect): bool =
     if self.numeric_field:
         self.numeric_field = false
 
@@ -78,6 +79,9 @@ proc parseSaveField(self: var ReaderObj): bool =
 
     if unlikely(self.field_count + 1 >= (uint self.field.high)):
         self.field.setLen(self.field.len() * 2)
+
+    if dia.skiptrailingspace:
+        field = field.strip(leading=false, trailing=true)
 
     self.fields[self.field_count] = field
 
@@ -104,7 +108,7 @@ proc parseProcessChar(self: var ReaderObj, state: var ParserState, cc: uint32): 
                     state = START_FIELD
 
             if unlikely(c in ['\n', '\r'] or unlikely(ch_code == EOL)):
-                if unlikely(not self.parseSaveField()):
+                if unlikely(not self.parseSaveField(dia)):
                     return false
 
                 state = (if ch_code == EOL: START_RECORD else: EAT_CRNL)
@@ -115,7 +119,7 @@ proc parseProcessChar(self: var ReaderObj, state: var ParserState, cc: uint32): 
             elif unlikely(c == ' ' and dia.skipinitialspace):
                 discard
             elif unlikely(c == dia.delimiter):
-                if unlikely(not self.parseSaveField()):
+                if unlikely(not self.parseSaveField(dia)):
                     return false
             else:
                 if dia.quoting == QUOTE_NONNUMERIC:
@@ -142,13 +146,13 @@ proc parseProcessChar(self: var ReaderObj, state: var ParserState, cc: uint32): 
                 return true # nim is stupid
 
             if unlikely(c in ['\n', '\r'] or unlikely(ch_code == EOL)):
-                if unlikely(not self.parseSaveField()):
+                if unlikely(not self.parseSaveField(dia)):
                     return false
                 state = (if ch_code == EOL: START_RECORD else: EAT_CRNL)
             elif c == dia.escapechar:
                 state = ESCAPED_CHAR
             elif c == dia.delimiter:
-                if unlikely(not self.parseSaveField()):
+                if unlikely(not self.parseSaveField(dia)):
                     return false
                 state = START_FIELD
             else:
@@ -171,7 +175,7 @@ proc parseProcessChar(self: var ReaderObj, state: var ParserState, cc: uint32): 
             if ch_code == EOL:
                 c = '\n'
                 ch_code = uint32 c
-            
+
             if unlikely(not self.parseAddChar(state, c)):
                 return false
 
@@ -182,11 +186,11 @@ proc parseProcessChar(self: var ReaderObj, state: var ParserState, cc: uint32): 
                     return false
                 state = IN_QUOTED_FIELD
             elif c == dia.delimiter:
-                if unlikely(not self.parseSaveField()):
+                if unlikely(not self.parseSaveField(dia)):
                     return false
                 state = START_FIELD
             elif c in ['\n', '\r'] or ch_code == EOL:
-                if unlikely(not self.parseSaveField()):
+                if unlikely(not self.parseSaveField(dia)):
                     return false
                 state = (if ch_code == EOL: START_RECORD else: EAT_CRNL)
             elif not dia.strict:
@@ -224,19 +228,19 @@ iterator parseCSV*(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[str
         if self.field_len != 0 and state == IN_QUOTED_FIELD:
             if dia.strict:
                 raise newException(Exception, "unexpected end of data")
-            elif self.parseSaveField():
+            elif self.parseSaveField(dia):
                 break
 
         line.add('\n')
 
-        
+
         linelen = uint line.len
         pos = 0
 
         while pos < linelen:
             if unlikely(not self.parseProcessChar(state, uint32 line[pos])):
                 raise newException(Exception, "illegal")
-            
+
             inc pos
 
         if unlikely(not self.parseProcessChar(state, EOL)):
