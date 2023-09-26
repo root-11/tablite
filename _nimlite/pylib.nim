@@ -1,3 +1,5 @@
+from encfile import strToEnc
+
 proc text_reader_task(
     path: string,
     encoding: string,
@@ -45,12 +47,7 @@ proc text_reader(
     guess_dtypes: bool
 ): TabliteTable {.exportpy.} =
     var arg_cols = (if isNone(columns): none[seq[string]]() else: some(columns.to(seq[string])))
-    var arg_encoding: Encodings
-
-    case encoding:
-        of "ENC_UTF8": arg_encoding = ENC_UTF8
-        of "ENC_UTF16": arg_encoding = ENC_UTF16
-        else: raise newException(IOError, "invalid encoding: " & encoding)
+    var arg_encoding: str2Enc(encoding)
 
     var arg_start = (if isNone(start): none[uint]() else: some(start.to(uint)))
     var arg_limit = (if isNone(limit): none[uint]() else: some(limit.to(uint)))

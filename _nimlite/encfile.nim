@@ -1,19 +1,47 @@
-type Encodings* {.pure.} = enum ENC_UTF8, ENC_UTF16
+import std/[encodings, strutils]
+
+type Encodings* {.pure.} = enum ENC_UTF8, ENC_UTF16, ENC_WIN1250
 
 type BaseEncodedFile* = ref object of RootObj
     fh: File
 
 type FileUTF8 = ref object of BaseEncodedFile
+type FileWIN1250 = ref object of BaseEncodedFile
+    encoder: EncodingConverter
 type FileUTF16 = ref object of BaseEncodedFile
     endianness: Endianness
+
+
 
 proc endOfFile*(f: BaseEncodedFile): bool = f.fh.endOfFile()
 proc getFilePos*(f: BaseEncodedFile): uint = uint f.fh.getFilePos()
 proc setFilePos*(f: BaseEncodedFile, pos: int64, relativeTo: FileSeekPos): void = f.fh.setFilePos(pos, relativeTo)
-proc close*(f: BaseEncodedFile): void = f.fh.close()
+
+proc close*(f: FileUTF8): void = discard
+proc close*(f: FileUTF16): void = discard
+proc close*(f: FileWIN1250): void = f.encoder.close()
+proc close*(f: BaseEncodedFile): void =
+    f.fh.close()
+
+    if f of FileUTF8:
+        (cast[FileUTF8](f)).close()
+    elif f of FileUTF16:
+        (cast[FileUTF16](f)).close()
+    elif f of FileWIN1250:
+        (cast[FileWIN1250](f)).close()
+    else:
+        raise newException(Exception, "encoding not implemented")
 
 proc readLine(f: FileUTF8, str: var string): bool = f.fh.readLine(str)
-proc readLine(f: FileUTF16, str: var string): bool = 
+proc readLine(f: FileWIN1250, str: var string): bool =
+    let res = f.fh.readLine(str)
+
+    if res:
+        str = f.encoder.convert(str)
+
+    return res
+
+proc readLine(f: FileUTF16, str: var string): bool =
     var ch_arr {.noinit.}: array[2, uint8]
     var ch: uint16
 
@@ -45,11 +73,13 @@ proc readLine(f: FileUTF16, str: var string): bool =
 
     return true
 
-proc readLine*(f: BaseEncodedFile, str: var string): bool = 
+proc readLine*(f: BaseEncodedFile, str: var string): bool =
     if f of FileUTF8:
         return readLine(cast[FileUTF8](f), str)
     elif f of FileUTF16:
         return readLine(cast[FileUTF16](f), str)
+    elif f of FileWIN1250:
+        return readLine(cast[FileWIN1250](f), str)
     else:
         raise newException(Exception, "encoding not implemented")
 
@@ -60,7 +90,7 @@ proc newFileUTF16(filename: string): FileUTF16 =
         raise newException(Exception, "invalid size")
 
     var bom_bytes: array[2, uint16]
-    
+
     if fh.readBuffer(addr bom_bytes, bom_bytes.len) != bom_bytes.len:
         raise newException(Exception, "cannot find bom")
 
@@ -90,10 +120,18 @@ proc newFileUTF8(filename: string): FileUTF8 =
 
     return FileUTF8(fh: fh)
 
+proc newFileWIN1250(filename: string): FileWIN1250 =
+    let fh = open(filename, fmRead)
+    let encoder = open("UTF-8", "WINDOWS-1252")
+
+    return FileWIN1250(fh: fh, encoder: encoder)
+
 proc newFile*(filename: string, encoding: Encodings): BaseEncodedFile =
     case encoding:
         of ENC_UTF8:
             return newFileUTF8(filename)
+        of ENC_WIN1250:
+            return newFileWIN1250(filename)
         of ENC_UTF16:
             return newFileUTF16(filename)
 
@@ -117,3 +155,10 @@ proc findNewlines*(path: string, encoding: Encodings): (seq[uint], uint) =
         return findNewlines(fh)
     finally:
         fh.close()
+
+proc str2Enc*(encoding: string): Encodings =
+    case encoding.toUpper():
+        of $ENC_UTF8: return ENC_UTF8
+        of $ENC_UTF16: return ENC_UTF16
+        of $ENC_WIN1250: return ENC_WIN1250
+        else: raise newException(IOError, "invalid encoding: " & encoding)

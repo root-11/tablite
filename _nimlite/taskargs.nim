@@ -43,34 +43,12 @@ proc toTaskArgs*(
         quotechar = quotechar[0],
         escapechar = escapechar[0],
         doublequote = dia_doublequote,
-        quoting = (
-            case dia_quoting.toUpper():
-                of "QUOTE_MINIMAL":
-                    QUOTE_MINIMAL
-                of "QUOTE_ALL":
-                    QUOTE_ALL
-                of "QUOTE_NONNUMERIC":
-                    QUOTE_NONNUMERIC
-                of "QUOTE_NONE":
-                    QUOTE_NONE
-                of "QUOTE_STRINGS":
-                    QUOTE_STRINGS
-                of "QUOTE_NOTNULL":
-                    QUOTE_NOTNULL
-                else:
-                    raise newException(Exception, "invalid 'quoting'")
-        ),
+        quoting = str2quoting(dia_quoting),
         skipinitialspace = dia_skipinitialspace,
         lineterminator = lineterminator[0],
     )
 
-    var arg_encoding: Encodings
-
-    case encoding.toUpper():
-        of "ENC_UTF8": arg_encoding = ENC_UTF8
-        of "ENC_UTF16": arg_encoding = ENC_UTF16
-        else: raise newException(Exception, "invalid 'encoding'")
-
+    var arg_encoding = str2Enc(encoding)
 
     return TaskArgs(
         path: path,
