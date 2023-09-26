@@ -70,7 +70,7 @@ proc textReaderTask*(task: TaskArgs): void =
 
 proc importTextFile*(
     pid: string, path: string, encoding: Encodings, dia: Dialect,
-    columns: Option[seq[string]], first_row_has_headers: bool,
+    columns: Option[seq[string]], first_row_has_headers: bool, header_row_index: uint,
     page_size: uint, guess_dtypes: bool,
     start: Option[int] = none[int](), limit: Option[int] = none[int]()
 ): TabliteTable =
@@ -85,8 +85,8 @@ proc importTextFile*(
     if not dirExists(dirname):
         createDir(dirname)
 
-    if newlines > 0:
-        let first_line = readColumns(path, encoding, dia, newline_offsets[0])
+    if newlines > 0 and newlines > header_row_index:
+        let first_line = readColumns(path, encoding, dia, newline_offsets[header_row_index])
         
         var fields {.noinit.}: seq[string]
 
@@ -136,7 +136,7 @@ proc importTextFile*(
 
                 {unq: field_relation_inv[name]}
 
-        let offset_row = int (if first_row_has_headers: 1 else: 0)
+        let offset_row = (if first_row_has_headers: 1 else: 0) + int header_row_index
 
         var page_idx: uint32 = 1
         var row_idx: uint = uint opt_start + offset_row
