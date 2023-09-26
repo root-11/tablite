@@ -40,25 +40,44 @@ proc readLine(f: FileWIN1250, str: var string): bool =
     return res
 
 proc readLine(f: FileUTF16, str: var string): bool =
-    var ch_arr {.noinit.}: array[2, uint8]
+    var ch_arr {.noinit.}: array[2048, uint8] # must be divisible by 2
     var ch: uint16
 
     let newline_char: uint16 = 0x000a
     var wchar_seq {.noinit.} = newSeqOfCap[uint16](80)
 
-    while unlikely(not f.endOfFile):
-        if f.fh.readBuffer(addr ch_arr, 2) != ch_arr.len:
-            raise newException(Exception, "malformed file")
+    var file_offset = f.fh.getFilePos()
+    var elements = f.fh.readBuffer(addr ch_arr, 2)
+    var el_iter = 0
 
+    if (elements mod 2) != 0:
+        raise newException(Exception, "malformed file")
+
+    while likely(el_iter < elements):
         if f.endianness == bigEndian: # big if true
-            (ch_arr[0], ch_arr[1]) = (ch_arr[1], ch_arr[0])
+            (ch_arr[el_iter], ch_arr[el_iter+1]) = (ch_arr[el_iter+1], ch_arr[el_iter])
 
         ch = cast[uint16](ch_arr)
 
+        el_iter = el_iter + 2
+
         if newline_char == ch:
+            if wchar_seq.len == 0:
+                str = "" # empty line
+                return true
             break
 
         wchar_seq.add(ch)
+
+        if el_iter >= elements:
+            file_offset = f.fh.getFilePos()
+            elements = f.fh.readBuffer(addr ch_arr, 2)
+            el_iter = 0
+
+            if (elements mod 2) != 0:
+                raise newException(Exception, "malformed file")
+
+    f.fh.setFilePos(file_offset + el_iter, fspSet)
 
     var wstr {.noinit.} = newWideCString(wchar_seq.len)
 
