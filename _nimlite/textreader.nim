@@ -12,7 +12,7 @@ proc textReaderTask*(task: TaskArgs): void =
     var import_fields = task.import_fields.unsafeAddr
 
     var obj = newReaderObj(dialect)
-    
+
     let fh = newFile(path, encoding)
     let n_pages = destinations.len
 
@@ -20,46 +20,46 @@ proc textReaderTask*(task: TaskArgs): void =
         fh.setFilePos(int64 row_offset, fspSet)
 
         var (n_rows, longest_str, ranks) = collectPageInfo(
-            obj=obj.unsafeAddr,
-            fh=fh.unsafeAddr,
-            guess_dtypes=guess_dtypes,
-            n_pages=n_pages,
-            row_count=row_count,
-            import_fields=import_fields
+            obj = obj.unsafeAddr,
+            fh = fh.unsafeAddr,
+            guess_dtypes = guess_dtypes,
+            n_pages = n_pages,
+            row_count = row_count,
+            import_fields = import_fields
         )
 
         var (page_file_handlers, column_dtypes, binput) = dumpPageHeader(
-            destinations=destinations,
-            n_pages=n_pages,
-            n_rows=n_rows,
-            guess_dtypes=guess_dtypes,
-            longest_str=longest_str,
-            ranks=ranks,
+            destinations = destinations,
+            n_pages = n_pages,
+            n_rows = n_rows,
+            guess_dtypes = guess_dtypes,
+            longest_str = longest_str,
+            ranks = ranks,
         )
 
         try:
             fh.setFilePos(int64 row_offset, fspSet)
 
             dumpPageBody(
-                obj=obj.unsafeAddr,
-                fh=fh.unsafeAddr,
-                guess_dtypes=guess_dtypes,
-                n_pages=n_pages,
-                row_count=row_count,
-                import_fields=import_fields,
-                page_file_handlers=page_file_handlers,
-                longest_str=longest_str,
-                ranks=ranks,
-                column_dtypes=column_dtypes,
-                binput=binput
+                obj = obj.unsafeAddr,
+                fh = fh.unsafeAddr,
+                guess_dtypes = guess_dtypes,
+                n_pages = n_pages,
+                row_count = row_count,
+                import_fields = import_fields,
+                page_file_handlers = page_file_handlers,
+                longest_str = longest_str,
+                ranks = ranks,
+                column_dtypes = column_dtypes,
+                binput = binput
             )
 
             dumpPageFooter(
-                n_pages=n_pages,
-                n_rows=n_rows,
-                page_file_handlers=page_file_handlers,
-                column_dtypes=column_dtypes,
-                binput=binput
+                n_pages = n_pages,
+                n_rows = n_rows,
+                page_file_handlers = page_file_handlers,
+                column_dtypes = column_dtypes,
+                binput = binput
             )
         finally:
             for f in page_file_handlers:
@@ -69,12 +69,14 @@ proc textReaderTask*(task: TaskArgs): void =
         fh.close()
 
 proc importTextFile*(
-    pid: string, path: string, encoding: Encodings, dia: Dialect, 
-    columns: Option[seq[string]],
-    page_size: uint, guess_dtypes: bool, start: Option[int] = none[int](), limit: Option[int] = none[int]()): TabliteTable =
-    
+    pid: string, path: string, encoding: Encodings, dia: Dialect,
+    columns: Option[seq[string]], first_row_has_headers: bool,
+    page_size: uint, guess_dtypes: bool,
+    start: Option[int] = none[int](), limit: Option[int] = none[int]()
+): TabliteTable =
+
     echo "Collecting tasks: '" & path & "'"
-    
+
     let opt_start = (if start.isSome: start.get else: 0)
     let opt_limit = (if limit.isSome: limit.get else: -1)
     let (newline_offsets, newlines) = findNewlines(path, encoding)
@@ -84,7 +86,16 @@ proc importTextFile*(
         createDir(dirname)
 
     if newlines > 0:
-        let fields = readColumns(path, encoding, dia, newline_offsets[0])
+        let first_line = readColumns(path, encoding, dia, newline_offsets[0])
+        
+        var fields {.noinit.}: seq[string]
+
+        if first_row_has_headers:
+            fields = first_line
+        else:
+            fields = collect(newSeqOfCap(first_line.len)):
+                for i in 0..first_line.len-1:
+                    $i
 
         var imp_columns {.noinit.}: seq[string]
 
@@ -120,15 +131,17 @@ proc importTextFile*(
         var table_columns = collect(initOrderedTable()):
             for name in imp_columns:
                 let unq = uniqueName(name, name_list)
-                
+
                 name_list.add(unq)
 
                 {unq: field_relation_inv[name]}
 
+        let offset_row = int (if first_row_has_headers: 1 else: 0)
+
         var page_idx: uint32 = 1
-        var row_idx: uint = uint opt_start + 1
+        var row_idx: uint = uint opt_start + offset_row
         var task_list = newSeq[TabliteTask]()
-        let max_line = (if opt_limit >= 0: min(newlines, uint (opt_limit + opt_start) + 1) else: newlines)
+        let max_line = (if opt_limit >= 0: min(newlines, uint (opt_limit + opt_start) + offset_row) else: newlines)
 
         echo "Dumping tasks: '" & path & "'"
         while row_idx < max_line:
@@ -157,13 +170,13 @@ proc importTextFile*(
             row_idx = next_line
 
         let tasks = newTabliteTasks(
-            path=path,
-            encoding= $encoding,
-            dialect=dia,
-            tasks=task_list,
-            import_fields=import_fields,
-            page_size=page_size,
-            guess_dtypes=guess_dtypes
+            path = path,
+            encoding = $encoding,
+            dialect = dia,
+            tasks = task_list,
+            import_fields = import_fields,
+            page_size = page_size,
+            guess_dtypes = guess_dtypes
         )
         let columns = collect(newSeqOfCap(table_columns.len)):
             for (column_name, page_index) in table_columns.pairs:
