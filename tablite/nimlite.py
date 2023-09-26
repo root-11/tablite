@@ -30,6 +30,7 @@ def text_reader_task(*, pid, path, encoding, dialect, task, import_fields, guess
         dia_doublequote=dialect["doublequote"],
         dia_quoting=dialect["quoting"],
         dia_skipinitialspace=dialect["skipinitialspace"],
+        dia_skiptrailingspace=dialect["skiptrailingspace"],
         dia_lineterminator=dialect["lineterminator"],
         dia_strict=dialect["strict"],
         tsk_pages=task["pages"],

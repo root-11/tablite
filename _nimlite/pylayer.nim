@@ -27,18 +27,19 @@ proc textReader*(
         doublequote = true,
         quoting = quoting,
         skipinitialspace = strip_leading_and_tailing_whitespace,
+        skiptrailingspace = strip_leading_and_tailing_whitespace,
         lineterminator = newline,
     )
 
     return importTextFile(
-        pid=pid,
-        path=path,
-        encoding=encoding,
-        dia=dialect,
-        columns=columns,
-        page_size=page_size,
-        guess_dtypes=guess_dtypes,
-        start=start,
-        limit=limit
+        pid = pid,
+        path = path,
+        encoding = encoding,
+        dia = dialect,
+        columns = columns,
+        page_size = page_size,
+        guess_dtypes = guess_dtypes,
+        start = start,
+        limit = limit
     )
 
