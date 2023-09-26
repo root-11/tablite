@@ -11,8 +11,6 @@ type FileWIN1250 = ref object of BaseEncodedFile
 type FileUTF16 = ref object of BaseEncodedFile
     endianness: Endianness
 
-
-
 proc endOfFile*(f: BaseEncodedFile): bool = f.fh.endOfFile()
 proc getFilePos*(f: BaseEncodedFile): uint = uint f.fh.getFilePos()
 proc setFilePos*(f: BaseEncodedFile, pos: int64, relativeTo: FileSeekPos): void = f.fh.setFilePos(pos, relativeTo)

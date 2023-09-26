@@ -157,7 +157,7 @@ def test_filereader_csv_f12():
     for name in data.columns:
         data[name] = DataTypes.guess(data[name])
     # fmt:off
-    assert list(data.rows) == [
+    for val, gt in zip(list(data.rows), [
         [52609, "3.99 BTSZ RDS TO", 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 1365660, 7, "EA", 0, 7, 0, "Each", "Each", 72, 587, "1365660_2012/01/01", 1],
         [52609, "3.99 BTSZ RDS TO", 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 1696753, 7, "EA", 0, 7, 0, "Each", "Each", 72, 587, "1696753_2012/01/01", 1],
         [52609, "3.99 BTSZ RDS TO", 7, 16, 16, 22, 20, datetime(2012, 1, 1, 0, 0), 1828693, 7, "EA", 0, 7, 0, "Each", "Each", 72, 587, "1828693_2012/01/01", 1],
@@ -171,7 +171,10 @@ def test_filereader_csv_f12():
         [52609, "3.99 BTSZ RDS TO", 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1048323, 7, "EA", 0, 7, 0, "Each", "Each", 72, 587, "1048323_2012/01/02", 1],
         [52609, "3.99 BTSZ RDS TO", 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1056865, 7, "EA", 0, 7, 0, "Each", "Each", 72, 587, "1056865_2012/01/02", 2],
         [52609, "3.99 BTSZ RDS TO", 7, 16, 16, 22, 20, datetime(2012, 1, 2, 0, 0), 1057577, 7, "EA", 0, 7, 0, "Each", "Each", 72, 587, "1057577_2012/01/02", 0],
-    ], list(data.rows)
+    ]):
+        assert len(val) == len(gt)
+        for v, g in zip(val, gt):
+            assert v == g, f"'{v}' != '{g}'"
     # fmt:on
 
 

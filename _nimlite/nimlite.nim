@@ -94,7 +94,7 @@ proc text_reader(
 
 
 if isMainModule:
-    echo "Nimlite imported"
+    echo "Nimlite imported!"
 
 
 proc runTask(path: string, encoding: string, dialect: TabliteDialect, task: TabliteTask, import_fields: seq[uint], guess_dtypes: bool): void =
