@@ -222,6 +222,7 @@ iterator parseCSV*(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[str
     while likely(not fh.endOfFile):
         if not fh.readLine(line):
             break
+        # discard fh.readLine(line)
 
         if self.field_len != 0 and state == IN_QUOTED_FIELD:
             if dia.strict:
@@ -230,7 +231,6 @@ iterator parseCSV*(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[str
                 break
 
         line.add('\n')
-
 
         linelen = uint line.len
         pos = 0
