@@ -94,7 +94,7 @@ proc importTextFile*(
                 if not (column in fields):
                     missing.add("'" & column & "'")
             if missing.len > 0:
-                raise newException(IOError, "Missing columns: [" & missing.join(", ") & "]")
+                raise newException(IOError, "Missing columns: [" & missing.join(", ") & "]" & " | Available columns: (" & $fields.len & ")[" & fields.join(", ") & "]")
             imp_columns = columns.get
         else:
             imp_columns = fields

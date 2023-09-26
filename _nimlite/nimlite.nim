@@ -83,7 +83,8 @@ proc text_reader(
     newline: string, delimiter: string, text_qualifier: string,
     strip_leading_and_tailing_whitespace: bool,
     page_size: uint,
-    guess_dtypes: bool
+    guess_dtypes: bool,
+    quoting: string
 ): TabliteTable {.exportpy.} =
     try:
         var arg_cols = (if isNone(columns): none[seq[string]]() else: some(columns.to(seq[string])))
@@ -100,6 +101,24 @@ proc text_reader(
         var arg_delimiter = (if delimiter.len == 1: delimiter[0] else: raise newException(Exception, "'delimiter' not a char"))
         var arg_text_qualifier = (if text_qualifier.len == 1: text_qualifier[0] else: raise newException(Exception, "'text_qualifier' not a char"))
 
+        var arg_quoting = (
+            case quoting.toUpper():
+                of "QUOTE_MINIMAL":
+                    QUOTE_MINIMAL
+                of "QUOTE_ALL":
+                    QUOTE_ALL
+                of "QUOTE_NONNUMERIC":
+                    QUOTE_NONNUMERIC
+                of "QUOTE_NONE":
+                    QUOTE_NONE
+                of "QUOTE_STRINGS":
+                    QUOTE_STRINGS
+                of "QUOTE_NOTNULL":
+                    QUOTE_NOTNULL
+                else:
+                    raise newException(Exception, "invalid quoting: " & quoting)
+        )
+
         let table = textReader(
                 pid = pid,
                 path = path,
@@ -115,7 +134,8 @@ proc text_reader(
                 text_qualifier = arg_text_qualifier,
                 strip_leading_and_tailing_whitespace = strip_leading_and_tailing_whitespace,
                 page_size=page_size,
-                guess_dtypes=guess_dtypes
+                guess_dtypes=guess_dtypes,
+                quoting=arg_quoting
         )
 
         discard table.task.saveTasks(pid)
@@ -294,7 +314,9 @@ when isMainModule and appType != "lib":
     if opts.import.isNone and opts.task.isNone:
         guess_dtypes = true
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/bad_empty.csv", ENC_UTF8)
-        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.csv", ENC_UTF8)
+        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.csv", ENC_UTF8)
+        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_test.csv", ENC_UTF16)
+        
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.txt", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
@@ -303,6 +325,10 @@ when isMainModule and appType != "lib":
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/gesaber_data.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_be.csv", ENC_UTF16)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_le.csv", ENC_UTF16)
+
+        cols = some(@["\"Item\"", "\"Materiál\"", "\"Objem\"", "\"Jednotka objemu\"", "\"Free Inv Pcs\""])
+        dialect.quoting = Quoting.QUOTE_NONE
+        dialect.delimiter = ';'
 
         let multiprocess = false
         let execute = true

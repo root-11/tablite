@@ -17,14 +17,15 @@ proc textReader*(
     newline: char, delimiter: char,
     text_qualifier: char, strip_leading_and_tailing_whitespace: bool,
     page_size: uint,
-    guess_dtypes: bool
+    guess_dtypes: bool,
+    quoting: Quoting
 ): TabliteTable =
     var dialect = newDialect(
         delimiter = delimiter,
         quotechar = text_qualifier,
         escapechar = '\\',
         doublequote = true,
-        quoting = QUOTE_MINIMAL,
+        quoting = quoting,
         skipinitialspace = strip_leading_and_tailing_whitespace,
         lineterminator = newline,
     )
