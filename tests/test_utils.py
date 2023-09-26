@@ -258,6 +258,40 @@ def test_summary_statistics_datetimes():
     assert d["sum"] == "153003.99999999985 days"
 
 
+def test_summary_statistics_dates():
+    V = [date(1999, 12, i) for i in range(1, 5)]
+    C = [2, 3, 4, 5]  # Value, Count
+    L = list(chain(*([v] * c for v, c in zip(V, C))))
+
+    d = summary_statistics(V, C)
+    assert d["min"] == min(L)
+    assert d["max"] == max(L)
+    assert d["mean"] == date(1999, 12, 2)
+    assert d["median"] == date(1999, 12, 3)
+    assert d["stdev"] == "1.0994504121563666 days"
+    assert d["mode"] == date(1999, 12, 4)
+    assert d["distinct"] == len(V)
+    assert d["iqr"] == "2.0 days"
+    assert d["sum"] == "152990.0 days"
+
+
+def test_summary_statistics_times():
+    V = [time(23, 59, 59, 999999) for _ in range(4)]
+    C = [2, 3, 4, 5]  # Value, Count
+    L = list(chain(*([v] * c for v, c in zip(V, C))))
+
+    d = summary_statistics(V, C)
+    assert d["min"] == min(L)
+    assert d["max"] == max(L)
+    assert d["mean"] == time(23, 59, 59, 999999)
+    assert d["median"] == time(23, 59, 59, 999999)
+    assert d["stdev"] == "0.0 seconds"
+    assert d["mode"] == time(23, 59, 59, 999999)
+    assert d["distinct"] == len(V)
+    assert d["iqr"] == "0.0 seconds"
+    assert d["sum"] == '1209599.9999860001 seconds'
+
+
 def test_summary_statistics_mixed_types():
     V = [
         "a",

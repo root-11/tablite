@@ -314,16 +314,19 @@ def _datetime_statistics_summary(v, c):
 
 
 def _time_statistics_summary(v, c):
-    v = [sum(t.hour * 60 * 60, t.minute * 60, t.second, t.microsecond / 1e6) for t in v]
+    v = [sum((t.hour * 60 * 60, t.minute * 60, t.second, t.microsecond / 1e6)) for t in v]
     d = _numeric_statistics_summary(v, c)
     for k in d.keys():
-        if k in {"min", "max", "mean", "median"}:
+        if k in {"min", "max", "mean", "median", "mode"}:
             timestamp = d[k]
-            hours = timestamp // (60 * 60)
+            hours = int(timestamp // (60 * 60))
             timestamp -= hours * 60 * 60
-            minutes = timestamp // 60
+            minutes = int(timestamp // 60)
             timestamp -= minutes * 60
-            d[k] = time.fromtimestamp(hours, minutes, timestamp)
+            seconds = int(timestamp)
+            microseconds = int(1e6 * (timestamp-seconds))
+            
+            d[k] = time(hours, minutes, seconds, microseconds)
         elif k in {"stdev", "iqr", "sum"}:
             d[k] = f"{d[k]} seconds"
         else:
@@ -335,7 +338,7 @@ def _date_statistics_summary(v, c):
     v = [datetime(d.year, d.month, d.day, 0, 0, 0).timestamp() for d in v]
     d = _numeric_statistics_summary(v, c)
     for k in d.keys():
-        if k in {"min", "max", "mean", "median"}:
+        if k in {"min", "max", "mean", "median", "mode"}:
             d[k] = date(*datetime.fromtimestamp(d[k]).timetuple()[:3])
         elif k in {"stdev", "iqr", "sum"}:
             d[k] = f"{d[k]/(24*60*60)} days"
