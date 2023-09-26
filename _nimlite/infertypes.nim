@@ -39,7 +39,7 @@ proc inferFloat*(str: ptr string): float =
     var sstr {.noinit.}: string 
 
     if dot_index == -1 and comma_index == -1:
-        sstr = str[].replaceWord("\"", "")
+        sstr = str[].replace("\"", "")
     elif 0 < dot_index and dot_index < comma_index:
         sstr = str[].multiReplace(
             ("\"", ""),

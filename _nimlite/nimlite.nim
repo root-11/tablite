@@ -1,5 +1,5 @@
-import std/[os, options, strutils, osproc, sugar, times]
-import encfile, table, csvparse, textreader, utils, pylayer, taskargs
+import std/[os, options, strutils, osproc, times, enumerate]
+import encfile, table, csvparse, textreader, pylayer, taskargs
 
 # include pylib
 import nimpy
@@ -150,14 +150,17 @@ proc importFile(
             executeParallel(task_path)
     else:
         if execute:
-            for column_task in task.tasks:
+            for i, column_task in enumerate(task.tasks):
                 runTask(task.path, task.encoding, task.dialect, column_task, task.import_fields, task.guess_dtypes)
+                echo "Dumped " & $(i+1) & "/" & $task.tasks.len
 
     let d1 = getTime()
     echo $(d1 - d0)
 
 when isMainModule and appType != "lib":
     import argparse
+    import std/sugar
+    import utils
 
     var path_csv: string
     var encoding: Encodings
@@ -299,21 +302,21 @@ when isMainModule and appType != "lib":
 
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.txt", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", ENC_UTF8)
-        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
+        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data_1M.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data_1M_1col.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/gesaber_data.csv", ENC_UTF8)
-        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_be.csv", ENC_UTF16)
+        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_be.csv", ENC_UTF16)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_le.csv", ENC_UTF16)
 
         # cols = some(@["\"Item\"", "\"Materiál\"", "\"Objem\"", "\"Jednotka objemu\"", "\"Free Inv Pcs\""])
-        # dialect.quoting = Quoting.QUOTE_NONE
+        dialect.quoting = Quoting.QUOTE_NONE
         # dialect.delimiter = ';'
 
         let multiprocess = false
         let execute = true
         let start = some[int](0)
-        let limit = some[int](5)
+        let limit = some[int](-1)
         let first_row_has_headers = false
         let header_row_index = uint 0
 
