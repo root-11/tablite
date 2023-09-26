@@ -16,56 +16,67 @@ proc inferNone*(str: ptr string): PY_NoneType =
     raise newException(ValueError, "not a none")
 
 proc inferBool*(str: ptr string): bool =
-    if str[] in ["True", "true"]:
+    let sstr = str[]
+
+    if sstr in ["True", "true"]:
         return true
-    elif str[] in ["False", "false"]:
+    elif sstr in ["False", "false"]:
         return false
 
     raise newException(ValueError, "not a boolean value")
 
 proc inferInt*(str: ptr string): int =
-    let sstr = str[].multiReplace(
-        ("\"", ""),
-        (" ", ""),
-        (",", "")
-    )
+    let sstr = str[]
 
-    return parseInt(sstr)
-
-proc inferFloat*(str: ptr string): float =
-    let dot_index   = str[].find(".")
-    let comma_index = str[].find(",")
-
-    var sstr {.noinit.}: string 
-
-    if dot_index == -1 and comma_index == -1:
-        sstr = str[].replace("\"", "")
-    elif 0 < dot_index and dot_index < comma_index:
-        sstr = str[].multiReplace(
+    try:
+        return parseInt(sstr)
+    except ValueError:
+        let sstr = sstr.multiReplace(
             ("\"", ""),
-            (".", ""),
-            (",", ".")
-        )
-    elif dot_index > comma_index and comma_index > 0:  # 1,234.678
-        sstr = str[].multiReplace(
-            ("\"", ""),
+            (" ", ""),
             (",", "")
         )
-    elif comma_index != 0 and dot_index == -1:
-        sstr = str[].multiReplace(
-            ("\"", ""),
-            (",", ".")
-        )
 
-    return parseFloat(sstr)
+        return parseInt(sstr)
+
+proc inferFloat*(str: ptr string): float =
+    var sstr = str[] # fuckin nim' GC runs out of memory in the exception branch if this is not copied on the stack
+    
+    try:
+        return parseFloat(sstr)
+    except ValueError:
+        let dot_index   = sstr.find(".")
+        let comma_index = sstr.find(",")
+
+        if dot_index == -1 and comma_index == -1:
+            sstr = sstr.replace("\"", "")
+        elif 0 < dot_index and dot_index < comma_index:
+            sstr = sstr.multiReplace(
+                ("\"", ""),
+                (".", ""),
+                (",", ".")
+            )
+        elif dot_index > comma_index and comma_index > 0:  # 1,234.678
+            sstr = sstr.multiReplace(
+                ("\"", ""),
+                (",", "")
+            )
+        elif comma_index != 0 and dot_index == -1:
+            sstr = sstr.multiReplace(
+                ("\"", ""),
+                (",", ".")
+            )
+
+        return parseFloat(sstr)
 
 proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool): (array[3, string], int) =
     const accepted_tokens = [' ', '.', '-', '/']
 
     var has_tokens = false
-    let str_len = str[].runeLen
+    let sstr = str[]
+    let str_len = sstr.runeLen
 
-    if str_len != str[].len: # datetimes are not in unicode
+    if str_len != sstr.len: # datetimes are not in unicode
         raise newException(ValueError, "not a value")
 
     for i in 0..4: # date will have tokens in first 5 characters YYYY-/DD-/MM-
@@ -119,7 +130,7 @@ proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool)
                     break
                 raise newException(ValueError, "not a date: '" & $ch & "'")
 
-            substrings[substring_count] = $str[].substr(slice_start, idx-1)
+            substrings[substring_count] = $sstr.substr(slice_start, idx-1)
             inc substring_count
 
             was_digit = false
@@ -128,7 +139,7 @@ proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool)
         if substring_count != 2 or (idx - slice_start) == 0:
             raise newException(ValueError, "not a date") # should have 2 substrings and some leftover
 
-        substrings[substring_count] = $str[].substr(slice_start, idx-1)
+        substrings[substring_count] = $sstr.substr(slice_start, idx-1)
 
         return (substrings, idx)
 
@@ -136,9 +147,9 @@ proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool)
     if str_len < 8 or is_short == ParseShortDate.NEVER:
         raise newException(ValueError, "not a date")
 
-    substrings[0] = str[].substr(0, 3)
-    substrings[1] = str[].substr(4, 5)
-    substrings[2] = str[].substr(6, 7)
+    substrings[0] = sstr.substr(0, 3)
+    substrings[1] = sstr.substr(4, 5)
+    substrings[2] = sstr.substr(6, 7)
 
     return (substrings, 8)
 
@@ -270,7 +281,8 @@ proc toTimedelta(
 
 proc parse_hh_mm_ss_ff(tstr: ptr string): (uint8, uint8, uint8, uint32) =
     # Parses things of the form HH[:MM[:SS[.fff[fff]]]]
-    let len_str = tstr[].len
+    let sstr = tstr[]
+    let len_str = sstr.len
 
     var time_comps: array[4, int]
     var pos = 0
@@ -279,7 +291,7 @@ proc parse_hh_mm_ss_ff(tstr: ptr string): (uint8, uint8, uint8, uint32) =
         if (len_str - pos) < 2:
             raise newException(ValueError, "Incomplete time component")
 
-        let substr = tstr[].substr(pos, pos+1)
+        let substr = sstr.substr(pos, pos+1)
 
         time_comps[comp] = parseInt(substr)
 
@@ -305,38 +317,39 @@ proc parse_hh_mm_ss_ff(tstr: ptr string): (uint8, uint8, uint8, uint32) =
             if not (len_remainder in [3, 6]):
                 raise newException(ValueError, "Invalid microsecond component")
 
-            time_comps[3] = parseInt(tstr[].substr(pos))
+            time_comps[3] = parseInt(sstr.substr(pos))
             if len_remainder == 3:
                 time_comps[3] *= 1000
 
     return (uint8 time_comps[0], uint8 time_comps[1], uint8 time_comps[2], uint32 time_comps[3])
 
 proc inferTime*(str: ptr string): PY_Time =
-    let str_len = str[].len
+    let sstr = str[]
+    let str_len = sstr.len
 
     if str_len < 2:
         raise newException(ValueError, "not a time")
 
-    if not (":" in str[]):
+    if not (":" in sstr):
         # Format supported is HH[MM[SS]]
         if str_len in [2, 4, 6]:
             var hour, minute, second: uint8
 
-            hour = uint8 parseInt(str[].substr(0, 1))
+            hour = uint8 parseInt(sstr.substr(0, 1))
 
             if str_len >= 4:
-                minute = uint8 parseInt(str[].substr(2, 3))
+                minute = uint8 parseInt(sstr.substr(2, 3))
 
             if str_len >= 6:
-                second = uint8 parseInt(str[].substr(4, 5))
+                second = uint8 parseInt(sstr.substr(4, 5))
 
             return newPyTime(hour, minute, second, uint32 0)
 
         raise newException(ValueError, "not a time")
 
     # Format supported is HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]
-    let tz_pos_minus = str[].find("-")
-    let tz_pos_plus = str[].find("+")
+    let tz_pos_minus = sstr.find("-")
+    let tz_pos_plus = sstr.find("+")
 
     var tz_pos = -1
 
@@ -347,12 +360,12 @@ proc inferTime*(str: ptr string): PY_Time =
     elif tz_pos_minus != -1:
         tz_pos = tz_pos_minus
 
-    var timestr = (if tz_pos == -1: str[] else: str[].substr(0, tz_pos-1))
+    var timestr = (if tz_pos == -1: sstr else: sstr.substr(0, tz_pos-1))
 
     let (hour, minute, second, microsecond) = parse_hh_mm_ss_ff(timestr.unsafeAddr)
 
     if tz_pos >= 0:
-        let tzstr = str[].substr(tz_pos + 1)
+        let tzstr = sstr.substr(tz_pos + 1)
 
         if not (tzstr.len in [5, 8, 15]):
             raise newException(Exception, "invalid timezone")
@@ -372,7 +385,8 @@ proc inferTime*(str: ptr string): PY_Time =
 
 
 proc inferDatetime*(str: ptr string, is_american: bool): PY_DateTime =
-    let str_len = str[].runeLen
+    let sstr = str[]
+    let str_len = sstr.runeLen
 
     if str_len > 42 or str_len < 10: # string len will never match
         raise newException(ValueError, "not a datetime: " & $str_len)
@@ -386,9 +400,9 @@ proc inferDatetime*(str: ptr string, is_american: bool): PY_DateTime =
     var tstr {.noinit.}: string
 
     if(first_tchar.isDigit):
-        tstr = str[].substr(toffset)
+        tstr = sstr.substr(toffset)
     elif first_tchar in [' ', 'T']:
-        tstr = str[].substr(toffset + 1)
+        tstr = sstr.substr(toffset + 1)
     else:
         raise newException(ValueError, "not a datetime")
 

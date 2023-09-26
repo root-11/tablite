@@ -20,7 +20,8 @@ proc collectPageInfo*(
     var ranks {.noinit.}: seq[Rank]
     var longest_str = newSeq[uint](n_pages)
     var n_rows: uint = 0
-    
+
+
     if guess_dtypes:
         ranks = collect(newSeqOfCap(n_pages)):
             for _ in 0..n_pages-1:
@@ -31,7 +32,7 @@ proc collectPageInfo*(
     for (row_idx, fields, field_count) in obj[].parseCSV(fh[]):
         if row_count >= 0 and row_idx >= (uint row_count):
             break
-            
+
         var fidx = -1
 
         for idx in 0..field_count-1:
@@ -42,6 +43,9 @@ proc collectPageInfo*(
 
             # let fidx = uint idx
             let field = fields[idx]
+
+            if fidx < 0 or fidx >= n_pages:
+                raise newException(Exception, "what")
 
             if not guess_dtypes:
                 longest_str[fidx] = max(uint field.runeLen, longest_str[fidx])
@@ -58,12 +62,12 @@ proc collectPageInfo*(
 
 proc dumpPageHeader*(
         destinations: var seq[string],
-        n_pages: int, n_rows: uint, guess_dtypes: bool, 
+        n_pages: int, n_rows: uint, guess_dtypes: bool,
         longest_str: var seq[uint], ranks: var seq[Rank]
     ): (seq[File], seq[PageType], uint32) =
     let page_file_handlers = collect(newSeqOfCap(n_pages)):
-            for p in destinations:
-                open(p, fmWrite)
+        for p in destinations:
+            open(p, fmWrite)
 
     var column_dtypes = newSeq[PageType](n_pages)
     var binput: uint32 = 0
@@ -79,7 +83,6 @@ proc dumpPageHeader*(
             var dtype = column_dtypes[i]
 
             rank[].sortRanks(false) # sort accounting for strings, so that if string is primary type, everything overlaps to string
-            # echo $rank[]
 
             for it in rank[].iter():
                 let dt = it[0]
@@ -94,7 +97,7 @@ proc dumpPageHeader*(
                         of DataTypes.DT_FLOAT: dtype = PageType.PG_FLOAT32
                         of DataTypes.DT_STRING:
                             dtype = PageType.PG_UNICODE
-                            break   # if the first type is string, everying is a subset of string
+                            break # if the first type is string, everying is a subset of string
                         of DataTypes.DT_DATETIME, DataTypes.DT_DATETIME_US:
                             dtype = PageType.PG_DATETIME
                         of DataTypes.DT_DATE, DataTypes.DT_DATE_US:
@@ -105,13 +108,13 @@ proc dumpPageHeader*(
                     continue
 
                 # check overlapping types
-                if dtype == PageType.PG_FLOAT32 and dt in [DataTypes.DT_INT, DataTypes.DT_DATE_SHORT]: discard                         # float overlaps ints
-                elif dtype == PageType.PG_INT32 and dt == DataTypes.DT_FLOAT: dtype = PageType.PG_FLOAT32   # int is a subset of int, change to float
-                elif dtype == PageType.PG_INT32 and dt == DataTypes.DT_DATE_SHORT: dtype = PageType.PG_INT32   # int is a subset of int, change to float
+                if dtype == PageType.PG_FLOAT32 and dt in [DataTypes.DT_INT, DataTypes.DT_DATE_SHORT]: discard # float overlaps ints
+                elif dtype == PageType.PG_INT32 and dt == DataTypes.DT_FLOAT: dtype = PageType.PG_FLOAT32 # int is a subset of int, change to float
+                elif dtype == PageType.PG_INT32 and dt == DataTypes.DT_DATE_SHORT: dtype = PageType.PG_INT32 # int is a subset of int, change to float
                 elif dtype == PageType.PG_DATE_SHORT:
                     if dt == DataTypes.DT_FLOAT: dtype = PageType.PG_FLOAT32
                     elif dt == DataTypes.DT_INT: dtype = PageType.PG_INT32
-                else: dtype = PageType.PG_OBJECT                                                            # types cannot overlap
+                else: dtype = PageType.PG_OBJECT # types cannot overlap
 
             case dtype:
                 of PageType.PG_UNICODE: fh.writeNumpyHeader("<U" & $ longest_str[i], n_rows)
@@ -168,7 +171,7 @@ proc dumpPageBody*(
                     of PageType.PG_INT32: fh.writeNumpyInt(str)
                     of PageType.PG_FLOAT32: fh.writeNumpyFloat(str)
                     of PageType.PG_BOOL: fh.writeNumpyBool(str)
-                    of PageType.PG_OBJECT: 
+                    of PageType.PG_OBJECT:
                         var rank = ranks[idx]
                         for r_addr in rank.iter():
                             let dt = r_addr[0]
