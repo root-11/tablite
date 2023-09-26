@@ -88,36 +88,13 @@ proc text_reader(
 ): TabliteTable {.exportpy.} =
     try:
         var arg_cols = (if isNone(columns): none[seq[string]]() else: some(columns.to(seq[string])))
-        var arg_encoding: Encodings
-
-        case encoding:
-            of "ENC_UTF8": arg_encoding = ENC_UTF8
-            of "ENC_UTF16": arg_encoding = ENC_UTF16
-            else: raise newException(IOError, "invalid encoding: " & encoding)
-
+        var arg_encoding = str2Enc(encoding)
         var arg_start = (if isNone(start): none[int]() else: some(start.to(int)))
         var arg_limit = (if isNone(limit): none[int]() else: some(limit.to(int)))
         var arg_newline = (if newline.len == 1: newline[0] else: raise newException(Exception, "'newline' not a char"))
         var arg_delimiter = (if delimiter.len == 1: delimiter[0] else: raise newException(Exception, "'delimiter' not a char"))
         var arg_text_qualifier = (if text_qualifier.len == 1: text_qualifier[0] else: raise newException(Exception, "'text_qualifier' not a char"))
-
-        var arg_quoting = (
-            case quoting.toUpper():
-                of "QUOTE_MINIMAL":
-                    QUOTE_MINIMAL
-                of "QUOTE_ALL":
-                    QUOTE_ALL
-                of "QUOTE_NONNUMERIC":
-                    QUOTE_NONNUMERIC
-                of "QUOTE_NONE":
-                    QUOTE_NONE
-                of "QUOTE_STRINGS":
-                    QUOTE_STRINGS
-                of "QUOTE_NOTNULL":
-                    QUOTE_NOTNULL
-                else:
-                    raise newException(Exception, "invalid quoting: " & quoting)
-        )
+        var arg_quoting = str2quoting(quoting)
 
         let table = textReader(
                 pid = pid,
@@ -205,8 +182,8 @@ when isMainModule and appType != "lib":
         option(
             "-e", "--encoding",
             help="file encoding",
-            choices = @["ENC_UTF8", "ENC_UTF16"],
-            default=some("ENC_UTF8")
+            choices = @[$ENC_UTF8, $ENC_UTF16, $ENC_WIN1250],
+            default=some($ENC_UTF8)
         )
 
         option(
@@ -239,14 +216,10 @@ when isMainModule and appType != "lib":
             "--quoting",
             help="text quoting",
             choices = @[
-                "QUOTE_MINIMAL",
-                "QUOTE_ALL",
-                "QUOTE_NONNUMERIC",
-                "QUOTE_NONE",
-                "QUOTE_STRINGS",
-                "QUOTE_NOTNULL"
+                $QUOTE_MINIMAL,
+                $QUOTE_NONE,
             ],
-            default=some("QUOTE_MINIMAL")
+            default=some($QUOTE_MINIMAL)
         )
 
         command("import"):
@@ -280,31 +253,12 @@ when isMainModule and appType != "lib":
                 quotechar = quotechar[0],
                 escapechar = escapechar[0],
                 doublequote = opts.doublequote in boolean_true_choices,
-                quoting = (
-                    case opts.quoting.toUpper():
-                        of "QUOTE_MINIMAL":
-                            QUOTE_MINIMAL
-                        of "QUOTE_ALL":
-                            QUOTE_ALL
-                        of "QUOTE_NONNUMERIC":
-                            QUOTE_NONNUMERIC
-                        of "QUOTE_NONE":
-                            QUOTE_NONE
-                        of "QUOTE_STRINGS":
-                            QUOTE_STRINGS
-                        of "QUOTE_NOTNULL":
-                            QUOTE_NOTNULL
-                        else:
-                            raise newException(Exception, "invalid 'quoting'")
-                ),
+                quoting = str2quoting(opts.quoting),
                 skipinitialspace = opts.skipinitialspace in boolean_true_choices,
                 lineterminator = lineterminator[0],
             )
 
-            case opts.encoding.toUpper():
-                of "ENC_UTF8": encoding = ENC_UTF8
-                of "ENC_UTF16": encoding = ENC_UTF16
-                else: raise newException(Exception, "invalid 'encoding'")
+            encoding = str2Enc(opts.encoding)
 
             guess_dtypes = opts.guess_dtypes in boolean_true_choices
 
@@ -315,8 +269,9 @@ when isMainModule and appType != "lib":
         guess_dtypes = true
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/bad_empty.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.csv", ENC_UTF8)
-        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_test.csv", ENC_UTF16)
-        
+        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_test.csv", ENC_UTF16)
+        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/win1250_test.csv", ENC_WIN1250)
+
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.txt", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
@@ -469,23 +424,7 @@ when isMainModule and appType != "lib":
 #                 quotechar = quotechar[0],
 #                 escapechar = escapechar[0],
 #                 doublequote = opts.doublequote in boolean_true_choices,
-#                 quoting = (
-#                     case opts.quoting.toUpper():
-#                         of "QUOTE_MINIMAL":
-#                             QUOTE_MINIMAL
-#                         of "QUOTE_ALL":
-#                             QUOTE_ALL
-#                         of "QUOTE_NONNUMERIC":
-#                             QUOTE_NONNUMERIC
-#                         of "QUOTE_NONE":
-#                             QUOTE_NONE
-#                         of "QUOTE_STRINGS":
-#                             QUOTE_STRINGS
-#                         of "QUOTE_NOTNULL":
-#                             QUOTE_NOTNULL
-#                         else:
-#                             raise newException(Exception, "invalid 'quoting'")
-#                 ),
+#                 quoting = str2quoting(opts.quoting),
 #                 skipinitialspace = opts.skipinitialspace in boolean_true_choices,
 #                 lineterminator = lineterminator[0],
 #             )

@@ -1,3 +1,4 @@
+import std/strutils
 import encfile
 
 # const NOT_SET = uint32.high
@@ -267,3 +268,20 @@ iterator parseCSV*(self: var ReaderObj, path: string, encoding: Encodings): (uin
             yield it
     finally:
         fh.close()
+
+proc str2quoting*(quoting: string): Quoting =
+    case quoting.toUpper():
+        of $QUOTE_MINIMAL:
+            return QUOTE_MINIMAL
+        of $QUOTE_ALL:
+            return QUOTE_ALL
+        of $QUOTE_NONNUMERIC:
+            return QUOTE_NONNUMERIC
+        of $QUOTE_NONE:
+            return QUOTE_NONE
+        of $QUOTE_STRINGS:
+            return QUOTE_STRINGS
+        of $QUOTE_NOTNULL:
+            return QUOTE_NOTNULL
+        else:
+            raise newException(Exception, "invalid quoting: " & quoting)

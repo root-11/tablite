@@ -51,7 +51,7 @@ def text_reader_task(*, pid, path, encoding, dialect, task, import_fields, guess
 def text_reader(
         T,
         pid: str, path: str,
-        encoding: Literal["ENC_UTF8"]|Literal["ENC_UTF16"] = "ENC_UTF8",
+        encoding: Literal["ENC_UTF8"]|Literal["ENC_UTF16"]|Literal["ENC_WIN1250"] = "ENC_UTF8",
         *,
         first_row_has_headers: bool = True, header_row_index: int = 0,
         columns: list[str]|None = None,
