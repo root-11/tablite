@@ -1,5 +1,6 @@
 import std/unicode
-from std/strutils import parseInt, parseFloat
+# from std/strutils import parseInt, parseFloat
+import infertypes
 
 proc writeNumpyHeader*(fh: File, dtype: string, shape: uint): void =
     const magic = "\x93NUMPY"
@@ -35,11 +36,11 @@ proc writeNumpyUnicode*(fh: ptr File, str: var string, unicode_len: uint): void 
         fh[].write("\x00\x00\x00\x00")
 
 proc writeNumpyInt*(fh: ptr File, str: var string): void =
-    let parsed = parseInt(str)
+    let parsed = inferInt(addr str)
     discard fh[].writeBuffer(parsed.unsafeAddr, 8)
 
 proc writeNumpyFloat*(fh: ptr File, str: var string): void =
-    let parsed = parseFloat(str)
+    let parsed = inferFloat(addr str)
     discard fh[].writeBuffer(parsed.unsafeAddr, 8)
 
 proc writeNumpyBool*(fh: ptr File, str: var string): void =
