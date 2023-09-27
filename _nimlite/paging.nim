@@ -17,7 +17,7 @@ proc collectPageInfo*(
         guess_dtypes: bool, n_pages: int, row_count: int,
         import_fields: var seq[uint]
     ): (uint, seq[uint], seq[Rank]) =
-    var ranks {.noinit.}: seq[Rank]
+    var ranks: seq[Rank]
     var longest_str = newSeq[uint](n_pages)
     var n_rows: uint = 0
 

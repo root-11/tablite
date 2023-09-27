@@ -70,7 +70,7 @@ proc parseSaveField(self: var ReaderObj, dia: Dialect): bool =
 
         raise newException(Exception, "not yet implemented: parseSaveField numeric_field")
 
-    var field {.noinit.} = newString(self.field_len)
+    var field = newString(self.field_len)
 
     if likely(self.field_len > 0):
         copyMem(field[0].unsafeAddr, self.field[0].unsafeAddr, self.field_len)

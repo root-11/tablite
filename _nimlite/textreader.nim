@@ -87,7 +87,7 @@ proc importTextFile*(
     if newlines > 0 and newlines > header_row_index:
         let first_line = readColumns(path, encoding, dia, newline_offsets[header_row_index])
 
-        var fields {.noinit.}: seq[string]
+        var fields = newSeq[string](0)
 
         if first_row_has_headers:
             fields = first_line
@@ -96,7 +96,7 @@ proc importTextFile*(
                 for i in 0..first_line.len-1:
                     $i
 
-        var imp_columns {.noinit.}: seq[string]
+        var imp_columns = newSeq[string](0)
 
         if columns.isSome:
             var missing = newSeq[string]()
