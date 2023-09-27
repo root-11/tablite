@@ -40,11 +40,11 @@ proc readLine(f: FileWIN1250, str: var string): bool =
     return res
 
 proc readLine(f: FileUTF16, str: var string): bool =
-    var ch_arr {.noinit.}: array[2048, uint8] # must be divisible by 2
+    var ch_arr: array[2048, uint8] # must be divisible by 2
     var ch: uint16
 
     let newline_char: uint16 = 0x000a
-    var wchar_seq {.noinit.} = newSeqOfCap[uint16](80)
+    var wchar_seq = newSeqOfCap[uint16](80)
 
     var file_offset = f.fh.getFilePos()
     var elements = f.fh.readBuffer(addr ch_arr, 2)
@@ -79,7 +79,7 @@ proc readLine(f: FileUTF16, str: var string): bool =
 
     f.fh.setFilePos(file_offset + el_iter, fspSet)
 
-    var wstr {.noinit.} = newWideCString(wchar_seq.len)
+    var wstr = newWideCString(wchar_seq.len)
 
     if wchar_seq.len > 0:
         copyMem(wstr[0].unsafeAddr, wchar_seq[0].unsafeAddr, wchar_seq.len * 2)

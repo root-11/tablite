@@ -301,8 +301,8 @@ when isMainModule and appType != "lib":
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/win1250_test.csv", ENC_WIN1250)
 
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.txt", ENC_UTF8)
-        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", ENC_UTF8)
-        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
+        (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", ENC_UTF8)
+        # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data_1M.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data_1M_1col.csv", ENC_UTF8)
         # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/gesaber_data.csv", ENC_UTF8)
@@ -317,7 +317,7 @@ when isMainModule and appType != "lib":
         let execute = true
         let start = some[int](0)
         let limit = some[int](-1)
-        let first_row_has_headers = false
+        let first_row_has_headers = true
         let header_row_index = uint 0
 
         guess_dtypes = true

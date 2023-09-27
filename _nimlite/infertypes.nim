@@ -397,7 +397,7 @@ proc inferDatetime*(str: ptr string, is_american: bool): PY_DateTime =
         raise newException(ValueError, "not datetime")
     
     let first_tchar = str[toffset]
-    var tstr {.noinit.}: string
+    var tstr: string
 
     if(first_tchar.isDigit):
         tstr = sstr.substr(toffset)
