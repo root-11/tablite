@@ -13,9 +13,9 @@ type PageType = enum
     PG_DATE_SHORT
 
 proc collectPageInfo*(
-        obj: ptr ReaderObj, fh: ptr BaseEncodedFile,
+        obj: var ReaderObj, fh: var BaseEncodedFile,
         guess_dtypes: bool, n_pages: int, row_count: int,
-        import_fields: ptr seq[uint]
+        import_fields: var seq[uint]
     ): (uint, seq[uint], seq[Rank]) =
     var ranks {.noinit.}: seq[Rank]
     var longest_str = newSeq[uint](n_pages)
@@ -29,14 +29,14 @@ proc collectPageInfo*(
     else:
         ranks = newSeq[Rank](0)
 
-    for (row_idx, fields, field_count) in obj[].parseCSV(fh[]):
+    for (row_idx, fields, field_count) in obj.parseCSV(fh):
         if row_count >= 0 and row_idx >= (uint row_count):
             break
 
         var fidx = -1
 
         for idx in 0..field_count-1:
-            if not ((uint idx) in import_fields[]):
+            if not ((uint idx) in import_fields):
                 continue
 
             inc fidx
@@ -130,7 +130,7 @@ proc dumpPageHeader*(
             column_dtypes[i] = dtype
 
         for idx in 0..n_pages-1:
-            let fh = page_file_handlers[idx].unsafeAddr
+            var fh = page_file_handlers[idx]
             let dt = column_dtypes[idx]
             if dt == PageType.PG_OBJECT:
                 fh.writePickleStart(binput, n_rows)
@@ -138,28 +138,28 @@ proc dumpPageHeader*(
     return (page_file_handlers, column_dtypes, binput)
 
 proc dumpPageBody*(
-        obj: ptr ReaderObj, fh: ptr BaseEncodedFile,
+        obj: var ReaderObj, fh: var BaseEncodedFile,
         guess_dtypes: bool, n_pages: int, row_count: int,
-        import_fields: ptr seq[uint],
+        import_fields: var seq[uint],
         page_file_handlers: var seq[File],
         longest_str: var seq[uint], ranks: var seq[Rank], column_dtypes: var seq[PageType],
         binput: var uint32
     ): void =
-    for (row_idx, fields, field_count) in obj[].parseCSV(fh[]):
+    for (row_idx, fields, field_count) in obj.parseCSV(fh):
         if row_count >= 0 and row_idx >= (uint row_count):
             break
 
         var fidx = -1
 
         for idx in 0..field_count-1:
-            if not ((uint idx) in import_fields[]):
+            if not ((uint idx) in import_fields):
                 continue
 
             inc fidx
 
             var str = fields[idx]
             # let fidx = uint idx
-            var fh = page_file_handlers[fidx].unsafeAddr
+            var fh = page_file_handlers[fidx]
 
             if not guess_dtypes:
                 fh.writeNumpyUnicode(str, longest_str[fidx])
@@ -213,7 +213,7 @@ proc dumpPageFooter*(
     binput: var uint32
 ): void =
     for idx in 0..n_pages-1:
-        let fh = page_file_handlers[idx].unsafeAddr
+        var fh = page_file_handlers[idx]
         let dt = column_dtypes[idx]
         if dt == PageType.PG_OBJECT:
             fh.writePickleFinish(binput, n_rows)

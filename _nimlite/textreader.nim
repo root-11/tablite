@@ -9,18 +9,18 @@ proc textReaderTask*(task: TaskArgs): void =
     var guess_dtypes = task.guess_dtypes
     var row_count = task.row_count
     var row_offset = task.row_offset
-    var import_fields = task.import_fields.unsafeAddr
+    var import_fields = task.import_fields
     var obj = newReaderObj(dialect)
 
-    let fh = newFile(path, encoding)
+    var fh = newFile(path, encoding)
     let n_pages = destinations.len
 
     try:
         fh.setFilePos(int64 row_offset, fspSet)
 
         var (n_rows, longest_str, ranks) = collectPageInfo(
-            obj = obj.unsafeAddr,
-            fh = fh.unsafeAddr,
+            obj = obj,
+            fh = fh,
             guess_dtypes = guess_dtypes,
             n_pages = n_pages,
             row_count = row_count,
@@ -40,8 +40,8 @@ proc textReaderTask*(task: TaskArgs): void =
             fh.setFilePos(int64 row_offset, fspSet)
 
             dumpPageBody(
-                obj = obj.unsafeAddr,
-                fh = fh.unsafeAddr,
+                obj = obj,
+                fh = fh,
                 guess_dtypes = guess_dtypes,
                 n_pages = n_pages,
                 row_count = row_count,
