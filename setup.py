@@ -3,6 +3,7 @@ tablite
 """
 from setuptools import setup
 from pathlib import Path
+import nimporter
 
 __version__ = None
 version_file = Path(__file__).parent / "tablite" / "version.py"
@@ -99,8 +100,11 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     keywords=keywords,
-    packages=["tablite"],
-    python_requires=">=3.7",
+    packages=["tablite", "_nimlite"],
+     package_data={
+        "_nimlite": ["**/*.nim"],
+    },
+    python_requires=">=3.8",
     include_package_data=True,
     data_files=[(".", ["LICENSE", "README.md", "requirements.txt"])],
     platforms="any",
@@ -110,7 +114,6 @@ setup(
         "Intended Audience :: Science/Research",
         "Natural Language :: English",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",

@@ -30,6 +30,9 @@ class Config(object):
     multiprocessing is used.
     """
 
+    BACKEND_NIM = "NIM"
+    BACKEND = BACKEND_NIM
+
     workdir = pathlib.Path(os.environ.get("TABLITE_TMPDIR", f"{tempfile.gettempdir()}/tablite-tmp"))
     workdir.mkdir(parents=True, exist_ok=True)
 
