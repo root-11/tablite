@@ -1,4 +1,4 @@
-proc uniqueName*(desired_name: string, name_list: seq[string]): string =
+proc uniqueName*(desired_name: string, name_list: seq[string]): string {.inline.} =
     var name = desired_name
     var idx = 1
 
@@ -8,7 +8,7 @@ proc uniqueName*(desired_name: string, name_list: seq[string]): string =
 
     return name
 
-proc unescapeSeq*(str: string): string = # nim has no true unescape
+proc unescapeSeq*(str: string): string {.inline.} = # nim has no true unescape
     case str:
         of "\\n": return "\n"
         of "\\t": return "\t"

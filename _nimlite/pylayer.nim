@@ -6,7 +6,7 @@ let
     builtins = pyBuiltinsModule()
     PyNoneClass = builtins.None.getattr("__class__")
 
-proc isNone*(py: PyObject): bool =
+proc isNone*(py: PyObject): bool {.inline.} =
     return builtins.isinstance(py, PyNoneClass).to(bool)
 
 proc textReader*(
@@ -17,7 +17,6 @@ proc textReader*(
     newline: char, delimiter: char,
     text_qualifier: char, strip_leading_and_tailing_whitespace: bool,
     page_size: uint,
-    guess_dtypes: bool,
     quoting: Quoting
 ): TabliteTable =
     var dialect = newDialect(
@@ -40,7 +39,7 @@ proc textReader*(
         first_row_has_headers = first_row_has_headers,
         header_row_index = header_row_index,
         page_size = page_size,
-        guess_dtypes = guess_dtypes,
+        guess_dtypes = guess_datatypes,
         start = start,
         limit = limit
     )

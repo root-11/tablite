@@ -173,7 +173,7 @@ proc findNewlines*(path: string, encoding: Encodings): (seq[uint], uint) =
     finally:
         fh.close()
 
-proc str2Enc*(encoding: string): Encodings =
+proc str2Enc*(encoding: string): Encodings {.inline.} =
     case encoding.toUpper():
         of $ENC_UTF8: return ENC_UTF8
         of $ENC_UTF16: return ENC_UTF16

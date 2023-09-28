@@ -3,7 +3,6 @@ tablite
 """
 from setuptools import setup
 from pathlib import Path
-import nimporter
 
 __version__ = None
 version_file = Path(__file__).parent / "tablite" / "version.py"
@@ -101,8 +100,8 @@ setup(
     long_description_content_type="text/markdown",
     keywords=keywords,
     packages=["tablite", "_nimlite"],
-     package_data={
-        "_nimlite": ["**/*.nim"],
+    package_data={
+        "_nimlite": ["**/*.so", "**/*.pyd", "**/*.nim"], # pack builds and nim source
     },
     python_requires=">=3.8",
     include_package_data=True,

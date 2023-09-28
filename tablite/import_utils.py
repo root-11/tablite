@@ -522,75 +522,7 @@ def text_reader_task(
 
         [phf.close() for phf in page_file_handlers]
 
-if Config.BACKEND == Config.BACKEND_NIM:
-    import tablite.nimlite as nimlite
-
-    def text_reader(
-        T,
-        path,
-        columns,
-        first_row_has_headers,
-        header_row_index,
-        encoding,
-        start,
-        limit,
-        newline,
-        guess_datatypes,
-        text_qualifier,
-        strip_leading_and_tailing_whitespace,
-        delimiter,
-        text_escape_openings,
-        text_escape_closures,
-        tqdm=_tqdm,
-        **kwargs,
-    ):
-        if encoding is None:
-            encoding = get_encoding(path, nbytes=ENCODING_GUESS_BYTES)
-
-        if encoding.lower() in ["utf8", "utf-8", "utf-8-sig"]:
-            enc = "ENC_UTF8"
-        elif encoding.lower() in ["utf16", "utf-16"]:
-            enc = "ENC_UTF16"
-        elif encoding.lower() in ["windows-1252", "win-1252"]:
-            enc = "ENC_WIN1250"
-        else:
-            raise NotImplementedError(f"encoding not implemented: {encoding}")
-
-        pid = Config.workdir / f"pid-{os.getpid()}"
-        kwargs = {}
-
-        if first_row_has_headers is not None:
-            kwargs["first_row_has_headers"] = first_row_has_headers
-        if header_row_index is not None:
-            kwargs["header_row_index"] = header_row_index
-        if columns is not None:
-            kwargs["columns"] = columns
-        if start is not None:
-            kwargs["start"] = start
-        if limit is not None and limit != sys.maxsize:
-            kwargs["limit"] = limit
-        if guess_datatypes is not None:
-            kwargs["guess_datatypes"] = guess_datatypes
-        if newline is not None:
-            kwargs["newline"] = newline
-        if delimiter is not None:
-            kwargs["delimiter"] = delimiter
-        if text_qualifier is not None:
-            kwargs["text_qualifier"] = text_qualifier
-            kwargs["quoting"] = "QUOTE_MINIMAL"
-        else:
-            kwargs["quoting"] = "QUOTE_NONE"
-        if strip_leading_and_tailing_whitespace is not None:
-            kwargs["strip_leading_and_tailing_whitespace"] = strip_leading_and_tailing_whitespace
-
-        return nimlite.text_reader(
-            T, pid, path, enc,
-            **kwargs,
-            tqdm=tqdm
-            
-        )
-else:
-    def text_reader(
+def text_reader_py(
         T,
         path,
         columns,
@@ -830,6 +762,87 @@ else:
 
             pbar.update(100 - pbar.n)
             return t
+
+if Config.BACKEND == Config.BACKEND_NIM:
+    import tablite.nimlite as nimlite
+
+    def text_reader_nim(
+        T,
+        path,
+        columns,
+        first_row_has_headers,
+        header_row_index,
+        encoding,
+        start,
+        limit,
+        newline,
+        guess_datatypes,
+        text_qualifier,
+        strip_leading_and_tailing_whitespace,
+        delimiter,
+        text_escape_openings,
+        text_escape_closures,
+        tqdm=_tqdm,
+        **kwargs,
+    ):
+        if encoding is None:
+            encoding = get_encoding(path, nbytes=ENCODING_GUESS_BYTES)
+
+        if encoding.lower() in ["utf8", "utf-8", "utf-8-sig"]:
+            enc = "ENC_UTF8"
+        elif encoding.lower() in ["utf16", "utf-16"]:
+            enc = "ENC_UTF16"
+        elif encoding.lower() in ["windows-1252", "win-1252"]:
+            enc = "ENC_WIN1250"
+        else:
+            raise NotImplementedError(f"encoding not implemented: {encoding}")
+
+        pid = Config.workdir / f"pid-{os.getpid()}"
+        kwargs = {}
+
+        if first_row_has_headers is not None:
+            kwargs["first_row_has_headers"] = first_row_has_headers
+        if header_row_index is not None:
+            kwargs["header_row_index"] = header_row_index
+        if columns is not None:
+            kwargs["columns"] = columns
+        if start is not None:
+            kwargs["start"] = start
+        if limit is not None and limit != sys.maxsize:
+            kwargs["limit"] = limit
+        if guess_datatypes is not None:
+            kwargs["guess_datatypes"] = guess_datatypes
+        if newline is not None:
+            kwargs["newline"] = newline
+        if delimiter is not None:
+            kwargs["delimiter"] = delimiter
+        if text_qualifier is not None:
+            kwargs["text_qualifier"] = text_qualifier
+            kwargs["quoting"] = "QUOTE_MINIMAL"
+        else:
+            kwargs["quoting"] = "QUOTE_NONE"
+        if strip_leading_and_tailing_whitespace is not None:
+            kwargs["strip_leading_and_tailing_whitespace"] = strip_leading_and_tailing_whitespace
+
+        return nimlite.text_reader(
+            T, pid, path, enc,
+            **kwargs,
+            tqdm=tqdm
+        )
+
+def text_reader(*args, **kwargs):
+    if Config.BACKEND == Config.BACKEND_NIM:
+        try:
+            return text_reader_nim(*args, **kwargs)
+        except Exception as e:
+            if "pytest" in sys.modules:
+                raise e # ensure that fallback is only used during production
+            else:
+                from traceback import format_exc
+                logging.error(f"Nimlite text_reader failed: {e}\n{format_exc()}")
+
+    return text_reader_py(*args, **kwargs)
+
 
 file_readers = {  # dict of file formats and functions used during Table.import_file
     "fods": excel_reader,

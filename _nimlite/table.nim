@@ -1,3 +1,4 @@
+import std/[json]
 import csvparse
 
 type TabliteColumn* = object
@@ -77,3 +78,16 @@ proc newTabliteColumn*(name: string, pages: seq[string]): TabliteColumn =
 
 proc newTabliteTable*(task: TabliteTasks, columns: seq[TabliteColumn]): TabliteTable =
     TabliteTable(task: task, columns: columns)
+
+proc saveTable*(table: TabliteTable, pid: string, taskname: string): string =
+    let table_path = pid & "/pages/" & taskname & ".json"
+    let fh = open(table_path, fmWrite)
+
+    let json = %* table
+
+    fh.write($json)
+
+    fh.close()
+
+    return table_path
+
