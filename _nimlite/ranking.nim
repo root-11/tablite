@@ -29,16 +29,16 @@ iterator iter*(rank: var Rank): ptr (DataTypes, uint) {.closure.} =
         inc x
     raise newException(ResourceExhaustedError, "stop iteration")
 
-proc cmpDtypes(a: (DataTypes, uint), b: (DataTypes, uint)): bool = 
+proc cmpDtypes(a: (DataTypes, uint), b: (DataTypes, uint)): bool {.inline.} = 
     return a[1] > b[1]
 
-proc cmpDtypesStringless(a: (DataTypes, uint), b: (DataTypes, uint)): bool = 
+proc cmpDtypesStringless(a: (DataTypes, uint), b: (DataTypes, uint)): bool {.inline.} = 
     # puts strings at the end of non-zero sequence
     if a[0] == DataTypes.DT_STRING and b[1] > 0: return false
     elif b[0] == DataTypes.DT_STRING and a[1] > 0: return true
     return cmpDtypes(a, b)
 
-proc sortRanks*(rank: var Rank, stringless: bool): void =
+proc sortRanks*(rank: var Rank, stringless: bool): void {.inline.} =
     if stringless:
         rank.insertSort(cmpDtypesStringless)
     else:
@@ -76,7 +76,7 @@ proc updateRank*(rank: var Rank, str: ptr string): DataTypes =
                     discard str.inferNone()
                 of DataTypes.DT_MAX_ELEMENTS:
                     raise newException(Exception, "not a type")
-        except ValueError as e:
+        except ValueError:
             # echo $e.msg & " | " & $e.getStackTrace()
             continue
 

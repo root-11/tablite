@@ -25,7 +25,7 @@ proc writeNumpyHeader*(fh: File, dtype: string, shape: uint): void =
         fh.write(" ")
     fh.write("\n")
 
-proc writeNumpyUnicode*(fh: var File, str: var string, unicode_len: uint): void =
+proc writeNumpyUnicode*(fh: var File, str: var string, unicode_len: uint): void {.inline.} =
     for rune in str.toRunes():
         var ch = uint32(rune)
         discard fh.writeBuffer(ch.unsafeAddr, 4)
@@ -35,13 +35,13 @@ proc writeNumpyUnicode*(fh: var File, str: var string, unicode_len: uint): void 
     for i in 1..dt:
         fh.write("\x00\x00\x00\x00")
 
-proc writeNumpyInt*(fh: var File, str: var string): void =
+proc writeNumpyInt*(fh: var File, str: var string): void {.inline.} =
     let parsed = inferInt(addr str)
     discard fh.writeBuffer(parsed.unsafeAddr, 8)
 
-proc writeNumpyFloat*(fh: var File, str: var string): void =
+proc writeNumpyFloat*(fh: var File, str: var string): void {.inline.} =
     let parsed = inferFloat(addr str)
     discard fh.writeBuffer(parsed.unsafeAddr, 8)
 
-proc writeNumpyBool*(fh: var File, str: var string): void =
+proc writeNumpyBool*(fh: var File, str: var string): void {.inline.} =
     fh.write((if str.toLower() == "true": '\x01' else: '\x00'))

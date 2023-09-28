@@ -10,12 +10,12 @@ type ParseShortDate = enum
     NEVER,
     REQUIRED
 
-proc inferNone*(str: ptr string): PY_NoneType =
+proc inferNone*(str: ptr string): PY_NoneType {.inline.} =
     if str[] in ["null", "Null", "NULL", "#N/A", "#n/a", "", "None"]:
         return PY_None
     raise newException(ValueError, "not a none")
 
-proc inferBool*(str: ptr string): bool =
+proc inferBool*(str: ptr string): bool {.inline.} =
     let sstr = str[]
 
     if sstr in ["True", "true"]:
@@ -25,7 +25,7 @@ proc inferBool*(str: ptr string): bool =
 
     raise newException(ValueError, "not a boolean value")
 
-proc inferInt*(str: ptr string): int =
+proc inferInt*(str: ptr string): int {.inline.} =
     let sstr = str[]
 
     try:
@@ -39,7 +39,7 @@ proc inferInt*(str: ptr string): int =
 
         return parseInt(sstr)
 
-proc inferFloat*(str: ptr string): float =
+proc inferFloat*(str: ptr string): float {.inline.} =
     var sstr = str[] # fuckin nim' GC runs out of memory in the exception branch if this is not copied on the stack
     
     try:
@@ -69,7 +69,7 @@ proc inferFloat*(str: ptr string): float =
 
         return parseFloat(sstr)
 
-proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool): (array[3, string], int) =
+proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool): (array[3, string], int) {.inline.} =
     const accepted_tokens = [' ', '.', '-', '/']
 
     var has_tokens = false
@@ -153,13 +153,13 @@ proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool)
 
     return (substrings, 8)
 
-proc isLeapYear(year: int): bool = year mod 4 == 0 and (year mod 100 != 0 or year mod 400 == 0)
-proc getDaysInMonth(year, month: int): int =
+proc isLeapYear(year: int): bool {.inline.} = year mod 4 == 0 and (year mod 100 != 0 or year mod 400 == 0)
+proc getDaysInMonth(year, month: int): int {.inline.} =
     if month == 2 and isLeapYear(year):
         return 29
     return DAYS_IN_MONTH[month]
 
-proc guessDate(date_words: ptr array[3, string], is_american: bool): (int, int, int) =
+proc guessDate(date_words: ptr array[3, string], is_american: bool): (int, int, int) {.inline.} =
     var year, month, day: int
     var month_or_day: array[2, int]
 
@@ -209,7 +209,7 @@ proc guessDate(date_words: ptr array[3, string], is_american: bool): (int, int, 
 
     return (year, month, day)
 
-proc wordsToDate(date_words: ptr array[3, string], is_american: bool): PY_Date =
+proc wordsToDate(date_words: ptr array[3, string], is_american: bool): PY_Date {.inline.} =
     var (year, month, day) = guessDate(date_words, is_american)
 
     if year < 0 or year > 9999:
@@ -223,7 +223,7 @@ proc wordsToDate(date_words: ptr array[3, string], is_american: bool): PY_Date =
 
     return newPyDate(uint16 year, uint8 month, uint8 day)
 
-proc inferDate*(str: ptr string, is_short: bool, is_american: bool): PY_Date =
+proc inferDate*(str: ptr string, is_short: bool, is_american: bool): PY_Date {.inline.} =
     assert not (is_short and is_american), "Short format cannot be mixed with american format"
 
     let str_len = str[].runeLen
@@ -235,14 +235,14 @@ proc inferDate*(str: ptr string, is_short: bool, is_american: bool): PY_Date =
 
     return wordsToDate(date_words.unsafeAddr, is_american)
 
-proc divmod(x: int, y: int): (int, int) =
+proc divmod(x: int, y: int): (int, int) {.inline.} =
     let z = int(floor(x / y))
 
     return (z, x - y * z)
 
 proc toTimedelta(
     weeks = 0, days = 0, hours = 0, minutes = 0, seconds = 0, milliseconds = 0, microseconds: int = 0
-): (int, int, int) =
+): (int, int, int) {.inline.} =
     var d, s, us: int
 
     var v_weeks = weeks
@@ -279,7 +279,7 @@ proc toTimedelta(
 
     return (d, s, us)
 
-proc parse_hh_mm_ss_ff(tstr: ptr string): (uint8, uint8, uint8, uint32) =
+proc parse_hh_mm_ss_ff(tstr: ptr string): (uint8, uint8, uint8, uint32) {.inline.} =
     # Parses things of the form HH[:MM[:SS[.fff[fff]]]]
     let sstr = tstr[]
     let len_str = sstr.len
@@ -323,7 +323,7 @@ proc parse_hh_mm_ss_ff(tstr: ptr string): (uint8, uint8, uint8, uint32) =
 
     return (uint8 time_comps[0], uint8 time_comps[1], uint8 time_comps[2], uint32 time_comps[3])
 
-proc inferTime*(str: ptr string): PY_Time =
+proc inferTime*(str: ptr string): PY_Time {.inline.} =
     let sstr = str[]
     let str_len = sstr.len
 
@@ -384,7 +384,7 @@ proc inferTime*(str: ptr string): PY_Time =
     return newPyTime(hour, minute, second, microsecond)
 
 
-proc inferDatetime*(str: ptr string, is_american: bool): PY_DateTime =
+proc inferDatetime*(str: ptr string, is_american: bool): PY_DateTime {.inline.} =
     let sstr = str[]
     let str_len = sstr.runeLen
 

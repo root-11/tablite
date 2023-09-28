@@ -63,8 +63,8 @@ proc toTaskArgs*(
         row_count: int tsk_count
     )
 
-proc saveTasks*(task: TabliteTasks, pid: string): string =
-    let task_path = pid & "/pages/tasks.txt"
+proc saveTasks*(task: TabliteTasks, pid: string, taskname: string): string =
+    let task_path = pid & "/pages/" & taskname & ".txt"
     let fh = open(task_path, fmWrite)
 
     for column_task in task.tasks:

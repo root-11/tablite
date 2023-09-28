@@ -1,7 +1,7 @@
 import os
 import pathlib
 import tempfile
-
+import platform
 
 class Config(object):
     """Config class for Tablite Tables.
@@ -31,6 +31,7 @@ class Config(object):
     """
 
     BACKEND_NIM = "NIM"
+    BACKEND_PYTHON = "PYTHON"
     BACKEND = BACKEND_NIM
 
     workdir = pathlib.Path(os.environ.get("TABLITE_TMPDIR", f"{tempfile.gettempdir()}/tablite-tmp"))

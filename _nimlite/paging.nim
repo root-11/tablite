@@ -201,7 +201,7 @@ proc dumpPageBody*(
                                         fh.writePicklePyObj(str.unsafeAddr.inferNone, binput)
                                     of DataTypes.DT_MAX_ELEMENTS:
                                         raise newException(Exception, "not a type")
-                            except ValueError as e:
+                            except ValueError:
                                 continue
                             break
                     else: raise newException(Exception, "invalid: " & $dt)

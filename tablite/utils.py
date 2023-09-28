@@ -3,6 +3,14 @@ import math
 import ast
 from datetime import datetime, date, time, timedelta, timezone  # noqa
 from itertools import compress
+import string
+import random
+
+letters = string.ascii_lowercase + string.digits
+
+
+def generate_random_string(len):
+    return "".join(random.choice(letters) for i in range(len))
 
 
 def type_check(var, kind):
