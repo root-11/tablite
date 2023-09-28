@@ -3,6 +3,7 @@ tablite
 """
 from setuptools import setup
 from pathlib import Path
+import nimporter
 
 __version__ = None
 version_file = Path(__file__).parent / "tablite" / "version.py"

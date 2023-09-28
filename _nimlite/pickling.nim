@@ -222,32 +222,14 @@ proc writePickleDatetime(fh: var File, value: PY_DateTime, binput: var uint32): 
     fh.writePickleDateBody(value.date.unsafeAddr, binput)
     fh.writePickleTimeBody(value.time.unsafeAddr, binput)
 
-proc writePicklePyObj*[T: int|float|PY_NoneType|string|bool|PY_Date|PY_Time|PY_DateTime](fh: var File, value: T, binput: var uint32): void =
-    when T is PY_NoneType:
-        fh.write(PKL_NONE)
-        return
-    when T is int:
-        fh.writePickleBinint(value)
-        return
-    when T is float:
-        fh.writePickleBinfloat(value)
-        return
-    when T is string:
-        fh.writePickleBinunicode(value)
-        return
-    when T is bool:
-        fh.writePickleBoolean(value)
-        return
-    when T is PY_Date:
-        fh.writePickleDate(value, binput)
-        return
-    when T is PY_Time:
-        fh.writePickleTime(value, binput)
-        return
-    when T is PY_DateTime:
-        fh.writePickleDatetime(value, binput)
-        return
-    raise newException(Exception, "not implemented error: " & $value)
+proc writePicklePyObj*(fh: var File, value: PY_NoneType, binput: var uint32): void = fh.write(PKL_NONE)
+proc writePicklePyObj*(fh: var File, value: int, binput: var uint32): void = fh.writePickleBinint(value)
+proc writePicklePyObj*(fh: var File, value: float, binput: var uint32): void = fh.writePickleBinfloat(value)
+proc writePicklePyObj*(fh: var File, value: string, binput: var uint32): void = fh.writePickleBinunicode(value)
+proc writePicklePyObj*(fh: var File, value: bool, binput: var uint32): void = fh.writePickleBoolean(value)
+proc writePicklePyObj*(fh: var File, value: PY_Date, binput: var uint32): void = fh.writePickleDate(value, binput)
+proc writePicklePyObj*(fh: var File, value: PY_Time, binput: var uint32): void = fh.writePickleTime(value, binput)
+proc writePicklePyObj*(fh: var File, value: PY_DateTime, binput: var uint32): void = fh.writePickleDatetime(value, binput)
 
 proc writePickleStart*(fh: var File, binput: var uint32, elem_count: uint): void =
     binput = 0
