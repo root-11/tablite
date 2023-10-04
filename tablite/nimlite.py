@@ -18,7 +18,10 @@ CLI_BACKEND_PATH = Path(__file__).parent.parent / f"_nimlite/nimlite{'.exe' if I
 
 if not USE_CLI_BACKEND:
     paths = sys.argv[:]
-    import nimporter
+    if Config.USE_NIMPORTER:
+        import nimporter
+
+        nimporter.Nimporter.IGNORE_CACHE = True
     import _nimlite.nimlite as nl
 
     sys.argv.clear()
