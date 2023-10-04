@@ -792,8 +792,8 @@ if Config.BACKEND == Config.BACKEND_NIM:
             enc = "ENC_UTF8"
         elif encoding.lower() in ["utf16", "utf-16"]:
             enc = "ENC_UTF16"
-        elif encoding.lower() in ["windows-1252", "win-1252"]:
-            enc = "ENC_WIN1250"
+        elif encoding in Config.NIM_SUPPORTED_CONV_TYPES:
+            enc = f"ENC_CONV|{encoding}"
         else:
             raise NotImplementedError(f"encoding not implemented: {encoding}")
 

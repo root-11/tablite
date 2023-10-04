@@ -250,7 +250,7 @@ iterator parseCSV*(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[str
 
         inc line_num
 
-proc readColumns*(path: string, encoding: Encodings, dialect: Dialect, row_offset: uint): seq[string] =
+proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, row_offset: uint): seq[string] =
     let fh = newFile(path, encoding)
     var obj = newReaderObj(dialect)
 
@@ -262,7 +262,7 @@ proc readColumns*(path: string, encoding: Encodings, dialect: Dialect, row_offse
     finally:
         fh.close()
 
-iterator parseCSV*(self: var ReaderObj, path: string, encoding: Encodings): (uint, ptr seq[string], uint) =
+iterator parseCSV*(self: var ReaderObj, path: string, encoding: FileEncoding): (uint, ptr seq[string], uint) =
     var fh = newFile(path, encoding)
 
     try:

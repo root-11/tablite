@@ -10,7 +10,7 @@ proc isNone*(py: PyObject): bool {.inline.} =
     return builtins.isinstance(py, PyNoneClass).to(bool)
 
 proc textReader*(
-    pid: string, path: string, encoding: Encodings,
+    pid: string, path: string, encoding: FileEncoding,
     columns: Option[seq[string]], first_row_has_headers: bool, header_row_index: uint,
     start: Option[int], limit: Option[int],
     guess_datatypes: bool,

@@ -13,7 +13,6 @@ from tablite.base import Page, Column, pytype_from_iterable
 
 IS_WINDOWS = platform.system() == "Windows"
 USE_CLI_BACKEND = IS_WINDOWS
-USE_CLI_BACKEND = True
 
 CLI_BACKEND_PATH = Path(__file__).parent.parent / f"_nimlite/nimlite{'.exe' if IS_WINDOWS else ''}"
 
@@ -62,9 +61,9 @@ def text_reader_task(*, pid, path, encoding, dialect, task, import_fields, guess
             str(CLI_BACKEND_PATH),
             f"--encoding={encoding}",
             f"--guess_dtypes={'true' if guess_dtypes else 'false'}",
-            f"--delimiter={dialect['delimiter']}",
-            f"--quotechar={dialect['quotechar']}",
-            f"--lineterminator={dialect['lineterminator']}",
+            f"--delimiter=\"{dialect['delimiter']}\"",
+            f"--quotechar=\"{dialect['quotechar']}\"",
+            f"--lineterminator=\"{dialect['lineterminator']}\"",
             f"--skipinitialspace={'true' if dialect['skipinitialspace'] else 'false'}",
             f"--skiptrailingspace={'true' if dialect['skiptrailingspace'] else 'false'}",
             f"--quoting={dialect['quoting']}",
@@ -155,7 +154,7 @@ def text_reader(
             assert isinstance(columns, list)
             assert all(isinstance(v, str) for v in columns)
 
-            args.append(f"--columns={wrap(json.dumps(columns))}")
+            args.append(f"--columns='[{','.join([c for c in columns])}]'")
 
         sp.run(" ".join(args), shell=True, check=True)
 
@@ -234,4 +233,4 @@ def text_reader(
 
 
 def wrap(str_):
-    return '"' + str_.replace('"', '\\"').replace("'", "\\'").replace("\n", "\\n") + '"'
+    return '"' + str_.replace('"', '\\"').replace("'", "\\'").replace("\n", "\\n").replace("\t", "\\t") + '"'

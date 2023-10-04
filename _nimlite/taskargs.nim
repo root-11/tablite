@@ -3,7 +3,7 @@ import csvparse, encfile, utils, table
 
 type TaskArgs* = object
     path*: string
-    encoding*: Encodings
+    encoding*: FileEncoding
     dialect*: Dialect
     guess_dtypes*: bool
     destinations*: seq[string]
@@ -70,7 +70,7 @@ proc saveTasks*(task: TabliteTasks, pid: string, taskname: string): string =
     for column_task in task.tasks:
         fh.write("\"" & getAppFilename() & "\" ")
 
-        fh.write("--encoding=" & task.encoding & " ")
+        fh.write("--encoding=\"" & task.encoding & "\" ")
         fh.write("--guess_dtypes=" & $task.guess_dtypes & " ")
 
         fh.write("--delimiter=\"" & task.dialect.delimiter & "\" ")
