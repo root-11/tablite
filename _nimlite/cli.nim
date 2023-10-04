@@ -36,7 +36,7 @@ proc executeParallel*(path: string): void =
         raise newException(Exception, "Process failed with errcode: " & $ret_code)
 
 proc importFile*(
-    pid: string, taskname: string, path: string, encoding: Encodings, dialect: Dialect,
+    pid: string, taskname: string, path: string, encoding: FileEncoding, dialect: Dialect,
     cols: Option[seq[string]], first_row_has_headers: bool, header_row_index: uint,
     page_size: uint, guess_dtypes: bool,
     start: Option[int], limit: Option[int],
@@ -55,8 +55,6 @@ proc importFile*(
             discard table.saveTable(pid, taskname)
         else:
             let task_path = task.saveTasks(pid, taskname)
-
-            discard table.saveTable(pid, taskname)
 
             if execute:
                 executeParallel(task_path)

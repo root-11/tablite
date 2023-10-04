@@ -68,7 +68,7 @@ proc textReaderTask*(task: TaskArgs): void =
         fh.close()
 
 proc importTextFile*(
-    pid: string, path: string, encoding: Encodings, dia: Dialect,
+    pid: string, path: string, encoding: FileEncoding, dia: Dialect,
     columns: Option[seq[string]], first_row_has_headers: bool, header_row_index: uint,
     page_size: uint, guess_dtypes: bool,
     start: Option[int] = none[int](), limit: Option[int] = none[int]()

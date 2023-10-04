@@ -98,7 +98,7 @@ when isMainModule and appType != "lib":
     import utils, cli
 
     var path_csv: string
-    var encoding: Encodings
+    var encoding: FileEncoding
     var dialect: Dialect
     var cols = none[seq[string]]()
     var guess_dtypes: bool
@@ -116,7 +116,6 @@ when isMainModule and appType != "lib":
         option(
             "-e", "--encoding",
             help = "file encoding",
-            choices = @[$ENC_UTF8, $ENC_UTF16, $ENC_WIN1250],
             default = some($ENC_UTF8)
         )
 
@@ -227,10 +226,10 @@ when isMainModule and appType != "lib":
             var escapechar = opts.escapechar.unescapeSeq()
             var lineterminator = opts.lineterminator.unescapeSeq()
 
-            if delimiter.len != 1: raise newException(IOError, "'delimiter' must be 1 character")
-            if quotechar.len != 1: raise newException(IOError, "'quotechar' must be 1 character")
-            if escapechar.len != 1: raise newException(IOError, "'escapechar' must be 1 character")
-            if lineterminator.len != 1: raise newException(IOError, "'lineterminator' must be 1 character")
+            if delimiter.len != 1: raise newException(IOError, "'delimiter' must be 1 character: '" & delimiter & "'")
+            if quotechar.len != 1: raise newException(IOError, "'quotechar' must be 1 character: '" & quotechar & "'")
+            if escapechar.len != 1: raise newException(IOError, "'escapechar' must be 1 character: '" & escapechar & "'")
+            if lineterminator.len != 1: raise newException(IOError, "'lineterminator' must be 1 character: '" & lineterminator & "'")
 
             dialect = newDialect(
                 delimiter = delimiter[0],
@@ -255,19 +254,19 @@ when isMainModule and appType != "lib":
 
     if opts.import.isNone and opts.task.isNone:
         when defined(DEV_BUILD):
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/bad_empty.csv", ENC_UTF8)
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.csv", ENC_UTF8)
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_test.csv", ENC_UTF16)
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/win1250_test.csv", ENC_WIN1250)
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/bad_empty.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_test.csv", str2Enc($ENC_UTF16))
+            (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/win1250_test.csv", str2ConvEnc("Windows-1252"))
 
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.txt", ENC_UTF8)
-            (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", ENC_UTF8)
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", ENC_UTF8)
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data_1M.csv", ENC_UTF8)
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data_1M_1col.csv", ENC_UTF8)
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/gesaber_data.csv", ENC_UTF8)
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_be.csv", ENC_UTF16)
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_le.csv", ENC_UTF16)
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.txt", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data_1M.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data_1M_1col.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/gesaber_data.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_be.csv", str2Enc($ENC_UTF16))
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_le.csv", str2Enc($ENC_UTF16))
 
             # cols = some(@["\"Item\"", "\"Materiál\"", "\"Objem\"", "\"Jednotka objemu\"", "\"Free Inv Pcs\""])
             # dialect.quoting = Quoting.QUOTE_NONE
@@ -307,5 +306,7 @@ when isMainModule and appType != "lib":
             let count = parseInt(opts.task.get.count)
             let ttask = newTabliteTask(opts.task.get.pages.split(","), uint parseInt(opts.task.get.offset), uint count)
             let fields = collect: (for k in opts.task.get.fields.split(","): uint parseInt(k))
+
+            echo path_csv, " ", $encoding, " ", tdia, " ", ttask, " ", fields, " ", guess_dtypes
 
             runTask(path_csv, $encoding, tdia, ttask, fields, guess_dtypes)

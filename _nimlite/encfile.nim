@@ -1,12 +1,15 @@
 import std/[encodings, strutils]
 
-type Encodings* {.pure.} = enum ENC_UTF8, ENC_UTF16, ENC_WIN1250
+type Encodings* {.pure.} = enum ENC_UTF8, ENC_UTF16, ENC_CONV
+type FileEncoding* = object
+    encoding: Encodings
+    conv: string
 
 type BaseEncodedFile* = ref object of RootObj
     fh: File
 
 type FileUTF8 = ref object of BaseEncodedFile
-type FileWIN1250 = ref object of BaseEncodedFile
+type FileConvertable = ref object of BaseEncodedFile
     encoder: EncodingConverter
 type FileUTF16 = ref object of BaseEncodedFile
     endianness: Endianness
@@ -17,7 +20,7 @@ proc setFilePos*(f: BaseEncodedFile, pos: int64, relativeTo: FileSeekPos): void 
 
 proc close*(f: FileUTF8): void = discard
 proc close*(f: FileUTF16): void = discard
-proc close*(f: FileWIN1250): void = f.encoder.close()
+proc close*(f: FileConvertable): void = f.encoder.close()
 proc close*(f: BaseEncodedFile): void =
     f.fh.close()
 
@@ -25,13 +28,13 @@ proc close*(f: BaseEncodedFile): void =
         (cast[FileUTF8](f)).close()
     elif f of FileUTF16:
         (cast[FileUTF16](f)).close()
-    elif f of FileWIN1250:
-        (cast[FileWIN1250](f)).close()
+    elif f of FileConvertable:
+        (cast[FileConvertable](f)).close()
     else:
         raise newException(Exception, "encoding not implemented")
 
 proc readLine(f: FileUTF8, str: var string): bool = f.fh.readLine(str)
-proc readLine(f: FileWIN1250, str: var string): bool =
+proc readLine(f: FileConvertable, str: var string): bool =
     let res = f.fh.readLine(str)
 
     if res:
@@ -95,8 +98,8 @@ proc readLine*(f: BaseEncodedFile, str: var string): bool =
         return readLine(cast[FileUTF8](f), str)
     elif f of FileUTF16:
         return readLine(cast[FileUTF16](f), str)
-    elif f of FileWIN1250:
-        return readLine(cast[FileWIN1250](f), str)
+    elif f of FileConvertable:
+        return readLine(cast[FileConvertable](f), str)
     else:
         raise newException(Exception, "encoding not implemented")
 
@@ -137,20 +140,17 @@ proc newFileUTF8(filename: string): FileUTF8 =
 
     return FileUTF8(fh: fh)
 
-proc newFileWIN1250(filename: string): FileWIN1250 =
+proc newFileConvertable(filename: string, format: string): FileConvertable =
     let fh = open(filename, fmRead)
-    let encoder = open("UTF-8", "WINDOWS-1252")
+    let encoder = open("UTF-8", format)
 
-    return FileWIN1250(fh: fh, encoder: encoder)
+    return FileConvertable(fh: fh, encoder: encoder)
 
-proc newFile*(filename: string, encoding: Encodings): BaseEncodedFile =
-    case encoding:
-        of ENC_UTF8:
-            return newFileUTF8(filename)
-        of ENC_WIN1250:
-            return newFileWIN1250(filename)
-        of ENC_UTF16:
-            return newFileUTF16(filename)
+proc newFile*(filename: string, encoding: FileEncoding): BaseEncodedFile =
+    case encoding.encoding:
+        of ENC_UTF8: return newFileUTF8(filename)
+        of ENC_UTF16: return newFileUTF16(filename)
+        of ENC_CONV: return newFileConvertable(filename, encoding.conv)
 
 proc findNewlines*(fh: BaseEncodedFile): (seq[uint], uint) =
     var newline_offsets = newSeq[uint](1)
@@ -166,16 +166,29 @@ proc findNewlines*(fh: BaseEncodedFile): (seq[uint], uint) =
 
     return (newline_offsets, total_lines)
 
-proc findNewlines*(path: string, encoding: Encodings): (seq[uint], uint) =
+proc findNewlines*(path: string, encoding: FileEncoding): (seq[uint], uint) =
     let fh = newFile(path, encoding)
     try:
         return findNewlines(fh)
     finally:
         fh.close()
 
-proc str2Enc*(encoding: string): Encodings {.inline.} =
-    case encoding.toUpper():
-        of $ENC_UTF8: return ENC_UTF8
-        of $ENC_UTF16: return ENC_UTF16
-        of $ENC_WIN1250: return ENC_WIN1250
-        else: raise newException(IOError, "invalid encoding: " & encoding)
+proc str2Enc*(encoding: string): FileEncoding {.inline.} =
+    let upper = encoding.toUpper()
+    
+    case upper:
+        of $ENC_UTF8: return FileEncoding(encoding: ENC_UTF8)
+        of $ENC_UTF16: return FileEncoding(encoding: ENC_UTF16)
+        else:
+            let header = $ENC_CONV & "|"
+            if upper.startsWith(header):
+                return FileEncoding(encoding: ENC_CONV, conv: encoding.substr(header.len))
+            else: raise newException(IOError, "invalid encoding: " & encoding)
+
+proc str2ConvEnc*(encoding: string): FileEncoding {.inline.} =
+    return str2Enc($ENC_CONV & "|" & encoding)
+
+proc `$`*(encoding: FileEncoding): string {.inline.} =
+    case encoding.encoding:
+        of ENC_UTF8, ENC_UTF16: return $encoding.encoding
+        of ENC_CONV: $encoding.encoding & "|" & encoding.conv
