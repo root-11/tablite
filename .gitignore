@@ -23,3 +23,5 @@ docs/
 # personal notes
 *scratch*.py
 _nimlite/nimlite
+_nimlite/*.so
+_nimlite/*.pyd
