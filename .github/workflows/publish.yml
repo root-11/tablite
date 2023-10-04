@@ -72,6 +72,8 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: nimlite-windows
+          path: |
+            ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.pyd
       - name: install python
         run: |
           python3 -m pip install --upgrade build 
