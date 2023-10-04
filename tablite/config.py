@@ -33,7 +33,8 @@ class Config(object):
     BACKEND_NIM = "NIM"
     BACKEND_PYTHON = "PYTHON"
     BACKEND = BACKEND_PYTHON if platform.system() == "Windows" else BACKEND_NIM
-    
+    USE_NIMPORTER = os.environ.get("USE_NIMPORTER", "false").lower() in ["1", "t", "true", "y", "yes"]
+
     NIM_SUPPORTED_CONV_TYPES = ["Windows-1252", "ISO-8859-1"]
 
     workdir = pathlib.Path(os.environ.get("TABLITE_TMPDIR", f"{tempfile.gettempdir()}/tablite-tmp"))
