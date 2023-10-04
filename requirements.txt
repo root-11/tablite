@@ -12,3 +12,4 @@ mplite>=1.2.3
 PyYAML==6.0
 openpyxl==3.0.10 # newest version breaks pyexcel
 h5py>=3.6.0
+nimporter

@@ -183,7 +183,7 @@ class Table(BaseTable):
         elif reader == import_utils.excel_reader:
             # config = path, first_row_has_headers, sheet, columns, start, limit
             config = (
-                str(path),
+                path,
                 first_row_has_headers,
                 header_row_index,
                 sheet,
