@@ -9,6 +9,7 @@ tablite_cache.h5
 tablite.hdf5
 tests/new.zip
 VDS.h5
+__pycache__
 
 # Notebook checkpoints
 .ipynb_checkpoints/
@@ -21,3 +22,4 @@ docs/
 
 # personal notes
 *scratch*.py
+_nimlite/nimlite

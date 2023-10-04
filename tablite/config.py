@@ -1,7 +1,7 @@
 import os
 import pathlib
 import tempfile
-
+import platform
 
 class Config(object):
     """Config class for Tablite Tables.
@@ -29,6 +29,12 @@ class Config(object):
     when the number of fields (rows x columns) exceed this value,
     multiprocessing is used.
     """
+
+    BACKEND_NIM = "NIM"
+    BACKEND_PYTHON = "PYTHON"
+    BACKEND = BACKEND_PYTHON if platform.system() == "Windows" else BACKEND_NIM
+    
+    NIM_SUPPORTED_CONV_TYPES = ["Windows-1252", "ISO-8859-1"]
 
     workdir = pathlib.Path(os.environ.get("TABLITE_TMPDIR", f"{tempfile.gettempdir()}/tablite-tmp"))
     workdir.mkdir(parents=True, exist_ok=True)

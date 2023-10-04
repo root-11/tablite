@@ -108,9 +108,13 @@ class Page(object):
             path (Path): working directory.
             array (np.array): data
         """
-        self.id = next(self.ids)
-        type_check(path, Path)
-        self.path = path / "pages" / f"{self.id}.npy"
+        while True:
+            self.id = next(self.ids)
+            type_check(path, Path)
+            self.path = path / "pages" / f"{self.id}.npy"
+
+            if not self.path.exists():
+                break # make sure we don't override existing pages if they are created outside of main thread
 
         type_check(array, np.ndarray)
 
