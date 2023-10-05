@@ -14,7 +14,7 @@ from tablite.base import Page, Column, pytype_from_iterable
 IS_WINDOWS = platform.system() == "Windows"
 USE_CLI_BACKEND = IS_WINDOWS
 
-CLI_BACKEND_PATH = Path(__file__).parent.parent / f"_nimlite/nimlite{'.exe' if IS_WINDOWS else ''}"
+CLI_BACKEND_PATH = Path(__file__).parent / f"_nimlite/nimlite{'.exe' if IS_WINDOWS else ''}"
 
 if not USE_CLI_BACKEND:
     paths = sys.argv[:]
@@ -22,7 +22,7 @@ if not USE_CLI_BACKEND:
         import nimporter
 
         nimporter.Nimporter.IGNORE_CACHE = True
-    import _nimlite.nimlite as nl
+    import tablite._nimlite.nimlite as nl
 
     sys.argv.clear()
     sys.argv.extend(paths)  # importing nim module messes with pythons launch arguments!!!
