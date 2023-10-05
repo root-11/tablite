@@ -10,149 +10,63 @@ on:
     branches: [master]
 
 jobs:
-  # build:
-  #   runs-on: ${{matrix.os}}
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       os: [ubuntu-latest, macos-latest, windows-latest]
-  #       python-version: ["3.8", "3.9", "3.10"]
-
-  #   steps:
-  #   - uses: actions/checkout@v3
-  #   - name: Set up Python ${{ matrix.python-version }}
-  #     uses: actions/setup-python@v4
-  #     with:
-  #       python-version: ${{ matrix.python-version }}
-  #       arcitecture: x64
-  #   - uses: jiro4989/setup-nim-action@v1
-  #     with:
-  #       nim-version: "2.0.0"
-  #   - name: Nimble Install dependencies
-  #     run: |
-  #       nimble -y refresh
-  #       nimble -y install nimpy argparse
-  #   - name: Set Environment Variables
-  #     uses: allenevans/set-env@v2.0.0
-  #     with:
-  #       NIMLITE_DIR:  'tablite/_nimlite'
-  #       NIM_PACKAGE_NAME: 'nimlite'
-  #       TABLITE_PACKAGE_NAME: 'tablite'
-  #       NIMC_FLAGS: '--app:lib --threads:on -d:release -d:danger'
-  #   - name: Install dependencies
-  #     run: |
-  #       python -m pip install --upgrade pip
-  #       python -m pip install flake8 pytest
-  #       python -m pip install -r requirements.txt
-  #   - name: Compile Debug & import (Unix)
-  #     if: runner.os == 'Linux' || runner.os == 'macOS'
-  #     run: |
-  #       # compile the nimlite
-  #       nim c ${{ env.NIMC_FLAGS }} --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.so  ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
-  #       # check if compiled successfully
-  #       python -c "print(__import__('${{ env.TABLITE_PACKAGE_NAME }}.${{ env.NIM_PACKAGE_NAME }}').__file__)"
-  #   # - name: MSVC
-  #   #   if: runner.os == 'Windows'
-  #   #   uses: TheMrMilchmann/setup-msvc-dev@v3
-  #   #   with:
-  #   #     arch: x64
-  #   - name: Compile Debug & import (Windows)
-  #     if: runner.os == 'Windows'
-  #     run: |
-  #       # compile the nimlite
-  #       nim c ${{ env.NIMC_FLAGS }} --tlsEmulation:off --passL:-static --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.pyd ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
-  #   - name: Lint with flake8
-  #     run: |
-  #       # stop the build if there are Python syntax errors or undefined names
-  #       flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-  #       # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-  #       flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-  #   - name: Test with pytest
-  #     run: |
-  #       python -m pytest tests
-  build-nim:
+  build:
     runs-on: ${{matrix.os}}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: jiro4989/setup-nim-action@v1
-        with:
-          nim-version: "2.0.0"
-      - name: Nimble Install dependencies
-        run: |
-          nimble -y refresh
-          nimble -y install nimpy argparse
-      - name: Set Environment Variables
-        uses: allenevans/set-env@v2.0.0
-        with:
-          NIMLITE_DIR:  'tablite/_nimlite'
-          NIM_PACKAGE_NAME: 'nimlite'
-          TABLITE_PACKAGE_NAME: 'tablite'
-          NIMC_FLAGS: '--app:lib --threads:on -d:release -d:danger'
-      - name: Compile Debug & import (Unix)
-        if: runner.os == 'Linux' || runner.os == 'macOS'
-        run: |
-          # compile the nimlite
-          nim c ${{ env.NIMC_FLAGS }} --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.so  ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
-      - name: Compile Debug & import (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          # compile the nimlite
-          nim c ${{ env.NIMC_FLAGS }} --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.pyd ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
-      - name: Cache Unix
-        if: runner.os == 'Linux' || runner.os == 'macOS'
-        uses: actions/upload-artifact@v3
-        with:
-          name: "nimlite-unix"
-          path: |
-            ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.so
-      - name: Cache Windows
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v3
-        with:
-          name: "nimlite-windows"
-          path: |
-            ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.pyd
-  pypi:
-    needs: [build-nim]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - name: Set Environment Variables
-        uses: allenevans/set-env@v2.0.0
-        with:
-          NIMLITE_DIR:  'tablite/_nimlite'
-          NIM_PACKAGE_NAME: 'nimlite'
-      - name: Cache Restore Unix
-        uses: actions/download-artifact@v3
-        with:
-          name: nimlite-unix
-          path: |
-            ${{ env.NIMLITE_DIR }}
-      - name: Cache Restore Windows
-        uses: actions/download-artifact@v3
-        with:
-          name: nimlite-windows
-          path: |
-            ${{ env.NIMLITE_DIR }}
-      - name: install python
-        run: |
-          ls 
-          python3 -m pip install --upgrade build 
-      - name: build wheel
-        run: |
-          pwd
-          ls -la tablite
-          ls -la tablite/_nimlite
-          ls -la ${{ env.NIMLITE_DIR }}
-          realpath ${{ env.NIMLITE_DIR }}
-          echo ${{ env.NIMLITE_DIR }}
-          python3 -m build
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.8", "3.9", "3.10"]
 
-
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        arcitecture: x64
+    - uses: jiro4989/setup-nim-action@v1
+      with:
+        nim-version: "2.0.0"
+    - name: Nimble Install dependencies
+      run: |
+        nimble -y refresh
+        nimble -y install nimpy argparse
+    - name: Set Environment Variables
+      uses: allenevans/set-env@v2.0.0
+      with:
+        NIMLITE_DIR:  'tablite/_nimlite'
+        NIM_PACKAGE_NAME: 'nimlite'
+        TABLITE_PACKAGE_NAME: 'tablite'
+        NIMC_FLAGS: '--app:lib --threads:on -d:release -d:danger'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install flake8 pytest
+        python -m pip install -r requirements.txt
+    - name: Compile Debug & import (Unix)
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+      run: |
+        # compile the nimlite
+        nim c ${{ env.NIMC_FLAGS }} --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.so  ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
+        # check if compiled successfully
+        python -c "print(__import__('${{ env.TABLITE_PACKAGE_NAME }}.${{ env.NIM_PACKAGE_NAME }}').__file__)"
+    # - name: MSVC
+    #   if: runner.os == 'Windows'
+    #   uses: TheMrMilchmann/setup-msvc-dev@v3
+    #   with:
+    #     arch: x64
+    - name: Compile Debug & import (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        # compile the nimlite
+        nim c ${{ env.NIMC_FLAGS }} --tlsEmulation:off --passL:-static --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.pyd ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
+    - name: Lint with flake8
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    - name: Test with pytest
+      run: |
+        python -m pytest tests
