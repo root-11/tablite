@@ -35,7 +35,7 @@ jobs:
     - name: Set Environment Variables
       uses: allenevans/set-env@v2.0.0
       with:
-        NIMLITE_DIR:  '_nimlite'
+        NIMLITE_DIR:  'tablite/_nimlite'
         NIM_PACKAGE_NAME: 'nimlite'
         TABLITE_PACKAGE_NAME: 'tablite'
         NIMC_FLAGS: '--app:lib --threads:on -d:release -d:danger'
@@ -51,16 +51,16 @@ jobs:
         nim c ${{ env.NIMC_FLAGS }} --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.so  ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
         # check if compiled successfully
         python -c "print(__import__('${{ env.TABLITE_PACKAGE_NAME }}.${{ env.NIM_PACKAGE_NAME }}').__file__)"
-    - name: MSVC
-      if: runner.os == 'Windows'
-      uses: TheMrMilchmann/setup-msvc-dev@v3
-      with:
-        arch: x64
+    # - name: MSVC
+    #   if: runner.os == 'Windows'
+    #   uses: TheMrMilchmann/setup-msvc-dev@v3
+    #   with:
+    #     arch: x64
     - name: Compile Debug & import (Windows)
       if: runner.os == 'Windows'
       run: |
         # compile the nimlite
-        nim c ${{ env.NIMC_FLAGS }} --tlsEmulation:off --passL:-static --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.exe ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
+        nim c ${{ env.NIMC_FLAGS }} --tlsEmulation:off --passL:-static --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.pyd ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
