@@ -19,6 +19,7 @@ from tablite import groupbys
 from tablite import pivots
 from tablite import imputation
 from tablite import diff
+from tablite.config import Config
 
 
 logging.getLogger("lml").propagate = False
@@ -489,7 +490,7 @@ class Table(BaseTable):
             raise ValueError("What to drop? None? np.nan? ")
         return redux.drop(self, *args)
 
-    def replace(self, mapping, columns=None):
+    def replace(self, mapping, columns=None, tqdm=_tqdm, pbar=None):
         """replaces all mapped keys with values from named columns
 
         Args:
@@ -510,9 +511,14 @@ class Table(BaseTable):
             if n not in self.columns:
                 raise ValueError(f"column not found: {n}")
 
+        if pbar is None:
+            total = len(columns)
+            pbar = tqdm(total=total, desc="replace", disable=Config.TQDM_DISABLE)
+
         for name in columns:
             col = self.columns[name]
             col.replace(mapping)
+            pbar.update(1)
 
     def groupby(self, keys, functions, tqdm=_tqdm, pbar=None):
         """
@@ -746,7 +752,7 @@ class Table(BaseTable):
             targets (str or list of strings): column names to find and
                 replace missing values
 
-            missing (any): value to be replaced
+            missing (None or iterable): values to be replaced.
 
             method (str): method to be used for replacement. Options:
 
