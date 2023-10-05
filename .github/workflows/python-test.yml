@@ -127,25 +127,32 @@ jobs:
       - name: Set Environment Variables
         uses: allenevans/set-env@v2.0.0
         with:
-          NIMLITE_DIR:  '_nimlite'
+          NIMLITE_DIR:  'tablite/_nimlite'
           NIM_PACKAGE_NAME: 'nimlite'
       - name: Cache Restore Unix
         uses: actions/download-artifact@v3
         with:
           name: nimlite-unix
           path: |
-            ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.so
+            ${{ env.NIMLITE_DIR }}
       - name: Cache Restore Windows
         uses: actions/download-artifact@v3
         with:
           name: nimlite-windows
           path: |
-            ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.pyd
+            ${{ env.NIMLITE_DIR }}
       - name: install python
         run: |
+          ls 
           python3 -m pip install --upgrade build 
       - name: build wheel
         run: |
+          pwd
+          ls -la tablite
+          ls -la tablite/_nimlite
+          ls -la ${{ env.NIMLITE_DIR }}
+          realpath ${{ env.NIMLITE_DIR }}
+          echo ${{ env.NIMLITE_DIR }}
           python3 -m build
 
 
