@@ -101,7 +101,7 @@ setup(
     keywords=keywords,
     packages=["tablite", "tablite/_nimlite"],
     package_data={
-        "tablite": ["**/_nimlite/nimlite.so", "**/_nimlite/nimlite.pyd", "**/*.pyi"], # pack builds
+        "tablite": ["**/*.so", "**/*.pyd", "**/*.pyi"], # pack builds
     },
     python_requires=">=3.8",
     include_package_data=True,

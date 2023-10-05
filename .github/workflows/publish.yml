@@ -60,7 +60,7 @@ jobs:
       - name: Set Environment Variables
         uses: allenevans/set-env@v2.0.0
         with:
-          NIMLITE_DIR:  '_nimlite'
+          NIMLITE_DIR:  'tablite/_nimlite'
           NIM_PACKAGE_NAME: 'nimlite'
       - name: Cache Restore Unix
         uses: actions/download-artifact@v3
