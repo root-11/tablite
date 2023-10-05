@@ -8,7 +8,7 @@ from tablite import sort_utils
 from tqdm import tqdm as _tqdm
 
 
-def imputation(T, targets, missing=None, method="carry forward", sources=None, tqdm=_tqdm):
+def imputation(T, targets, missing=None, method="carry forward", sources=None, tqdm=_tqdm, pbar=None):
     """
     In statistics, imputation is the process of replacing missing data with substituted values.
 
@@ -20,7 +20,7 @@ def imputation(T, targets, missing=None, method="carry forward", sources=None, t
         targets (str or list of strings): column names to find and
             replace missing values
 
-        missing (any): value to be replaced
+        missing (None or iterable): values to be replaced.
 
         method (str): method to be used for replacement. Options:
 
@@ -68,6 +68,11 @@ def imputation(T, targets, missing=None, method="carry forward", sources=None, t
     else:
         raise TypeError("Expected source as list of column names")
 
+    if missing is None:
+        missing = {None}
+    else:
+        missing = set(missing)
+
     if method == "nearest neighbour":
         if sources in (None, []):
             sources = list(T.columns)
@@ -85,26 +90,33 @@ def imputation(T, targets, missing=None, method="carry forward", sources=None, t
     methods = ["nearest neighbour", "mean", "mode", "carry forward"]
 
     if method == "carry forward":
-        return carry_forward(T, targets, missing)
+        return carry_forward(T, targets, missing, tqdm=_tqdm, pbar=None)
     elif method in {"mean", "mode"}:
-        return stats_method(T, targets, missing, method)
+        return stats_method(T, targets, missing, method, tqdm=_tqdm, pbar=None)
     elif method == "nearest neighbour":
-        return nearest_neighbour(T, sources, missing, targets)
+        return nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm, pbar=None)
     else:
         raise ValueError(f"method {method} not recognised amonst known methods: {list(methods)})")
 
 
-def carry_forward(T, targets, missing):
+def carry_forward(T, targets, missing, tqdm=_tqdm, pbar=None):
+    assert isinstance(missing, set)
+
+    if pbar is None:
+        total = len(targets) * len(T)
+        pbar = tqdm(total=total, desc="imputation.carry_forward", disable=Config.TQDM_DISABLE)
+
     new = type(T)()
     for name in T.columns:
         if name in targets:
             data = T[name][:]  # create copy
             last_value = None
             for ix, v in enumerate(data):
-                if v == missing:  # perform replacement
+                if v in missing:  # perform replacement
                     data[ix] = last_value
                 else:  # keep last value.
                     last_value = v
+                pbar.update(1)
             new[name] = data
         else:
             new[name] = T[name]
@@ -112,7 +124,13 @@ def carry_forward(T, targets, missing):
     return new
 
 
-def stats_method(T, targets, missing, method):
+def stats_method(T, targets, missing, method, tqdm=_tqdm, pbar=None):
+    assert isinstance(missing, set)
+
+    if pbar is None:
+        total = len(targets)
+        pbar = tqdm(total=total, desc=f"imputation.{method}", disable=Config.TQDM_DISABLE)
+
     new = type(T)()
     for name in T.columns:
         if name in targets:
@@ -120,15 +138,18 @@ def stats_method(T, targets, missing, method):
             assert isinstance(col, Column)
             stats = col.statistics()
             new_value = stats[method]
-            col.replace(mapping={missing: new_value})
+            col.replace(mapping={m: new_value for m in missing})
             new[name] = col
+            pbar.update(1)
         else:
             new[name] = T[name]  # no entropy, keep as is.
-
+        
     return new
 
 
-def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm):
+def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm, pbar=None):
+    assert isinstance(missing, set)
+
     new = T.copy()
     norm_index = {}
     normalised_values = Table()
@@ -139,8 +160,8 @@ def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm):
         values.sort()
         values = [k for _, k in values]
 
-        n = len([v for v in values if v != missing])
-        d = {v: i / n if v != missing else math.inf for i, v in enumerate(values)}
+        n = len([v for v in values if v not in missing])
+        d = {v: i / n if v not in missing else math.inf for i, v in enumerate(values)}
         normalised_values[name] = [d[v] for v in T[name]]
         norm_index[name] = d
         values.clear()
@@ -155,43 +176,44 @@ def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm):
     item_order = sort_utils.unix_sort(list(ranks))
     new_order = {tuple(item_order[i] for i in k): k for k in missing_value_index.keys()}
 
-    with tqdm(
-        unit="missing values", total=sum(len(v) for v in missing_value_index.values()), disable=Config.TQDM_DISABLE
-    ) as pbar:
-        for _, key in sorted(new_order.items(), reverse=True):  # Fewest None's are at the front of the list.
-            for row_id in missing_value_index[key]:
-                err_map = [0.0 for _ in range(len(T))]
-                for n, v in T.to_dict(columns=sources, slice_=slice(row_id, row_id + 1, 1)).items():
-                    # ^--- T.to_dict doesn't go to disk as hence saves an IOP.
-                    v = v[0]
-                    norm_value = norm_index[n][v]
-                    if norm_value != math.inf:
-                        err_map = [e1 + abs(norm_value - e2) for e1, e2 in zip(err_map, normalised_values[n])]
+    if pbar is None:
+        total = total=sum(len(v) for v in missing_value_index.values())
+        pbar = tqdm(total=total, desc=f"imputation.nearest_neighbour", disable=Config.TQDM_DISABLE)
 
-                min_err = min(err_map)
-                ix = err_map.index(min_err)
+    for _, key in sorted(new_order.items(), reverse=True):  # Fewest None's are at the front of the list.
+        for row_id in missing_value_index[key]:
+            err_map = [0.0 for _ in range(len(T))]
+            for n, v in T.to_dict(columns=sources, slice_=slice(row_id, row_id + 1, 1)).items():
+                # ^--- T.to_dict doesn't go to disk as hence saves an IO step.
+                v = v[0]
+                norm_value = norm_index[n][v]
+                if norm_value != math.inf:
+                    err_map = [e1 + abs(norm_value - e2) for e1, e2 in zip(err_map, normalised_values[n])]
 
-                for name in targets:
-                    current_value = new[name][row_id]
-                    if current_value != missing:  # no need to replace anything.
-                        continue
-                    if new[name][ix] != missing:  # can confidently impute.
-                        new[name][row_id] = new[name][ix]
-                    else:  # replacement is required, but ix points to another missing value.
-                        # we therefore have to search after the next best match:
-                        tmp_err_map = err_map[:]
-                        for _ in range(len(err_map)):
-                            tmp_min_err = min(tmp_err_map)
-                            tmp_ix = tmp_err_map.index(tmp_min_err)
-                            if row_id == tmp_ix:
-                                tmp_err_map[tmp_ix] = math.inf
-                                continue
-                            elif new[name][tmp_ix] == missing:
-                                tmp_err_map[tmp_ix] = math.inf
-                                continue
-                            else:
-                                new[name][row_id] = new[name][tmp_ix]
-                                break
+            min_err = min(err_map)
+            ix = err_map.index(min_err)
 
-                pbar.update(1)
+            for name in targets:
+                current_value = new[name][row_id]
+                if current_value not in missing:  # no need to replace anything.
+                    continue
+                if new[name][ix] in missing:  # can confidently impute.
+                    new[name][row_id] = new[name][ix]
+                else:  # replacement is required, but ix points to another missing value.
+                    # we therefore have to search after the next best match:
+                    tmp_err_map = err_map[:]
+                    for _ in range(len(err_map)):
+                        tmp_min_err = min(tmp_err_map)
+                        tmp_ix = tmp_err_map.index(tmp_min_err)
+                        if row_id == tmp_ix:
+                            tmp_err_map[tmp_ix] = math.inf
+                            continue
+                        elif new[name][tmp_ix] in missing:
+                            tmp_err_map[tmp_ix] = math.inf
+                            continue
+                        else:
+                            new[name][row_id] = new[name][tmp_ix]
+                            break
+
+            pbar.update(1)
     return new
