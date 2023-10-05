@@ -51,11 +51,11 @@ jobs:
         nim c ${{ env.NIMC_FLAGS }} --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.so  ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
         # check if compiled successfully
         python -c "print(__import__('${{ env.TABLITE_PACKAGE_NAME }}.${{ env.NIM_PACKAGE_NAME }}').__file__)"
-    - name: MSVC
-      if: runner.os == 'Windows'
-      uses: TheMrMilchmann/setup-msvc-dev@v3
-      with:
-        arch: x64
+    # - name: MSVC
+    #   if: runner.os == 'Windows'
+    #   uses: TheMrMilchmann/setup-msvc-dev@v3
+    #   with:
+    #     arch: x64
     - name: Compile Debug & import (Windows)
       if: runner.os == 'Windows'
       run: |
