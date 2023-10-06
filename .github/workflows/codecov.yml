@@ -38,8 +38,7 @@ jobs:
         python -m pip install pytest
         python -m pip install pytest-cov
         python -m pip install -r requirements.txt
-        - name: Compile Debug & import (Unix)
-    - name: "compile nimlite"
+    - name: Compile Debug & import (Unix)
       run: |
         # compile the nimlite
         nim c ${{ env.NIMC_FLAGS }} --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.so  ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
