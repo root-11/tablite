@@ -2,6 +2,7 @@
 .idea/
 *.code-workspace
 .vscode/
+/.env
 
 # Compiled files
 *.pyc
@@ -10,6 +11,9 @@ tablite.hdf5
 tests/new.zip
 VDS.h5
 __pycache__
+*/_nimlite/nimlite
+*/_nimlite/*.so
+*/_nimlite/*.pyd
 
 # Notebook checkpoints
 .ipynb_checkpoints/
@@ -22,6 +26,3 @@ docs/
 
 # personal notes
 *scratch*.py
-*/_nimlite/nimlite
-*/_nimlite/*.so
-*/_nimlite/*.pyd
