@@ -11,8 +11,27 @@ def test_replace_missing_values_00():
 
     expected = [r[:] for r in sample]
     expected[1][-1] = 3
-    result = t.imputation(sources=["a", "b"], targets=["c"], method="nearest neighbour", missing=None)
+    result = t.imputation(sources=["a", "b"], targets=["c"], method="nearest neighbour", missing={None})
     assert [r for r in result.rows] == expected
+    result = t.imputation(sources=["a", "b"], targets=["c"], method="nearest neighbour")  # missing not declared.
+    assert [r for r in result.rows] == expected
+
+
+def test_nearest_neighbour_multiple_missing():
+    sample = [[1, 2, 3], [1, 2, None], [5, 5, 5], [5,5,"NULL"], [6, 6, 6], [6,-1,6]]
+    
+    t = Table()
+    t.add_columns(*list("abc"))
+    for row in sample:
+        t.add_rows(row)
+    
+    result = t.imputation(sources=["a", "b"], targets=["c"], method="nearest neighbour", missing={None, "NULL", -1})
+    
+    expected = [[1, 2, 3], [1, 2, 3], [5, 5, 5], [5, 5, 5], [6, 6, 6], [6, -1, 6]]  # only repair column C using A and B
+    assert [r for r in result.rows] == expected
+
+    result = t.imputation(sources=["a", "b", "c"], targets=["b", "c"], method="nearest neighbour", missing={None, "NULL", -1})
+    expected = [[1, 2, 3], [1, 2, 3], [5, 5, 5], [5, 5, 5], [6, 6, 6], [6, 6, 6]]  # only repair column C using A and B
 
 
 def test_replace_missing_values_01():

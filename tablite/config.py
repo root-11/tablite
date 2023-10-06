@@ -36,7 +36,7 @@ class Config(object):
     BACKEND_NIM = "NIM"
     BACKEND_PYTHON = "PYTHON"
     BACKEND = BACKEND_PYTHON if platform.system() == "Windows" else BACKEND_NIM
-    USE_NIMPORTER = os.environ.get("USE_NIMPORTER", "false").lower() in ["1", "t", "true", "y", "yes"]
+    USE_NIMPORTER = os.environ.get("USE_NIMPORTER", "true").lower() in ["1", "t", "true", "y", "yes"]
 
     NIM_SUPPORTED_CONV_TYPES = ["Windows-1252", "ISO-8859-1"]
 
