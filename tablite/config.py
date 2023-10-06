@@ -2,6 +2,9 @@ import os
 import pathlib
 import tempfile
 import platform
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class Config(object):
     """Config class for Tablite Tables.
