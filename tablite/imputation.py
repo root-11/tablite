@@ -167,9 +167,8 @@ def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm, pbar=None):
         values.clear()
 
     missing_value_index = T.index(*targets)
-    missing_value_index = {
-        k: v for k, v in missing_value_index.items() if missing in k
-    }  # strip out all that do not have missings.
+    missing_value_index = {k: v for k, v in missing_value_index.items() if missing.intersection(set(k))}  # strip out all that do not have missings.
+
     ranks = set()
     for k, v in missing_value_index.items():
         ranks.update(set(k))
@@ -197,7 +196,7 @@ def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm, pbar=None):
                 current_value = new[name][row_id]
                 if current_value not in missing:  # no need to replace anything.
                     continue
-                if new[name][ix] in missing:  # can confidently impute.
+                if new[name][ix] not in missing:  # can confidently impute.
                     new[name][row_id] = new[name][ix]
                 else:  # replacement is required, but ix points to another missing value.
                     # we therefore have to search after the next best match:
