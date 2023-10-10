@@ -1,10 +1,13 @@
 from collections import defaultdict
 import math
+import re
 import ast
 from datetime import datetime, date, time, timedelta, timezone  # noqa
 from itertools import compress
 import string
 import random
+import xml.parsers.expat as expat
+import logging
 
 letters = string.ascii_lowercase + string.digits
 
@@ -404,3 +407,46 @@ def dict_to_rows(d):
         row = [d[k][i] for k in order]
         rows.append(row)
     return rows
+
+def calc_col_count(letters: str):
+    ord_nil = ord("A") - 1
+    cols_per_letter = ord("Z") - ord_nil
+    col_count = 0
+
+    for i, v in enumerate(reversed(letters)):
+        col_count = col_count + (ord(v) - ord_nil) * pow(cols_per_letter, i)
+
+    return col_count
+
+def calc_true_dims(sheet):
+    src = sheet._get_source()
+    last_column = None
+    
+    def handleStartElement(name, attrs):
+        nonlocal last_column
+        if name == "c":
+            last_column = attrs
+
+    parser = expat.ParserCreate()
+    parser.buffer_text = True
+    parser.StartElementHandler = handleStartElement
+    parser.ParseFile(src)
+
+    last_index = last_column["r"]
+
+    regex = re.compile("\d+")
+
+    idx, _ = next(regex.finditer(last_index)).span()
+
+    letters, digits = last_index[0:idx], int(last_index[idx:])
+
+    return calc_col_count(letters), digits
+
+def fixup_worksheet(worksheet):
+    try:
+        ws_cols, ws_rows = calc_true_dims(worksheet)
+
+        worksheet._max_column = ws_cols
+        worksheet._max_row = ws_rows
+    except Exception as e:
+        logging.error(f"Failed to fetch true dimensions: {e}")

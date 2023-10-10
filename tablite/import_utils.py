@@ -1,4 +1,4 @@
-import re
+
 import numpy as np
 import os
 import math
@@ -14,7 +14,7 @@ import logging
 
 import struct
 import pickle as pkl
-import xml.parsers.expat as expat
+
 from datetime import date, time, datetime
 
 from mplite import TaskManager, Task
@@ -22,7 +22,7 @@ from mplite import TaskManager, Task
 from tablite.datatypes import DataTypes, list_to_np_array
 from tablite.config import Config
 from tablite.file_reader_utils import TextEscape, get_encoding, get_delimiter, ENCODING_GUESS_BYTES
-from tablite.utils import type_check, unique_name
+from tablite.utils import type_check, unique_name, fixup_worksheet
 from tablite.base import Table, Page, Column
 
 from tqdm import tqdm as _tqdm
@@ -170,39 +170,7 @@ def from_html(T, path, tqdm=_tqdm, pbar=None):
 
 
 
-def calc_col_count(letters: str):
-    ord_nil = ord("A") - 1
-    cols_per_letter = ord("Z") - ord_nil
-    col_count = 0
 
-    for i, v in enumerate(reversed(letters)):
-        col_count = col_count + (ord(v) - ord_nil) * pow(cols_per_letter, i)
-
-    return col_count
-
-def calc_true_dims(sheet):
-    src = sheet._get_source()
-    last_column = None
-    
-    def handleStartElement(name, attrs):
-        nonlocal last_column
-        if name == "c":
-            last_column = attrs
-
-    parser = expat.ParserCreate()
-    parser.buffer_text = True
-    parser.StartElementHandler = handleStartElement
-    parser.ParseFile(src)
-
-    last_index = last_column["r"]
-
-    regex = re.compile("\d+")
-
-    idx, _ = next(regex.finditer(last_index)).span()
-
-    letters, digits = last_index[0:idx], int(last_index[idx:])
-
-    return calc_col_count(letters), digits
 
 def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=None, columns=None, start=0, limit=sys.maxsize, tqdm=_tqdm, **kwargs):
     """
@@ -227,14 +195,7 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
         raise ValueError("expected limit as integer > 0")
 
     worksheet = book.get_sheet_by_name(sheet)
-
-    try:
-        ws_cols, ws_rows = calc_true_dims(worksheet)
-
-        worksheet._max_column = ws_cols
-        worksheet._max_row = ws_rows
-    except Exception as e:
-        logging.error(f"Failed to fetch true dimensions: {e}")
+    fixup_worksheet(worksheet)
 
     try:
         # get the first row to know our headers or the number of columns
