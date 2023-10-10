@@ -5,6 +5,7 @@ from pathlib import Path
 from tablite.datatypes import DataTypes
 import csv
 from io import StringIO
+from tablite.utils import fixup_worksheet
 
 ENCODING_GUESS_BYTES = 10000
 
@@ -246,6 +247,7 @@ def get_headers(path, delimiter=None, header_row_index=0, text_qualifier=None, l
                 all_sheets = book.sheetnames
 
                 for sheet_name, sheet in ((name, book[name]) for name in all_sheets):
+                    fixup_worksheet(sheet)
                     max_rows = min(sheet.max_row, linecount + 1)
                     container = [None] * max_rows
                     padding_ends = 0
