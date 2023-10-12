@@ -233,11 +233,14 @@ def pivot_transpose(T, columns, keep=None, column_name="transpose", value_name="
 
     if not isinstance(columns, list):
         raise TypeError
+            
     for i in columns:
         if not isinstance(i, str):
             raise TypeError
         if i not in T.columns:
             raise ValueError
+        if columns.count(i)>1:
+            raise ValueError(f"Column {i} appears more than once")
 
     if keep is None:
         keep = []
