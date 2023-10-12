@@ -78,3 +78,18 @@ def test_05():
 
     assert list(new.columns) == ["a"]
     assert [r for r in new.rows] == [["b"], ["c"], ["d"], ["e"]]
+
+def test_bug_3015():
+    t = Table()
+    t["a"] = [1]
+    t["b"] = [2]
+    t["c"] = [3]
+    t["d"] = [4]
+    t["e"] = [5]
+
+    try:
+        _ = t.pivot_transpose(columns=["a","b", "c", "c", "d", "e"])
+        assert False, "duplicate column names are not allowed for transpose"
+    except ValueError:
+        assert True
+
