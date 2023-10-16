@@ -1,5 +1,5 @@
 from tablite import Table
-from tablite.base import Page
+from tablite.base import Page, Column
 import numpy as np
 import datetime
 import pytest
@@ -98,6 +98,10 @@ def test_add_rows():
     t.add_rows(*[1.1])
     assert t["A"] == [1, 1.1]
 
+    c = t["A"]
+    assert isinstance(c, Column)
+    d = c.statistics()
+    assert isinstance(d, dict)
 
 def test02_verify_garbage_collection():
     # check that the pages are not deleted prematurely.
