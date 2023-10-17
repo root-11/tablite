@@ -26,3 +26,6 @@ docs/
 
 # personal notes
 *scratch*.py
+
+# local confidential data
+tests/ndata/*
