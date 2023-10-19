@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import psutil
+from tablite.utils import load_numpy
 from mplite import Task, TaskManager
 from tablite.mp_utils import share_mem, reindex_task, select_processing_method
 from tablite.datatypes import multitype_set, numpy_to_python
@@ -131,7 +132,7 @@ def _mp_reindex(T, index):
     for name in T.columns:
         t[name] = Column(t.path)
         for dst in new[name]:
-            data = np.load(dst, allow_pickle=True, fix_imports=False)
+            data = load_numpy(dst)
             t[name].extend(data)
             os.remove(dst)
     return t

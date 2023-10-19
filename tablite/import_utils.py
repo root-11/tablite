@@ -8,6 +8,7 @@ import csv
 from pathlib import Path
 import openpyxl
 import pyexcel
+from tablite.utils import load_numpy
 import sys
 import warnings
 import logging
@@ -244,7 +245,7 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
     it_rows_filtered = ([row[idx].value for idx in it_used_indices] for row in it_rows)
 
     # create page directory
-    workdir = Path(Config.workdir) / f"pid-{os.getpid()}"
+    workdir = Path(Config.workdir) / Config.pid
     pagesdir = workdir/"pages"
     pagesdir.mkdir(exist_ok=True, parents=True)
 
@@ -691,7 +692,7 @@ def text_reader_py(
             )
 
             # make sure the tempdir is ready.
-            workdir = Path(Config.workdir) / f"pid-{os.getpid()}"
+            workdir = Path(Config.workdir) / Config.pid
             if not workdir.exists():
                 workdir.mkdir()
                 (workdir / "pages").mkdir()
@@ -757,7 +758,7 @@ def text_reader_py(
                 t[name] = Column(t.path)
             for cfg in configs:
                 for idx, npy in ((inv_field_relation[idx], npy) for idx, npy in enumerate(cfg.destination)):
-                    data = np.load(npy, allow_pickle=True, fix_imports=False)
+                    data = load_numpy(npy)
 
                     if guess_datatypes:
                         data = list_to_np_array(DataTypes.guess(data))
@@ -803,7 +804,7 @@ if Config.BACKEND == Config.BACKEND_NIM:
         else:
             raise NotImplementedError(f"encoding not implemented: {encoding}")
 
-        pid = Config.workdir / f"pid-{os.getpid()}"
+        pid = Config.workdir / Config.pid
         kwargs = {}
 
         if first_row_has_headers is not None:

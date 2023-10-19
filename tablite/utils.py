@@ -1,6 +1,10 @@
 from collections import defaultdict
 import math
 import re
+import os
+from time import time as now
+from pathlib import Path
+import numpy as np
 import ast
 from datetime import datetime, date, time, timedelta, timezone  # noqa
 from itertools import compress
@@ -450,3 +454,13 @@ def fixup_worksheet(worksheet):
         worksheet._max_row = ws_rows
     except Exception as e:
         logging.error(f"Failed to fetch true dimensions: {e}")
+
+def update_access_time(path):
+    path = Path(path)
+    stat = path.stat()
+    os.utime(path, (now(), stat.st_mtime))
+
+def load_numpy(path):
+    update_access_time(path)
+
+    return np.load(path, allow_pickle=True, fix_imports=False)

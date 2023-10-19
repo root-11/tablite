@@ -43,6 +43,8 @@ class Config(object):
     workdir = pathlib.Path(os.environ.get("TABLITE_TMPDIR", f"{tempfile.gettempdir()}/tablite-tmp"))
     workdir.mkdir(parents=True, exist_ok=True)
 
+    pid = f"pid-{os.getpid()}"
+
     PAGE_SIZE = 1_000_000  # sets the page size limit.
     ENCODING = "UTF-8"  # sets the page encoding when using bytes
 
