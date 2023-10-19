@@ -1,5 +1,6 @@
 import operator
 import numpy as np
+from tablite.utils import load_numpy
 from multiprocessing import shared_memory
 import psutil
 from tablite.config import Config
@@ -112,7 +113,7 @@ def reindex_task(src, dst, index_shm, shm_shape, start, end):
     existing_shm = shared_memory.SharedMemory(name=index_shm)
     shared_index = np.ndarray(shm_shape, dtype=np.int64, buffer=existing_shm.buf)
     # work
-    array = np.load(src, allow_pickle=True, fix_imports=False)
+    array = load_numpy(src)
     new = np.take(array, shared_index[start:end])
     np.save(dst, new, allow_pickle=True, fix_imports=False)
     # disconnect

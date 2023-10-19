@@ -7,6 +7,7 @@ import shutil
 import logging
 import warnings
 import zipfile
+from tablite.utils import load_numpy, update_access_time
 import numpy as np
 from tqdm import tqdm as _tqdm
 from pathlib import Path
@@ -55,23 +56,29 @@ def register(path):
 def shutdown():
     """method to clean up temporary files triggered at shutdown."""
     for path in file_registry:
-        if str(os.getpid()) in str(path):  # safety feature to prevent rm -rf /
+        if Config.pid in str(path):  # safety feature to prevent rm -rf /
             log.debug(f"shutdown: running rmtree({path})")
             shutil.rmtree(path)
 
 
 atexit.register(shutdown)
 
-
-class Page(object):
+class SimplePage(object):
     ids = count(start=1)
     refcounts = {}
 
+    def __init__(self, id, path, len, py_dtype) -> None:
+        self.id = id
+        self.path = path / "pages" / f"{id}.npy"
+        self.len = len
+        self.dtype = py_dtype
+
+        self._incr_refcount()
+
     def _incr_refcount(self):
         """ increment refcount of this page if it's used by this process"""
-        if f"pid-{os.getpid()}" in self.path.parts:
+        if Config.pid in self.path.parts:
             self.refcounts[self.path] = self.refcounts.get(self.path, 0) + 1
-
 
     def __setstate__(self, state):
         """
@@ -83,6 +90,38 @@ class Page(object):
         
         self._incr_refcount()
 
+    @classmethod
+    def next_id(cls, path):
+        while True:
+            _id = next(cls.ids)
+            type_check(path, Path)
+            _path = path / "pages" / f"{_id}.npy"
+
+            if not _path.exists():
+                break # make sure we don't override existing pages if they are created outside of main thread
+
+        return _id
+    
+    def __len__(self):
+        return self.len
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.path}, {self.get()})"
+
+    def __hash__(self) -> int:
+        return hash(self.id)
+
+    def get(self):
+        """loads stored data
+
+        Returns:
+            np.ndarray: stored data.
+        """
+        array = load_numpy(self.path)
+        return MetaArray(array, array.dtype, py_dtype=self.dtype)
+
+class Page(SimplePage):
+
     def __del__(self):
         """When python's reference count for an object is 0, python uses
         it's garbage collector to remove the object and free the memory.
@@ -90,7 +129,7 @@ class Page(object):
         data stored on disk, the space on disk must be freed up as well.
         This __del__ override assures the cleanup of stored data.
         """
-        if f"pid-{os.getpid()}" not in self.path.parts:
+        if Config.pid not in self.path.parts:
             return
         
         refcount = self.refcounts[self.path] = max(self.refcounts.get(self.path, 0) - 1, 0)
@@ -108,13 +147,7 @@ class Page(object):
             path (Path): working directory.
             array (np.array): data
         """
-        while True:
-            self.id = next(self.ids)
-            type_check(path, Path)
-            self.path = path / "pages" / f"{self.id}.npy"
-
-            if not self.path.exists():
-                break # make sure we don't override existing pages if they are created outside of main thread
+        _id = self.next_id(path)
 
         type_check(array, np.ndarray)
 
@@ -136,33 +169,18 @@ class Page(object):
                 )
                 raise OSError(msg)
 
-        self.len = len(array)
+        _len = len(array)
         # type_check(array, MetaArray)
         if not hasattr(array, "metadata"):
             raise ValueError
-        self.dtype = array.metadata["py_dtype"]
+        _dtype = array.metadata["py_dtype"]
+
+        super().__init__(_id, path, _len, _dtype)
+
         np.save(self.path, array, allow_pickle=True, fix_imports=False)
         log.debug(f"Page saved: {self.path}")
 
         self._incr_refcount() # increment refcount for this page
-
-    def __len__(self):
-        return self.len
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.path}, {self.get()})"
-
-    def __hash__(self) -> int:
-        return self.id
-
-    def get(self):
-        """loads stored data
-
-        Returns:
-            np.ndarray: stored data.
-        """
-        array = np.load(self.path, allow_pickle=True, fix_imports=False)
-        return MetaArray(array, array.dtype, py_dtype=self.dtype)
 
 
 class Column(object):
@@ -300,14 +318,14 @@ class Column(object):
                 pages.append(page)
             else:  # fetch the slice and filter it.
                 search_slice = slice(ro.start - start, ro.stop - start, ro.step)
-                np_arr = np.load(page.path, allow_pickle=True, fix_imports=False)
+                np_arr = load_numpy(page.path)
                 match = np_arr[search_slice]
                 pages.append(match)
 
         if is_reversed:
             pages.reverse()
             for ix, page in enumerate(pages):
-                if isinstance(page, Page):
+                if isinstance(page, SimplePage):
                     data = page.get()
                     pages[ix] = np.flip(data)
                 else:
@@ -344,7 +362,7 @@ class Column(object):
         """
         result = []
         for element in self.getpages(item):
-            if isinstance(element, Page):
+            if isinstance(element, SimplePage):
                 result.append(element.get())
             else:
                 result.append(element)
@@ -961,7 +979,7 @@ class Column(object):
 
 
 class Table(object):
-    _pid_dir = None  # typically Path(Config.workdir) / f"pid-{os.getpid()}"
+    _pid_dir = None  # typically `Config.workdir / Config.pid`
     _ids = count()
 
     def __init__(self, columns=None, headers=None, rows=None, _path=None) -> None:
@@ -978,7 +996,7 @@ class Table(object):
         """
         if _path is None:
             if self._pid_dir is None:
-                self._pid_dir = Path(Config.workdir) / f"pid-{os.getpid()}"
+                self._pid_dir = Path(Config.workdir) / Config.pid
                 if not self._pid_dir.exists():
                     self._pid_dir.mkdir()
                     (self._pid_dir / "pages").mkdir()
@@ -1129,7 +1147,7 @@ class Table(object):
                 for item in column.getpages(slc):
                     if isinstance(item, np.ndarray):
                         new_column.extend(item)  # extend subslice (expensive)
-                    elif isinstance(item, Page):
+                    elif isinstance(item, SimplePage):
                         new_column.pages.append(item)  # extend page (cheap)
                     else:
                         raise TypeError(f"Bad item: {item}")
@@ -1275,6 +1293,7 @@ class Table(object):
                         column.extend(data)
                         pbar.update(1)
                     t.columns[name] = column
+        update_access_time(path)
         return t
 
     def copy(self):
