@@ -63,9 +63,11 @@ def shutdown():
 
 atexit.register(shutdown)
 
+
 class SimplePage(object):
     ids = count(start=1)
     refcounts = {}
+    autocleanup = True
 
     def __init__(self, id, path, len, py_dtype) -> None:
         self.id = id
@@ -77,7 +79,7 @@ class SimplePage(object):
 
     def _incr_refcount(self):
         """ increment refcount of this page if it's used by this process"""
-        if Config.pid in self.path.parts:
+        if self.owns():
             self.refcounts[self.path] = self.refcounts.get(self.path, 0) + 1
 
     def __setstate__(self, state):
@@ -87,7 +89,7 @@ class SimplePage(object):
             this means we need to update page refcount as if constructor had been called
         """
         self.__dict__.update(state)
-        
+
         self._incr_refcount()
 
     @classmethod
@@ -98,10 +100,10 @@ class SimplePage(object):
             _path = path / "pages" / f"{_id}.npy"
 
             if not _path.exists():
-                break # make sure we don't override existing pages if they are created outside of main thread
+                break  # make sure we don't override existing pages if they are created outside of main thread
 
         return _id
-    
+
     def __len__(self):
         return self.len
 
@@ -110,6 +112,31 @@ class SimplePage(object):
 
     def __hash__(self) -> int:
         return hash(self.id)
+
+    def owns(self):
+        parts = self.path.parts
+
+        return all((p in parts for p in Path(Config.pid).parts))
+
+    def __del__(self):
+        """When python's reference count for an object is 0, python uses
+        it's garbage collector to remove the object and free the memory.
+        As tablite tables have columns and columns have page and pages have
+        data stored on disk, the space on disk must be freed up as well.
+        This __del__ override assures the cleanup of stored data.
+        """
+        if not self.owns():
+            return
+
+        refcount = self.refcounts[self.path] = max(self.refcounts.get(self.path, 0) - 1, 0)
+
+        if refcount > 0:
+            return
+
+        if self.autocleanup:
+            self.path.unlink(True)
+
+        del self.refcounts[self.path]
 
     def get(self):
         """loads stored data
@@ -120,27 +147,8 @@ class SimplePage(object):
         array = load_numpy(self.path)
         return MetaArray(array, array.dtype, py_dtype=self.dtype)
 
+
 class Page(SimplePage):
-
-    def __del__(self):
-        """When python's reference count for an object is 0, python uses
-        it's garbage collector to remove the object and free the memory.
-        As tablite tables have columns and columns have page and pages have
-        data stored on disk, the space on disk must be freed up as well.
-        This __del__ override assures the cleanup of stored data.
-        """
-        if Config.pid not in self.path.parts:
-            return
-        
-        refcount = self.refcounts[self.path] = max(self.refcounts.get(self.path, 0) - 1, 0)
-
-        if refcount > 0:
-            return
-
-        self.path.unlink(True)
-
-        del self.refcounts[self.path]
-
     def __init__(self, path, array) -> None:
         """
         Args:
@@ -180,7 +188,7 @@ class Page(SimplePage):
         np.save(self.path, array, allow_pickle=True, fix_imports=False)
         log.debug(f"Page saved: {self.path}")
 
-        self._incr_refcount() # increment refcount for this page
+        self._incr_refcount()  # increment refcount for this page
 
 
 class Column(object):
@@ -484,9 +492,9 @@ class Column(object):
             start, end = end, end + page.len
             if start <= key.stop < end:  # find beginning
                 data = page.get()
-                keep = data[(key.stop - start) :]  # keeping after key.stop
+                keep = data[(key.stop - start):]  # keeping after key.stop
                 new = np_type_unify([value, keep])
-                tail = self.pages[index + 1 :]  # keep pointers to pages.
+                tail = self.pages[index + 1:]  # keep pointers to pages.
                 self.pages = []
                 self.extend(new)  # handles pagination.
                 self.pages.extend(tail)  # handles old pages.
@@ -518,7 +526,7 @@ class Column(object):
 
             if start <= key_stop < end:  # start of tail
                 data = page.get() if data is None else data  # don't load again if on same page.
-                tail = data[key_stop - start :]
+                tail = data[key_stop - start:]
 
             if key_stop < start:
                 unchanged_tail.append(page)
@@ -1558,7 +1566,7 @@ class Table(object):
                 else:
                     empty = [blanks] * 7
                     head = (col[:7].tolist() + empty)[:7]
-                    tail = (col[n - 7 :].tolist() + empty)[-7:]
+                    tail = (col[n - 7:].tolist() + empty)[-7:]
                     row = head + ["..."] + tail
                 data[name] = row
 
