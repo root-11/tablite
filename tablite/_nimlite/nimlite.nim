@@ -89,9 +89,6 @@ when isMainModule and appType == "lib":
             echo $e.msg & "\n" & $e.getStackTrace
             raise e
 
-# if isMainModule:
-#     echo "Nimlite imported!"
-
 when isMainModule and appType != "lib":
     import argparse
     import std/[sugar, json]
