@@ -195,7 +195,7 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
     if not (isinstance(limit, int) and limit > 0):
         raise ValueError("expected limit as integer > 0")
 
-    worksheet = book.get_sheet_by_name(sheet)
+    worksheet = book[sheet]
     fixup_worksheet(worksheet)
 
     try:

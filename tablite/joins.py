@@ -4,6 +4,7 @@ from itertools import product
 from tablite.config import Config
 from tablite.base import Table
 from tablite.reindex import reindex
+from tablite.merge import where
 from tablite.utils import sub_cls_check, unique_name
 from tablite.mp_utils import share_mem, map_task, select_processing_method
 from mplite import TaskManager, Task
@@ -79,7 +80,6 @@ def _sp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pba
     for name in right_columns:
         revised_name = unique_name(name, result.columns)
         result[revised_name] = second[name]
-
     return result
 
 
@@ -131,7 +131,7 @@ def _mp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pba
     return result
 
 
-def left_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
+def left_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=None, tqdm=_tqdm, pbar=None):
     """
     :param T: Table (left)
     :param other: Table (right)
@@ -139,6 +139,7 @@ def left_join(T, other, left_keys, right_keys, left_columns=None, right_columns=
     :param right_keys: list of keys for the join
     :param left_columns: list of left columns to retain, if None, all are retained.
     :param right_columns: list of right columns to retain, if None, all are retained.
+    :param merge_keys: merges keys to the left, so that cases where right key is None, a key exists.
     :return: new Table
 
     Example:
@@ -151,6 +152,7 @@ def left_join(T, other, left_keys, right_keys, left_columns=None, right_columns=
         left_columns = list(T.columns)
     if right_columns is None:
         right_columns = list(other.columns)
+    assert merge_keys in {True,False,None}
 
     _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
 
@@ -166,10 +168,19 @@ def left_join(T, other, left_keys, right_keys, left_columns=None, right_columns=
 
     LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)  # compress memory of python list to array.
     f = select_processing_method(len(LEFT) * len(left_columns + right_columns), _sp_join, _mp_join)
-    return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+    result = f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+
+    if merge_keys is True:
+        boolean_map = (RIGHT == -1)
+        column_names = [n for n in T.columns]  # left side only.
+        for left_name,right_name in zip(left_keys,right_keys):
+            right_name = unique_name(right_name, T.columns)
+            column_names.append(right_name)
+            result = where(result, boolean_map, left_name,right_name,new=left_name)
+    return result
 
 
-def inner_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
+def inner_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=None, tqdm=_tqdm, pbar=None):
     """
     :param T: Table (left)
     :param other: Table (right)
@@ -177,6 +188,8 @@ def inner_join(T, other, left_keys, right_keys, left_columns=None, right_columns
     :param right_keys: list of keys for the join
     :param left_columns: list of left columns to retain, if None, all are retained.
     :param right_columns: list of right columns to retain, if None, all are retained.
+    :param merge_keys: present for api consistency. The keyword does nothing as inner 
+                       join only matches on existing keys.
     :return: new Table
     Example:
     SQL:   SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
@@ -188,6 +201,7 @@ def inner_join(T, other, left_keys, right_keys, left_columns=None, right_columns
         left_columns = list(T.columns)
     if right_columns is None:
         right_columns = list(other.columns)
+    assert merge_keys in {True,False,None}
 
     _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
 
@@ -208,7 +222,7 @@ def inner_join(T, other, left_keys, right_keys, left_columns=None, right_columns
     return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
 
 
-def outer_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
+def outer_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=None, tqdm=_tqdm, pbar=None):
     """
     :param T: Table (left)
     :param other: Table (right)
@@ -216,6 +230,7 @@ def outer_join(T, other, left_keys, right_keys, left_columns=None, right_columns
     :param right_keys: list of keys for the join
     :param left_columns: list of left columns to retain, if None, all are retained.
     :param right_columns: list of right columns to retain, if None, all are retained.
+    :param merge_keys: merges keys, so that cases where a key match is None, a key exists.
     :return: new Table
     Example:
     SQL:   SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
@@ -227,6 +242,7 @@ def outer_join(T, other, left_keys, right_keys, left_columns=None, right_columns
         left_columns = list(T.columns)
     if right_columns is None:
         right_columns = list(other.columns)
+    assert merge_keys in {True,False,None}
 
     _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
 
@@ -248,10 +264,19 @@ def outer_join(T, other, left_keys, right_keys, left_columns=None, right_columns
 
     LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)
     f = select_processing_method(len(LEFT) * len(left_columns + right_columns), _sp_join, _mp_join)
-    return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+    result = f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+
+    if merge_keys is True:
+        boolean_map = (LEFT != -1)
+        column_names = [n for n in T.columns]
+        for left_name,right_name in zip(left_keys,right_keys):
+            right_name = unique_name(right_name, T.columns)
+            column_names.append(right_name)
+            result = where(result, boolean_map, left_name,right_name,new=left_name)
+    return result
 
 
-def cross_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
+def cross_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=None, tqdm=_tqdm, pbar=None):
     """
     :param T: Table (left)
     :param other: Table (right)
@@ -259,6 +284,8 @@ def cross_join(T, other, left_keys, right_keys, left_columns=None, right_columns
     :param right_keys: list of keys for the join
     :param left_columns: list of left columns to retain, if None, all are retained.
     :param right_columns: list of right columns to retain, if None, all are retained.
+    :param merge_keys: present for api consistency. The keyword does nothing as inner 
+                       join only matches on existing keys.
     :return: new Table
 
     CROSS JOIN returns the Cartesian product of rows from tables in the join.
@@ -269,6 +296,7 @@ def cross_join(T, other, left_keys, right_keys, left_columns=None, right_columns
         left_columns = list(T.columns)
     if right_columns is None:
         right_columns = list(other.columns)
+    assert merge_keys in {True,False,None}
 
     _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
 
@@ -277,3 +305,4 @@ def cross_join(T, other, left_keys, right_keys, left_columns=None, right_columns
     LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)
     f = select_processing_method(len(LEFT), _sp_join, _mp_join)
     return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+
