@@ -2,6 +2,7 @@
 
 | Version    | Change                                              |
 |:-----------|-----------------------------------------------------|
+|2023.8.0| Nim backend for csv importer.<br>Improve excel importer.<br>Improve slicing consistency.<br>Logical cores re-enabled on *nix based systems.<br>Filter is now type safe.<br>Added merge utility.<br>Various bugfixes.|
 |2023.6.5| Fix issues with `get_headers` falling back to text reading when reading 0 lines of excel, fix issue where reading excel file would ignore file count, excel file reader now has parity for linecount selection. |
 |2023.6.4| Fix a logic bug in `get_headers` that caused one extra line to be returned than requested. |
 |2023.6.3| Updated the way reference counting works. Tablite now tracks references to used pages and cleans them up based on number of references to those pages in the current process. This change allows to handle deep table clones when sending tables via processes (pickling/unpickling), whereas previous implementation would corrupt all tables using same pages due to reference counting asserting that all tables are shallow copies to the same object.
