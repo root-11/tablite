@@ -2,14 +2,14 @@ import sys
 import json
 import psutil
 import platform
-import numpy as np
 import subprocess as sp
 from pathlib import Path
 from tqdm import tqdm as _tqdm
 from tablite.config import Config
 from mplite import Task, TaskManager
+from tablite.utils import load_numpy
 from tablite.utils import generate_random_string
-from tablite.base import Page, Column, pytype_from_iterable
+from tablite.base import SimplePage, Column, pytype_from_iterable
 
 IS_WINDOWS = platform.system() == "Windows"
 USE_CLI_BACKEND = IS_WINDOWS
@@ -28,15 +28,12 @@ if not USE_CLI_BACKEND:
     sys.argv.extend(paths)  # importing nim module messes with pythons launch arguments!!!
 
 
-class TmpPage(Page):
+class NimPage(SimplePage):
     def __init__(self, id, path, data) -> None:
-        self.id = id
-        self.path = path / "pages" / f"{self.id}.npy"
-        self.len = len(data)
-        _, py_dtype = pytype_from_iterable(data) if self.len > 0 else (None, object)
-        self.dtype = py_dtype
+        _len = len(data)
+        _, _dtype = pytype_from_iterable(data) if _len > 0 else (None, object)
 
-        self._incr_refcount()
+        super().__init__(id, path, _len, _dtype)
 
 
 def text_reader_task(*, pid, path, encoding, dialect, task, import_fields, guess_dtypes):
@@ -83,8 +80,8 @@ def text_reader_task(*, pid, path, encoding, dialect, task, import_fields, guess
     pages = []
     for p in (Path(p) for p in task["pages"]):
         id = int(p.name.replace(p.suffix, ""))
-        arr = np.load(p, allow_pickle=True)
-        page = TmpPage(id, pid, arr)
+        arr = load_numpy(p)
+        page = NimPage(id, pid, arr)
         pages.append(page)
 
     return pages
