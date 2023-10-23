@@ -188,8 +188,6 @@ class Page(SimplePage):
         np.save(self.path, array, allow_pickle=True, fix_imports=False)
         log.debug(f"Page saved: {self.path}")
 
-        self._incr_refcount()  # increment refcount for this page
-
 
 class Column(object):
     def __init__(self, path, value=None) -> None:
