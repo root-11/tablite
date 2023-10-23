@@ -433,3 +433,48 @@ def test_wiki_joins_mp():
     Config.MULTIPROCESSING_MODE = Config.FORCE
     do_wiki_joins()
     Config.MULTIPROCESSING_MODE = Config.reset()
+
+def test_join_with_key_merge():
+    a = Table(columns={'A': [1,2,3,None,5], 'B':[10,20,None,40,50]})    
+    b = Table(columns={'C': [1,2,3,6,7], 'D':[11,12,13,16,17]})
+    c = a.join(b,left_keys=['A'], right_keys=['C'], left_columns=['A', 'B'], right_columns=['C','D'], kind="outer")
+    
+    # +==+====+====+====+====+
+    # |# | A  | B  | C  | D  |
+    # +--+----+----+----+----+
+    # | 0|   1|  10|   1|  11|
+    # | 1|   2|  20|   2|  12|
+    # | 2|   3|None|   3|  13|
+    # | 3|None|  40|None|None|
+    # | 4|   5|  50|None|None|
+    # | 5|None|None|   6|  16|
+    # | 6|None|None|   7|  17|
+    # +==+====+====+====+====+
+    assert c["A"] == [1,2,3,None,5,None,None]
+    assert c['C'] == [1,2,3,None,None,6,7]
+
+    d = c.copy().merge("A", "C", new="E", criteria=[v != None for v in c['A']])
+    assert "A" not in d.columns
+    assert "C" not in d.columns
+    assert d["E"] == [1,2,3,None,5,6,7]
+
+
+    e = a.join(b,left_keys=['A'], right_keys=['C'], left_columns=['A', 'B'], right_columns=['C','D'], kind="outer", merge_keys=True)
+    assert e["A"] == [1,2,3,None,5,6,7]
+    
+
+def test_left_join_with_key_merge():
+    a = Table(columns={'SKU_ID':[1,2,4], "A": [10,20,30], "B": [40,50,60]})
+    b = Table(columns={'SKU_ID':[1,1,3], 'C':[11,22,33], 'D':[44,55,66]})
+    c = a.left_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=False)
+    assert isinstance(c, Table)  # nothing changes in the table
+    c1 = a.left_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=True)
+    assert c1["SKU_ID"] == [1,1,2,4]
+    c2 = a.outer_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=True)
+    assert c2["SKU_ID"] == [1,1,2,4,3]
+    c3 = a.inner_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=True)
+    assert isinstance(c3, Table)  # nothing changes in the table
+    c4 = a.cross_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=True)
+    assert isinstance(c4, Table)  # nothing changes in the table
+    
+

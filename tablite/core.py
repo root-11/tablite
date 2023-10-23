@@ -11,6 +11,7 @@ from tablite.utils import type_check
 from tablite import import_utils
 from tablite import export_utils
 from tablite import redux
+from tablite import merge
 from tablite import reindex as _reindex
 from tablite import joins
 from tablite import lookup
@@ -645,7 +646,50 @@ class Table(BaseTable):
         """
         return pivots.pivot(self, rows, columns, functions, values_as_rows, tqdm=tqdm, pbar=pbar)
 
-    def join(self, other, left_keys, right_keys, left_columns, right_columns, kind="inner", tqdm=_tqdm, pbar=None):
+    def merge(self, left, right, new, criteria):
+        """ takes from LEFT where criteria is True else RIGHT.
+        :param: T: Table
+        :param: criteria: np.array(bool): 
+                if True take left column
+                else take right column
+        :param left: (str) column name
+        :param right: (str) column name
+        :param new: (str) new name
+
+        :returns: T
+
+        Example:
+        >>> c.show()
+        +==+====+====+====+====+
+        | #| A  | B  | C  | D  |
+        +--+----+----+----+----+
+        | 0|   1|  10|   1|  11|
+        | 1|   2|  20|   2|  12|
+        | 2|   3|None|   3|  13|
+        | 3|None|  40|None|None|
+        | 4|   5|  50|None|None|
+        | 5|None|None|   6|  16|
+        | 6|None|None|   7|  17|
+        +==+====+====+====+====+
+
+        >>> c.merge("A", "C", new="E", criteria=[v != None for v in c['A']])
+        >>> c.show()
+        +==+====+====+====+
+        | #| B  | D  | E  |
+        +--+----+----+----+
+        | 0|  10|  11|   1|
+        | 1|  20|  12|   2|
+        | 2|None|  13|   3|
+        | 3|  40|None|None|
+        | 4|  50|None|   5|
+        | 5|None|  16|   6|
+        | 6|None|  17|   7|
+        +==+====+====+====+
+
+        """
+        return merge.where(self, criteria,left,right,new)
+
+    def join(self, other, left_keys, right_keys, left_columns, right_columns, kind="inner", merge_keys=False, tqdm=_tqdm, pbar=None):
         """
         short-cut for all join functions.
         kind: 'inner', 'left', 'outer', 'cross'
@@ -659,9 +703,9 @@ class Table(BaseTable):
         if kind not in kinds:
             raise ValueError(f"join type unknown: {kind}")
         f = kinds.get(kind, None)
-        return f(other, left_keys, right_keys, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+        return f(other, left_keys, right_keys, left_columns, right_columns, merge_keys=merge_keys, tqdm=tqdm, pbar=pbar)
 
-    def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
+    def left_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=False, tqdm=_tqdm, pbar=None):
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -675,9 +719,9 @@ class Table(BaseTable):
             letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter']
         )
         """
-        return joins.left_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+        return joins.left_join(self, other, left_keys, right_keys, left_columns, right_columns, merge_keys=merge_keys, tqdm=tqdm, pbar=pbar)
 
-    def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
+    def inner_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=False, tqdm=_tqdm, pbar=None):
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -691,9 +735,9 @@ class Table(BaseTable):
             letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter']
             )
         """
-        return joins.inner_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+        return joins.inner_join(self, other, left_keys, right_keys, left_columns, right_columns, merge_keys=merge_keys, tqdm=tqdm, pbar=pbar)
 
-    def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
+    def outer_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=False, tqdm=_tqdm, pbar=None):
         """
         :param other: self, other = (left, right)
         :param left_keys: list of keys for the join
@@ -707,15 +751,15 @@ class Table(BaseTable):
             letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter']
             )
         """
-        return joins.outer_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+        return joins.outer_join(self, other, left_keys, right_keys, left_columns, right_columns, merge_keys=merge_keys, tqdm=tqdm, pbar=pbar)
 
-    def cross_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, tqdm=_tqdm, pbar=None):
+    def cross_join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=False, tqdm=_tqdm, pbar=None):
         """
         CROSS JOIN returns the Cartesian product of rows from tables in the join.
         In other words, it will produce rows which combine each row from the first table
         with each row from the second table
         """
-        return joins.cross_join(self, other, left_keys, right_keys, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+        return joins.cross_join(self, other, left_keys, right_keys, left_columns, right_columns, merge_keys=merge_keys, tqdm=tqdm, pbar=pbar)
 
     def lookup(self, other, *criteria, all=True, tqdm=_tqdm):
         """function for looking up values in `other` according to criteria in ascending order.
