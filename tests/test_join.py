@@ -466,15 +466,44 @@ def test_join_with_key_merge():
 def test_left_join_with_key_merge():
     a = Table(columns={'SKU_ID':[1,2,4], "A": [10,20,30], "B": [40,50,60]})
     b = Table(columns={'SKU_ID':[1,1,3], 'C':[11,22,33], 'D':[44,55,66]})
-    c = a.left_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=False)
-    assert isinstance(c, Table)  # nothing changes in the table
-    c1 = a.left_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=True)
-    assert c1["SKU_ID"] == [1,1,2,4]
-    c2 = a.outer_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=True)
-    assert c2["SKU_ID"] == [1,1,2,4,3]
-    c3 = a.inner_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=True)
-    assert isinstance(c3, Table)  # nothing changes in the table
-    c4 = a.cross_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=True)
-    assert isinstance(c4, Table)  # nothing changes in the table
-    
 
+    # LEFT
+    c1a = a.left_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=False)
+    assert isinstance(c1a, Table)  # nothing changes in the table
+    assert "SKU_ID_1" in c1a.columns
+
+    c1b = a.left_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=True)
+    assert c1b["SKU_ID"] == [1,1,2,4]
+    assert "SKU_ID_1" not in c1b.columns
+
+    assert c1a["A"] == c1b["A"]
+
+    # OUTER
+    c2a = a.outer_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=True)
+    assert c2a["SKU_ID"] == [1,1,2,4,3]
+    assert "SKU_ID_1" not in c2a.columns
+    
+    c2b = a.outer_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=False)
+    assert "SKU_ID_1" in c2b.columns
+
+    assert c2a["A"] == c2b["A"]
+
+    # INNER
+    c3a = a.inner_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=True)
+    assert isinstance(c3a, Table) 
+    assert "SKU_ID_1" not in c3a.columns
+
+    c3b = a.inner_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=False)
+    assert "SKU_ID_1" in c3b.columns
+
+    assert c3a["A"] == c3b["A"]
+
+    # CROSS
+    c4a = a.cross_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=True)
+    assert isinstance(c4a, Table)
+    assert "SKU_ID_1" not in c4a.columns
+
+    c4b = a.cross_join(b, ["SKU_ID"], ["SKU_ID"], merge_keys=False)
+    assert "SKU_ID_1" in c4b.columns
+    
+    assert c4a["A"] == c4b["A"]
