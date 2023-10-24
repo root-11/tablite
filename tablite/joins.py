@@ -188,8 +188,7 @@ def inner_join(T, other, left_keys, right_keys, left_columns=None, right_columns
     :param right_keys: list of keys for the join
     :param left_columns: list of left columns to retain, if None, all are retained.
     :param right_columns: list of right columns to retain, if None, all are retained.
-    :param merge_keys: present for api consistency. The keyword does nothing as inner 
-                       join only matches on existing keys.
+    :param merge_keys: merges keys, so that only left key is present
     :return: new Table
     Example:
     SQL:   SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
@@ -219,7 +218,14 @@ def inner_join(T, other, left_keys, right_keys, left_columns=None, right_columns
 
     LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)
     f = select_processing_method(len(LEFT) * len(left_columns + right_columns), _sp_join, _mp_join)
-    return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+    result = f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+
+    if merge_keys:
+        for right_name in right_keys:
+            right_name = unique_name(right_name, T.columns)
+            if right_name in result.columns:
+                del result[right_name]
+    return result
 
 
 def outer_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=None, tqdm=_tqdm, pbar=None):
@@ -284,8 +290,7 @@ def cross_join(T, other, left_keys, right_keys, left_columns=None, right_columns
     :param right_keys: list of keys for the join
     :param left_columns: list of left columns to retain, if None, all are retained.
     :param right_columns: list of right columns to retain, if None, all are retained.
-    :param merge_keys: present for api consistency. The keyword does nothing as inner 
-                       join only matches on existing keys.
+    :param merge_keys: merges keys, so that only left key is present
     :return: new Table
 
     CROSS JOIN returns the Cartesian product of rows from tables in the join.
@@ -304,5 +309,12 @@ def cross_join(T, other, left_keys, right_keys, left_columns=None, right_columns
 
     LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)
     f = select_processing_method(len(LEFT), _sp_join, _mp_join)
-    return f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+    result = f(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+
+    if merge_keys:
+        for right_name in right_keys:
+            right_name = unique_name(right_name, T.columns)
+            if right_name in result.columns:
+                del result[right_name]
+    return result
 
