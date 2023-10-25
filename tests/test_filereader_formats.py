@@ -658,3 +658,9 @@ def test_header_offset_ods():
 
     assert list(tbl.columns.keys()) == ["header"]
     assert list(tbl["header"]) == [1, 2, 3, 4, 5]
+
+def test_booleans():
+    tbl = Table.from_file(Path(__file__).parent / "data" / "booleans.csv")
+
+    assert len(tbl) == 1
+    assert next(tbl.rows) == [False, True, False, True, False, True]
