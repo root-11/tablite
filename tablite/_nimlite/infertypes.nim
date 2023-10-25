@@ -16,11 +16,11 @@ proc inferNone*(str: ptr string): PY_NoneType {.inline.} =
     raise newException(ValueError, "not a none")
 
 proc inferBool*(str: ptr string): bool {.inline.} =
-    let sstr = str[]
+    let sstr = str[].toLower()
 
-    if sstr in ["True", "true"]:
+    if sstr == "true":
         return true
-    elif sstr in ["False", "false"]:
+    elif sstr == "false":
         return false
 
     raise newException(ValueError, "not a boolean value")
