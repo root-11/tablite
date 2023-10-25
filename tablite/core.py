@@ -64,7 +64,7 @@ class Table(BaseTable):
         text_escape_openings="",
         text_escape_closures="",
         tqdm=_tqdm,
-    ):
+    ) -> "Table":
         """
         reads path and imports 1 or more tables
 
