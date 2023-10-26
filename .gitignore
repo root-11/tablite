@@ -26,6 +26,7 @@ docs/
 
 # personal notes
 *scratch*.py
+build_nim.sh
 
 # local confidential data
 tests/ndata/*
