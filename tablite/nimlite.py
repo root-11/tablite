@@ -164,6 +164,9 @@ def text_reader(
         for k, c in column_dict.items():
             c.pages.append(col_map[k])
 
+    if columns is None:
+        columns = [c["name"] for c in task_columns]
+
     table_dict = {
         a["name"]: column_dict[b]
         for a, b in zip(task_columns, columns)
