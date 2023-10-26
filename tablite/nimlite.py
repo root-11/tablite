@@ -1,15 +1,11 @@
 import sys
-import json
 import psutil
 import platform
-import subprocess as sp
 from pathlib import Path
-from itertools import chain
 from tqdm import tqdm as _tqdm
 from tablite.config import Config
 from mplite import Task, TaskManager
 from tablite.utils import load_numpy
-from tablite.utils import generate_random_string
 from tablite.base import SimplePage, Column, pytype_from_iterable
 
 if True:
@@ -53,7 +49,7 @@ def text_reader_task(*, pid, path, encoding, dialect, task, import_fields, guess
     )
 
     pages = []
-    for p in (Path(p) for p in _tqdm(task["pages"])):
+    for p in (Path(p) for p in task["pages"]):
         try:
             id = int(p.name.replace(p.suffix, ""))
             arr = load_numpy(p)
@@ -94,10 +90,6 @@ def text_reader(
         strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
         page_size=Config.PAGE_SIZE
     )
-
-    import json
-
-    print(json.dumps(table, indent=4))
 
     task_info = table["task"]
     task_columns = table["columns"]
