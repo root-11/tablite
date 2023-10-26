@@ -116,7 +116,9 @@ proc importTextFile*(
             for ix, name in enumerate(fields):
                 if name in imp_columns:
                     {uint ix: name}
+
         let import_fields = collect: (for k in field_relation.keys: k)
+        let import_field_names = collect: (for v in field_relation.values: v)
 
         var field_relation_inv = collect(initOrderedTable()):
             for (ix, name) in field_relation.pairs:
@@ -174,6 +176,7 @@ proc importTextFile*(
             dialect = dia,
             tasks = task_list,
             import_fields = import_fields,
+            import_field_names = import_field_names,
             page_size = page_size,
             guess_dtypes = guess_dtypes
         )
