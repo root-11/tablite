@@ -150,7 +150,7 @@ def text_reader(
     for res_pages in res:
         col_map = {
             n: res_pages[i]
-            for i, n in zip(ti_import_fields, ti_import_field_names)
+            for i, n in enumerate(ti_import_field_names)
         }
 
         for k, c in column_dict.items():
