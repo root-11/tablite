@@ -4,6 +4,7 @@ import psutil
 import platform
 import subprocess as sp
 from pathlib import Path
+from itertools import chain
 from tqdm import tqdm as _tqdm
 from tablite.config import Config
 from mplite import Task, TaskManager
@@ -11,12 +12,7 @@ from tablite.utils import load_numpy
 from tablite.utils import generate_random_string
 from tablite.base import SimplePage, Column, pytype_from_iterable
 
-IS_WINDOWS = platform.system() == "Windows"
-USE_CLI_BACKEND = IS_WINDOWS
-
-CLI_BACKEND_PATH = Path(__file__).parent / f"_nimlite/nimlite{'.exe' if IS_WINDOWS else ''}"
-
-if not USE_CLI_BACKEND:
+if True:
     paths = sys.argv[:]
     if Config.USE_NIMPORTER:
         import nimporter
@@ -37,52 +33,34 @@ class NimPage(SimplePage):
 
 
 def text_reader_task(*, pid, path, encoding, dialect, task, import_fields, guess_dtypes):
-    if not USE_CLI_BACKEND:
-        nl.text_reader_task(
-            path=path,
-            encoding=encoding,
-            dia_delimiter=dialect["delimiter"],
-            dia_quotechar=dialect["quotechar"],
-            dia_escapechar=dialect["escapechar"],
-            dia_doublequote=dialect["doublequote"],
-            dia_quoting=dialect["quoting"],
-            dia_skipinitialspace=dialect["skipinitialspace"],
-            dia_skiptrailingspace=dialect["skiptrailingspace"],
-            dia_lineterminator=dialect["lineterminator"],
-            dia_strict=dialect["strict"],
-            tsk_pages=task["pages"],
-            tsk_offset=task["offset"],
-            tsk_count=task["count"],
-            import_fields=import_fields,
-            guess_dtypes=guess_dtypes
-        )
-    else:
-        args = [
-            str(CLI_BACKEND_PATH),
-            f"--encoding={encoding}",
-            f"--guess_dtypes={'true' if guess_dtypes else 'false'}",
-            f"--delimiter=\"{dialect['delimiter']}\"",
-            f"--quotechar=\"{dialect['quotechar']}\"",
-            f"--lineterminator=\"{dialect['lineterminator']}\"",
-            f"--skipinitialspace={'true' if dialect['skipinitialspace'] else 'false'}",
-            f"--skiptrailingspace={'true' if dialect['skiptrailingspace'] else 'false'}",
-            f"--quoting={dialect['quoting']}",
-            f"task",
-            f"{wrap(str(path))}",
-            f"{task['offset']}",
-            f"{task['count']}",
-            f"--pages={','.join(task['pages'])}",
-            f"--fields={','.join((str(v) for v in import_fields))}"
-        ]
-
-        sp.run(" ".join(args), shell=True, check=True)
+    nl.text_reader_task(
+        path=path,
+        encoding=encoding,
+        dia_delimiter=dialect["delimiter"],
+        dia_quotechar=dialect["quotechar"],
+        dia_escapechar=dialect["escapechar"],
+        dia_doublequote=dialect["doublequote"],
+        dia_quoting=dialect["quoting"],
+        dia_skipinitialspace=dialect["skipinitialspace"],
+        dia_skiptrailingspace=dialect["skiptrailingspace"],
+        dia_lineterminator=dialect["lineterminator"],
+        dia_strict=dialect["strict"],
+        tsk_pages=task["pages"],
+        tsk_offset=task["offset"],
+        tsk_count=task["count"],
+        import_fields=import_fields,
+        guess_dtypes=guess_dtypes
+    )
 
     pages = []
-    for p in (Path(p) for p in task["pages"]):
-        id = int(p.name.replace(p.suffix, ""))
-        arr = load_numpy(p)
-        page = NimPage(id, pid, arr)
-        pages.append(page)
+    for p in (Path(p) for p in _tqdm(task["pages"])):
+        try:
+            id = int(p.name.replace(p.suffix, ""))
+            arr = load_numpy(p)
+            page = NimPage(id, pid, arr)
+            pages.append(page)
+        except:
+            raise
 
     return pages
 
@@ -103,65 +81,23 @@ def text_reader(
     assert isinstance(path, Path)
     assert isinstance(pid, Path)
 
-    if not USE_CLI_BACKEND:
-        table = nl.text_reader(
-            pid=str(pid),
-            path=str(path),
-            encoding=encoding,
-            first_row_has_headers=first_row_has_headers, header_row_index=header_row_index,
-            columns=columns,
-            start=start, limit=limit,
-            guess_datatypes=guess_datatypes,
-            newline=newline, delimiter=delimiter, text_qualifier=text_qualifier,
-            quoting=quoting,
-            strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
-            page_size=Config.PAGE_SIZE
-        )
-    else:
-        taskname = generate_random_string(5)
+    table = nl.text_reader(
+        pid=str(pid),
+        path=str(path),
+        encoding=encoding,
+        first_row_has_headers=first_row_has_headers, header_row_index=header_row_index,
+        columns=columns,
+        start=start, limit=limit,
+        guess_datatypes=guess_datatypes,
+        newline=newline, delimiter=delimiter, text_qualifier=text_qualifier,
+        quoting=quoting,
+        strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
+        page_size=Config.PAGE_SIZE
+    )
 
-        while (pid / "pages" / taskname / ".json").exists():
-            taskname = generate_random_string(5)
+    import json
 
-        args = [
-            str(CLI_BACKEND_PATH),
-            f"--encoding={encoding}",
-            f"--guess_dtypes={'true' if guess_datatypes else 'false'}",
-            f"--delimiter={wrap(delimiter)}",
-            f"--quotechar={wrap(text_qualifier)}",
-            f"--lineterminator={wrap(newline)}",
-            f"--skipinitialspace={'true' if strip_leading_and_tailing_whitespace else 'false'}",
-            f"--skiptrailingspace={'true' if strip_leading_and_tailing_whitespace else 'false'}",
-            f"--quoting={quoting}",
-            f"import",
-            f"{wrap(str(path))}",
-            f"--pid={wrap(str(pid))}",
-            f"--first_row_has_headers={'true' if first_row_has_headers else 'false'}",
-            f"--header_row_index={header_row_index}",
-            f"--page_size={Config.PAGE_SIZE}",
-            f"--execute=false",
-            f"--use_json=true",
-            f"--name={taskname}"
-        ]
-
-        if start is not None:
-            args.append(f"--start={start}")
-
-        if limit is not None:
-            args.append(f"--limit={limit}")
-
-        if columns is not None:
-            assert isinstance(columns, list)
-            assert all(isinstance(v, str) for v in columns)
-
-            args.append(f"--columns='[{','.join([c for c in columns])}]'")
-
-        sp.run(" ".join(args), shell=True, check=True)
-
-        table_path = pid / "pages" / (taskname + ".json")
-
-        with open(table_path) as f:
-            table = json.loads(f.read())
+    print(json.dumps(table, indent=4))
 
     task_info = table["task"]
     task_columns = table["columns"]
@@ -172,6 +108,7 @@ def text_reader(
     ti_guess_dtypes = task_info["guess_dtypes"]
     ti_tasks = task_info["tasks"]
     ti_import_fields = task_info["import_fields"]
+    ti_import_field_names = task_info["import_field_names"]
 
     is_windows = platform.system() == "Windows"
     use_logical = False if is_windows else True
@@ -200,34 +137,39 @@ def text_reader(
     elif Config.MULTIPROCESSING_MODE == Config.FORCE:
         is_sp = False
 
-    try:
-        if is_sp:
-            res = [
-                task.f(*task.args, **task.kwargs)
-                for task in tqdm(tasks, "importing file")
-            ]
-        else:
-            with TaskManager(cpus) as tm:
-                res = tm.execute(tasks, tqdm)
+    if is_sp:
+        res = [
+            task.f(*task.args, **task.kwargs)
+            for task in tqdm(tasks, "importing file")
+        ]
+    else:
+        with TaskManager(cpus) as tm:
+            res = tm.execute(tasks, tqdm)
 
-                if not all(isinstance(r, list) for r in res):
-                    raise Exception("failed")
-    finally:
-        if USE_CLI_BACKEND and table_path.exists():
-            table_path.unlink()
+            if not all(isinstance(r, list) for r in res):
+                raise Exception("failed")
 
     col_path = pid
     column_dict = {
-        cols["name"]: Column(col_path)
-        for cols in task_columns
+        cols: Column(col_path)
+        for cols in ti_import_field_names
     }
 
-    columns = list(column_dict.values())
     for res_pages in res:
-        for c, p in zip(columns, res_pages):
-            c.pages.append(p)
+        col_map = {
+            n: res_pages[i]
+            for i, n in zip(ti_import_fields, ti_import_field_names)
+        }
 
-    table = T(columns=column_dict)
+        for k, c in column_dict.items():
+            c.pages.append(col_map[k])
+
+    table_dict = {
+        a["name"]: column_dict[b]
+        for a, b in zip(task_columns, columns)
+    }
+
+    table = T(columns=table_dict)
 
     return table
 
