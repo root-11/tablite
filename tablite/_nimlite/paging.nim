@@ -18,9 +18,11 @@ proc collectPageInfo*(
         import_fields: var seq[uint]
     ): (uint, seq[uint], seq[Rank]) =
     var ranks: seq[Rank]
-    var longest_str = newSeq[uint](n_pages)
+    var longest_str = collect(newSeqOfCap(n_pages)):
+        for _ in 0..n_pages-1:
+            1u
+    
     var n_rows: uint = 0
-
 
     if guess_dtypes:
         ranks = collect(newSeqOfCap(n_pages)):
