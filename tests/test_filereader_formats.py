@@ -1,3 +1,4 @@
+from tablite.config import Config
 from tablite import Table
 from tablite.file_reader_utils import TextEscape, get_headers, ENCODING_GUESS_BYTES
 from tablite.datatypes import DataTypes
@@ -580,6 +581,28 @@ def test_keep_some_columns_only():
     table = Table.from_file(path, columns=["a", "b"])
     assert set(table.columns) == {"a", "b"}
     assert len(table) == 45
+
+def test_split_lines():
+    if Config.BACKEND == Config.BACKEND_PYTHON:
+        """
+            It is not possible to currently implement this in Windows using existing Python APIs.
+            Using `csv.parse` to find newlines is impossible because calling an iterator blocks `fi.tell()`.
+            Therefore implementing this in Windows would require to implement the entire CSV parser in python itself.
+            This is double work as we have a nim implementation.
+            
+            Therefore a solution is, use NIM in Windows when we find the solution on how to do it.
+            Until then, ignore this test in Windows.
+        """
+        return
+
+    path = Path(__file__).parent / "data" / "split_lines.csv"
+    assert path.exists()
+    table = Table.from_file(path, text_qualifier="\"", columns=["a", "c"])
+    assert set(table.columns) == {"a", "c"}
+    assert len(table) == 3
+    assert table["a"] == ['aaa\\nbbb', 'ccc\\nddd', 'eee']
+    assert table["c"] == [0, 0, 0]
+
 
 
 def test_long_texts():

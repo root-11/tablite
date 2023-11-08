@@ -842,7 +842,7 @@ def text_reader(*args, **kwargs):
         try:
             return text_reader_nim(*args, **kwargs)
         except Exception as e:
-            if "pytest" in sys.modules:
+            if "pytest" in sys.modules or not Config.ALLOW_CSV_READER_FALLTHROUGH:
                 raise e # ensure that fallback is only used during production
             else:
                 from traceback import format_exc
