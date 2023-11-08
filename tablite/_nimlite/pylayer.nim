@@ -2,11 +2,16 @@ import nimpy
 import std/options
 import encfile, table, csvparse, textreader
 
-let
-    builtins = pyBuiltinsModule()
-    PyNoneClass = builtins.None.getattr("__class__")
+var
+    isInit = false
+    builtins: PyObject
+    PyNoneClass: PyObject
 
 proc isNone*(py: PyObject): bool {.inline.} =
+    if not isInit:
+        builtins = pyBuiltinsModule()
+        PyNoneClass = builtins.None.getattr("__class__")
+        isInit = true
     return builtins.isinstance(py, PyNoneClass).to(bool)
 
 proc textReader*(

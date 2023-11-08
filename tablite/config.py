@@ -35,7 +35,7 @@ class Config(object):
 
     BACKEND_NIM = "NIM"
     BACKEND_PYTHON = "PYTHON"
-    BACKEND = BACKEND_PYTHON if platform.system() == "Windows" else os.environ.get("USE_BACKEND", BACKEND_NIM).upper()
+    BACKEND = os.environ.get("USE_BACKEND", BACKEND_NIM).upper()
 
     assert BACKEND in [BACKEND_NIM, BACKEND_PYTHON]
 
