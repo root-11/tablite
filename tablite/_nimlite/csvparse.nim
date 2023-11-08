@@ -81,6 +81,9 @@ proc parseSaveField(self: var ReaderObj, dia: Dialect): bool =
     if dia.skiptrailingspace:
         field = field.strip(leading = false, trailing = true)
 
+    if dia.quoting != Quoting.QUOTE_NONE:
+        field = field.multiReplace(("\n", "\\n"), ("\t", "\\t"))
+
     self.fields[self.field_count] = field
 
     inc self.field_count
@@ -221,14 +224,12 @@ iterator parseCSV*(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[str
 
     while likely(not fh.endOfFile):
         if not fh.readLine(line):
-            break
-        # discard fh.readLine(line)
-
-        if self.field_len != 0 and state == IN_QUOTED_FIELD:
-            if dia.strict:
-                raise newException(Exception, "unexpected end of data")
-            elif self.parseSaveField(dia):
-                break
+            if self.field_len != 0 and state == IN_QUOTED_FIELD:
+                if dia.strict:
+                    raise newException(Exception, "unexpected end of data")
+                elif self.parseSaveField(dia):
+                    break
+            raise newException(IOError, "malformed")
 
         line.add('\n')
 
@@ -244,11 +245,12 @@ iterator parseCSV*(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[str
         if unlikely(not self.parseProcessChar(state, EOL)):
             raise newException(Exception, "illegal")
 
-        yield (line_num, addr self.fields, self.field_count)
+        if state == START_RECORD:
+            yield (line_num, addr self.fields, self.field_count)
 
-        self.field_count = 0
+            self.field_count = 0
 
-        inc line_num
+            inc line_num
 
 proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, row_offset: uint): seq[string] =
     let fh = newFile(path, encoding)
@@ -287,3 +289,44 @@ proc str2quoting*(quoting: string): Quoting =
             return QUOTE_NOTNULL
         else:
             raise newException(Exception, "invalid quoting: " & quoting)
+
+proc findNewlinesNoQualifier*(fh: BaseEncodedFile): (seq[uint], uint) =
+    var newline_offsets = newSeq[uint](1)
+    var total_lines: uint = 0
+    var str: string
+
+    newline_offsets[0] = fh.getFilePos()
+
+    while likely(fh.readLine(str)):
+        inc total_lines
+
+        newline_offsets.add(fh.getFilePos())
+
+    return (newline_offsets, total_lines)
+
+proc findNewlinesQualifier*(fh: BaseEncodedFile, dia: Dialect): (seq[uint], uint) =
+    var newline_offsets = newSeq[uint](1)
+    var total_lines: uint = 0
+    var obj = newReaderObj(dia)
+
+    newline_offsets[0] = fh.getFilePos()
+
+    for (row_idx, fields, field_count) in obj.parseCSV(fh):
+        inc total_lines
+
+        newline_offsets.add(fh.getFilePos())
+
+    return (newline_offsets, total_lines)
+
+proc findNewlines*(fh: BaseEncodedFile, dia: Dialect): (seq[uint], uint) {.inline.} =
+    if dia.quoting == Quoting.QUOTE_NONE:
+        return fh.findNewlinesNoQualifier()
+
+    return fh.findNewlinesQualifier(dia)
+
+proc findNewlines*(path: string, encoding: FileEncoding, dia: Dialect): (seq[uint], uint) {.inline.} =
+    let fh = newFile(path, encoding)
+    try:
+        return fh.findNewlines(dia)
+    finally:
+        fh.close()
