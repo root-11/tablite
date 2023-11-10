@@ -25,49 +25,137 @@ proc inferBool*(str: ptr string): bool {.inline.} =
 
     raise newException(ValueError, "not a boolean value")
 
-proc inferInt*(str: ptr string): int {.inline.} =
-    let sstr = str[]
+proc inferInt*(str: ptr string, is_simple: bool, is_american: bool): int {.inline.} =
+    var sstr = str[].multiReplace(
+        ("\"", ""),
+        ("\'", ""),
+        (" ", ""),
+    )
 
-    try:
-        return parseInt(sstr)
-    except ValueError:
-        let sstr = sstr.multiReplace(
-            ("\"", ""),
-            (" ", ""),
-            (",", "")
-        )
+    echo "in int value: " & sstr & " | is_simple: " & $is_simple & " | is_american: " & $is_american
 
-        return parseInt(sstr)
+    let str_len = sstr.len
 
-proc inferFloat*(str: ptr string): float {.inline.} =
-    var sstr = str[] # fuckin nim' GC runs out of memory in the exception branch if this is not copied on the stack
-    
-    try:
-        return parseFloat(sstr)
-    except ValueError:
-        let dot_index   = sstr.find(".")
-        let comma_index = sstr.find(",")
+    if str_len <= 0:
+        raise newException(ValueError, "NaN")
 
-        if dot_index == -1 and comma_index == -1:
-            sstr = sstr.replace("\"", "")
-        elif 0 < dot_index and dot_index < comma_index:
-            sstr = sstr.multiReplace(
-                ("\"", ""),
-                (".", ""),
-                (",", ".")
-            )
-        elif dot_index > comma_index and comma_index > 0:  # 1,234.678
-            sstr = sstr.multiReplace(
-                ("\"", ""),
-                (",", "")
-            )
-        elif comma_index != 0 and dot_index == -1:
-            sstr = sstr.multiReplace(
-                ("\"", ""),
-                (",", ".")
-            )
+    if is_simple:
+        return parseInt(sstr) # for locale detection, simple types do not count towards locale
 
-        return parseFloat(sstr)
+    var first_char = sstr[0]
+    var ch_offset = 1
+    var sign = 1
+
+    if not first_char.isDigit():
+        if first_char == '+' or first_char == '-':
+            sign = (if first_char == '+': 1 else: -1)
+            first_char = sstr[1]
+            
+            if not first_char.isDigit():
+                raise newException(ValueError, "NaN")
+            
+            inc ch_offset
+        else:
+            raise newException(ValueError, "NaN")
+
+    var value = (int first_char) - 48
+    var chars_after = 0
+    var count_chars = false
+
+    for i in ch_offset..(str_len-1):
+        let ch = sstr[i]
+
+        if ch.isDigit():
+            if count_chars:
+                inc chars_after
+            value = value * 10 + ((int ch) - 48)
+        elif ch == ',' and is_american or ch == '.' and not is_american:
+            if (str_len - i) < 4:
+                raise newException(ValueError, "Not an integer")
+            if count_chars and chars_after != 3:
+                raise newException(ValueError, "Not an integer")
+
+            count_chars = true
+            chars_after = 0
+        else:
+            raise newException(ValueError, "NaN")
+
+    if count_chars and chars_after != 3:
+        raise newException(ValueError, "Not an integer")
+
+    echo "final int value: " & $value & " | is_simple: " & $is_simple & " | is_american: " & $is_american
+
+    return value * sign
+
+proc inferFloat*(str: ptr string, is_simple: bool, is_american: bool): float {.inline.} =
+    var sstr = str[].multiReplace(
+        ("\"", ""),
+        ("\'", ""),
+        (" ", ""),
+    )
+
+    echo "in float value: " & sstr & " | is_simple: " & $is_simple & " | is_american: " & $is_american
+
+    let str_len = sstr.len
+
+    if str_len <= 0:
+        raise newException(ValueError, "NaN")
+
+    if is_simple:
+        raise newException(ValueError, "NaN")
+        return parseFloat(sstr) # for locale detection, simple types do not count towards locale
+
+    var first_char = sstr[0]
+    var value: float
+    var is_frac = false
+    var frac_level = 1.0
+    var is_scientific = false
+    var scientific_sign = '\x00'
+    var sign = 1
+    var ch_offset = 1
+
+    if not first_char.isDigit():
+        if first_char == '+' or first_char == '-':
+            sign = (if first_char == '+': 1 else: -1)
+            first_char = sstr[1]
+            
+            if not first_char.isDigit():
+                raise newException(ValueError, "NaN")
+            
+            inc ch_offset
+        
+        if first_char == '.' and is_american or first_char == ',' and not is_american:
+            is_frac = true
+            value = 0
+        else:
+            raise newException(ValueError, "NaN")
+    else:
+        value = ((float first_char) - 48)
+
+    for i in 1..(str_len-1):
+        let ch = sstr[i]
+
+        if ch.isDigit():
+            if is_frac:
+                frac_level = frac_level * 0.1
+                value = value + ((float ch) - 48) * frac_level
+            else:
+                value = value * 10 + ((float ch) - 48)
+        elif ch == ',' and is_american or ch == '.' and not is_american:
+            if (str_len - i) < 4 or is_frac:
+                raise newException(ValueError, "Not an float")
+        elif ch == '.' and is_american or ch == ',' and not is_american:
+            if is_frac:
+                raise newException(ValueError, "Not an float")
+            is_frac = true
+        # elif is_frac and ch.toLowerAscii() == "e" and not is_scientific:
+        #     # is_scientific
+        else:
+            raise newException(ValueError, "NaN")
+
+    echo "final float value: " & $value & " | is_simple: " & $is_simple & " | is_american: " & $is_american
+
+    return value
 
 proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool): (array[3, string], int) {.inline.} =
     const accepted_tokens = [' ', '.', '-', '/']
@@ -103,7 +191,7 @@ proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool)
     if has_tokens:
         if is_short == ParseShortDate.REQUIRED:
             raise newException(ValueError, "not a shortdate")
-    
+
         var active_token = '\x00'
         var slice_start: int
         var was_digit = false
@@ -392,10 +480,10 @@ proc inferDatetime*(str: ptr string, is_american: bool): PY_DateTime {.inline.} 
         raise newException(ValueError, "not a datetime: " & $str_len)
 
     let (date_words, toffset) = str.parseDateWords(ParseShortDate.DONT_CARE, true)
-    
+
     if toffset >= str_len:
         raise newException(ValueError, "not datetime")
-    
+
     let first_tchar = str[toffset]
     var tstr: string
 

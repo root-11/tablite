@@ -6,7 +6,7 @@ type DataTypes* = enum
     # sort by difficulty
     DT_NONE, DT_BOOL,
     DT_DATE_SHORT,
-    DT_INT, DT_FLOAT,
+    DT_INT_SIMPLE, DT_INT_US, DT_INT_EU, DT_FLOAT_SIMPLE, DT_FLOAT_US, DT_FLOAT_EU,
     DT_DATETIME, DT_DATETIME_US, DT_DATE, DT_DATE_US, DT_TIME,
     DT_STRING,
     DT_MAX_ELEMENTS
@@ -52,10 +52,18 @@ proc updateRank*(rank: var Rank, str: ptr string): DataTypes =
     for i, r_addr in enumerate(rank.iter()):
         try:
             case r_addr[0]:
-                of DataTypes.DT_INT:
-                    discard str.inferInt()
-                of DataTypes.DT_FLOAT:
-                    discard str.inferFloat()
+                of DataTypes.DT_INT_SIMPLE:
+                    discard str.inferInt(true, false)
+                of DataTypes.DT_INT_US:
+                    discard str.inferInt(false, true)
+                of DataTypes.DT_INT_EU:
+                    discard str.inferInt(false, false)
+                of DataTypes.DT_FLOAT_SIMPLE:
+                    discard str.inferFloat(true, false)
+                of DataTypes.DT_FLOAT_US:
+                    discard str.inferFloat(false, true)
+                of DataTypes.DT_FLOAT_EU:
+                    discard str.inferFloat(false, false)
                 of DataTypes.DT_DATE:
                     discard str.inferDate(false, false)
                 of DataTypes.DT_DATE_SHORT:
