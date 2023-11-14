@@ -1,4 +1,4 @@
-from std/math import floor
+from std/math import floor, pow
 from std/unicode import runeLen
 import std/strutils
 import pickling
@@ -31,8 +31,6 @@ proc inferInt*(str: ptr string, is_simple: bool, is_american: bool): int {.inlin
         ("\'", ""),
         (" ", ""),
     )
-
-    echo "in int value: " & sstr & " | is_simple: " & $is_simple & " | is_american: " & $is_american
 
     let str_len = sstr.len
 
@@ -71,9 +69,9 @@ proc inferInt*(str: ptr string, is_simple: bool, is_american: bool): int {.inlin
             value = value * 10 + ((int ch) - 48)
         elif ch == ',' and is_american or ch == '.' and not is_american:
             if (str_len - i) < 4:
-                raise newException(ValueError, "Not an integer")
+                raise newException(ValueError, "NaN")
             if count_chars and chars_after != 3:
-                raise newException(ValueError, "Not an integer")
+                raise newException(ValueError, "NaN")
 
             count_chars = true
             chars_after = 0
@@ -81,9 +79,7 @@ proc inferInt*(str: ptr string, is_simple: bool, is_american: bool): int {.inlin
             raise newException(ValueError, "NaN")
 
     if count_chars and chars_after != 3:
-        raise newException(ValueError, "Not an integer")
-
-    echo "final int value: " & $value & " | is_simple: " & $is_simple & " | is_american: " & $is_american
+        raise newException(ValueError, "NaN")
 
     return value * sign
 
@@ -94,68 +90,77 @@ proc inferFloat*(str: ptr string, is_simple: bool, is_american: bool): float {.i
         (" ", ""),
     )
 
-    echo "in float value: " & sstr & " | is_simple: " & $is_simple & " | is_american: " & $is_american
-
     let str_len = sstr.len
 
     if str_len <= 0:
         raise newException(ValueError, "NaN")
 
     if is_simple:
-        raise newException(ValueError, "NaN")
         return parseFloat(sstr) # for locale detection, simple types do not count towards locale
 
     var first_char = sstr[0]
     var value: float
     var is_frac = false
-    var frac_level = 1.0
-    var is_scientific = false
-    var scientific_sign = '\x00'
-    var sign = 1
+    var frac_level: float = 1
+    var is_exponent = false
+    var exponent_sign: float = 0
+    var sign: float = 1.0
     var ch_offset = 1
+    var exponent: float = 0
 
     if not first_char.isDigit():
         if first_char == '+' or first_char == '-':
-            sign = (if first_char == '+': 1 else: -1)
+            sign = (if first_char == '+': 1.0 else: -1.0)
             first_char = sstr[1]
             
             if not first_char.isDigit():
                 raise newException(ValueError, "NaN")
             
             inc ch_offset
-        
+
         if first_char == '.' and is_american or first_char == ',' and not is_american:
             is_frac = true
             value = 0
+        elif first_char.isDigit():
+            value = ((float first_char) - 48)
         else:
             raise newException(ValueError, "NaN")
     else:
         value = ((float first_char) - 48)
 
-    for i in 1..(str_len-1):
+    for i in ch_offset..(str_len-1):
         let ch = sstr[i]
 
         if ch.isDigit():
-            if is_frac:
+            if is_exponent:
+                if exponent_sign == 0.0:
+                    raise newException(ValueError, "NaN")
+                exponent = exponent * 10 + ((float ch) - 48)
+            elif is_frac:
                 frac_level = frac_level * 0.1
                 value = value + ((float ch) - 48) * frac_level
             else:
                 value = value * 10 + ((float ch) - 48)
         elif ch == ',' and is_american or ch == '.' and not is_american:
             if (str_len - i) < 4 or is_frac:
-                raise newException(ValueError, "Not an float")
+                raise newException(ValueError, "NaN")
         elif ch == '.' and is_american or ch == ',' and not is_american:
             if is_frac:
-                raise newException(ValueError, "Not an float")
+                raise newException(ValueError, "NaN")
             is_frac = true
-        # elif is_frac and ch.toLowerAscii() == "e" and not is_scientific:
-        #     # is_scientific
+        elif is_frac and ch.toLowerAscii() == 'e' and not is_exponent:
+            is_exponent = true
+        elif is_frac and (ch == '+' or ch == '-') and is_exponent:
+            exponent_sign = (if ch == '+': 1.0 else: -1.0)
         else:
             raise newException(ValueError, "NaN")
 
-    echo "final float value: " & $value & " | is_simple: " & $is_simple & " | is_american: " & $is_american
+    if is_exponent and exponent_sign == 0.0:
+        raise newException(ValueError, "NaN")
 
-    return value
+    var exp: float = (if is_exponent: pow(10, (exponent * exponent_sign)) else: 1.0)
+    
+    return (value * sign) * exp
 
 proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool): (array[3, string], int) {.inline.} =
     const accepted_tokens = [' ', '.', '-', '/']
