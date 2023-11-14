@@ -30,6 +30,12 @@ def sub_cls_check(c, kind):
         raise TypeError(f"Expected {kind}, not {type(c)}")
 
 
+def name_check(options, *names):
+    for n in names:
+        if n not in options:
+            raise ValueError(f"{n} not in {options}")
+
+
 def unique_name(wanted_name, set_of_names):
     """
     returns a wanted_name as wanted_name_i given a list of names
