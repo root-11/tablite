@@ -251,10 +251,13 @@ when isMainModule and appType != "lib":
 
     if opts.import.isNone and opts.task.isNone:
         when defined(DEV_BUILD):
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/split_lines.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dealz Poland v1.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/floats.csv", str2Enc($ENC_UTF8))
             # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/bad_empty.csv", str2Enc($ENC_UTF8))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.csv", str2Enc($ENC_UTF8))
+            (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.csv", str2Enc($ENC_UTF8))
             # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_test.csv", str2Enc($ENC_UTF16))
-            (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/win1250_test.csv", str2ConvEnc("Windows-1252"))
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/win1250_test.csv", str2ConvEnc("Windows-1252"))
 
             # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.txt", str2Enc($ENC_UTF8))
             # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", str2Enc($ENC_UTF8))
@@ -269,7 +272,7 @@ when isMainModule and appType != "lib":
             # dialect.quoting = Quoting.QUOTE_NONE
             # dialect.delimiter = ';'
 
-            let multiprocess = true
+            let multiprocess = false
             let execute = true
             let start = some[int](0)
             let limit = some[int](-1)
@@ -277,6 +280,8 @@ when isMainModule and appType != "lib":
             let header_row_index = uint 0
 
             guess_dtypes = true
+            # cols = some(@["a", "c"])
+            # page_size = 2
 
             echo "Running test version with no arguments"
             importFile(pid, taskname, path_csv, encoding, dialect, cols, first_row_has_headers, header_row_index, page_size, guess_dtypes, start, limit, multiprocess, execute, use_json)

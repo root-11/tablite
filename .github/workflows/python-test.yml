@@ -55,6 +55,8 @@ jobs:
       run: |
         # compile the nimlite
         nim c ${{ env.NIMC_FLAGS }} --tlsEmulation:off --passL:-static --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.pyd ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
+        # check if compiled successfully
+        python -c "print(__import__('${{ env.TABLITE_PACKAGE_NAME }}.${{ env.NIM_PACKAGE_NAME }}').__file__)"
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names

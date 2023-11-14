@@ -78,7 +78,7 @@ proc importTextFile*(
 
     let opt_start = (if start.isSome: start.get else: 0)
     let opt_limit = (if limit.isSome: limit.get else: -1)
-    let (newline_offsets, newlines) = findNewlines(path, encoding)
+    let (newline_offsets, newlines) = findNewlines(path, encoding, dia)
     let dirname = pid & "/pages"
 
     if not dirExists(dirname):
@@ -189,4 +189,3 @@ proc importTextFile*(
         return table
     else:
         raise newException(IOError, "end of file")
-
