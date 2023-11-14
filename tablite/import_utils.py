@@ -511,7 +511,7 @@ def text_reader_task(
         page_file_handlers = [open(f, mode="wb") for f in destination]
 
         # identify longest str
-        longest_str = [0 for _ in range(len(destination))]
+        longest_str = [1 for _ in range(len(destination))]
         for row in (next(reader) for _ in range(end - start)):
             for idx, c in ((fields[idx], c) for idx, c in filter(lambda t: t[0] in fields, enumerate(row))):
                 longest_str[idx] = max(longest_str[idx], len(c))
@@ -842,7 +842,7 @@ def text_reader(*args, **kwargs):
         try:
             return text_reader_nim(*args, **kwargs)
         except Exception as e:
-            if "pytest" in sys.modules:
+            if "pytest" in sys.modules or not Config.ALLOW_CSV_READER_FALLTHROUGH:
                 raise e # ensure that fallback is only used during production
             else:
                 from traceback import format_exc

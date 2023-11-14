@@ -152,30 +152,9 @@ proc newFile*(filename: string, encoding: FileEncoding): BaseEncodedFile =
         of ENC_UTF16: return newFileUTF16(filename)
         of ENC_CONV: return newFileConvertable(filename, encoding.conv)
 
-proc findNewlines*(fh: BaseEncodedFile): (seq[uint], uint) =
-    var newline_offsets = newSeq[uint](1)
-    var total_lines: uint = 0
-    var str: string
-
-    newline_offsets[0] = fh.getFilePos()
-
-    while likely(fh.readLine(str)):
-        inc total_lines
-
-        newline_offsets.add(fh.getFilePos())
-
-    return (newline_offsets, total_lines)
-
-proc findNewlines*(path: string, encoding: FileEncoding): (seq[uint], uint) =
-    let fh = newFile(path, encoding)
-    try:
-        return findNewlines(fh)
-    finally:
-        fh.close()
-
 proc str2Enc*(encoding: string): FileEncoding {.inline.} =
     let upper = encoding.toUpper()
-    
+
     case upper:
         of $ENC_UTF8: return FileEncoding(encoding: ENC_UTF8)
         of $ENC_UTF16: return FileEncoding(encoding: ENC_UTF16)
