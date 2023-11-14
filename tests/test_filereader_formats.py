@@ -582,6 +582,43 @@ def test_keep_some_columns_only():
     assert set(table.columns) == {"a", "b"}
     assert len(table) == 45
 
+def test_number_locales():
+    if Config.BACKEND == Config.BACKEND_PYTHON:
+        """
+            Python is legacy even on windows, it would take major reworks to the way datatype guessing is done in pythonic implemetation.
+            If this is really necessary we can change it but is there really any point?
+        """
+        return
+    
+    path = Path(__file__).parent / "data" / "floats.csv"
+    assert path.exists()
+    table = Table.from_file(path, text_qualifier="\"", columns=[
+        "us_floats", 
+        "eu_floats",
+        "us_thousands",
+        "eu_thousands",
+        "us_thousands_floats",
+        "eu_thousands_floats",
+        "us_eu_mixed"
+    ])
+    assert set(table.columns) == {
+        "us_floats", 
+        "eu_floats",
+        "us_thousands",
+        "eu_thousands",
+        "us_thousands_floats",
+        "eu_thousands_floats",
+        "us_eu_mixed"
+    }
+    assert len(table) == 4
+    assert table["us_floats"] == [1.23, 1.23, 1.23, 1.23]
+    assert table["eu_floats"] == [1.23, 1.23, 1.23, 1.23]
+    assert table["us_thousands"] == [1123456, 1123456, 1123456, 1123456]
+    assert table["eu_thousands"] == [1123456, 1123456, 1123456, 1123456]
+    assert table["us_thousands_floats"] == [1123456.78, 1123456.78, 1123456.78, 1123456.78]
+    assert table["eu_thousands_floats"] == [1123456.78, 1123456.78, 1123456.78, 1123456.78]
+    assert table["us_eu_mixed"] == [1123456.78, 1123456.78, 1123456.78, 1123456.78]
+
 def test_split_lines():
     if Config.BACKEND == Config.BACKEND_PYTHON:
         """
