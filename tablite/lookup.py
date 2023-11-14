@@ -16,7 +16,7 @@ def lookup(T, other, *criteria, all=True, tqdm=_tqdm):
     :param: other: Table sorted in ascending search order.
     :param: criteria: Each criteria must be a tuple with value comparisons in the form:
         (LEFT, OPERATOR, RIGHT)
-    :param: all: boolean: True=ALL, False=Any
+    :param: all: boolean: True=ALL, False=ANY
 
     OPERATOR must be a callable that returns a boolean
     LEFT must be a value that the OPERATOR can compare.
