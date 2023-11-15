@@ -1,6 +1,4 @@
 import std/unicode
-# from std/strutils import parseInt, parseFloat
-import infertypes
 
 proc writeNumpyHeader*(fh: File, dtype: string, shape: uint): void =
     const magic = "\x93NUMPY"
