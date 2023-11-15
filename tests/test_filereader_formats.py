@@ -623,13 +623,6 @@ def test_misaligned_pages_2():
     
 
 def test_number_locales():
-    if Config.BACKEND == Config.BACKEND_PYTHON:
-        """
-            Python is legacy even on windows, it would take major reworks to the way datatype guessing is done in pythonic implemetation.
-            If this is really necessary we can change it but is there really any point?
-        """
-        return
-    
     path = Path(__file__).parent / "data" / "floats.csv"
     assert path.exists()
     table = Table.from_file(path, text_qualifier="\"", columns=[
@@ -660,18 +653,6 @@ def test_number_locales():
     assert table["us_eu_mixed"] == [1123456.78, 1123456.78, 1123456.78, 1123456.78]
 
 def test_split_lines():
-    if Config.BACKEND == Config.BACKEND_PYTHON:
-        """
-            It is not possible to currently implement this in Windows using existing Python APIs.
-            Using `csv.parse` to find newlines is impossible because calling an iterator blocks `fi.tell()`.
-            Therefore implementing this in Windows would require to implement the entire CSV parser in python itself.
-            This is double work as we have a nim implementation.
-            
-            Therefore a solution is, use NIM in Windows when we find the solution on how to do it.
-            Until then, ignore this test in Windows.
-        """
-        return
-
     path = Path(__file__).parent / "data" / "split_lines.csv"
     assert path.exists()
     table = Table.from_file(path, text_qualifier="\"", columns=["a", "c"])
