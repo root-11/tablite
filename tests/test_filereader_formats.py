@@ -47,7 +47,7 @@ def test_text_escape():
 def test_text_escape2():
     # set up
     text_escape = TextEscape(openings="({[", closures="]})", text_qualifier='"', delimiter=",")
-    s = 'this,is,a,,嗨,(comma,sep\'d),"text"'
+    s = 'this,is,a,,嗨,"(comma,sep\'d)","text"'
     L = text_escape(s)
     assert L == ["this", "is", "a", "", "嗨", "(comma,sep'd)", "text"]
 
@@ -55,7 +55,7 @@ def test_text_escape2():
 def test_text_escape_without_text_qualifier():
     text_escape = TextEscape(openings="({[", closures="]})", delimiter=",")
 
-    s = "this,is,a,,嗨,(comma,sep'd),text"
+    s = "this,is,a,,嗨,\"(comma,sep'd)\",text"
     L = text_escape(s)
     assert L == ["this", "is", "a", "", "嗨", "(comma,sep'd)", "text"]
 
@@ -575,6 +575,7 @@ def test_filereader_gdocs1xlsx_no_header():
         tables.append(table)
 
 
+
 def test_keep_some_columns_only():
     path = Path(__file__).parent / "data" / "book1.csv"
     assert path.exists()
@@ -582,14 +583,46 @@ def test_keep_some_columns_only():
     assert set(table.columns) == {"a", "b"}
     assert len(table) == 45
 
-def test_number_locales():
-    if Config.BACKEND == Config.BACKEND_PYTHON:
-        """
-            Python is legacy even on windows, it would take major reworks to the way datatype guessing is done in pythonic implemetation.
-            If this is really necessary we can change it but is there really any point?
-        """
-        return
+def test_misaligned_pages_1():
+    path = Path(__file__).parent / "data" / "detect_misalignment.csv"
+    assert path.exists()
+
+    expected_table = {
+        "a": [0, 2, 0, 0, 6],
+        "b": [1, 3, 0, 0, 7],
+        "c": [None, 4, 0, 0, 8],
+        "d": [None, 5, 0, 0, None],
+        "e": ["", "a", "b", "c", ""]
+    }
+
+    table = Table.from_file(path, columns=list(expected_table.keys()))
+
+    assert set(table.columns) == set(expected_table.keys())
+    assert len(table) == 5
+
+    for k, v in expected_table.items():
+        assert list(table[k]) == v
+
+def test_misaligned_pages_2():
+    path = Path(__file__).parent / "data" / "detect_misalignment.csv"
+    assert path.exists()
+
+    expected_table = {
+        "a": [0, 2, 0, 0, 6],
+        "d": [None, 5, 0, 0, None],
+        "e": ["", "a", "b", "c", ""]
+    }
+
+    table = Table.from_file(path, columns=list(expected_table.keys()))
+
+    assert set(table.columns) == set(expected_table.keys())
+    assert len(table) == 5
+
+    for k, v in expected_table.items():
+        assert list(table[k]) == v
     
+
+def test_number_locales():
     path = Path(__file__).parent / "data" / "floats.csv"
     assert path.exists()
     table = Table.from_file(path, text_qualifier="\"", columns=[
@@ -620,18 +653,6 @@ def test_number_locales():
     assert table["us_eu_mixed"] == [1123456.78, 1123456.78, 1123456.78, 1123456.78]
 
 def test_split_lines():
-    if Config.BACKEND == Config.BACKEND_PYTHON:
-        """
-            It is not possible to currently implement this in Windows using existing Python APIs.
-            Using `csv.parse` to find newlines is impossible because calling an iterator blocks `fi.tell()`.
-            Therefore implementing this in Windows would require to implement the entire CSV parser in python itself.
-            This is double work as we have a nim implementation.
-            
-            Therefore a solution is, use NIM in Windows when we find the solution on how to do it.
-            Until then, ignore this test in Windows.
-        """
-        return
-
     path = Path(__file__).parent / "data" / "split_lines.csv"
     assert path.exists()
     table = Table.from_file(path, text_qualifier="\"", columns=["a", "c"])
