@@ -255,7 +255,10 @@ when isMainModule and appType != "lib":
             # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dealz Poland v1.csv", str2Enc($ENC_UTF8))
             # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/floats.csv", str2Enc($ENC_UTF8))
             # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/bad_empty.csv", str2Enc($ENC_UTF8))
-            (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.csv", str2Enc($ENC_UTF8))
+            (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/detect_misalignment.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Ritual B2B orderlines updated.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Ritual B2B orderlines_small.csv", str2Enc($ENC_UTF8))
             # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_test.csv", str2Enc($ENC_UTF16))
             # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/win1250_test.csv", str2ConvEnc("Windows-1252"))
 
