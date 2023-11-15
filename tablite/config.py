@@ -32,13 +32,6 @@ class Config(object):
     when the number of fields (rows x columns) exceed this value,
     multiprocessing is used.
     """
-
-    BACKEND_NIM = "NIM"
-    BACKEND_PYTHON = "PYTHON"
-    BACKEND = os.environ.get("USE_BACKEND", BACKEND_NIM).upper()
-
-    assert BACKEND in [BACKEND_NIM, BACKEND_PYTHON]
-
     USE_NIMPORTER = os.environ.get("USE_NIMPORTER", "true").lower() in ["1", "t", "true", "y", "yes"]
     ALLOW_CSV_READER_FALLTHROUGH = os.environ.get("ALLOW_CSV_READER_FALLTHROUGH", "true").lower() in ["1", "t", "true", "y", "yes"]
 
