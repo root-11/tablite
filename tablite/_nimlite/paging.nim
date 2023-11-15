@@ -12,7 +12,7 @@ type PageType = enum
     PG_DATETIME
     PG_DATE_SHORT
 
-var none_str = "None"
+var none_str = ""
 
 proc collectPageInfo*(
         obj: var ReaderObj, fh: var BaseEncodedFile,

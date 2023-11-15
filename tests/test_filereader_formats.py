@@ -592,7 +592,7 @@ def test_misaligned_pages_1():
         "b": [1, 3, 0, 0, 7],
         "c": [None, 4, 0, 0, 8],
         "d": [None, 5, 0, 0, None],
-        "e": ["None", "a", "b", "c", "None"]
+        "e": ["", "a", "b", "c", ""]
     }
 
     table = Table.from_file(path, columns=list(expected_table.keys()))
@@ -610,7 +610,7 @@ def test_misaligned_pages_2():
     expected_table = {
         "a": [0, 2, 0, 0, 6],
         "d": [None, 5, 0, 0, None],
-        "e": ["None", "a", "b", "c", "None"]
+        "e": ["", "a", "b", "c", ""]
     }
 
     table = Table.from_file(path, columns=list(expected_table.keys()))
