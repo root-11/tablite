@@ -80,18 +80,8 @@ class TextEscape(object):
                 self.c = self._call_1
             else:
                 self.c = self._call_2
-        elif not any(openings + closures):
-            self.c = self._call_3
         else:
-            try:
-                # TODO: The regex below needs to be constructed dynamically depending on the inputs.
-                # fmt: off
-                self.re = re.compile('([\d\w\s\u4e00-\u9fff]+)(?=,|$)|((?<=\A)|(?<=,))(?=,|$)|(\(.+\)|".+")', "gmu")  # noqa <-- Disclaimer: Audrius wrote this.
-                # fmt: on
-                self.c = self._call_4
-            except TypeError:
-                self.c = self._call_4_slow
-        # self.c = self._call_3
+            self.c = self._call_3
 
     def __call__(self, s):
         return self.c(s)
@@ -104,24 +94,6 @@ class TextEscape(object):
 
     def _call_3(self, s):  # looks for qoutes.
         words = []
-        # qoute = False
-        # ix = 0
-        # while ix < len(s):
-        #     c = s[ix]
-        #     if c == self.qoute:
-        #         qoute = not qoute
-        #     if qoute:
-        #         ix += 1
-        #         continue
-        #     if c == self.delimiter:
-        #         word, s = s[:ix], s[ix + self._delimiter_length :]
-        #         word = word.lstrip(self.qoute).rstrip(self.qoute)
-        #         words.append(word)
-        #         ix = -1
-        #     ix += 1
-        # if s:
-        #     s = s.lstrip(self.qoute).rstrip(self.qoute)
-        #     words.append(s)
 
         class MyDialect(csv.Dialect):
             delimiter = self.delimiter
@@ -136,40 +108,6 @@ class TextEscape(object):
         parsed_words = list(csv.reader(StringIO(s), dialect=dia))[0]
         words.extend(parsed_words)
         return words
-
-    def _call_4(self, s):  # looks for qoutes, openings and closures.
-        return self.re.match(s)  # TODO - TEST!
-
-    def _call_4_slow(self, s):
-        words = []
-        qoute = False
-        ix, depth = 0, 0
-        while ix < len(s):
-            c = s[ix]
-
-            if c == self.qoute:
-                qoute = not qoute
-
-            if qoute:
-                ix += 1
-                continue
-
-            if depth == 0 and c == self.delimiter:
-                word, s = s[:ix], s[ix + self._delimiter_length :]
-                words.append(word.rstrip(self.qoute).lstrip(self.qoute))
-                ix = -1
-            elif c in self.openings:
-                depth += 1
-            elif c in self.closures:
-                depth -= 1
-            else:
-                pass
-            ix += 1
-
-        if s:
-            words.append(s.rstrip(self.qoute).lstrip(self.qoute))
-        return words
-
 
 def detect_seperator(text):
     """

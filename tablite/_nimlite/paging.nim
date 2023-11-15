@@ -12,6 +12,8 @@ type PageType = enum
     PG_DATETIME
     PG_DATE_SHORT
 
+var none_str = "None"
+
 proc collectPageInfo*(
         obj: var ReaderObj, fh: var BaseEncodedFile,
         guess_dtypes: bool, n_pages: int, row_count: int,
@@ -30,6 +32,8 @@ proc collectPageInfo*(
                 newRank()
     else:
         ranks = newSeq[Rank](0)
+
+    
 
     for (row_idx, fields, field_count) in obj.parseCSV(fh):
         if row_count >= 0 and row_idx >= (uint row_count):
@@ -57,6 +61,13 @@ proc collectPageInfo*(
 
                 if dt == DataTypes.DT_STRING:
                     longest_str[fidx] = max(uint field.runeLen, longest_str[fidx])
+
+        for idx in (fidx+1)..n_pages-1:
+            # fill missing fields with nones
+            longest_str[idx] = max(uint none_str.len, longest_str[idx])
+
+            if guess_dtypes:
+                discard ranks[idx].updateRank(addr none_str)
 
         inc n_rows
 
@@ -220,7 +231,6 @@ proc dumpPageBody*(
             inc fidx
 
             var str = fields[idx]
-            # let fidx = uint idx
             var fh = page_file_handlers[fidx]
 
             if not guess_dtypes:
@@ -277,6 +287,21 @@ proc dumpPageBody*(
                                 continue
                             break
                     else: raise newException(Exception, "invalid: " & $dt)
+
+        for idx in (fidx+1)..n_pages-1:
+            var fh = page_file_handlers[idx]
+
+            if not guess_dtypes:
+                fh.writeNumpyUnicode(none_str, longest_str[idx])
+            else:
+                let dt = column_dtypes[idx]
+
+                case dt:
+                    of PageType.PG_UNICODE:
+                        fh.writeNumpyUnicode(none_str, longest_str[idx])
+                    else:
+                        fh.writePicklePyObj(PY_None, binput)
+
 
 proc dumpPageFooter*(
     n_pages: int, n_rows: uint,
