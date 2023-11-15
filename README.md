@@ -77,6 +77,24 @@ Get it from pypi: [Tablite](https://pypi.org/project/tablite/) [![PyPI version](
 Install: `pip install tablite`  
 Usage:  `>>> from tablite import Table`  
 
+## <a name="build & test"></a>Build & test
+
+```
+install nim >= 2.0.0
+chmod +x ./build.sh
+run ./build.sh
+```
+Should the default nim not be your desired taste, please use `nims atlas` environment manager and run `source nim-2.0.0/activate.sh`` on UNIX and `nim-2.0.0/activate.bat`
+
+```
+install python >= 3.8
+python -m venv /your/venv/dir
+activate /your/venv/dir
+pip install -r requirements.txt
+pip install -r requirements_for_testing.py
+pytest ./tests
+```
+
 ## <a name="feature_overview"></a>Feature overview
 
 |want to...| this way... |
