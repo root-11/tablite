@@ -652,10 +652,13 @@ class Column(object):
         values = np.empty(indices.shape, dtype=object)  # placeholder for the indexed values.
 
         for start, end, data in self.iter_by_page():
-            range_match = np.where(((indices >= start) & (indices < end)) | (indices == -1))[0]
+            range_match = np.asarray(((indices >= start) & (indices < end)) | (indices == -1)).nonzero()[0]
             if len(range_match):
                 sub_index = np.take(indices, range_match)
-                arr = np.take(data, sub_index - start)
+                sub_index2 = np.where(sub_index == -1, -1, sub_index - start)
+                # diss: the line above is required to cover for cases where len(data) > (-1 - start)
+                #       as sub_index2 otherwise will raise index error
+                arr = np.take(data, sub_index2)
                 dtypes.add(arr.dtype)
                 np.put(values, range_match, arr)
 
