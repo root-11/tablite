@@ -24,19 +24,22 @@
 
 ### Even smaller memory footprint
 
-Tablite uses HDF5 as a backend with strong abstraction, so that copy, append & repetition of data is handled in pages. This is imperative for [incremental data processing](https://raw.githubusercontent.com/root-11/tablite/74e7b44cfc314950b7a769316cb48d67cce725d0/images/incremental_dataprocessing.svg).
+Tablite uses [numpys fileformat](https://numpy.org/doc/stable/reference/generated/numpy.lib.format.html) as a backend with strong abstraction, so that copy, append & repetition of data is handled in pages. This is imperative for [incremental data processing](https://raw.githubusercontent.com/root-11/tablite/74e7b44cfc314950b7a769316cb48d67cce725d0/images/incremental_dataprocessing.svg).
 
 Tablite tests [for memory footprint](https://github.com/root-11/tablite/blob/master/tests/test_memory_footprint.py). One test compares the memory footprint of 10,000,000 integers where `tablite` will use < 1 Mb RAM in contrast to python which will require around 133.7 Mb of RAM (1M lists with 10 integers). Tablite also tests to assure that working with [1Tb of data](https://github.com/root-11/tablite/blob/9bb6e572538a85aee31ef8a4a60c0945a6f857a4/tests/test_filereader_performance.py#L104) is tolerable.
 
-Tablite achieves this by using `HDF5` as storage which is faster than mmap'ed files for the average case \[[1](https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr), [2](https://github.com/root-11/root-11.github.io/blob/master/content/short_intro_to_hdf5.ipynb) \] and stores all data in `/tmp/tablite.hdf5` so if your OS (windows/linux/mac) sits on a SSD it will benefit from high IOPS and permit slices of [9,000,000,000 rows in less than a second](https://github.com/root-11/tablite/blob/master/images/1TB_test.png?raw=true).
+Tablite achieves this minimal memory footprint by using a temporary storage set in `config.Config.workdir` as `tempfile.gettempdir()/tablite-tmp`.
+If your OS (windows/linux/mac) sits on a SSD this will benefit from high IOPS and permit slices of [9,000,000,000 rows in less than a second](https://github.com/root-11/tablite/blob/master/images/1TB_test.png?raw=true).
 
 ### Multiprocessing enabled by default
 
-Tablite uses multiprocessing for bypassing the GIL on all major operations. CSV import is [tested with 96M fields](https://github.com/root-11/tablite/blob/master/tests/test_filereader_time.py) that are imported and type-mapped to native python types in 120 secs.
+Tablite uses numpy whereever possible and applies multiprocessing for bypassing the GIL on all major operations. 
+CSV import is performed in C through using `nim`s compiler and is as fast the hardware allows.
 
 ### All algorithms have been reworked to respect memory limits
 
-Tablite respects the limits of free memory by tagging the free memory and defining task size before each memory intensive task is initiated (join, groupby, data import, etc)
+Tablite respects the limits of free memory by tagging the free memory and defining task size before each memory intensive task is initiated (join, groupby, data import, etc).
+If you still run out of memory you may try to reduce the `config.Config.PAGE_SIZE` and rerun your program.
 
 ### 100% support for all python datatypes
 
@@ -44,7 +47,7 @@ Tablite wants to make it easy for you to work with data. `tablite.Table's` behav
 
 `my_table[column name] = [... data ...]`.
 
-Tablite uses datatype mapping to HDF5 native types where possible and uses type mapping for non-native types such as timedelta, None, date, time… e.g. what you put in, is what you get out. This is inspired by [bank python](https://calpaterson.com/bank-python.html).
+Tablite uses datatype mapping to native numpy types where possible and uses type mapping for non-native types such as timedelta, None, date, time… e.g. what you put in, is what you get out. This is inspired by [bank python](https://calpaterson.com/bank-python.html).
 
 ### Light weight
 
@@ -72,7 +75,7 @@ If you're still missing something add it to the [wishlist](https://github.com/ro
 
 ## <a name="installation"></a>Installation
 
-Get it from pypi: [Tablite](https://pypi.org/project/tablite/) [![PyPI version](https://badge.fury.io/py/tablite.svg)](https://badge.fury.io/py/tablite)
+Get it from pypi: [![PyPI version](https://badge.fury.io/py/tablite.svg)](https://badge.fury.io/py/tablite)
 
 Install: `pip install tablite`  
 Usage:  `>>> from tablite import Table`  
