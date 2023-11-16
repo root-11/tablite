@@ -81,10 +81,10 @@ Usage:  `>>> from tablite import Table`
 
 ```
 install nim >= 2.0.0
-chmod +x ./build.sh
-run ./build.sh
+chmod +x ./build_nim.sh
+run ./build_nim.sh
 ```
-Should the default nim not be your desired taste, please use `nims atlas` environment manager and run `source nim-2.0.0/activate.sh`` on UNIX and `nim-2.0.0/activate.bat`
+Should the default nim not be your desired taste, please use `nims` environment manager (`atlas`) and run `source nim-2.0.0/activate.sh` on UNIX or `nim-2.0.0/activate.bat` on windows.
 
 ```
 install python >= 3.8
