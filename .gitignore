@@ -6,10 +6,7 @@
 
 # Compiled files
 *.pyc
-tablite_cache.h5
-tablite.hdf5
 tests/new.zip
-VDS.h5
 __pycache__
 */_nimlite/nimlite
 */_nimlite/*.so
