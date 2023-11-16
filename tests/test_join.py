@@ -507,3 +507,44 @@ def test_left_join_with_key_merge():
     assert "SKU_ID_1" in c4b.columns
     
     assert c4a["A"] == c4b["A"]
+
+
+def test_small_page_size():
+    original_page_size = Config.PAGE_SIZE
+    
+    Config.PAGE_SIZE = 1
+
+    try:
+        cat_3 = Table({
+            'order_LP_pallets': [15060, 15061],
+            'avg_layers_on_order_LP_pallets': [3.27, 3.25],
+            'scenario': ['A', 'B']
+        })
+
+        cat_5 = Table({
+            'order_boxes': [2, 1, 2, 1],
+            'avg_HUs_per_box': [4.16,4.14,4.16,4.14],
+            'order_pallets': [41398, 41438, 37950, 37991],
+            'avg_case_per_order_pallet': [43.97,43.95,42.61,42.59],
+            'scenario': ['C', 'D', 'A', 'B']
+            })
+
+        Config.PAGE_SIZE = 1000000
+
+        join_0 = cat_5.join(
+            cat_3,
+            left_keys=["scenario"],
+            right_keys=["scenario"],
+            kind="left",
+            merge_keys=True,
+            left_columns=None,
+            right_columns=None
+        )
+        assert len(join_0) == len(cat_5)
+    
+    except Exception:
+        Config.PAGE_SIZE = original_page_size
+        raise
+    Config.PAGE_SIZE = original_page_size
+   
+
