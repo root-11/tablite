@@ -91,13 +91,13 @@ def reindex(T, index):
     return m(T, index)
 
 
-def _sp_reindex(T, index):
-    return _reindex(T, index)
+def _sp_reindex(T, index, tqdm=_tqdm, pbar=None):
+    return _reindex(T, index, tqdm=tqdm, pbar=pbar)
 
 
-def _mp_reindex(T, index):
+def _mp_reindex(T, index, tqdm=_tqdm, pbar=None):
     assert isinstance(index, np.ndarray)
-    return _sp_reindex(T, index)
+    return _sp_reindex(T, index, tqdm=tqdm, pbar=pbar)
 
     index, shm = share_mem(index, dtype=index.dtype)
     # shm = shared_memory.SharedMemory(create=True, size=index.nbytes)  # the co_processors will read this.
@@ -154,7 +154,7 @@ def sort(T, mapping, sort_mode="excel", tqdm=_tqdm, pbar: _tqdm = None):
 
     index = sort_index(T, mapping, sort_mode=sort_mode, tqdm=_tqdm, pbar=pbar)
     m = select_processing_method(len(T) * len(T.columns), _sp_reindex, _mp_reindex)
-    return m(T, index)
+    return m(T, index, tqdm=tqdm, pbar=pbar)
 
 
 def is_sorted(T, mapping, sort_mode="excel"):
