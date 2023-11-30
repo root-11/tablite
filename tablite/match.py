@@ -6,6 +6,20 @@ from tablite.utils import unique_name, type_check, name_check
 def match(T, other, *criteria, keep_left=None, keep_right=None):  # lookup and filter combined - drops unmatched rows.
     """
     performs inner join where `T` matches `other` and removes rows that do not match.
+
+    :param: T: Table
+    :param: other: Table
+    :param: criteria: Each criteria must be a tuple with value comparisons in the form:
+        
+        (LEFT, OPERATOR, RIGHT), where operator must be "=="
+
+        Example:
+            ('column A', "==", 'column B')
+
+        This syntax follows the lookup syntax. See Lookup for details.
+
+    :param: keep_left: list of columns to keep.
+    :param: keep_right: list of right columns to keep.
     """
     assert isinstance(T, Table)
     assert isinstance(other, Table)
