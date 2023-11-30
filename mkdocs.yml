@@ -1,0 +1,49 @@
+site_name: Tablite
+site_description: Tablite Documentation
+site_url: https://jetman80.github.io/tablite/
+docs_dir: .
+site_dir: site
+repo_url: https://github.com/root-11/tablite/
+
+# nav: items are in .pages file
+
+theme:
+  name: material
+  features:
+    - navigation.path
+    - toc.follow
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+  highlightjs: true
+  hljs_languages:
+    - python
+    - bash
+    - yaml
+    - json
+    - markdown
+    - javascript
+    - sql
+    - http
+
+plugins:
+  - search
+  - mkdocstrings
+  - mkdocs-jupyter
+  - mike
+  - same-dir
+  - awesome-pages
+
+extra:
+  version:
+    provider: mike
+  default: latest
+  generator: false # hide footer Made with Material
+
+extra_css:
+  - extra.css # 100% width, as we have wide tables
+
+markdown_extensions:
+  - abbr # https://squidfunk.github.io/mkdocs-material/setup/extensions/python-markdown/#abbreviations
+  - attr_list
+  - pymdownx.snippets
