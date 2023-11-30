@@ -1,0 +1,9 @@
+# reference: https://github.com/lukasgeiter/mkdocs-awesome-pages-plugin#features
+nav:
+  - Home: README.md
+  - Changelog: changelog.md
+  - Tutorials: # if not to use subitem it overwrites the title
+    - tutorial.ipynb
+  - Benchmarks: benchmarks.ipynb
+  - Code Reference: tablite
+  - Tests Reference: tests
