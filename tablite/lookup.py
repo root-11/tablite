@@ -13,6 +13,7 @@ from tqdm import tqdm as _tqdm
 
 def lookup(T, other, *criteria, all=True, tqdm=_tqdm):
     """function for looking up values in `other` according to criteria in ascending order.
+    :param: T: Table 
     :param: other: Table sorted in ascending search order.
     :param: criteria: Each criteria must be a tuple with value comparisons in the form:
         (LEFT, OPERATOR, RIGHT)
