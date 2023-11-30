@@ -1,5 +1,5 @@
 import numpy as np
-from tablite import Table
+from tablite.base import Table
 from tablite.utils import unique_name, type_check, name_check
 
 
