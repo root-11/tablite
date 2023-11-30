@@ -15,6 +15,7 @@ from tablite import merge
 from tablite import reindex as _reindex
 from tablite import joins
 from tablite import lookup
+from tablite import match
 from tablite import sortation
 from tablite import groupbys
 from tablite import pivots
@@ -780,6 +781,26 @@ class Table(BaseTable):
               value from column 'text 1' is compared with value from column 'text 2'
         """
         return lookup.lookup(self, other, *criteria, all=all, tqdm=tqdm)
+
+    def match(self, other, *criteria, keep_left=None, keep_right=None):
+        """
+        performs inner join where `T` matches `other` and removes rows that do not match.
+
+        :param: T: Table
+        :param: other: Table
+        :param: criteria: Each criteria must be a tuple with value comparisons in the form:
+            
+            (LEFT, OPERATOR, RIGHT), where operator must be "=="
+
+            Example:
+                ('column A', "==", 'column B')
+
+            This syntax follows the lookup syntax. See Lookup for details.
+
+        :param: keep_left: list of columns to keep.
+        :param: keep_right: list of right columns to keep.
+        """
+        return match.match(self, other, *criteria, keep_left=keep_left, keep_right=keep_right)
 
     def replace_missing_values(self, *args, **kwargs):
         raise AttributeError("See imputation")
