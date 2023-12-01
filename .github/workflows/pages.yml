@@ -20,7 +20,7 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: https://jetman80.github.io/tablite/
+      url: https://root-11.github.io/tablite/
     runs-on: ubuntu-latest
     strategy:
       matrix:
