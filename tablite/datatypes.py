@@ -2,6 +2,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from collections import defaultdict, Counter
 import numpy as np
 import pickle
+from typing import Any
 
 
 class DataTypes(object):
@@ -214,6 +215,7 @@ class DataTypes(object):
         "NNNNNNNN": lambda x: date(*(int(x[:4]), int(x[4:6]), int(x[6:]))),
     }
 
+    # fmt:off
     datetime_formats = {
         # Note: Only recognised ISO8601 formats are accepted.
         # year first
@@ -261,6 +263,7 @@ class DataTypes(object):
         # compact formats - type 3
         "NNNNNNNNTNN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, compact=3),
     }
+    # fmt:on
 
     @staticmethod
     def pattern_to_datetime(iso_string, ymd=None, T=None, compact=0, day_first=False):
@@ -310,7 +313,9 @@ class DataTypes(object):
         if 0 < dot < 10:
             ix = len(iso_string) - dot
             microsecond = int(float(f"0{iso_string[ix - 1:]}") * 10**6)
+            # fmt:off
             iso_string = iso_string[: len(iso_string) - dot] + str(microsecond).rjust(6, "0")
+            # fmt:on
         if ymd:
             iso_string = iso_string.replace(ymd, "-", 2)
         if T:
@@ -321,23 +326,26 @@ class DataTypes(object):
     def round(cls, value, multiple, up=None):
         """a nicer way to round numbers.
 
-        :param value: float, integer or datetime to be rounded.
-        :param multiple: float, integer or timedelta to be used as the base of the rounding.
-        :param up: None (default) or boolean rounds half, up or down.
-            round(1.6, 1) rounds to 2.
-            round(1.4, 1) rounds to 1.
-            round(1.5, 1, up=True) rounds to 2.
-            round(1.5, 1, up=False) rounds to 1.
-        :return: rounded value
+        Args:
+            value (float,integer,datetime): value to be rounded
 
-        Examples:
+            multiple (float,integer,timedelta): value to be used as the based of rounding.
+                1) multiple = 1 is the same as rounding to whole integers.
+                2) multiple = 0.001 is the same as rounding to 3 digits precision.
+                3) mulitple = 3.1415 is rounding to nearest multiplier of 3.1415
+                4) value = datetime(2022,8,18,11,14,53,440)
+                5) multiple = timedelta(hours=0.5)
+                6) xround(value,multiple) is datetime(2022,8,18,11,0)
 
-        [1] multiple = 1 is the same as rounding to whole integers.
-        [2] multiple = 0.001 is the same as rounding to 3 digits precision.
-        [3] mulitple = 3.1415 is rounding to nearest multiplier of 3.1415
-        [4] value = datetime(2022,8,18,11,14,53,440)
-        [5] multiple = timedelta(hours=0.5)
-        [6] xround(value,multiple) is datetime(2022,8,18,11,0)
+            up (None, bool, optional):
+                None (default) or boolean rounds half, up or down.
+                round(1.6, 1) rounds to 2.
+                round(1.4, 1) rounds to 1.
+                round(1.5, 1, up=True) rounds to 2.
+                round(1.5, 1, up=False) rounds to 1.
+
+        Returns:
+            float,integer,datetime: rounded value in same type as input.
         """
         epoch = 0
         if isinstance(value, (datetime)) and isinstance(multiple, timedelta):
@@ -505,7 +513,7 @@ class DataTypes(object):
 
         if dtype not in matched_types:
             raise TypeError(f"The datatype {str(dtype)} is not supported.")
-        
+
         return matched_types[dtype](v)
 
     @classmethod
@@ -651,8 +659,9 @@ class DataTypes(object):
                     dot = value.find(",", 11)
                 else:
                     dot = len(value)
-
+                # fmt:off
                 pattern = "".join(["N" if n in DataTypes.digits else n for n in value[:dot]])
+                # fmt:on
                 f = DataTypes.datetime_formats.get(pattern, None)
                 if f:
                     return f(value)
@@ -687,15 +696,31 @@ class DataTypes(object):
         raise ValueError()
 
 
-def numpy_to_python(obj):
-    """See https://numpy.org/doc/stable/reference/arrays.scalars.html"""
+def numpy_to_python(obj: Any) -> Any:
+    """Converts numpy types to python types.
+
+    See https://numpy.org/doc/stable/reference/arrays.scalars.html
+
+    Args:
+        obj (Any): A numpy object
+
+    Returns:
+        python object: A python object
+    """
     if isinstance(obj, np.generic):
         return obj.item()
     return obj
 
 
 def pytype(obj):
-    """Returns the python type of any object"""
+    """Returns the python type of any object
+
+    Args:
+        obj (Any): any numpy or python object
+
+    Returns:
+        type: type of obj
+    """
     if isinstance(obj, np.generic):
         return type(obj.item())
     return type(obj)
@@ -714,7 +739,9 @@ class Rank(object):
 
         if ix > 0:
             p = self.items_list
-            while r[ix] > r[ix - 1] and ix > 0:  # use a simple bubble sort to maintain rank
+            while (
+                r[ix] > r[ix - 1] and ix > 0
+            ):  # use a simple bubble sort to maintain rank
                 r[ix], r[ix - 1] = r[ix - 1], r[ix]
                 p[ix], p[ix - 1] = p[ix - 1], p[ix]
                 old = p[ix]
@@ -726,7 +753,18 @@ class Rank(object):
         return iter(self.items_list)
 
 
-def pytype_from_iterable(iterable):
+def pytype_from_iterable(iterable: {tuple, list}) -> {np.dtype, dict}:
+    """helper to make correct np array from python types.
+
+    Args:
+        iterable (tuple,list): values to be converted to numpy array.
+
+    Raises:
+        NotImplementedError: if datatype is not supported.
+
+    Returns:
+        np.dtype: python type of the iterable.
+    """
     py_types = {}
     if isinstance(iterable, (tuple, list)):
         type_counter = Counter((pytype(v) for v in iterable))
@@ -795,6 +833,14 @@ def list_to_np_array(iterable):
 
 
 def np_type_unify(arrays):
+    """unifies numpy types.
+
+    Args:
+        arrays (list): List of numpy arrays
+
+    Returns:
+        np.ndarray: numpy array of a single type.
+    """
     dtypes = {arr.dtype: len(arr) for arr in arrays}
     if len(dtypes) == 1:
         dtype, _ = dtypes.popitem()
@@ -808,7 +854,7 @@ def np_type_unify(arrays):
 def multitype_set(arr):
     """prevents loss of True, False when calling sets.
 
-    python looses values when called returning a set:
+    python looses values when called returning a set. Example:
     >>> {1, True, 0, False}
     {0,1}
 
@@ -822,6 +868,7 @@ def multitype_set(arr):
     L = list(set(L))
     L = [v for _, v in L]
     return np.array(L, dtype=object)
+
 
 matched_types = {
     int: DataTypes._infer_int,
