@@ -192,7 +192,7 @@ def transpose(T, tqdm=_tqdm):
     new = type(T)()
     L = list(T.columns)
     new[L[0]] = L[1:]
-    for row in tqdm(T.rows, desc="table transpose"):
+    for row in tqdm(T.rows, desc="table transpose", total=len(T)):
         new[row[0]] = row[1:]
     return new
 
