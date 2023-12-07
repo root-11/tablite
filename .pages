@@ -1,9 +1,9 @@
+# vi: set ft=yaml:
 # reference: https://github.com/lukasgeiter/mkdocs-awesome-pages-plugin#features
 nav:
-  - Home: README.md
-  - Changelog: changelog.md
-  - Tutorials: # if not to use subitem it overwrites the title
-    - tutorial.ipynb
-  - Benchmarks: benchmarks.ipynb
-  - Code Reference: tablite
-  - Tests Reference: tests
+  - Home:
+    - README.md
+    - Changelog: changelog.md
+    - Benchmarks: benchmarks.ipynb
+    - Tutorial: tutorial.ipynb
+  - Reference: reference.md
