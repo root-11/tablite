@@ -20,6 +20,7 @@ __pycache__
 dist/
 build/
 docs/
+site/
 
 # personal notes
 *scratch*.py

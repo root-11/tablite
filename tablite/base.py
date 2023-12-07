@@ -1728,25 +1728,31 @@ class Table(object):
         returns multikey index on the columns as d[(key tuple, )] = {index1, index2, ...}
 
         Examples:
-        >>> table6 = Table()
-        >>> table6['A'] = ['Alice', 'Bob', 'Bob', 'Ben', 'Charlie', 'Ben','Albert']
-        >>> table6['B'] = ['Alison', 'Marley', 'Dylan', 'Affleck', 'Hepburn', 'Barnes', 'Einstein']
+            ```
+            >>> table6 = Table()
+            >>> table6['A'] = ['Alice', 'Bob', 'Bob', 'Ben', 'Charlie', 'Ben','Albert']
+            >>> table6['B'] = ['Alison', 'Marley', 'Dylan', 'Affleck', 'Hepburn', 'Barnes', 'Einstein']
+            ```
 
-        >>> table6.index('A')  # single key.
-        {('Alice',): [0],
-         ('Bob',): [1, 2],
-         ('Ben',): [3, 5],
-         ('Charlie',): [4],
-         ('Albert',): [6]})
+            ```
+            >>> table6.index('A')  # single key.
+            {('Alice',): [0],
+             ('Bob',): [1, 2],
+             ('Ben',): [3, 5],
+             ('Charlie',): [4],
+             ('Albert',): [6]})
+            ```
 
-        >>> table6.index('A', 'B')  # multiple keys.
-        {('Alice', 'Alison'): [0],
-         ('Bob', 'Marley'): [1],
-         ('Bob', 'Dylan'): [2],
-         ('Ben', 'Affleck'): [3],
-         ('Charlie', 'Hepburn'): [4],
-         ('Ben', 'Barnes'): [5],
-         ('Albert', 'Einstein'): [6]})
+            ```
+            >>> table6.index('A', 'B')  # multiple keys.
+            {('Alice', 'Alison'): [0],
+             ('Bob', 'Marley'): [1],
+             ('Bob', 'Dylan'): [2],
+             ('Ben', 'Affleck'): [3],
+             ('Charlie', 'Hepburn'): [4],
+             ('Ben', 'Barnes'): [5],
+             ('Albert', 'Einstein'): [6]})
+            ```
 
         """
         idx = defaultdict(list)
