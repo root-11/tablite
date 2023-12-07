@@ -1,7 +1,7 @@
 site_name: Tablite
 site_description: Tablite Documentation
-#site_url: https://root-11.github.io/tablite/
-site_url: https://Jetman80.github.io/tablite/
+site_url: https://root-11.github.io/tablite/
+# site_url: https://Jetman80.github.io/tablite/
 docs_dir: .
 site_dir: site
 repo_url: https://github.com/root-11/tablite/
