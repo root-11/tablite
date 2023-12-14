@@ -62,7 +62,7 @@ proc newPyTime*(hour: uint8, minute: uint8, second: uint8, microsecond: uint32, 
 proc newPyDateTime*(date: PY_Date, time: PY_Time): PY_DateTime =
     PY_DateTime(date: date, time: time)
 
-proc writePickleBinput(fh: var File, binput: var uint32): void  {.inline.}=
+proc writePickleBinput(fh: var File, binput: var uint32): void {.inline.} =
     if binput <= 0xff:
         fh.write(PKL_BINPUT)
         discard fh.writeBuffer(binput.unsafeAddr, 1)
@@ -73,7 +73,7 @@ proc writePickleBinput(fh: var File, binput: var uint32): void  {.inline.}=
     discard fh.writeBuffer(binput.unsafeAddr, 4)
     inc binput
 
-proc writePickleGlobal(fh: var File, module_name: string, import_name: string): void  {.inline.}=
+proc writePickleGlobal(fh: var File, module_name: string, import_name: string): void {.inline.} =
     fh.write(PKL_GLOBAL)
 
     fh.write(module_name)
