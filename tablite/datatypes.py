@@ -215,7 +215,25 @@ class DataTypes(object):
     }
 
     datetime_formats = {
+        **date_formats,
         # Note: Only recognised ISO8601 formats are accepted.
+        # native format
+        "NNNN-N-N N:N": lambda x: DataTypes.native_to_datetime(x),
+        "NNNN-NN-N N:N": lambda x: DataTypes.native_to_datetime(x),
+        "NNNN-N-NN N:N": lambda x: DataTypes.native_to_datetime(x),
+        "NNNN-N-NN N:N": lambda x: DataTypes.native_to_datetime(x),
+        "NNNN-N-N NN:N": lambda x: DataTypes.native_to_datetime(x),
+        "NNNN-NN-N NN:N": lambda x: DataTypes.native_to_datetime(x),
+        "NNNN-N-NN NN:N": lambda x: DataTypes.native_to_datetime(x),
+        "NNNN-N-NN NN:N": lambda x: DataTypes.native_to_datetime(x),
+        "NNNN-N-N N:NN": lambda x: DataTypes.native_to_datetime(x),
+        "NNNN-NN-N N:NN": lambda x: DataTypes.native_to_datetime(x),
+        "NNNN-N-NN N:NN": lambda x: DataTypes.native_to_datetime(x),
+        "NNNN-N-NN N:NN": lambda x: DataTypes.native_to_datetime(x),
+        "NNNN-N-N NN:NN": lambda x: DataTypes.native_to_datetime(x),
+        "NNNN-NN-N NN:NN": lambda x: DataTypes.native_to_datetime(x),
+        "NNNN-N-NN NN:NN": lambda x: DataTypes.native_to_datetime(x),
+        "NNNN-N-NN NN:NN": lambda x: DataTypes.native_to_datetime(x),
         # year first
         "NNNN-NN-NNTNN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x),  # -T
         "NNNN-NN-NNTNN:NN": lambda x: DataTypes.pattern_to_datetime(x),
@@ -261,6 +279,24 @@ class DataTypes(object):
         # compact formats - type 3
         "NNNNNNNNTNN:NN:NN": lambda x: DataTypes.pattern_to_datetime(x, compact=3),
     }
+
+    @staticmethod
+    def native_to_datetime(native_string):
+        assert isinstance(native_string, str)
+
+        year_start, year_end = 0, native_string.find("-", 0)
+        month_start, month_end = year_end + 1, native_string.find("-", year_end + 1)
+        day_start, day_end = month_end + 1, native_string.find(" ", year_end + 1)
+        hour_start, hour_end = day_end + 1, native_string.find(":", day_end + 1)
+        minute_start = hour_end + 1
+
+        year = int(native_string[year_start:year_end])
+        month = int(native_string[month_start:month_end])
+        day = int(native_string[day_start:day_end])
+        hour = int(native_string[hour_start:hour_end])
+        minute = int(native_string[minute_start:])
+
+        return datetime(year, month, day, hour, minute)
 
     @staticmethod
     def pattern_to_datetime(iso_string, ymd=None, T=None, compact=0, day_first=False):
@@ -655,11 +691,18 @@ class DataTypes(object):
                 pattern = "".join(["N" if n in DataTypes.digits else n for n in value[:dot]])
                 f = DataTypes.datetime_formats.get(pattern, None)
                 if f:
-                    return f(value)
+                    date_ = f(value)
+
+                    if isinstance(date_, datetime):
+                        return date_
+                    elif isinstance(date_, date):
+                        return datetime(date_.year, date_.month, date_.day)
+                    else:
+                        raise ValueError("not a date")
                 else:
-                    raise ValueError()
+                    raise ValueError("not a date")
         else:
-            raise ValueError()
+            raise ValueError("not a date")
 
     @classmethod
     def _infer_time(cls, value):
