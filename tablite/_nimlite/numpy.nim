@@ -76,10 +76,15 @@ type Float32NDArray* = ref object of BaseNDArray
 type Float64NDArray* = ref object of BaseNDArray
     buf*: seq[float64]
 
+type UnicodeNDArray* = ref object of BaseNDArray
+    buf*: seq[char]
+    size*: int
+
 proc `$`*(self: BaseNDArray): string =
     if self of BooleanNDArray: return repr(cast[BooleanNDArray](self))
     if self of Int64NDArray: return repr(cast[Int64NDArray](self))
     if self of Float64NDArray: return repr(cast[Float64NDArray](self))
+    if self of UnicodeNDArray: return repr(cast[UnicodeNDArray](self))
     else:
         raise newException(Exception, "'$' not implemented")
 
@@ -351,6 +356,17 @@ template newFloatNDArray(fh: var File, endianness: Endianness, size: int, shape:
         )
         else: corrupted()
 
+proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: var seq[int]): UnicodeNDArray =
+    var elements = calcShapeElements(shape)
+    var elem_size = elements * size
+    var buf = newSeq[char](elem_size)
+    var buffer_size = elem_size * 4
+
+    if fh.readBuffer(addr buf[0], buffer_size) != buffer_size:
+        corrupted()
+
+    return UnicodeNDArray(buf: buf, shape: shape, size: size)
+
 proc readNumpy(fh: var File): BaseNDArray =
     var header_bytes: array[NUMPY_MAGIC_LEN, uint8]
 
@@ -381,6 +397,7 @@ proc readNumpy(fh: var File): BaseNDArray =
         of D_BOOLEAN: page = newBooleanNDArray(fh, shape)
         of D_INT: page = newIntNDArray(fh, descr_endianness, descr_size, shape)
         of D_FLOAT: page = newFloatNDArray(fh, descr_endianness, descr_size, shape)
+        of D_UNICODE: page = newUnicodeNDArray(fh, descr_endianness, descr_size, shape)
         else:
             raise newException(Exception, "'" & $descr_type & "' not implemented")
 
@@ -396,4 +413,4 @@ proc readNumpy(path: string): BaseNDArray =
 
 
 when isMainModule and appType != "lib":
-    echo $readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/int.npy")
+    echo $readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/str.npy")
