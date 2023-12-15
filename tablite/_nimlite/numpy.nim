@@ -359,7 +359,7 @@ template newFloatNDArray(fh: var File, endianness: Endianness, size: int, shape:
 proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: var seq[int]): UnicodeNDArray =
     var elements = calcShapeElements(shape)
     var elem_size = elements * size
-    var buf = newSeq[char](elem_size)
+    var buf {.noinit.} = newSeq[char](elem_size)
     var buffer_size = elem_size * 4
 
     if fh.readBuffer(addr buf[0], buffer_size) != buffer_size:
