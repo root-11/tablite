@@ -78,15 +78,15 @@ class SimplePage(object):
         self._incr_refcount()
 
     def _incr_refcount(self):
-        """ increment refcount of this page if it's used by this process"""
+        """ increment refcount of this page if it's used by this process """
         if self.owns():
             self.refcounts[self.path] = self.refcounts.get(self.path, 0) + 1
 
     def __setstate__(self, state):
         """
-            when an object is unpickled,
-            say in a case of multi-processing, object.__setstate__(state) is called instead of __init__,
-            this means we need to update page refcount as if constructor had been called
+        when an object is unpickled, say in a case of multi-processing, 
+        object.__setstate__(state) is called instead of __init__, this means 
+        we need to update page refcount as if constructor had been called
         """
         self.__dict__.update(state)
 
@@ -340,10 +340,14 @@ class Column(object):
         return pages
 
     def iter_by_page(self):
-        """iterates over the column, page by page
+        """iterates over the column, page by page.
+        This method minimizes the number of reads.
 
-        Yields:
-            tuple: start, end, data
+        Returns:
+            generator of tuple: 
+                start: int
+                end: int
+                data: np.ndarray
         """
         start, end = 0, 0
         for page in self.pages:
@@ -360,11 +364,13 @@ class Column(object):
             np.ndarray: results as numpy array.
 
         Remember:
+        ```
         >>> R = np.array([0,1,2,3,4,5])
         >>> R[3]
         3
         >>> R[3:4]
         array([3])
+        ```
         """
         result = []
         for element in self.getpages(item):
@@ -420,7 +426,8 @@ class Column(object):
 
     def _setitem_integer_key(self, key, value):  # PRIVATE FUNCTION
         """handles the following case:
-        example: L[3] = 27"""
+        Example: `L[3] = 27`
+        """
         if isinstance(value, (list, type, np.ndarray)):
             raise TypeError(
                 f"your key is an integer, but your value is a {type(value)}. \
@@ -447,17 +454,23 @@ class Column(object):
                 break
 
     def _setitem_replace_all(self, key, value):  # PRIVATE FUNCTION
-        """handles the following cases:
+        """
+        handles the following cases:
+        ```
         new = list(value)
         L[:] = [1,2,3]
+        ```
         """
         self.pages.clear()  # Page.__del__ will take care of removed pages.
         self.extend(value)  # Column.extend handles pagination.
 
     def _setitem_extend(self, key, value):  # PRIVATE FUNCTION
-        """handles the following case:
+        """
+        handles the following case:
+        ```
         new = old[:key.start] + list(value)
         example: L[0:] = [1,2,3]
+        ```
         """
         start, end = 0, 0
         for index, page in enumerate(self.pages):
@@ -475,8 +488,10 @@ class Column(object):
 
     def _setitem_prextend(self, key, value):  # PRIVATE FUNCTION
         """handles the following case:
+        ```
         new = list(value) + old[key.stop:]
         example: L[:3] = [1,2,3]
+        ```
         """
         if key.stop == len(self):
             self.pages = []
@@ -500,8 +515,10 @@ class Column(object):
 
     def _setitem_insert(self, key, value):  # PRIVATE FUNCTION
         """handles the following case:
+        ```
         new = old[:start] + list(values) + old[stop:]
         L[3:5] = [1,2,3]
+        ```
         """
         key_start, key_stop, _ = key.indices(len(self))
         # create 3 partitions: A + B + C = head + new + tail
@@ -535,7 +552,7 @@ class Column(object):
 
     def _setitem_update(self, key, value):
         """
-        See test_slice_rules.py/MyList for detailed behaviour
+        See tests/test_slice_rules.py/MyList for detailed behaviour
         """
         key_start, key_stop, key_step = key.indices(len(self))
 
@@ -588,7 +605,9 @@ class Column(object):
 
     def _del_by_int(self, key):  # PRIVATE FUNCTION
         """handles the following case:
+        ```
         del column[n]
+        ```
         """
         start, end = 0, 0
         for index, page in enumerate(self.pages):
@@ -601,7 +620,9 @@ class Column(object):
 
     def _del_by_slice(self, key):
         """handles the following case:
+        ```
         del column[m:n:o]
+        ```
         """
         key_start, key_stop, key_step = key.indices(len(self))
         seq = range(key_start, key_stop, key_step)
@@ -633,18 +654,19 @@ class Column(object):
     def get_by_indices(self, indices):
         """retrieves values from column given a set of indices.
 
-        A useful alternative to iterating over rows.
-
-        >>> indices = np.array(list(range(3,700_700, 426)))
-        >>> arr = np.array(list(range(2_000_000)))
-        Slow:
-        >>> [v for i,v in enumerate(arr) if i in indices]
-
-        Fast:
-        >>> np.take(arr, indices)
-
         Args:
             indices (np.array): targets
+        
+        This method uses np.take, is faster than iterating over rows.
+        Examples:
+        ```
+        >>> indices = np.array(list(range(3,700_700, 426)))
+        >>> arr = np.array(list(range(2_000_000)))
+        Pythonic:
+        >>> [v for i,v in enumerate(arr) if i in indices]
+        Numpyionic:
+        >>> np.take(arr, indices)
+        ```
         """
         type_check(indices, np.ndarray)
 
@@ -675,7 +697,7 @@ class Column(object):
 
     def __eq__(self, other):  # USER FUNCTION.
         """
-        compares two columns. Like list1 == list2
+        compares two columns. Like `list1 == list2`
         """
         if len(self) != len(other):  # quick cheap check.
             return False
@@ -712,7 +734,7 @@ class Column(object):
 
     def __ne__(self, other):  # USER FUNCTION
         """
-        compares two columns. Like list1 != list2
+        compares two columns. Like `list1 != list2`
         """
         if len(self) != len(other):  # quick cheap check.
             return True
@@ -766,11 +788,12 @@ class Column(object):
         Repeats instance of column N times. Like list() * N
 
         Example:
+        ```
         >>> one = Column(data=[1,2])
         >>> one *= 5
         >>> one
         [1,2, 1,2, 1,2, 1,2, 1,2]
-
+        ```
         """
         if not (isinstance(other, int) and other > 0):
             raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
@@ -782,11 +805,12 @@ class Column(object):
         Repeats instance of column N times. Like list() * N
 
         Example:
+        ```
         >>> one = Column(data=[1,2])
         >>> two = one * 5
         >>> two
         [1,2, 1,2, 1,2, 1,2, 1,2]
-
+        ```
         """
         if not isinstance(other, int):
             raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
@@ -805,9 +829,15 @@ class Column(object):
         return self
 
     def __contains__(self, item):
-        """
-        determines if item is in the Column. Similar to 'x' in ['a','b','c']
+        """determines if item is in the Column. 
+        Similar to `'x' in ['a','b','c']`
         returns boolean
+
+        Args:
+            item (any): value to search for
+
+        Returns:
+            bool: True if item exists in column.
         """
         for page in set(self.pages):
             if item in page.get():  # x in np.ndarray([...]) uses np.any(arr, value)
@@ -833,13 +863,18 @@ class Column(object):
 
     def replace(self, mapping):
         """
-        replaces values using mapping
+        replaces values using a mapping.
 
-        example:
+        Args:
+            mapping (dict): {value to replace: new value, ...}
+        
+        Example:
+        ```
         >>> t = Table(columns={'A': [1,2,3,4]})
         >>> t['A'].replace({2:20,4:40})
         >>> t[:]
         np.ndarray([1,20,3,40])
+        ```
         """
         type_check(mapping, dict)
         to_replace = np.array(list(mapping.keys()))
@@ -855,10 +890,13 @@ class Column(object):
 
     def types(self):
         """
-        returns dict with python datatypes: frequency of occurrence
+        returns dict with python datatypes
+        
+        Returns:
+            dict: frequency of occurrence of python datatypes
         """
         d = Counter()
-        for page in set(self.pages):
+        for page in self.pages:
             assert isinstance(page.dtype, dict)
             d += page.dtype
         return dict(d)
@@ -868,10 +906,11 @@ class Column(object):
         returns dict with { unique entry : list of indices }
 
         example:
+        ```
         >>> c = Column(data=['a','b','a','c','b'])
         >>> c.index()
         {'a':[0,2], 'b': [1,4], 'c': [3]}
-
+        ```
         """
         d = defaultdict(list)
         for ix, v in enumerate(self.__iter__()):
@@ -883,9 +922,11 @@ class Column(object):
         returns unique list of values.
 
         example:
+        ```
         >>> c = Column(data=['a','b','a','c','b'])
         >>> c.unqiue()
         ['a','b','c']
+        ```
         """
         arrays = []
         for page in set(self.pages):
@@ -906,9 +947,11 @@ class Column(object):
         returns 2 arrays: unique elements and count of each element
 
         example:
+        ```
         >>> c = Column(data=['a','b','a','c','b'])
         >>> c.histogram()
         {'a':2,'b':2,'c':1}
+        ```
         """
         d = defaultdict(int)
         for page in self.pages:
@@ -926,18 +969,20 @@ class Column(object):
         return u, c  # unique, counts
 
     def statistics(self):
-        """
-        returns dict with:
-        - min (int/float, length of str, date)
-        - max (int/float, length of str, date)
-        - mean (int/float, length of str, date)
-        - median (int/float, length of str, date)
-        - stdev (int/float, length of str, date)
-        - mode (int/float, length of str, date)
-        - distinct (int/float, length of str, date)
-        - iqr (int/float, length of str, date)
-        - sum (int/float, length of str, date)
-        - histogram (see .histogram)
+        """provides summary statistics.
+
+        Returns:
+            dict: returns dict with:
+            - min (int/float, length of str, date)
+            - max (int/float, length of str, date)
+            - mean (int/float, length of str, date)
+            - median (int/float, length of str, date)
+            - stdev (int/float, length of str, date)
+            - mode (int/float, length of str, date)
+            - distinct (int/float, length of str, date)
+            - iqr (int/float, length of str, date)
+            - sum (int/float, length of str, date)
+            - histogram (see .histogram)
         """
         values, counts = self.histogram()
         return summary_statistics(values, counts)
@@ -945,17 +990,21 @@ class Column(object):
     def count(self, item):
         """counts appearances of item in column.
 
-        Note:
+        Note that in python, `True == 1` and `False == 0`,
+        whereby the following difference occurs:
 
         in python:
+        ```
         >>> L = [1, True]
         >>> L.count(True)
         2
-
+        ```
         in tablite:
+        ```
         >>> t = Table({'L': [1,True]})
         >>> t['L'].count(True)
         1
+        ```
 
         Args:
             item (Any): target item
@@ -1055,13 +1104,20 @@ class Table(object):
         return sum(real.values()), total
 
     def items(self):  # USER FUNCTION.
-        """returns table as dict."""
+        """returns table as dict
+
+        Returns:
+            dict: Table as dict `{column_name: [values], ...}`
+        """
         return {name: column[:].tolist() for name, column in self.columns.items()}.items()
 
     def __delitem__(self, key):  # USER FUNCTION.
         """
-        del table['a']  removes column 'a'
-        del table[-3:] removes last 3 rows from all columns.
+        Examples:
+        ```
+        >>> del table['a']  # removes column 'a'
+        >>> del table[-3:]  # removes last 3 rows from all columns.
+        ```
         """
         if isinstance(key, (int, slice)):
             for column in self.columns.values():
@@ -1078,10 +1134,13 @@ class Table(object):
             value (iterable): list, tuple or nd.array with values.
 
         As Table now accepts the keyword `columns` as a dict:
-            t = Table(columns={'b':[4,5,6], 'c':[7,8,9]})
+        ```
+        >>> t = Table(columns={'b':[4,5,6], 'c':[7,8,9]})
+        ```
         and the header/data combinations:
-            t = Table(header=['b','c'], data=[[4,5,6],[7,8,9]])
-
+        ```
+        >>> t = Table(header=['b','c'], data=[[4,5,6],[7,8,9]])
+        ```
         This has the side-benefit that tuples now can be used as headers.
         """
         if value is None:
@@ -1098,17 +1157,25 @@ class Table(object):
 
     def __getitem__(self, keys):  # USER FUNCTION
         """
-        Enables selection of columns and rows
-        Examples:
+        Enables selection of columns and rows      
 
-        table['a']                        selects column 'a'
-        table[3]                          selects row 3 as a tuple.
-        table[:10]                        selects first 10 rows from all columns
-        table['a','b', slice(3,20,2)]     selects a slice from columns 'a' and 'b'
-        table['b', 'a', 'a', 'c', 2:20:3] selects column 'b' and 'c' and 'a' twice for a slice.
-        table[('b', 'a', 'a', 'c')]       selects columns 'b', 'a', 'a', and 'c' using a tuple.
+        Args:
+            keys (column name, integer or slice): 
+            Examples:
+            ```
+            >>> table['a']                        selects column 'a'
+            >>> table[3]                          selects row 3 as a tuple.
+            >>> table[:10]                        selects first 10 rows from all columns
+            >>> table['a','b', slice(3,20,2)]     selects a slice from columns 'a' and 'b'
+            >>> table['b', 'a', 'a', 'c', 2:20:3] selects column 'b' and 'c' and 'a' twice for a slice.
+            >>> table[('b', 'a', 'a', 'c')]       selects columns 'b', 'a', 'a', and 'c' using a tuple.
+            ```
+        Raises:
+            KeyError: if key is not found.
+            TypeError: if key is not a string, integer or slice.
 
-        returns values in same order as selection.
+        Returns:
+            Table: returns columns in same order as selection.
         """
 
         if not isinstance(keys, tuple):
@@ -1175,11 +1242,15 @@ class Table(object):
 
     @property
     def rows(self):
-        """
-        enables row based iteration in python types.
+        """enables row based iteration in python types.
 
+        Example:
+        ```
         for row in Table.rows:
             print(row)
+        ```
+        Yields:
+            tuple: values is same order as columns.
         """
         n_max = len(self)
         generators = []
@@ -1192,8 +1263,13 @@ class Table(object):
             yield [numpy_to_python(next(i)) for i in generators]
 
     def __eq__(self, other) -> bool:  # USER FUNCTION.
-        """
-        Determines if two tables have identical content.
+        """Determines if two tables have identical content.
+
+        Args:
+            other (Table): table for comparison
+
+        Returns:
+            bool: True if tables are identical.
         """
         if isinstance(other, dict):
             return self.items() == other.items()
@@ -1213,8 +1289,7 @@ class Table(object):
         return True
 
     def clear(self):  # USER FUNCTION.
-        """
-        clears the table. Like dict().clear()
+        """clears the table. Like dict().clear()
         """
         self.columns.clear()
 
@@ -1227,10 +1302,12 @@ class Table(object):
             compression_level: See zipfile compression levels. Defaults to 1.
             The default settings produce 80% compression at 10% slowdown.
 
+        The file format is as follows:
         .tpz is a gzip archive with table metadata captured as table.yml
         and the necessary set of pages saved as .npy files.
 
         The zip contains table.yml which provides an overview of the data:
+        ```
         --------------------------------------
         %YAML 1.2                              yaml version
         columns:                               start of columns section.
@@ -1239,7 +1316,7 @@ class Table(object):
             name: “列 2”                       name of column 2
                 pages: [p2b1, p2b2]            list of pages in column 2.
         ----------------------------------------
-
+        ```
         """
         type_check(path, Path)
         if path.is_dir():
@@ -1316,7 +1393,8 @@ class Table(object):
 
     def __imul__(self, other):
         """Repeats instance of table N times.
-        Like list: t = t * N
+        
+        Like list: `t = t * N`
 
         Args:
             other (int): multiplier
@@ -1329,7 +1407,7 @@ class Table(object):
 
     def __mul__(self, other):
         """Repeat table N times.
-        Like list: new = old * N
+        Like list: `new = old * N`
 
         Args:
             other (int): multiplier
@@ -1343,7 +1421,7 @@ class Table(object):
     def __iadd__(self, other):
         """Concatenates tables with same column names.
 
-        Liek list: table_1 += table_2
+        Like list: `table_1 += table_2`
 
         Args:
             other (Table)
@@ -1370,7 +1448,7 @@ class Table(object):
     def __add__(self, other):
         """Concatenates tables with same column names.
 
-        Liek list: table_3 = table_1 + table_2
+        Like list: `table_3 = table_1 + table_2`
 
         Args:
             other (Table)
@@ -1389,26 +1467,31 @@ class Table(object):
     def add_rows(self, *args, **kwargs):
         """its more efficient to add many rows at once.
 
-        supported cases:
-
-        t = Table()
-        t.add_columns('row','A','B','C')
-
-        (1) t.add_rows(1, 1, 2, 3)  # individual values as args
-        (2) t.add_rows([2, 1, 2, 3])  # list of values as args
-        (3) t.add_rows((3, 1, 2, 3))  # tuple of values as args
-        (4) t.add_rows(*(4, 1, 2, 3))  # unpacked tuple becomes arg like (1)
-        (5) t.add_rows(row=5, A=1, B=2, C=3)   # kwargs
-        (6) t.add_rows(**{'row': 6, 'A': 1, 'B': 2, 'C': 3})  # dict / json interpreted a kwargs
-        (7) t.add_rows((7, 1, 2, 3), (8, 4, 5, 6))  # two (or more) tuples as args
-        (8) t.add_rows([9, 1, 2, 3], [10, 4, 5, 6])  # two or more lists as rgs
-        (9) t.add_rows({'row': 11, 'A': 1, 'B': 2, 'C': 3},
-                       {'row': 12, 'A': 4, 'B': 5, 'C': 6})  # two (or more) dicts as args - roughly comma sep'd json.
-        (10) t.add_rows( *[ {'row': 13, 'A': 1, 'B': 2, 'C': 3},
-                            {'row': 14, 'A': 1, 'B': 2, 'C': 3} ])  # list of dicts as args
-        (11) t.add_rows(row=[15,16], A=[1,1], B=[2,2], C=[3,3])  # kwargs with lists as values
-
         if both args and kwargs, then args are added first, followed by kwargs.
+        
+        supported cases:
+        ```
+        >>> t = Table()
+        >>> t.add_columns('row','A','B','C')
+        >>> t.add_rows(1, 1, 2, 3)                              # (1) individual values as args
+        >>> t.add_rows([2, 1, 2, 3])                            # (2) list of values as args
+        >>> t.add_rows((3, 1, 2, 3))                            # (3) tuple of values as args
+        >>> t.add_rows(*(4, 1, 2, 3))                           # (4) unpacked tuple becomes arg like (1)
+        >>> t.add_rows(row=5, A=1, B=2, C=3)                    # (5) kwargs
+        >>> t.add_rows(**{'row': 6, 'A': 1, 'B': 2, 'C': 3})    # (6) dict / json interpreted a kwargs
+        >>> t.add_rows((7, 1, 2, 3), (8, 4, 5, 6))              # (7) two (or more) tuples as args
+        >>> t.add_rows([9, 1, 2, 3], [10, 4, 5, 6])             # (8) two or more lists as rgs
+        >>> t.add_rows(
+            {'row': 11, 'A': 1, 'B': 2, 'C': 3},
+            {'row': 12, 'A': 4, 'B': 5, 'C': 6}
+            )                                                   # (9) two (or more) dicts as args - roughly comma sep'd json.
+        >>> t.add_rows( *[
+            {'row': 13, 'A': 1, 'B': 2, 'C': 3},
+            {'row': 14, 'A': 1, 'B': 2, 'C': 3} 
+            ])                                                  # (10) list of dicts as args
+        >>> t.add_rows(row=[15,16], A=[1,1], B=[2,2], C=[3,3])  # (11) kwargs with lists as values
+        ```
+        
         """
         if args:
             if not all(isinstance(i, (list, tuple, dict)) for i in args):  # 1,4
@@ -1458,23 +1541,31 @@ class Table(object):
             self.columns[name] = Column(self.path)
 
     def add_column(self, name, data=None):
-        """
-        verbose alias for table[name] = data, that checks if name already exists
+        """verbose alias for table[name] = data, that checks if name already exists
+
+        Args:
+            name (str): column name
+            data ((list,tuple), optional): values. Defaults to None.
+
+        Raises:
+            TypeError: name isn't string
+            ValueError: name already exists
         """
         if not isinstance(name, str):
-            raise TypeError()
+            raise TypeError("expected name as string")
         if name in self.columns:
             raise ValueError(f"{name} already in {self.columns}")
         self.__setitem__(name, data)
 
     def stack(self, other):
         """
-        returns the joint stack of tables
+        returns the joint stack of tables with overlapping column names.
         Example:
-
+        ```
         | Table A|  +  | Table B| = |  Table AB |
         | A| B| C|     | A| B| D|   | A| B| C| -|
                                     | A| B| -| D|
+        ```
         """
         if not isinstance(other, Table):
             raise TypeError(f"stack only works for Table, not {type(other)}")
@@ -1494,17 +1585,17 @@ class Table(object):
     def types(self):
         """
         returns nested dict of data types in the form:
-
-            {column name: {python type class: number of instances }, }
+        `{column name: {python type class: number of instances }, ... }`
 
         example:
+        ```
         >>> t.types()
         {
             'A': {<class 'str'>: 7},
             'B': {<class 'int'>: 7}
         }
+        ```
         """
-
         d = {}
         for name, col in self.columns.items():
             assert isinstance(col, Column)
@@ -1512,11 +1603,18 @@ class Table(object):
         return d
 
     def display_dict(self, slice_=None, blanks=None, dtype=False):
-        """
-        param: args:
-          - slice
-        blanks: fill value for `None`
-        dtype: add datatype for each column
+        """ helper for creating dict for display.
+
+        Args:
+            slice_ (slice, optional): python slice. Defaults to None.
+            blanks (optional): fill value for `None`. Defaults to None.
+            dtype (bool, optional): Adds datatype to each column. Defaults to False.
+
+        Raises:
+            TypeError: slice_ must be None or slice.
+
+        Returns:
+            dict: from Table.
         """
         if not self.columns:
             print("Empty Table")
@@ -1672,6 +1770,7 @@ class Table(object):
         returns: dict with columns as keys and lists of values.
 
         Example:
+        ```
         >>> t.show()
         +===+===+===+
         | # | a | b |
@@ -1682,6 +1781,7 @@ class Table(object):
         +===+===+===+
         >>> t.to_dict()
         {'a':[1,2], 'b':[3,4]}
+        ```
 
         """
         if slice_ is None:
@@ -1728,25 +1828,31 @@ class Table(object):
         returns multikey index on the columns as d[(key tuple, )] = {index1, index2, ...}
 
         Examples:
-        >>> table6 = Table()
-        >>> table6['A'] = ['Alice', 'Bob', 'Bob', 'Ben', 'Charlie', 'Ben','Albert']
-        >>> table6['B'] = ['Alison', 'Marley', 'Dylan', 'Affleck', 'Hepburn', 'Barnes', 'Einstein']
+            ```
+            >>> table6 = Table()
+            >>> table6['A'] = ['Alice', 'Bob', 'Bob', 'Ben', 'Charlie', 'Ben','Albert']
+            >>> table6['B'] = ['Alison', 'Marley', 'Dylan', 'Affleck', 'Hepburn', 'Barnes', 'Einstein']
+            ```
 
-        >>> table6.index('A')  # single key.
-        {('Alice',): [0],
-         ('Bob',): [1, 2],
-         ('Ben',): [3, 5],
-         ('Charlie',): [4],
-         ('Albert',): [6]})
+            ```
+            >>> table6.index('A')  # single key.
+            {('Alice',): [0],
+             ('Bob',): [1, 2],
+             ('Ben',): [3, 5],
+             ('Charlie',): [4],
+             ('Albert',): [6]})
+            ```
 
-        >>> table6.index('A', 'B')  # multiple keys.
-        {('Alice', 'Alison'): [0],
-         ('Bob', 'Marley'): [1],
-         ('Bob', 'Dylan'): [2],
-         ('Ben', 'Affleck'): [3],
-         ('Charlie', 'Hepburn'): [4],
-         ('Ben', 'Barnes'): [5],
-         ('Albert', 'Einstein'): [6]})
+            ```
+            >>> table6.index('A', 'B')  # multiple keys.
+            {('Alice', 'Alison'): [0],
+             ('Bob', 'Marley'): [1],
+             ('Bob', 'Dylan'): [2],
+             ('Ben', 'Affleck'): [3],
+             ('Charlie', 'Hepburn'): [4],
+             ('Ben', 'Barnes'): [5],
+             ('Albert', 'Einstein'): [6]})
+            ```
 
         """
         idx = defaultdict(list)

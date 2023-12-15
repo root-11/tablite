@@ -1,0 +1,10 @@
+mike
+mkdocs
+mkdocs-autorefs
+mkdocs-jupyter
+mkdocs-material
+mkdocs-material-extensions
+mkdocstrings
+mkdocstrings-python
+mkdocs-same-dir
+mkdocs-awesome-pages-plugin
