@@ -1,3 +1,4 @@
+import pickling
 import std/unicode
 import std/strutils
 
@@ -79,6 +80,39 @@ type Float64NDArray* = ref object of BaseNDArray
 type UnicodeNDArray* = ref object of BaseNDArray
     buf*: seq[char]
     size*: int
+
+type PyObjectKind* = enum
+    PyNone,
+    PyBool,
+    PyInt,
+    PyFloat,
+    PyUnicode,
+    PyDate,
+    PyTime,
+    PyDatetime
+
+type PyObjectND* = object
+    case kind*: PyObjectKind
+    of PyNone:
+        nil
+    of PyBool:
+        bVal: bool
+    of PyInt:
+        iVal: int
+    of PyFloat:
+        fVal: float
+    of PyUnicode:
+        sVal: string
+    of PyDate:
+        dVal: PY_Date
+    of PyTime:
+        tVal: PY_Time
+    of PyDatetime:
+        dtVal: PY_DateTime
+
+type ObjectNDArray* = ref object of BaseNDArray
+    buf*: seq[PyObjectND]
+
 
 proc `$`*(self: BaseNDArray): string =
     if self of BooleanNDArray: return repr(cast[BooleanNDArray](self))
@@ -367,6 +401,95 @@ proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: v
 
     return UnicodeNDArray(buf: buf, shape: shape, size: size)
 
+proc unpickleFile(fh: File, endianness: Endianness): iterator(): uint8 =
+    const READ_BUF_SIZE = 2048
+    var buf {.noinit.}: array[READ_BUF_SIZE, uint8]
+
+    return iterator(): uint8 =
+        while not unlikely(fh.endOfFile):
+            let bytes_read = fh.readBuffer(addr buf, READ_BUF_SIZE)
+
+            for i in 0..(bytes_read-1):
+                yield buf[i]
+
+
+proc readStringToEnd(iter: iterator(): uint8, binput: var int): string =
+    var res = ""
+    var ch: char
+    var is_term = false
+    let term = (if binput <= 255: PKL_BINPUT else: PKL_LONG_BINPUT)
+
+    while not iter.finished:
+        let code = iter()
+
+        if is_term:
+            if cast[int](code) == binput:
+                break
+            else:
+                res = res & ch
+                is_term = false
+
+        ch = cast[char](code)
+
+        if ch == term:
+            is_term = true
+            continue
+
+        res = res & ch
+
+    inc binput
+
+    return res
+
+proc readShortBinBytes(iter: iterator(): uint8): string =
+    var res = ""
+
+    for _ in 0..(int iter() - 1):
+        res = res & cast[char](iter())
+
+    return res
+
+proc readBinPut(iter: iterator(): uint8, binput: var int): void =
+    if unlikely(binput != int iter()): corrupted()
+    inc binput
+
+proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var seq[int]): ObjectNDArray =
+    var elements = calcShapeElements(shape)
+    var buf {.noinit.} = newSeq[PyObjectND](elements)
+    let iter = unpickleFile(fh, endianness)
+    var binput = 0
+
+    if unlikely(PKL_PROTO != cast[char](iter())): corrupted()           # check protocol token
+    if unlikely(PKL_PROTO_VERSION != cast[char](iter())): corrupted()   # check protocol version
+    
+    if unlikely(PKL_GLOBAL != cast[char](iter())): corrupted()
+    if unlikely(readStringToEnd(iter, binput) != "numpy.core.multiarray\x0A_reconstruct\x0A"):
+        corrupted()
+
+    if unlikely(PKL_GLOBAL != cast[char](iter())): corrupted()
+    if unlikely(readStringToEnd(iter, binput) != "tablite.datatypes\x0AMetaArray\x0A"):
+        corrupted()
+
+    if unlikely(PKL_BININT1 != cast[char](iter())): corrupted()
+    if unlikely(0 != iter()): corrupted()
+    if unlikely(PKL_TUPLE1 != cast[char](iter())): corrupted()
+    if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
+    readBinPut(iter, binput)
+    if unlikely(PKL_SHORT_BINBYTES != cast[char](iter())): corrupted()
+    if unlikely("b" != readShortBinBytes(iter)): corrupted()
+    if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
+    readBinPut(iter, binput)
+    if unlikely(PKL_TUPLE3 != cast[char](iter())): corrupted()
+    if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
+    readBinPut(iter, binput)
+    if unlikely(PKL_REDUCE != cast[char](iter())): corrupted()
+    if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
+    readBinPut(iter, binput)
+
+    echo "next char: '" & cast[char](iter()) & "'"
+
+    raise newException(Exception, "not implemented")
+
 proc readNumpy(fh: var File): BaseNDArray =
     var header_bytes: array[NUMPY_MAGIC_LEN, uint8]
 
@@ -398,6 +521,7 @@ proc readNumpy(fh: var File): BaseNDArray =
         of D_INT: page = newIntNDArray(fh, descr_endianness, descr_size, shape)
         of D_FLOAT: page = newFloatNDArray(fh, descr_endianness, descr_size, shape)
         of D_UNICODE: page = newUnicodeNDArray(fh, descr_endianness, descr_size, shape)
+        of D_OBJECT: page = newObjectNDArray(fh, descr_endianness, shape)
         else:
             raise newException(Exception, "'" & $descr_type & "' not implemented")
 
