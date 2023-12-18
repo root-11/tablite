@@ -27,3 +27,4 @@ docs/
 
 # local confidential data
 tests/ndata/*
+tests/data/pages/*.dis
