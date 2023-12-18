@@ -50,9 +50,26 @@ def _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns
 
 
 def join(T, other, left_keys, right_keys, left_columns, right_columns, kind="inner", tqdm=_tqdm, pbar=None):
-    """
-    short-cut for all join functions.
-    kind: 'inner', 'left', 'outer', 'cross'
+    """short-cut for all join functions.
+
+    Args:
+        T (Table): left table
+        other (Table): right table
+        left_keys (list): list of keys for the join from left table.
+        right_keys (list): list of keys for the join from right table.
+        left_columns (list): list of columns names to retain from left table. 
+            If None, all are retained.
+        right_columns (list): list of columns names to retain from right table. 
+            If None, all are retained.
+        kind (str, optional): 'inner', 'left', 'outer', 'cross'. Defaults to "inner".
+        tqdm (tqdm, optional): tqdm progress counter. Defaults to _tqdm.
+        pbar (tqdm.pbar, optional): tqdm.progressbar. Defaults to None.
+
+    Raises:
+        ValueError: if join type is unknown.
+
+    Returns:
+        Table: joined table.
     """
     kinds = {
         "inner": T.inner_join,
@@ -133,20 +150,37 @@ def _mp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pba
 
 def left_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=None, tqdm=_tqdm, pbar=None):
     """
-    :param T: Table (left)
-    :param other: Table (right)
-    :param left_keys: list of keys for the join
-    :param right_keys: list of keys for the join
-    :param left_columns: list of left columns to retain, if None, all are retained.
-    :param right_columns: list of right columns to retain, if None, all are retained.
-    :param merge_keys: merges keys to the left, so that cases where right key is None, a key exists.
-    :return: new Table
+    Args:
+        T (Table): left table
+        other (Table): right table
+        left_keys (list): list of keys for the join from left table.
+        right_keys (list): list of keys for the join from right table.
+        left_columns (list): list of columns names to retain from left table. 
+            If None, all are retained.
+        right_columns (list): list of columns names to retain from right table. 
+            If None, all are retained.
+        kind (str, optional): 'inner', 'left', 'outer', 'cross'. Defaults to "inner".
+        tqdm (tqdm, optional): tqdm progress counter. Defaults to _tqdm.
+        pbar (tqdm.pbar, optional): tqdm.progressbar. Defaults to None.
+        merge_keys (boolean): merges keys to the left, so that cases where right key is None, a key exists.
+    
+    Returns: 
+        Table: joined table
 
     Example:
+    ```
     SQL:   SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
-    Tablite: left_join = numbers.left_join(
-        letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter']
+    ```
+    Tablite: 
+    ```
+    >>> left_join = numbers.left_join(
+        letters, 
+        left_keys=['colour'], 
+        right_keys=['color'], 
+        left_columns=['number'], 
+        right_columns=['letter']
     )
+    ```
     """
     if left_columns is None:
         left_columns = list(T.columns)
