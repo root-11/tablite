@@ -475,6 +475,7 @@ type ProtoGlobal = ref object of BasePickle
 type ProtoBinPut = ref object of BasePickle
     index: int
 type ProtoBinInt = ref object of BasePickle
+    size: int
     value: int
 type ProtoTuple = ref object of BasePickle
     elems: seq[BasePickle]
@@ -489,6 +490,19 @@ type ProtoReduce = ref object of BasePickle
     args: BasePickle
 type ProtoMark = ref object of BasePickle
 type ProtoNone = ref object of BasePickle
+type ProtoBuild = ref object of BasePickle
+    inst: BasePickle
+    state: BasePickle
+type ProtoEmptyList = ref object of BasePickle
+type ProtoEmptyDict = ref object of BasePickle
+type ProtoEmptySet = ref object of BasePickle
+type ProtoEmptyTuple = ref object of BasePickle
+type ProtoAppends = ref object of BasePickle
+    obj: BasePickle
+    elems: seq[BasePickle]
+type ProtoStop = ref object of BasePickle
+    value: BasePickle
+
 
 proc readBinPut(iter: IterPickle, binput: var int): void =
     if unlikely(binput != int iter()): corrupted()
@@ -531,9 +545,9 @@ template readIntOfSize(iter: IterPickle, sz: int): int =
 
     cast[int](arr)
 
-proc loadBinInt(iter: IterPickle): ProtoBinInt = return ProtoBinInt(value: iter.readIntOfSize(4), stack: true)
-proc loadBinInt1(iter: IterPickle): ProtoBinInt = return ProtoBinInt(value: int iter(), stack: true)
-proc loadBinInt2(iter: IterPickle): ProtoBinInt = return ProtoBinInt(value: iter.readIntOfSize(2), stack: true)
+proc loadBinInt(iter: IterPickle): ProtoBinInt = return ProtoBinInt(size: 4, value: iter.readIntOfSize(4), stack: true)
+proc loadBinInt1(iter: IterPickle): ProtoBinInt = return ProtoBinInt(size: 1, value: int iter(), stack: true)
+proc loadBinInt2(iter: IterPickle): ProtoBinInt = return ProtoBinInt(size: 2, value: iter.readIntOfSize(2), stack: true)
 
 proc loadTuple1(iter: IterPickle, stack: var Stack): ProtoTuple =
     let elems = @[stack[^1]]
@@ -600,6 +614,21 @@ proc loadMark(iter: IterPickle, stack: var Stack, metastack: var MetaStack): Pro
 
     return ProtoMark()
 
+proc loadBuild(stack: var Stack): ProtoBuild =
+    let state = stack.pop()
+    let inst = stack[^1]
+
+    return ProtoBuild(inst: inst, state: state)
+
+proc loadAppends(stack: var Stack, metastack: var MetaStack): ProtoAppends =
+    let elems = popMark(stack, metastack)
+    let obj = stack[^1]
+    
+    return ProtoAppends(obj: obj, elems: elems)
+
+proc loadStop(stack: var Stack): ProtoStop =
+    return ProtoStop(value: stack.pop())
+
 template unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack: var MetaStack): BasePickle =
     let opcode = char iter()
 
@@ -621,6 +650,13 @@ template unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack:
         of PKL_NEWFALSE: ProtoBoolean(boolean: false, stack: true)
         of PKL_NONE: ProtoNone(stack: true)
         of PKL_TUPLE: iter.loadTuple(stack, metastack)
+        of PKL_BUILD: loadBuild(stack)
+        of PKL_EMPTY_LIST: ProtoEmptyList(stack: true)
+        of PKL_EMPTY_DICT: ProtoEmptyDict(stack: true)
+        of PKL_EMPTY_SET: ProtoEmptySet(stack: true)
+        of PKL_EMPTY_TUPLE: ProtoEmptyTuple(stack: true)
+        of PKL_APPENDS: loadAppends(stack, metastack)
+        of PKL_STOP: loadStop(stack)
         else: raise newException(Exception, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
 
 proc `$`(self: BasePickle): string =
@@ -633,9 +669,17 @@ proc `$`(self: BasePickle): string =
     if self of ProtoReduce: return repr(ProtoReduce self)
     if self of ProtoMark: return repr(ProtoMark self)
     if self of ProtoBinUnicode: return repr(ProtoBinUnicode self)
+    if self of ProtoNone: return repr(ProtoNone self)
     if self of ProtoBoolean: return repr(ProtoBoolean self)
+    if self of ProtoBuild: return repr(ProtoBuild self)
+    if self of ProtoAppends: return repr(ProtoAppends self)
+    if self of ProtoStop: return repr(ProtoStop self)
+    if self of ProtoEmptyDict: return repr(ProtoEmptyDict self)
+    if self of ProtoEmptyList: return repr(ProtoEmptyList self)
+    if self of ProtoEmptySet: return repr(ProtoEmptySet self)
+    if self of ProtoEmptyTuple: return repr(ProtoEmptyTuple self)
 
-    return repr(self)
+    return "^" & repr(self)
 
 proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var seq[int]): ObjectNDArray =
     var elements = calcShapeElements(shape)
@@ -652,38 +696,10 @@ proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var seq[int])
         if opcode.stack:
             stack.add(opcode)
 
-        echo $opcode
+        echo opcode
 
-        # raise newException(Exception, "not implemented")
-
-    # if unlikely(PKL_PROTO != cast[char](iter())): corrupted()           # check protocol token
-    # if unlikely(PKL_PROTO_VERSION != cast[char](iter())): corrupted()   # check protocol version
-
-    # if unlikely(PKL_GLOBAL != cast[char](iter())): corrupted()
-    # if unlikely(readStringToEnd(iter, binput) != "numpy.core.multiarray\x0A_reconstruct\x0A"):
-    #     corrupted()
-
-    # if unlikely(PKL_GLOBAL != cast[char](iter())): corrupted()
-    # if unlikely(readStringToEnd(iter, binput) != "tablite.datatypes\x0AMetaArray\x0A"):
-    #     corrupted()
-
-    # if unlikely(PKL_BININT1 != cast[char](iter())): corrupted()
-    # if unlikely(0 != iter()): corrupted() # always 0?
-    # if unlikely(PKL_TUPLE1 != cast[char](iter())): corrupted()
-    # if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
-    # readBinPut(iter, binput)
-    # if unlikely(PKL_SHORT_BINBYTES != cast[char](iter())): corrupted()
-    # if unlikely("b" != readShortBinBytes(iter)): corrupted() # always 'b'?
-    # if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
-    # readBinPut(iter, binput)
-    # if unlikely(PKL_TUPLE3 != cast[char](iter())): corrupted()
-    # if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
-    # readBinPut(iter, binput)
-    # if unlikely(PKL_REDUCE != cast[char](iter())): corrupted()
-    # if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
-    # readBinPut(iter, binput)
-
-    echo "next char: '" & cast[char](iter()) & "'"
+        if opcode of ProtoStop:
+            break
 
     raise newException(Exception, "not implemented")
 
