@@ -1,31 +1,5 @@
 from std/endians import bigEndian16, bigEndian32, bigEndian64
-
-const PKL_BINPUT* = 'q'
-const PKL_LONG_BINPUT* = 'r'
-const PKL_TUPLE1* = '\x85'
-const PKL_TUPLE2* = '\x86'
-const PKL_TUPLE3* = '\x87'
-const PKL_TUPLE* = 't'
-const PKL_PROTO* = '\x80'
-const PKL_GLOBAL* = 'c'
-const PKL_BININT1* = 'K'
-const PKL_BININT2* = 'M'
-const PKL_BININT* = 'J'
-const PKL_SHORT_BINBYTES* = 'C'
-const PKL_REDUCE* = 'R'
-const PKL_MARK* = '('
-const PKL_BINUNICODE* = 'X'
-const PKL_NEWFALSE* = '\x89'
-const PKL_NEWTRUE* = '\x88'
-const PKL_NONE* = 'N'
-const PKL_BUILD* = 'b'
-const PKL_EMPTY_LIST* = ']'
-const PKL_STOP* = '.'
-const PKL_APPENDS* = 'e'
-const PKL_BINFLOAT* = 'G'
-
-const PKL_STRING_TERM* = '\x0A'
-const PKL_PROTO_VERSION* = '\3'
+import pickleproto
 
 type PY_NoneType* = object
 let PY_None* = PY_NoneType()
