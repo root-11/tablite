@@ -36,7 +36,6 @@ from tablite.config import Config
 
 log = logging.getLogger(__name__)
 
-
 file_registry = set()
 
 
@@ -78,14 +77,14 @@ class SimplePage(object):
         self._incr_refcount()
 
     def _incr_refcount(self):
-        """ increment refcount of this page if it's used by this process """
+        """increment refcount of this page if it's used by this process"""
         if self.owns():
             self.refcounts[self.path] = self.refcounts.get(self.path, 0) + 1
 
     def __setstate__(self, state):
         """
-        when an object is unpickled, say in a case of multi-processing, 
-        object.__setstate__(state) is called instead of __init__, this means 
+        when an object is unpickled, say in a case of multi-processing,
+        object.__setstate__(state) is called instead of __init__, this means
         we need to update page refcount as if constructor had been called
         """
         self.__dict__.update(state)
@@ -128,7 +127,9 @@ class SimplePage(object):
         if not self.owns():
             return
 
-        refcount = self.refcounts[self.path] = max(self.refcounts.get(self.path, 0) - 1, 0)
+        refcount = self.refcounts[self.path] = max(
+            self.refcounts.get(self.path, 0) - 1, 0
+        )
 
         if refcount > 0:
             return
@@ -344,7 +345,7 @@ class Column(object):
         This method minimizes the number of reads.
 
         Returns:
-            generator of tuple: 
+            generator of tuple:
                 start: int
                 end: int
                 data: np.ndarray
@@ -386,7 +387,9 @@ class Column(object):
 
         if isinstance(item, int):
             if len(arr) == 0:
-                raise IndexError(f"index {item} is out of bounds for axis 0 with size {len(self)}")
+                raise IndexError(
+                    f"index {item} is out of bounds for axis 0 with size {len(self)}"
+                )
             return numpy_to_python(arr[0])
         else:
             return arr
@@ -415,7 +418,9 @@ class Column(object):
                 self._setitem_extend(key, value)
             elif key.stop is not None and key.start is None and key.step in (None, 1):
                 self._setitem_prextend(key, value)
-            elif key.step in (None, 1) and key.start is not None and key.stop is not None:
+            elif (
+                key.step in (None, 1) and key.start is not None and key.stop is not None
+            ):
                 self._setitem_insert(key, value)
             elif key.step not in (None, 1):
                 self._setitem_update(key, value)
@@ -505,9 +510,9 @@ class Column(object):
             start, end = end, end + page.len
             if start <= key.stop < end:  # find beginning
                 data = page.get()
-                keep = data[(key.stop - start):]  # keeping after key.stop
+                keep = data[(key.stop - start) :]  # keeping after key.stop
                 new = np_type_unify([value, keep])
-                tail = self.pages[index + 1:]  # keep pointers to pages.
+                tail = self.pages[index + 1 :]  # keep pointers to pages.
                 self.pages = []
                 self.extend(new)  # handles pagination.
                 self.pages.extend(tail)  # handles old pages.
@@ -540,8 +545,10 @@ class Column(object):
                 head = data[: key_start - start]
 
             if start <= key_stop < end:  # start of tail
-                data = page.get() if data is None else data  # don't load again if on same page.
-                tail = data[key_stop - start:]
+                data = (
+                    page.get() if data is None else data
+                )  # don't load again if on same page.
+                tail = data[key_stop - start :]
 
             if key_stop < start:
                 unchanged_tail.append(page)
@@ -559,7 +566,9 @@ class Column(object):
         seq = range(key_start, key_stop, key_step)
         seq_size = len(seq)
         if len(value) > seq_size:
-            raise ValueError(f"attempt to assign sequence of size {len(value)} to extended slice of size {seq_size}")
+            raise ValueError(
+                f"attempt to assign sequence of size {len(value)} to extended slice of size {seq_size}"
+            )
 
         # determine unchanged pages
         head, changed, tail = [], [], []
@@ -656,7 +665,7 @@ class Column(object):
 
         Args:
             indices (np.array): targets
-        
+
         This method uses np.take, is faster than iterating over rows.
         Examples:
         ```
@@ -671,10 +680,14 @@ class Column(object):
         type_check(indices, np.ndarray)
 
         dtypes = set()
-        values = np.empty(indices.shape, dtype=object)  # placeholder for the indexed values.
+        values = np.empty(
+            indices.shape, dtype=object
+        )  # placeholder for the indexed values.
 
         for start, end, data in self.iter_by_page():
-            range_match = np.asarray(((indices >= start) & (indices < end)) | (indices == -1)).nonzero()[0]
+            range_match = np.asarray(
+                ((indices >= start) & (indices < end)) | (indices == -1)
+            ).nonzero()[0]
             if len(range_match):
                 sub_index = np.take(indices, range_match)
                 sub_index2 = np.where(sub_index == -1, -1, sub_index - start)
@@ -796,7 +809,9 @@ class Column(object):
         ```
         """
         if not (isinstance(other, int) and other > 0):
-            raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
+            raise TypeError(
+                f"a column can be repeated an integer number of times, not {type(other)} number of times"
+            )
         self.pages = self.pages[:] * other
         return self
 
@@ -813,7 +828,9 @@ class Column(object):
         ```
         """
         if not isinstance(other, int):
-            raise TypeError(f"a column can be repeated an integer number of times, not {type(other)} number of times")
+            raise TypeError(
+                f"a column can be repeated an integer number of times, not {type(other)} number of times"
+            )
         cp = self.copy()
         cp *= other
         return cp
@@ -829,7 +846,7 @@ class Column(object):
         return self
 
     def __contains__(self, item):
-        """determines if item is in the Column. 
+        """determines if item is in the Column.
         Similar to `'x' in ['a','b','c']`
         returns boolean
 
@@ -867,7 +884,7 @@ class Column(object):
 
         Args:
             mapping (dict): {value to replace: new value, ...}
-        
+
         Example:
         ```
         >>> t = Table(columns={'A': [1,2,3,4]})
@@ -891,7 +908,7 @@ class Column(object):
     def types(self):
         """
         returns dict with python datatypes
-        
+
         Returns:
             dict: frequency of occurrence of python datatypes
         """
@@ -1039,6 +1056,7 @@ class Column(object):
 class Table(object):
     _pid_dir = None  # typically `Config.workdir / Config.pid`
     _ids = count()
+    _add_row_slow_warning = False
 
     def __init__(self, columns=None, headers=None, rows=None, _path=None) -> None:
         """creates Table
@@ -1109,7 +1127,9 @@ class Table(object):
         Returns:
             dict: Table as dict `{column_name: [values], ...}`
         """
-        return {name: column[:].tolist() for name, column in self.columns.items()}.items()
+        return {
+            name: column[:].tolist() for name, column in self.columns.items()
+        }.items()
 
     def __delitem__(self, key):  # USER FUNCTION.
         """
@@ -1157,10 +1177,10 @@ class Table(object):
 
     def __getitem__(self, keys):  # USER FUNCTION
         """
-        Enables selection of columns and rows      
+        Enables selection of columns and rows
 
         Args:
-            keys (column name, integer or slice): 
+            keys (column name, integer or slice):
             Examples:
             ```
             >>> table['a']                        selects column 'a'
@@ -1199,7 +1219,9 @@ class Table(object):
         slices = [i for i in keys if isinstance(i, slice)]
         slc = slice(0, len(self)) if not slices else slices[0]
 
-        if len(slices) == 0 and len(column_names) == 1:  # e.g. tbl['a'] or tbl['a'][:10]
+        if (
+            len(slices) == 0 and len(column_names) == 1
+        ):  # e.g. tbl['a'] or tbl['a'][:10]
             col = self.columns[column_names[0]]
             if slices:
                 return col[slc]  # return slice from column as list of values
@@ -1212,7 +1234,9 @@ class Table(object):
             return tuple(self.columns[name][slc].tolist()[0] for name in column_names)
 
         elif not slices:  # e.g. new table with N whole columns.
-            return self.__class__(columns={name: self.columns[name] for name in column_names})
+            return self.__class__(
+                columns={name: self.columns[name] for name in column_names}
+            )
 
         else:  # e.g. new table from selection of columns and slices.
             t = self.__class__()
@@ -1256,8 +1280,12 @@ class Table(object):
         generators = []
         for name, column in self.columns.items():
             if len(column) < n_max:
-                warnings.warn(f"Column {name} has length {len(column)} / {n_max}. None will appear as fill value.")
-            generators.append(chain(iter(column), repeat(None, times=n_max - len(column))))
+                warnings.warn(
+                    f"Column {name} has length {len(column)} / {n_max}. None will appear as fill value."
+                )
+            generators.append(
+                chain(iter(column), repeat(None, times=n_max - len(column)))
+            )
 
         for _ in range(len(self)):
             yield [numpy_to_python(next(i)) for i in generators]
@@ -1289,11 +1317,12 @@ class Table(object):
         return True
 
     def clear(self):  # USER FUNCTION.
-        """clears the table. Like dict().clear()
-        """
+        """clears the table. Like dict().clear()"""
         self.columns.clear()
 
-    def save(self, path, compression_method=zipfile.ZIP_DEFLATED, compression_level=1):  # USER FUNCTION.
+    def save(
+        self, path, compression_method=zipfile.ZIP_DEFLATED, compression_level=1
+    ):  # USER FUNCTION.
         """saves table to compressed tpz file.
 
         Args:
@@ -1333,14 +1362,20 @@ class Table(object):
             cols[name] = {"pages": [p.path.name for p in col.pages]}
             _page_counter += len(col.pages)
         d["columns"] = cols
-        yml = yaml.safe_dump(d, sort_keys=False, allow_unicode=True, default_flow_style=None)
+        yml = yaml.safe_dump(
+            d, sort_keys=False, allow_unicode=True, default_flow_style=None
+        )
 
         _file_counter = 0
-        with zipfile.ZipFile(path, "w", compression=compression_method, compresslevel=compression_level) as f:
+        with zipfile.ZipFile(
+            path, "w", compression=compression_method, compresslevel=compression_level
+        ) as f:
             log.debug(f"writing .tpz to {path} with\n{yml}")
             f.writestr("table.yml", yml)
             for name, col in self.columns.items():
-                for page in set(col.pages):  # set of pages! remember t *= 1000 repeats t 1000x
+                for page in set(
+                    col.pages
+                ):  # set of pages! remember t *= 1000 repeats t 1000x
                     with open(page.path, "rb", buffering=0) as raw_io:
                         f.writestr(page.path.name, raw_io.read())
                     _file_counter += 1
@@ -1348,7 +1383,9 @@ class Table(object):
 
             _fields = len(self) * len(self.columns)
             _avg = _fields // _page_counter
-            log.debug(f"Wrote {_fields:,} on {_page_counter:,} pages in {_file_counter} files: {_avg} fields/page")
+            log.debug(
+                f"Wrote {_fields:,} on {_page_counter:,} pages in {_file_counter} files: {_avg} fields/page"
+            )
 
     @classmethod
     def load(cls, path, tqdm=_tqdm):  # USER FUNCTION.
@@ -1370,7 +1407,11 @@ class Table(object):
 
             page_count = sum([len(c["pages"]) for c in metadata["columns"].values()])
 
-            with tqdm(total=page_count, desc=f"loading '{path.name}' file", disable=Config.TQDM_DISABLE) as pbar:
+            with tqdm(
+                total=page_count,
+                desc=f"loading '{path.name}' file",
+                disable=Config.TQDM_DISABLE,
+            ) as pbar:
                 for name, d in metadata["columns"].items():
                     column = Column(t.path)
                     for page in d["pages"]:
@@ -1393,14 +1434,16 @@ class Table(object):
 
     def __imul__(self, other):
         """Repeats instance of table N times.
-        
+
         Like list: `t = t * N`
 
         Args:
             other (int): multiplier
         """
         if not (isinstance(other, int) and other > 0):
-            raise TypeError(f"a table can be repeated an integer number of times, not {type(other)} number of times")
+            raise TypeError(
+                f"a table can be repeated an integer number of times, not {type(other)} number of times"
+            )
         for col in self.columns.values():
             col *= other
         return self
@@ -1468,7 +1511,7 @@ class Table(object):
         """its more efficient to add many rows at once.
 
         if both args and kwargs, then args are added first, followed by kwargs.
-        
+
         supported cases:
         ```
         >>> t = Table()
@@ -1487,12 +1530,18 @@ class Table(object):
             )                                                   # (9) two (or more) dicts as args - roughly comma sep'd json.
         >>> t.add_rows( *[
             {'row': 13, 'A': 1, 'B': 2, 'C': 3},
-            {'row': 14, 'A': 1, 'B': 2, 'C': 3} 
+            {'row': 14, 'A': 1, 'B': 2, 'C': 3}
             ])                                                  # (10) list of dicts as args
         >>> t.add_rows(row=[15,16], A=[1,1], B=[2,2], C=[3,3])  # (11) kwargs with lists as values
         ```
-        
+
         """
+        if not Table._add_row_slow_warning:
+            warnings.warn(
+                "add_rows is slow. Consider using add_columns and then assigning values to the columns directly."
+            )
+            Table._add_row_slow_warning = True
+
         if args:
             if not all(isinstance(i, (list, tuple, dict)) for i in args):  # 1,4
                 args = [args]
@@ -1503,7 +1552,9 @@ class Table(object):
                 d = {n: [] for n in self.columns}
                 for arg in args:
                     if len(arg) != len(self.columns):
-                        raise ValueError(f"len({arg})== {len(arg)}, but there are {len(self.columns)} columns")
+                        raise ValueError(
+                            f"len({arg})== {len(arg)}, but there are {len(self.columns)} columns"
+                        )
 
                     if isinstance(arg, dict):
                         for k, v in arg.items():  # 7,8
@@ -1603,7 +1654,7 @@ class Table(object):
         return d
 
     def display_dict(self, slice_=None, blanks=None, dtype=False):
-        """ helper for creating dict for display.
+        """helper for creating dict for display.
 
         Args:
             slice_ (slice, optional): python slice. Defaults to None.
@@ -1652,11 +1703,17 @@ class Table(object):
             row_no = list(range(*slc.indices(len(self))))
             data = {tag: [f"{i:,}".rjust(2) for i in row_no]}
             for name, col in self.columns.items():
-                data[name] = list(chain(iter(col), repeat(blanks, times=n - len(col))))[slc]
+                data[name] = list(chain(iter(col), repeat(blanks, times=n - len(col))))[
+                    slc
+                ]
         else:
             data = {}
             j = int(math.ceil(math.log10(n)) / 3) + len(str(n))
-            row_no = [f"{i:,}".rjust(j) for i in range(7)] + ["..."] + [f"{i:,}".rjust(j) for i in range(n - 7, n)]
+            row_no = (
+                [f"{i:,}".rjust(j) for i in range(7)]
+                + ["..."]
+                + [f"{i:,}".rjust(j) for i in range(n - 7, n)]
+            )
             data = {tag: row_no}
 
             for name, col in self.columns.items():
@@ -1665,7 +1722,7 @@ class Table(object):
                 else:
                     empty = [blanks] * 7
                     head = (col[:7].tolist() + empty)[:7]
-                    tail = (col[n - 7:].tolist() + empty)[-7:]
+                    tail = (col[n - 7 :].tolist() + empty)[-7:]
                     row = head + ["..."] + tail
                 data[name] = row
 
@@ -1701,7 +1758,9 @@ class Table(object):
             return str(self)
 
         d = {}
-        for name, values in self.display_dict(slice_=slice_, blanks=blanks, dtype=dtype).items():
+        for name, values in self.display_dict(
+            slice_=slice_, blanks=blanks, dtype=dtype
+        ).items():
             as_text = [str(v) for v in values] + [str(name)]
             width = max(len(i) for i in as_text)
             new_name = name.center(width, " ")
@@ -1753,8 +1812,12 @@ class Table(object):
 
         if not self.columns:
             return f"{start}<tr>Empty Table</tr>{end}"
-        rows = dict_to_rows(self.display_dict(slice_=slice_, blanks=blanks, dtype=dtype))
-        html = "".join(["<tr>" + "".join(f"<th>{cn}</th>" for cn in row) + "</tr>" for row in rows])
+        rows = dict_to_rows(
+            self.display_dict(slice_=slice_, blanks=blanks, dtype=dtype)
+        )
+        html = "".join(
+            ["<tr>" + "".join(f"<th>{cn}</th>" for cn in row) + "</tr>" for row in rows]
+        )
 
         warning = ""
         if len(set(len(c) for c in self.columns.values())) != 1:
@@ -1795,7 +1858,9 @@ class Table(object):
 
         return {name: list(self.columns[name][slice_]) for name in columns}
 
-    def as_json_serializable(self, row_count="row id", start_on=1, columns=None, slice_=None):
+    def as_json_serializable(
+        self, row_count="row id", start_on=1, columns=None, slice_=None
+    ):
         """provides a JSON compatible format of the table.
 
         Args:
@@ -1814,12 +1879,18 @@ class Table(object):
         assert isinstance(slice_, slice)
         new = {"columns": {}, "total_rows": len(self)}
         if row_count is not None:
-            new["columns"][row_count] = [i + start_on for i in range(*slice_.indices(len(self)))]
+            new["columns"][row_count] = [
+                i + start_on for i in range(*slice_.indices(len(self)))
+            ]
 
         d = self.to_dict(columns, slice_=slice_)
         for k, data in d.items():
-            new_k = unique_name(k, new["columns"])  # used to avoid overwriting the `row id` key.
-            new["columns"][new_k] = [DataTypes.to_json(v) for v in data]  # deal with non-json datatypes.
+            new_k = unique_name(
+                k, new["columns"]
+            )  # used to avoid overwriting the `row id` key.
+            new["columns"][new_k] = [
+                DataTypes.to_json(v) for v in data
+            ]  # deal with non-json datatypes.
         return new
 
     def index(self, *args):
