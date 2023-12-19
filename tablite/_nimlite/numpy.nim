@@ -1,6 +1,7 @@
-import pickling
+import std/tables
 import std/unicode
 import std/strutils
+import pickling, pickleproto
 
 const NUMPY_MAGIC = "\x93NUMPY"
 const NUMPY_MAJOR = "\x01"
@@ -124,6 +125,7 @@ proc `$`*(self: BaseNDArray): string =
 
 
 template corrupted(): void = raise newException(IOError, "file corrupted")
+template implement(name: string = ""): void = raise newException(Exception, if name.len == 0: "not yet imlemented" else: "'" & name & "' not yet imlemented")
 
 proc validateHeader(fh: File, buf: var array[NUMPY_MAGIC_LEN, uint8], header: string, header_len: int): void {.inline.} =
     if fh.readBytes(buf, 0, header_len) != header_len:
@@ -401,7 +403,8 @@ proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: v
 
     return UnicodeNDArray(buf: buf, shape: shape, size: size)
 
-proc unpickleFile(fh: File, endianness: Endianness): iterator(): uint8 =
+type IterPickle = iterator(): uint8
+proc unpickleFile(fh: File, endianness: Endianness): IterPickle =
     const READ_BUF_SIZE = 2048
     var buf {.noinit.}: array[READ_BUF_SIZE, uint8]
 
@@ -413,7 +416,7 @@ proc unpickleFile(fh: File, endianness: Endianness): iterator(): uint8 =
                 yield buf[i]
 
 
-proc readStringToEnd(iter: iterator(): uint8, binput: var int): string =
+proc readStringToEnd(iter: IterPickle, binput: var int): string =
     var res = ""
     var ch: char
     var is_term = false
@@ -441,7 +444,20 @@ proc readStringToEnd(iter: iterator(): uint8, binput: var int): string =
 
     return res
 
-proc readShortBinBytes(iter: iterator(): uint8): string =
+proc readLine(iter: IterPickle): string =
+    var res = ""
+
+    while not iter.finished:
+        let ch = char iter()
+
+        if ch == '\n':
+            break
+
+        res = res & ch
+
+    return res
+
+proc readShortBinBytes(iter: IterPickle): string =
     var res = ""
 
     for _ in 0..(int iter() - 1):
@@ -449,42 +465,223 @@ proc readShortBinBytes(iter: iterator(): uint8): string =
 
     return res
 
-proc readBinPut(iter: iterator(): uint8, binput: var int): void =
+type BasePickle = ref object of RootObj
+    stack: bool = false
+type ProtoPickle = ref object of BasePickle
+    proto: uint8
+type ProtoGlobal = ref object of BasePickle
+    module: string
+    name: string
+type ProtoBinPut = ref object of BasePickle
+    index: int
+type ProtoBinInt = ref object of BasePickle
+    value: int
+type ProtoTuple = ref object of BasePickle
+    elems: seq[BasePickle]
+type ProtoBinBytes = ref object of BasePickle
+    bytes: seq[char]
+type ProtoBinUnicode = ref object of BasePickle
+    str: string
+type ProtoBoolean = ref object of BasePickle
+    boolean: bool
+type ProtoReduce = ref object of BasePickle
+    fn: BasePickle
+    args: BasePickle
+type ProtoMark = ref object of BasePickle
+type ProtoNone = ref object of BasePickle
+
+proc readBinPut(iter: IterPickle, binput: var int): void =
     if unlikely(binput != int iter()): corrupted()
     inc binput
+
+proc loadProto(iter: IterPickle): ProtoPickle =
+    let v = iter()
+
+    if v != uint8 PKL_PROTO_VERSION:
+        corrupted()
+
+    return ProtoPickle(proto: v)
+
+proc loadGlobal(iter: IterPickle): ProtoGlobal =
+    let module = iter.readLine()
+    let name = iter.readLine()
+
+    # TODO: validate class exists
+
+    return ProtoGlobal(module: module, name: name, stack: true)
+
+type Stack = seq[BasePickle]
+type MetaStack = seq[Stack]
+type Memo = Table[int, BasePickle]
+proc loadBinput(iter: IterPickle, stack: var Stack, memo: var Memo): ProtoBinPut =
+    let i = int iter()
+
+    if i < 0:
+        corrupted()
+
+    memo[i] = stack[^1] # last element
+
+    return ProtoBinPut(index: i)
+
+template readIntOfSize(iter: IterPickle, sz: int): int =
+    var arr: array[sz, uint8]
+
+    for i in 0..(sz - 1):
+        arr[i] = iter()
+
+    cast[int](arr)
+
+proc loadBinInt(iter: IterPickle): ProtoBinInt = return ProtoBinInt(value: iter.readIntOfSize(4), stack: true)
+proc loadBinInt1(iter: IterPickle): ProtoBinInt = return ProtoBinInt(value: int iter(), stack: true)
+proc loadBinInt2(iter: IterPickle): ProtoBinInt = return ProtoBinInt(value: iter.readIntOfSize(2), stack: true)
+
+proc loadTuple1(iter: IterPickle, stack: var Stack): ProtoTuple =
+    let elems = @[stack[^1]]
+    let tpl = ProtoTuple(elems: elems)
+
+    stack[^1] = tpl
+
+    return tpl
+
+proc loadTuple2(iter: IterPickle, stack: var Stack): ProtoTuple =
+    let elems = @[stack[^2], stack[^1]]
+    let tpl = ProtoTuple(elems: elems)
+
+    stack[^1] = tpl
+
+    return tpl
+
+proc loadTuple3(iter: IterPickle, stack: var Stack): ProtoTuple =
+    let elems = @[stack[^3], stack[^2], stack[^1]]
+    let tpl = ProtoTuple(elems: elems)
+
+    stack[^1] = tpl
+
+    return tpl
+
+proc popMark(stack: var Stack, metastack: var MetaStack): Stack =
+    let items = stack
+    stack = metastack.pop()
+    return items
+
+proc loadTuple(iter: IterPickle, stack: var Stack, metastack: var MetaStack): ProtoTuple =
+    return ProtoTuple(elems: popMark(stack, metastack), stack: true)
+
+proc loadShortBinBytes(iter: IterPickle, stack: var Stack): ProtoBinBytes =
+    let sz = int iter()
+    var res = newSeqOfCap[char](sz)
+
+    for _ in 0..(sz - 1):
+        res.add(char iter())
+
+    return ProtoBinBytes(bytes: res, stack: true)
+
+proc loadBinUnicode(iter: IterPickle, stack: var Stack): ProtoBinUnicode =
+    let sz = iter.readIntOfSize(4)
+    var res = ""
+
+    for _ in 0..(sz - 1):
+        res = res & char iter()
+
+    return ProtoBinUnicode(str: res, stack: true)
+
+proc loadReduce(iter: IterPickle, stack: var Stack): ProtoReduce =
+    let args = stack.pop()
+    let fn = stack[^1]
+    let reduce = ProtoReduce(fn: fn, args: args)
+
+    stack[^1] = reduce
+
+    return reduce
+
+proc loadMark(iter: IterPickle, stack: var Stack, metastack: var MetaStack): ProtoMark =
+    metastack.add(stack)
+    stack = newSeq[BasePickle]()
+
+    return ProtoMark()
+
+template unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack: var MetaStack): BasePickle =
+    let opcode = char iter()
+
+    case opcode:
+        of PKL_PROTO: iter.loadProto()
+        of PKL_GLOBAL: iter.loadGlobal()
+        of PKL_BINPUT: iter.loadBinput(stack, memo)
+        of PKL_BININT: iter.loadBinInt()
+        of PKL_BININT1: iter.loadBinInt1()
+        of PKL_BININT2: iter.loadBinInt2()
+        of PKL_TUPLE1: iter.loadTuple1(stack)
+        of PKL_TUPLE2: iter.loadTuple2(stack)
+        of PKL_TUPLE3: iter.loadTuple3(stack)
+        of PKL_SHORT_BINBYTES: iter.loadShortBinBytes(stack)
+        of PKL_REDUCE: iter.loadReduce(stack)
+        of PKL_MARK: iter.loadMark(stack, metastack)
+        of PKL_BINUNICODE: iter.loadBinUnicode(stack)
+        of PKL_NEWTRUE: ProtoBoolean(boolean: true, stack: true)
+        of PKL_NEWFALSE: ProtoBoolean(boolean: false, stack: true)
+        of PKL_NONE: ProtoNone(stack: true)
+        of PKL_TUPLE: iter.loadTuple(stack, metastack)
+        else: raise newException(Exception, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
+
+proc `$`(self: BasePickle): string =
+    if self of ProtoPickle: return repr(ProtoPickle self)
+    if self of ProtoGlobal: return repr(ProtoGlobal self)
+    if self of ProtoBinPut: return repr(ProtoBinPut self)
+    if self of ProtoBinInt: return repr(ProtoBinInt self)
+    if self of ProtoTuple: return repr(ProtoTuple self)
+    if self of ProtoBinBytes: return repr(ProtoBinBytes self)
+    if self of ProtoReduce: return repr(ProtoReduce self)
+    if self of ProtoMark: return repr(ProtoMark self)
+    if self of ProtoBinUnicode: return repr(ProtoBinUnicode self)
+    if self of ProtoBoolean: return repr(ProtoBoolean self)
+
+    return repr(self)
 
 proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var seq[int]): ObjectNDArray =
     var elements = calcShapeElements(shape)
     var buf {.noinit.} = newSeq[PyObjectND](elements)
     let iter = unpickleFile(fh, endianness)
     var binput = 0
+    var stack: Stack = newSeq[BasePickle]()
+    var metastack: MetaStack = newSeq[Stack]()
+    var memo: Memo = initTable[int, BasePickle]()
 
-    if unlikely(PKL_PROTO != cast[char](iter())): corrupted()           # check protocol token
-    if unlikely(PKL_PROTO_VERSION != cast[char](iter())): corrupted()   # check protocol version
-    
-    if unlikely(PKL_GLOBAL != cast[char](iter())): corrupted()
-    if unlikely(readStringToEnd(iter, binput) != "numpy.core.multiarray\x0A_reconstruct\x0A"):
-        corrupted()
+    while unlikely(not iter.finished):
+        let opcode = iter.unpickle(stack, memo, metastack)
 
-    if unlikely(PKL_GLOBAL != cast[char](iter())): corrupted()
-    if unlikely(readStringToEnd(iter, binput) != "tablite.datatypes\x0AMetaArray\x0A"):
-        corrupted()
+        if opcode.stack:
+            stack.add(opcode)
 
-    if unlikely(PKL_BININT1 != cast[char](iter())): corrupted()
-    if unlikely(0 != iter()): corrupted()
-    if unlikely(PKL_TUPLE1 != cast[char](iter())): corrupted()
-    if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
-    readBinPut(iter, binput)
-    if unlikely(PKL_SHORT_BINBYTES != cast[char](iter())): corrupted()
-    if unlikely("b" != readShortBinBytes(iter)): corrupted()
-    if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
-    readBinPut(iter, binput)
-    if unlikely(PKL_TUPLE3 != cast[char](iter())): corrupted()
-    if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
-    readBinPut(iter, binput)
-    if unlikely(PKL_REDUCE != cast[char](iter())): corrupted()
-    if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
-    readBinPut(iter, binput)
+        echo $opcode
+
+        # raise newException(Exception, "not implemented")
+
+    # if unlikely(PKL_PROTO != cast[char](iter())): corrupted()           # check protocol token
+    # if unlikely(PKL_PROTO_VERSION != cast[char](iter())): corrupted()   # check protocol version
+
+    # if unlikely(PKL_GLOBAL != cast[char](iter())): corrupted()
+    # if unlikely(readStringToEnd(iter, binput) != "numpy.core.multiarray\x0A_reconstruct\x0A"):
+    #     corrupted()
+
+    # if unlikely(PKL_GLOBAL != cast[char](iter())): corrupted()
+    # if unlikely(readStringToEnd(iter, binput) != "tablite.datatypes\x0AMetaArray\x0A"):
+    #     corrupted()
+
+    # if unlikely(PKL_BININT1 != cast[char](iter())): corrupted()
+    # if unlikely(0 != iter()): corrupted() # always 0?
+    # if unlikely(PKL_TUPLE1 != cast[char](iter())): corrupted()
+    # if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
+    # readBinPut(iter, binput)
+    # if unlikely(PKL_SHORT_BINBYTES != cast[char](iter())): corrupted()
+    # if unlikely("b" != readShortBinBytes(iter)): corrupted() # always 'b'?
+    # if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
+    # readBinPut(iter, binput)
+    # if unlikely(PKL_TUPLE3 != cast[char](iter())): corrupted()
+    # if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
+    # readBinPut(iter, binput)
+    # if unlikely(PKL_REDUCE != cast[char](iter())): corrupted()
+    # if unlikely(PKL_BINPUT != cast[char](iter())): corrupted()
+    # readBinPut(iter, binput)
 
     echo "next char: '" & cast[char](iter()) & "'"
 
