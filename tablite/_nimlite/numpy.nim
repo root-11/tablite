@@ -1,6 +1,4 @@
-import std/tables
-import std/unicode
-import std/strutils
+import std/[tables, unicode, strutils, sugar]
 import pickling, pickleproto
 
 const NUMPY_MAGIC = "\x93NUMPY"
@@ -469,38 +467,38 @@ type BasePickle = ref object of RootObj
     stack: bool = false
 type ProtoPickle = ref object of BasePickle
     proto: uint8
-type ProtoGlobal = ref object of BasePickle
+type GlobalPickle = ref object of BasePickle
     module: string
     name: string
-type ProtoBinPut = ref object of BasePickle
+type BinPutPickle = ref object of BasePickle
     index: int
-type ProtoBinInt = ref object of BasePickle
+type BinIntPickle = ref object of BasePickle
     size: int
     value: int
-type ProtoTuple = ref object of BasePickle
+type TuplePickle = ref object of BasePickle
     elems: seq[BasePickle]
-type ProtoBinBytes = ref object of BasePickle
+type BinBytesPickle = ref object of BasePickle
     bytes: seq[char]
-type ProtoBinUnicode = ref object of BasePickle
+type BinUnicodePickle = ref object of BasePickle
     str: string
-type ProtoBoolean = ref object of BasePickle
+type BooleanPickle = ref object of BasePickle
     boolean: bool
-type ProtoReduce = ref object of BasePickle
+type ReducePickle = ref object of BasePickle
     fn: BasePickle
     args: BasePickle
-type ProtoMark = ref object of BasePickle
-type ProtoNone = ref object of BasePickle
-type ProtoBuild = ref object of BasePickle
+type MarkPickle = ref object of BasePickle
+type NonePickle = ref object of BasePickle
+type BuildPickle = ref object of BasePickle
     inst: BasePickle
     state: BasePickle
-type ProtoEmptyList = ref object of BasePickle
-type ProtoEmptyDict = ref object of BasePickle
-type ProtoEmptySet = ref object of BasePickle
-type ProtoEmptyTuple = ref object of BasePickle
-type ProtoAppends = ref object of BasePickle
+type EmptyListPickle = ref object of BasePickle
+type EmptyDictPickle = ref object of BasePickle
+type EmptySetPickle = ref object of BasePickle
+type EmptyTuplePickle = ref object of BasePickle
+type AppendsPickle = ref object of BasePickle
     obj: BasePickle
     elems: seq[BasePickle]
-type ProtoStop = ref object of BasePickle
+type StopPickle = ref object of BasePickle
     value: BasePickle
 
 
@@ -516,18 +514,18 @@ proc loadProto(iter: IterPickle): ProtoPickle =
 
     return ProtoPickle(proto: v)
 
-proc loadGlobal(iter: IterPickle): ProtoGlobal =
+proc loadGlobal(iter: IterPickle): GlobalPickle =
     let module = iter.readLine()
     let name = iter.readLine()
 
     # TODO: validate class exists
 
-    return ProtoGlobal(module: module, name: name, stack: true)
+    return GlobalPickle(module: module, name: name, stack: true)
 
 type Stack = seq[BasePickle]
 type MetaStack = seq[Stack]
 type Memo = Table[int, BasePickle]
-proc loadBinput(iter: IterPickle, stack: var Stack, memo: var Memo): ProtoBinPut =
+proc loadBinput(iter: IterPickle, stack: var Stack, memo: var Memo): BinPutPickle =
     let i = int iter()
 
     if i < 0:
@@ -535,7 +533,7 @@ proc loadBinput(iter: IterPickle, stack: var Stack, memo: var Memo): ProtoBinPut
 
     memo[i] = stack[^1] # last element
 
-    return ProtoBinPut(index: i)
+    return BinPutPickle(index: i)
 
 template readIntOfSize(iter: IterPickle, sz: int): int =
     var arr: array[sz, uint8]
@@ -543,31 +541,38 @@ template readIntOfSize(iter: IterPickle, sz: int): int =
     for i in 0..(sz - 1):
         arr[i] = iter()
 
-    cast[int](arr)
+    if sz == 4:
+        int cast[int32](arr)
+    elif sz == 2:
+        int int cast[int16](arr)
+    elif sz == 1:
+        int cast[int8](arr)
+    else:
+        corrupted()
 
-proc loadBinInt(iter: IterPickle): ProtoBinInt = return ProtoBinInt(size: 4, value: iter.readIntOfSize(4), stack: true)
-proc loadBinInt1(iter: IterPickle): ProtoBinInt = return ProtoBinInt(size: 1, value: int iter(), stack: true)
-proc loadBinInt2(iter: IterPickle): ProtoBinInt = return ProtoBinInt(size: 2, value: iter.readIntOfSize(2), stack: true)
+proc loadBinInt(iter: IterPickle): BinIntPickle = return BinIntPickle(size: 4, value: iter.readIntOfSize(4), stack: true)
+proc loadBinInt1(iter: IterPickle): BinIntPickle = return BinIntPickle(size: 1, value: int iter(), stack: true)
+proc loadBinInt2(iter: IterPickle): BinIntPickle = return BinIntPickle(size: 2, value: iter.readIntOfSize(2), stack: true)
 
-proc loadTuple1(iter: IterPickle, stack: var Stack): ProtoTuple =
+proc loadTuple1(iter: IterPickle, stack: var Stack): TuplePickle =
     let elems = @[stack[^1]]
-    let tpl = ProtoTuple(elems: elems)
+    let tpl = TuplePickle(elems: elems)
 
     stack[^1] = tpl
 
     return tpl
 
-proc loadTuple2(iter: IterPickle, stack: var Stack): ProtoTuple =
+proc loadTuple2(iter: IterPickle, stack: var Stack): TuplePickle =
     let elems = @[stack[^2], stack[^1]]
-    let tpl = ProtoTuple(elems: elems)
+    let tpl = TuplePickle(elems: elems)
 
     stack[^1] = tpl
 
     return tpl
 
-proc loadTuple3(iter: IterPickle, stack: var Stack): ProtoTuple =
+proc loadTuple3(iter: IterPickle, stack: var Stack): TuplePickle =
     let elems = @[stack[^3], stack[^2], stack[^1]]
-    let tpl = ProtoTuple(elems: elems)
+    let tpl = TuplePickle(elems: elems)
 
     stack[^1] = tpl
 
@@ -578,56 +583,56 @@ proc popMark(stack: var Stack, metastack: var MetaStack): Stack =
     stack = metastack.pop()
     return items
 
-proc loadTuple(iter: IterPickle, stack: var Stack, metastack: var MetaStack): ProtoTuple =
-    return ProtoTuple(elems: popMark(stack, metastack), stack: true)
+proc loadTuple(iter: IterPickle, stack: var Stack, metastack: var MetaStack): TuplePickle =
+    return TuplePickle(elems: popMark(stack, metastack), stack: true)
 
-proc loadShortBinBytes(iter: IterPickle, stack: var Stack): ProtoBinBytes =
+proc loadShortBinBytes(iter: IterPickle, stack: var Stack): BinBytesPickle =
     let sz = int iter()
     var res = newSeqOfCap[char](sz)
 
     for _ in 0..(sz - 1):
         res.add(char iter())
 
-    return ProtoBinBytes(bytes: res, stack: true)
+    return BinBytesPickle(bytes: res, stack: true)
 
-proc loadBinUnicode(iter: IterPickle, stack: var Stack): ProtoBinUnicode =
+proc loadBinUnicode(iter: IterPickle, stack: var Stack): BinUnicodePickle =
     let sz = iter.readIntOfSize(4)
     var res = ""
 
     for _ in 0..(sz - 1):
         res = res & char iter()
 
-    return ProtoBinUnicode(str: res, stack: true)
+    return BinUnicodePickle(str: res, stack: true)
 
-proc loadReduce(iter: IterPickle, stack: var Stack): ProtoReduce =
+proc loadReduce(iter: IterPickle, stack: var Stack): ReducePickle =
     let args = stack.pop()
     let fn = stack[^1]
-    let reduce = ProtoReduce(fn: fn, args: args)
+    let reduce = ReducePickle(fn: fn, args: args)
 
     stack[^1] = reduce
 
     return reduce
 
-proc loadMark(iter: IterPickle, stack: var Stack, metastack: var MetaStack): ProtoMark =
+proc loadMark(iter: IterPickle, stack: var Stack, metastack: var MetaStack): MarkPickle =
     metastack.add(stack)
     stack = newSeq[BasePickle]()
 
-    return ProtoMark()
+    return MarkPickle()
 
-proc loadBuild(stack: var Stack): ProtoBuild =
+proc loadBuild(stack: var Stack): BuildPickle =
     let state = stack.pop()
     let inst = stack[^1]
 
-    return ProtoBuild(inst: inst, state: state)
+    return BuildPickle(inst: inst, state: state)
 
-proc loadAppends(stack: var Stack, metastack: var MetaStack): ProtoAppends =
+proc loadAppends(stack: var Stack, metastack: var MetaStack): AppendsPickle =
     let elems = popMark(stack, metastack)
     let obj = stack[^1]
     
-    return ProtoAppends(obj: obj, elems: elems)
+    return AppendsPickle(obj: obj, elems: elems)
 
-proc loadStop(stack: var Stack): ProtoStop =
-    return ProtoStop(value: stack.pop())
+proc loadStop(stack: var Stack): StopPickle =
+    return StopPickle(value: stack.pop())
 
 template unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack: var MetaStack): BasePickle =
     let opcode = char iter()
@@ -646,40 +651,96 @@ template unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack:
         of PKL_REDUCE: iter.loadReduce(stack)
         of PKL_MARK: iter.loadMark(stack, metastack)
         of PKL_BINUNICODE: iter.loadBinUnicode(stack)
-        of PKL_NEWTRUE: ProtoBoolean(boolean: true, stack: true)
-        of PKL_NEWFALSE: ProtoBoolean(boolean: false, stack: true)
-        of PKL_NONE: ProtoNone(stack: true)
+        of PKL_NEWTRUE: BooleanPickle(boolean: true, stack: true)
+        of PKL_NEWFALSE: BooleanPickle(boolean: false, stack: true)
+        of PKL_NONE: NonePickle(stack: true)
         of PKL_TUPLE: iter.loadTuple(stack, metastack)
         of PKL_BUILD: loadBuild(stack)
-        of PKL_EMPTY_LIST: ProtoEmptyList(stack: true)
-        of PKL_EMPTY_DICT: ProtoEmptyDict(stack: true)
-        of PKL_EMPTY_SET: ProtoEmptySet(stack: true)
-        of PKL_EMPTY_TUPLE: ProtoEmptyTuple(stack: true)
+        of PKL_EMPTY_LIST: EmptyListPickle(stack: true)
+        of PKL_EMPTY_DICT: EmptyDictPickle(stack: true)
+        of PKL_EMPTY_SET: EmptySetPickle(stack: true)
+        of PKL_EMPTY_TUPLE: EmptyTuplePickle(stack: true)
         of PKL_APPENDS: loadAppends(stack, metastack)
         of PKL_STOP: loadStop(stack)
         else: raise newException(Exception, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
 
-proc `$`(self: BasePickle): string =
-    if self of ProtoPickle: return repr(ProtoPickle self)
-    if self of ProtoGlobal: return repr(ProtoGlobal self)
-    if self of ProtoBinPut: return repr(ProtoBinPut self)
-    if self of ProtoBinInt: return repr(ProtoBinInt self)
-    if self of ProtoTuple: return repr(ProtoTuple self)
-    if self of ProtoBinBytes: return repr(ProtoBinBytes self)
-    if self of ProtoReduce: return repr(ProtoReduce self)
-    if self of ProtoMark: return repr(ProtoMark self)
-    if self of ProtoBinUnicode: return repr(ProtoBinUnicode self)
-    if self of ProtoNone: return repr(ProtoNone self)
-    if self of ProtoBoolean: return repr(ProtoBoolean self)
-    if self of ProtoBuild: return repr(ProtoBuild self)
-    if self of ProtoAppends: return repr(ProtoAppends self)
-    if self of ProtoStop: return repr(ProtoStop self)
-    if self of ProtoEmptyDict: return repr(ProtoEmptyDict self)
-    if self of ProtoEmptyList: return repr(ProtoEmptyList self)
-    if self of ProtoEmptySet: return repr(ProtoEmptySet self)
-    if self of ProtoEmptyTuple: return repr(ProtoEmptyTuple self)
+proc toString(self: BasePickle, depth: int = 0): string;
 
-    return "^" & repr(self)
+proc toString(self: ProtoPickle, depth: int): string =
+    return "PROTO(protocol: " & $self.proto & ")"
+proc toString(self: GlobalPickle, depth: int): string =
+    return "GLOBAL(module: '" & self.module & "', name: '" & self.name & "')"
+proc toString(self: BinPutPickle, depth: int): string =
+    return "BINPUT(index: " & $self.index & ")"
+proc toString(self: BinIntPickle, depth: int): string =
+    return "BININT" & (if self.size == 4: "" else: $self.size) & "(value: " & $self.value & ")"
+proc toString(self: TuplePickle, depth: int): string =
+    let ws0 = repeat("    ", depth)
+    let ws1 = repeat("    ", depth + 2)
+    let ws2 = repeat("    ", depth + 3)
+    let elems = collect: (for e in self.elems: "\n" & ws2 & e.toString(depth * 2))
+    return "TUPLE" & (if self.elems.len > 3: "" else: $self.elems.len) & "(\n" & ws1 & "elems: (" & elems.join(", ") & "\n" & ws1 & ")\n" & ws0 & ")"
+proc toString(self: BinBytesPickle, depth: int): string =
+    return "BINBYTES(bytes: b'" & self.bytes.join("") & "')"
+proc toString(self: ReducePickle, depth: int): string =
+    let ws0 = repeat("    ", depth)
+    let ws = repeat("    ", depth + 1)
+    let ws1 = repeat("    ", depth + 2)
+
+    return "REDUCE(\n" & ws & "fn: " & self.fn.toString(depth + 2) & ",\n" & ws1 & "args: " & self.args.toString(depth + 2) & "\n" & ws0 & ")"
+proc toString(self: MarkPickle, depth: int): string =
+    return "MARK()"
+proc toString(self: BinUnicodePickle, depth: int): string =
+    return "BINUNICODE(str: " & self.str & ")"
+proc toString(self: NonePickle, depth: int): string =
+    return "NONE()"
+proc toString(self: BooleanPickle, depth: int): string =
+    return "BOOLEAN(value: " & $self.boolean & ")"
+proc toString(self: BuildPickle, depth: int): string =
+    let ws0 = repeat("    ", depth)
+    let ws = repeat("    ", depth + 1)
+    return "BUILD(\n" & ws & "inst: " & self.inst.toString(depth + 1) & ",\n" & ws & "state: " & self.state.toString(depth + 1) & "\n" & ws0 & ")"
+proc toString(self: AppendsPickle, depth: int): string =
+    let ws0 = repeat("    ", depth)
+    let ws1 = repeat("    ", depth + 2)
+    let ws2 = repeat("    ", depth + 3)
+    let elems = collect: (for e in self.elems: "\n" & ws2 & e.toString(depth * 2))
+    return "APPENDS(\n" & ws1 & "obj: " & self.obj.toString(depth + 1) & ",\n" & ws1 & "elems: (" & elems.join(", ") & "\n" & ws1 & ")\n" & ws0 & ")"
+proc toString(self: StopPickle, depth: int): string =
+    let ws0 = repeat("    ", depth)
+    let ws = repeat("    ", depth + 1)
+
+    return "STOP(\n" & ws & "value: " & self.value.toString(depth + 1) & "\n" & ws0 & ")"
+proc toString(self: EmptyDictPickle, depth: int): string =
+    return "EMPTY_DICT()"
+proc toString(self: EmptyListPickle, depth: int): string =
+    return "EMPTY_LIST()"
+proc toString(self: EmptySetPickle, depth: int): string =
+    return "EMPTY_SET()"
+proc toString(self: EmptyTuplePickle, depth: int): string =
+    return "EMPTY_TUPLE()"
+
+proc toString(self: BasePickle, depth: int = 0): string =
+    if self of ProtoPickle: return toString(ProtoPickle self, depth)
+    if self of GlobalPickle: return toString(GlobalPickle self, depth)
+    if self of BinPutPickle: return toString(BinPutPickle self, depth)
+    if self of BinIntPickle: return toString(BinIntPickle self, depth)
+    if self of TuplePickle: return toString(TuplePickle self, depth)
+    if self of BinBytesPickle: return toString(BinBytesPickle self, depth)
+    if self of ReducePickle: return toString(ReducePickle self, depth)
+    if self of MarkPickle: return toString(MarkPickle self, depth)
+    if self of BinUnicodePickle: return toString(BinUnicodePickle self, depth)
+    if self of NonePickle: return toString(NonePickle self, depth)
+    if self of BooleanPickle: return toString(BooleanPickle self, depth)
+    if self of BuildPickle: return toString(BuildPickle self, depth)
+    if self of AppendsPickle: return toString(AppendsPickle self, depth)
+    if self of StopPickle: return toString(StopPickle self, depth)
+    if self of EmptyDictPickle: return toString(EmptyDictPickle self, depth)
+    if self of EmptyListPickle: return toString(EmptyListPickle self, depth)
+    if self of EmptySetPickle: return toString(EmptySetPickle self, depth)
+    if self of EmptyTuplePickle: return toString(EmptyTuplePickle self, depth)
+
+    return "^BasePickle"
 
 proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var seq[int]): ObjectNDArray =
     var elements = calcShapeElements(shape)
@@ -696,9 +757,9 @@ proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var seq[int])
         if opcode.stack:
             stack.add(opcode)
 
-        echo opcode
+        echo opcode.toString
 
-        if opcode of ProtoStop:
+        if opcode of StopPickle:
             break
 
     raise newException(Exception, "not implemented")
