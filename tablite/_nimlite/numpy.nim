@@ -623,6 +623,7 @@ template unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack:
         else: raise newException(Exception, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
 
 proc toString(self: BasePickle, depth: int = 0): string;
+const WHITESPACE_CHARACTERS = "    "
 
 proc toString(self: ProtoPickle, depth: int): string =
     return "PROTO(protocol: " & $self.proto & ")"
@@ -633,19 +634,18 @@ proc toString(self: BinPutPickle, depth: int): string =
 proc toString(self: BinIntPickle, depth: int): string =
     return "BININT" & (if self.size == 4: "" else: $self.size) & "(value: " & $self.value & ")"
 proc toString(self: TuplePickle, depth: int): string =
-    let ws0 = repeat("    ", depth)
-    let ws1 = repeat("    ", depth + 2)
-    let ws2 = repeat("    ", depth + 3)
+    let ws0 = repeat(WHITESPACE_CHARACTERS, depth)
+    let ws1 = repeat(WHITESPACE_CHARACTERS, depth + 2)
+    let ws2 = repeat(WHITESPACE_CHARACTERS, depth + 3)
     let elems = collect: (for e in self.elems: "\n" & ws2 & e.toString(depth * 2))
     return "TUPLE" & (if self.elems.len > 3: "" else: $self.elems.len) & "(\n" & ws1 & "elems: (" & elems.join(", ") & "\n" & ws1 & ")\n" & ws0 & ")"
 proc toString(self: BinBytesPickle, depth: int): string =
     return "BINBYTES(bytes: b'" & self.bytes.join("") & "')"
 proc toString(self: ReducePickle, depth: int): string =
-    let ws0 = repeat("    ", depth)
-    let ws = repeat("    ", depth + 1)
-    let ws1 = repeat("    ", depth + 2)
+    let ws0 = repeat(WHITESPACE_CHARACTERS, depth)
+    let ws = repeat(WHITESPACE_CHARACTERS, depth + 1)
 
-    return "REDUCE(\n" & ws & "fn: " & self.fn.toString(depth + 2) & ",\n" & ws1 & "args: " & self.args.toString(depth + 2) & "\n" & ws0 & ")"
+    return "REDUCE(\n" & ws & "fn: " & self.fn.toString(depth + 2) & ",\n" & ws & "args: " & self.args.toString(depth + 2) & "\n" & ws0 & ")"
 proc toString(self: MarkPickle, depth: int): string =
     return "MARK()"
 proc toString(self: BinUnicodePickle, depth: int): string =
@@ -655,18 +655,18 @@ proc toString(self: NonePickle, depth: int): string =
 proc toString(self: BooleanPickle, depth: int): string =
     return "BOOLEAN(value: " & $self.boolean & ")"
 proc toString(self: BuildPickle, depth: int): string =
-    let ws0 = repeat("    ", depth)
-    let ws = repeat("    ", depth + 1)
+    let ws0 = repeat(WHITESPACE_CHARACTERS, depth)
+    let ws = repeat(WHITESPACE_CHARACTERS, depth + 1)
     return "BUILD(\n" & ws & "inst: " & self.inst.toString(depth + 1) & ",\n" & ws & "state: " & self.state.toString(depth + 1) & "\n" & ws0 & ")"
 proc toString(self: AppendsPickle, depth: int): string =
-    let ws0 = repeat("    ", depth)
-    let ws1 = repeat("    ", depth + 2)
-    let ws2 = repeat("    ", depth + 3)
+    let ws0 = repeat(WHITESPACE_CHARACTERS, depth)
+    let ws1 = repeat(WHITESPACE_CHARACTERS, depth + 2)
+    let ws2 = repeat(WHITESPACE_CHARACTERS, depth + 3)
     let elems = collect: (for e in self.elems: "\n" & ws2 & e.toString(depth * 2))
     return "APPENDS(\n" & ws1 & "obj: " & self.obj.toString(depth + 1) & ",\n" & ws1 & "elems: (" & elems.join(", ") & "\n" & ws1 & ")\n" & ws0 & ")"
 proc toString(self: StopPickle, depth: int): string =
-    let ws0 = repeat("    ", depth)
-    let ws = repeat("    ", depth + 1)
+    let ws0 = repeat(WHITESPACE_CHARACTERS, depth)
+    let ws = repeat(WHITESPACE_CHARACTERS, depth + 1)
 
     return "STOP(\n" & ws & "value: " & self.value.toString(depth + 1) & "\n" & ws0 & ")"
 proc toString(self: EmptyDictPickle, depth: int): string =
