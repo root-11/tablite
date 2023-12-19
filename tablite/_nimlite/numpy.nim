@@ -413,35 +413,6 @@ proc unpickleFile(fh: File, endianness: Endianness): IterPickle =
             for i in 0..(bytes_read-1):
                 yield buf[i]
 
-
-proc readStringToEnd(iter: IterPickle, binput: var int): string =
-    var res = ""
-    var ch: char
-    var is_term = false
-    let term = (if binput <= 255: PKL_BINPUT else: PKL_LONG_BINPUT)
-
-    while not iter.finished:
-        let code = iter()
-
-        if is_term:
-            if cast[int](code) == binput:
-                break
-            else:
-                res = res & ch
-                is_term = false
-
-        ch = cast[char](code)
-
-        if ch == term:
-            is_term = true
-            continue
-
-        res = res & ch
-
-    inc binput
-
-    return res
-
 proc readLine(iter: IterPickle): string =
     var res = ""
 
@@ -452,14 +423,6 @@ proc readLine(iter: IterPickle): string =
             break
 
         res = res & ch
-
-    return res
-
-proc readShortBinBytes(iter: IterPickle): string =
-    var res = ""
-
-    for _ in 0..(int iter() - 1):
-        res = res & cast[char](iter())
 
     return res
 
@@ -500,11 +463,6 @@ type AppendsPickle = ref object of BasePickle
     elems: seq[BasePickle]
 type StopPickle = ref object of BasePickle
     value: BasePickle
-
-
-proc readBinPut(iter: IterPickle, binput: var int): void =
-    if unlikely(binput != int iter()): corrupted()
-    inc binput
 
 proc loadProto(iter: IterPickle): ProtoPickle =
     let v = iter()
@@ -746,7 +704,6 @@ proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var seq[int])
     var elements = calcShapeElements(shape)
     var buf {.noinit.} = newSeq[PyObjectND](elements)
     let iter = unpickleFile(fh, endianness)
-    var binput = 0
     var stack: Stack = newSeq[BasePickle]()
     var metastack: MetaStack = newSeq[Stack]()
     var memo: Memo = initTable[int, BasePickle]()
