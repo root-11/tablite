@@ -600,6 +600,14 @@ template readIntOfSize(iter: IterPickle, sz: int): int =
     else:
         corrupted()
 
+proc loadBinGet(iter: IterPickle, stack: var Stack, memo: var Memo): PY_Object =
+    let idx = int iter()
+    let obj = memo[idx]
+
+    stack.add(obj)
+
+    return obj
+
 proc loadBinFloat(iter: IterPickle, stack: var Stack): BinFloatPickle =
     var arr: array[8, uint8]
 
@@ -827,6 +835,7 @@ template unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack:
         of PKL_EMPTY_TUPLE: loadEmptyContainer[Py_Tuple](stack)
         of PKL_APPENDS: loadAppends(stack, metastack)
         of PKL_STOP: loadStop(stack)
+        of PKL_BINGET: iter.loadBinGet(stack, memo)
         else: raise newException(Exception, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
 
 proc toString(self: PY_Object, depth: int = 0): string =
@@ -939,4 +948,4 @@ proc readNumpy(path: string): BaseNDArray =
 
 
 when isMainModule and appType != "lib":
-    echo $readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/float_nones.npy")
+    echo $readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/str_nones.npy")
