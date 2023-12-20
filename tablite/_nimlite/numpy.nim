@@ -582,37 +582,35 @@ proc loadBinput(iter: IterPickle, stack: var Stack, memo: var Memo): BinPutPickl
 
     return BinPutPickle(index: i)
 
-template readFloatOfSize(iter: IterPickle): float =
-    var arr: array[8, uint8]
-
-    for i in 7..0:
-        arr[i] = iter()
-
-    let flt = float cast[float64](arr)
-
-    echo $flt
-
-    flt
-
-template readIntOfSize(iter: IterPickle, sz: int): int =
+template readOfSize(iter: IterPickle, sz: int): openArray[uint8] =
     var arr: array[sz, uint8]
 
     for i in 0..(sz - 1):
         arr[i] = iter()
-    
+
+    arr
+
+template readIntOfSize(iter: IterPickle, sz: int): int =
     if sz == 4:
-        int cast[int32](arr)
+        int cast[int32](iter.readOfSize(sz))
     elif sz == 2:
-        int int cast[int16](arr)
+        int int cast[int16](iter.readOfSize(sz))
     elif sz == 1:
-        int cast[int8](arr)
+        int cast[int8](iter.readOfSize(sz))
     else:
         corrupted()
 
 proc loadBinFloat(iter: IterPickle, stack: var Stack): BinFloatPickle =
-    let flt = iter.readFloatOfSize()
+    var arr: array[8, uint8]
+
+    for i in countdown(7, 0):
+        arr[i] = iter()
+
+    let flt = float cast[float64](arr)
     let value = BinFloatPickle(value: flt)
+
     stack.add(value)
+
     return value
 
 proc loadBinInt(iter: IterPickle, stack: var Stack): BinIntPickle =
