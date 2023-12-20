@@ -1,4 +1,4 @@
-import std/[tables, unicode, strutils, sugar]
+import std/[tables, unicode, strutils, sugar, sequtils]
 import pickling, pickleproto
 
 const NUMPY_MAGIC = "\x93NUMPY"
@@ -516,6 +516,7 @@ proc loadTuple1(iter: IterPickle, stack: var Stack): TuplePickle =
     let elems = @[stack[^1]]
     let tpl = TuplePickle(elems: elems)
 
+    # replace last stack element with 1-tuple
     stack[^1] = tpl
 
     return tpl
@@ -524,6 +525,8 @@ proc loadTuple2(iter: IterPickle, stack: var Stack): TuplePickle =
     let elems = @[stack[^2], stack[^1]]
     let tpl = TuplePickle(elems: elems)
 
+    # replace last 2 stack elements with 2-tuple
+    stack.delete(stack.len - 1)
     stack[^1] = tpl
 
     return tpl
@@ -532,6 +535,8 @@ proc loadTuple3(iter: IterPickle, stack: var Stack): TuplePickle =
     let elems = @[stack[^3], stack[^2], stack[^1]]
     let tpl = TuplePickle(elems: elems)
 
+    # replace last 3 stack elements with 3-tuple
+    stack.delete((stack.len - 2)..(stack.len - 1))
     stack[^1] = tpl
 
     return tpl
@@ -590,7 +595,9 @@ proc loadAppends(stack: var Stack, metastack: var MetaStack): AppendsPickle =
     return AppendsPickle(obj: obj, elems: elems)
 
 proc loadStop(stack: var Stack): StopPickle =
-    return StopPickle(value: stack.pop())
+    let stop = StopPickle(value: stack.pop())
+
+    return stop
 
 template unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack: var MetaStack): BasePickle =
     let opcode = char iter()
