@@ -452,6 +452,7 @@ type TuplePickle = ref object of Py_Tuple
 type BinBytesPickle = ref object of PY_Bytes
 
 type BinIntPickle = ref object of PY_Int
+type BinFloatPickle = ref object of PY_Float
 type BinUnicodePickle = ref object of PY_String
 type BooleanPickle = ref object of PY_Boolean
 type NonePickle = ref object of PY_None
@@ -486,6 +487,8 @@ proc toString(self: BinPutPickle, depth: int): string =
     return "BINPUT(index: " & $self.index & ")"
 proc toString(self: BinIntPickle, depth: int): string =
     return "BININT" & "(value: " & $self.value & ")"
+proc toString(self: BinFloatPickle, depth: int): string =
+    return "BinFloatPickle" & "(value: " & $self.value & ")"
 proc toString(self: TuplePickle, depth: int): string =
     let ws0 = repeat(WHITESPACE_CHARACTERS, depth)
     let ws1 = repeat(WHITESPACE_CHARACTERS, depth + 2)
@@ -579,12 +582,24 @@ proc loadBinput(iter: IterPickle, stack: var Stack, memo: var Memo): BinPutPickl
 
     return BinPutPickle(index: i)
 
+template readFloatOfSize(iter: IterPickle): float =
+    var arr: array[8, uint8]
+
+    for i in 7..0:
+        arr[i] = iter()
+
+    let flt = float cast[float64](arr)
+
+    echo $flt
+
+    flt
+
 template readIntOfSize(iter: IterPickle, sz: int): int =
     var arr: array[sz, uint8]
 
     for i in 0..(sz - 1):
         arr[i] = iter()
-
+    
     if sz == 4:
         int cast[int32](arr)
     elif sz == 2:
@@ -593,6 +608,12 @@ template readIntOfSize(iter: IterPickle, sz: int): int =
         int cast[int8](arr)
     else:
         corrupted()
+
+proc loadBinFloat(iter: IterPickle, stack: var Stack): BinFloatPickle =
+    let flt = iter.readFloatOfSize()
+    let value = BinFloatPickle(value: flt)
+    stack.add(value)
+    return value
 
 proc loadBinInt(iter: IterPickle, stack: var Stack): BinIntPickle =
     let value = BinIntPickle(value: int iter.readIntOfSize(4))
@@ -789,6 +810,7 @@ template unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack:
         of PKL_BININT: iter.loadBinInt(stack)
         of PKL_BININT1: iter.loadBinInt1(stack)
         of PKL_BININT2: iter.loadBinInt2(stack)
+        of PKL_BINFLOAT: iter.loadBinFloat(stack)
         of PKL_TUPLE1: iter.loadTuple1(stack)
         of PKL_TUPLE2: iter.loadTuple2(stack)
         of PKL_TUPLE3: iter.loadTuple3(stack)
@@ -814,6 +836,7 @@ proc toString(self: PY_Object, depth: int = 0): string =
     if self of GlobalPickle: return toString(GlobalPickle self, depth)
     if self of BinPutPickle: return toString(BinPutPickle self, depth)
     if self of BinIntPickle: return toString(BinIntPickle self, depth)
+    if self of BinFloatPickle: return toString(BinFloatPickle self, depth)
     if self of TuplePickle: return toString(TuplePickle self, depth)
     if self of BinBytesPickle: return toString(BinBytesPickle self, depth)
     if self of ReducePickle: return toString(ReducePickle self, depth)
@@ -918,4 +941,4 @@ proc readNumpy(path: string): BaseNDArray =
 
 
 when isMainModule and appType != "lib":
-    echo $readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/boolean_nones.npy")
+    echo $readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/float_nones.npy")
