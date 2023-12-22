@@ -794,8 +794,31 @@ proc newReducePickle(fn: GlobalPickle, args: TuplePickle): PY_Object =
         copyMem(addr day, addr bytes[3], 1)
 
         return PY_Date(value: date2NimDatetime(int year, int month, int day))
-    # elif fn.module == "datetime" and fn.name == "datetime":
-    #     return PY_DateTime()
+    elif fn.module == "datetime" and fn.name == "datetime":
+        if args.elems.len != 1 or not (args.elems[0] of BinBytesPickle):
+            corrupted()
+
+        let bytes = (BinBytesPickle args.elems[0]).value
+        var year: uint16
+        var month, day: uint8
+        var hour, minute, second: uint8
+        var microsecond: uint32
+
+        swapEndian16(addr year, addr bytes[0])
+        copyMem(addr month, addr bytes[2], 1)
+        copyMem(addr day, addr bytes[3], 1)
+        copyMem(addr hour, addr bytes[4], 1)
+        copyMem(addr minute, addr bytes[5], 1)
+        copyMem(addr second, addr bytes[6], 1)
+        copyMem(addr microsecond, addr bytes[7], 3)
+        swapEndian32(addr microsecond, addr microsecond)
+
+        return PY_Date(
+            value: datetime2NimDatetime(
+                int year, int month, int day,
+                int hour, int minute, int second, int microsecond
+            )
+        )
     else:
         implement("REDUCE[" & fn.module & " " & fn.name & "]: " & args.toString)
     
@@ -919,10 +942,12 @@ proc unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack: var
         else: raise newException(Exception, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
 
 proc toString(self: PY_Date, depth: int): string =
-    return "Date(" & $self.value & ")"
+    let fmt = initTimeFormat("yyyy-MM-dd")
+    return "Date(" & self.value.format(fmt) & ")"
 
 proc toString(self: PY_DateTime, depth: int): string =
-    return "DateTime(" & $self.value & ")"
+    let fmt = initTimeFormat("yyyy-MM-dd HH:mm:ss")
+    return "DateTime(" & self.value.format(fmt) & ")"
 
 proc toString(self: PY_Object, depth: int = 0): string =
     if self of ProtoPickle: return toString(ProtoPickle self, depth)
@@ -949,7 +974,7 @@ proc toString(self: PY_Object, depth: int = 0): string =
     if self of PY_Date: return toString(PY_Date self, depth)
     if self of PY_DateTime: return toString(PY_DateTime self, depth)
 
-    return "^BasePickle"
+    return "^PY_Object"
 
 proc toPage(arr: PY_NpMultiArray): ObjectNDArray =
     let buf = collect: (for e in arr.elems: PY_ObjectND e)
@@ -959,7 +984,7 @@ proc construct(self: StopPickle): ObjectNDArray =
     if not (self.value of PY_NpMultiArray):
         corrupted()
     
-    return (PY_NpMultiArray self.value).toPage()
+    return PY_NpMultiArray(self.value).toPage()
 
 proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var Shape): ObjectNDArray =
     var elements = calcShapeElements(shape)
@@ -1042,4 +1067,4 @@ proc readNumpy(path: string): BaseNDArray =
 
 
 when isMainModule and appType != "lib":
-    echo $readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/date_nones.npy")
+    echo $readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/datetime_nones.npy")
