@@ -1,5 +1,6 @@
-import std/[tables, unicode, strutils, sugar, sequtils]
-import  pickleproto
+import std/[tables, unicode, strutils, sugar, sequtils, times]
+import pickleproto, dateutils
+from utils import divmod
 
 const NUMPY_MAGIC = "\x93NUMPY"
 const NUMPY_MAJOR = "\x01"
@@ -10,6 +11,8 @@ const NUMPY_MINOR_LEN = NUMPY_MINOR.len
 
 template corrupted(): void = raise newException(IOError, "file corrupted")
 template implement(name: string = ""): void = raise newException(Exception, if name.len == 0: "not yet imlemented" else: "'" & name & "' not yet imlemented")
+
+type Shape = seq[int]
 
 proc writeNumpyHeader*(fh: File, dtype: string, shape: uint): void =
     let header = "{'descr': '" & dtype & "', 'fortran_order': False, 'shape': (" & $shape & ",)}"
@@ -56,11 +59,14 @@ type NDArrayTypeDescriptor = enum
     D_INT
     D_FLOAT
     D_TIME
-    D_DATETIME
+    D_DATE_DAYS
+    D_DATETIME_SECONDS
+    D_DATETIME_MILISECONDS
+    D_DATETIME_MICROSECONDS
 
 type NDArrayDescriptor = (Endianness, NDArrayTypeDescriptor, int)
 type BaseNDArray* = ref object of RootObj
-    shape*: seq[int]
+    shape*: Shape
 
 type BooleanNDArray* = ref object of BaseNDArray
     buf*: seq[bool]
@@ -78,6 +84,15 @@ type Float32NDArray* = ref object of BaseNDArray
     buf*: seq[float32]
 type Float64NDArray* = ref object of BaseNDArray
     buf*: seq[float64]
+
+type TimeNDArray* = ref object of BaseNDArray
+    buf*: seq[Time]
+
+type DateNDArray* = ref object of BaseNDArray
+    buf*: seq[DateTime]
+
+type DateTimeNDArray* = ref object of BaseNDArray
+    buf*: seq[DateTime]
 
 type UnicodeNDArray* = ref object of BaseNDArray
     buf*: seq[char]
@@ -108,7 +123,7 @@ type Py_Dict* = ref object of Py_Object
     elems*: Table[PY_Object, PY_Object]
 
 type PY_NpMultiArray* = ref object of Py_Object
-    shape: seq[int]
+    shape: Shape
     dtype: string
     elems: seq[PY_Object]
 type PY_NpDType* = ref object of Py_Iterable
@@ -129,6 +144,8 @@ proc `$`*(self: BaseNDArray): string =
     if self of Float64NDArray: return repr(Float64NDArray self)
     if self of UnicodeNDArray: return repr(UnicodeNDArray self)
     if self of ObjectNDArray: return repr(ObjectNDArray self)
+    if self of DateNDArray: return repr(DateNDArray self)
+    if self of DateTimeNDArray: return repr(DateTimeNDArray self)
     else:
         implement("BaseNDArray.`$`")
 
@@ -194,7 +211,7 @@ proc consumeBool(header: var string, header_len: int, offset: var int): bool =
 
     return res
 
-proc consumeShape(header: var string, header_len: int, offset: var int): seq[int] =
+proc consumeShape(header: var string, header_len: int, offset: var int): Shape =
     var shape = newSeq[int]()
     var start_index = -1
     var end_index = -1
@@ -241,7 +258,7 @@ proc consumeDescr(header: var string, header_len: int, offset: var int): NDArray
     var endianness: Endianness
     let valid_types = ['b', 'i', 'f', 'U', 'O', 'm', 'M']
 
-    var typeOffset: int = 1
+    var type_offset: int = 1
 
     case descr[0]:
         of '|', '<': endianness = Endianness.littleEndian
@@ -250,28 +267,46 @@ proc consumeDescr(header: var string, header_len: int, offset: var int): NDArray
         else:
             if not (descr[0] in valid_types):
                 corrupted()
-            typeOffset = 0
+            type_offset = 0
 
-    let typeString = descr[typeOffset]
-
-    if not (typeString in valid_types):
+    let type_string = descr[type_offset]
+    if not (type_string in valid_types):
         corrupted()
 
     var size: int
     var descriptor: NDArrayTypeDescriptor
+    var dt_descriptor: string
 
-    case typeString:
+    if type_string == 'm' or type_string == 'M':
+        if descr[type_offset + 1] != '8' or descr[type_offset + 2] != '[' or descr[^1] != ']':
+            corrupted()
+
+        dt_descriptor = descr[(type_offset + 3)..^2]
+
+    case type_string:
         of 'O':
-            if (typeOffset + 1) != descr.len:
+            if (type_offset + 1) != descr.len:
                 corrupted()
             size = -1
             descriptor = NDArrayTypeDescriptor.D_OBJECT
-        of 'm', 'M':
-            raise newException(Exception, "not yet implemented")
+        of 'm':
+            case dt_descriptor:
+            else:
+                implement(descr)
+        of 'M':
+            case dt_descriptor:
+            of "D":
+                size = 8
+                descriptor = NDArrayTypeDescriptor.D_DATE_DAYS
+            of "us":
+                size = 8
+                descriptor = NDArrayTypeDescriptor.D_DATETIME_MICROSECONDS
+            else:
+                implement(descr)
         else:
-            size = parseInt(descr[typeOffset+1..descr.len-1])
+            size = parseInt(descr[type_offset+1..descr.len-1])
 
-            case typeString:
+            case type_string:
                 of 'b':
                     if size != 1:
                         corrupted()
@@ -295,7 +330,7 @@ proc consumeDescr(header: var string, header_len: int, offset: var int): NDArray
 
     return (endianness, descriptor, size)
 
-proc parseHeader(header: var string): (NDArrayDescriptor, bool, seq[int]) =
+proc parseHeader(header: var string): (NDArrayDescriptor, bool, Shape) =
     var offset = 0
     var header_len = header.len
     var entry_consumed = false
@@ -317,7 +352,7 @@ proc parseHeader(header: var string): (NDArrayDescriptor, bool, seq[int]) =
     var has_descr = false
     var order: bool
     var has_order = false
-    var shape: seq[int]
+    var shape: Shape
     var has_shape = false
 
     for i in 0..2:
@@ -341,7 +376,7 @@ proc parseHeader(header: var string): (NDArrayDescriptor, bool, seq[int]) =
 
     return (descr, order, shape)
 
-proc calcShapeElements(shape: var seq[int]): int {.inline.} =
+proc calcShapeElements(shape: var Shape): int {.inline.} =
     var elements = 1
 
     for m in shape:
@@ -349,7 +384,7 @@ proc calcShapeElements(shape: var seq[int]): int {.inline.} =
 
     return elements
 
-template readPrimitiveBuffer[T: typed](fh: var File, shape: var seq[int]): seq[T] =
+template readPrimitiveBuffer[T: typed](fh: var File, shape: var Shape): seq[T] =
     var elements = calcShapeElements(shape)
     var buf {.noinit.} = newSeq[T](elements)
     var size_T = sizeof(T)
@@ -360,13 +395,13 @@ template readPrimitiveBuffer[T: typed](fh: var File, shape: var seq[int]): seq[T
 
     buf
 
-proc newBooleanNDArray(fh: var File, shape: var seq[int]): BooleanNDArray =
+proc newBooleanNDArray(fh: var File, shape: var Shape): BooleanNDArray =
     return BooleanNDArray(
         buf: readPrimitiveBuffer[bool](fh, shape),
         shape: shape
     )
 
-template newIntNDArray(fh: var File, endianness: Endianness, size: int, shape: var seq[int]) =
+template newIntNDArray(fh: var File, endianness: Endianness, size: int, shape: var Shape) =
     case size:
         of 1: Int8NDArray(
             buf: readPrimitiveBuffer[int8](fh, shape),
@@ -386,7 +421,36 @@ template newIntNDArray(fh: var File, endianness: Endianness, size: int, shape: v
         )
         else: corrupted()
 
-template newFloatNDArray(fh: var File, endianness: Endianness, size: int, shape: var seq[int]) =
+proc newDateArray_Days(fh: var File, endianness: Endianness, shape: var Shape): DateNDArray {.inline.} =
+    let buf = collect: (for v in readPrimitiveBuffer[int64](fh, shape): days2Date(v))
+
+    return DateNDArray(buf: buf, shape: shape)
+
+proc newDateTimeArray_Seconds(fh: var File, endianness: Endianness, shape: var Shape): DateTimeNDArray {.inline.} =
+    let data = readPrimitiveBuffer[int64](fh, shape)
+    let buf = collect: (for v in data: initTime(v, 0).utc())
+
+    return DateTimeNDArray(buf: buf, shape: shape)
+
+proc newDateTimeArray_Miliseconds(fh: var File, endianness: Endianness, shape: var Shape): DateTimeNDArray {.inline.} =
+    let data = readPrimitiveBuffer[int64](fh, shape)
+    let buf = collect:
+        for v in data:
+            let (s, m) = divmod(v, 1000)
+            initTime(s, m * 1000).utc()
+
+    return DateTimeNDArray(buf: buf, shape: shape)
+
+proc newDateTimeArray_Microseconds(fh: var File, endianness: Endianness, shape: var Shape): DateTimeNDArray {.inline.} =
+    let data = readPrimitiveBuffer[int64](fh, shape)
+    let buf = collect:
+        for v in data:
+            let (s, u) = divmod(v, 1_000_000)
+            initTime(s, u).utc()
+
+    return DateTimeNDArray(buf: buf, shape: shape)
+
+template newFloatNDArray(fh: var File, endianness: Endianness, size: int, shape: var Shape) =
     case size:
         of 4: Float32NDArray(
             buf: readPrimitiveBuffer[float32](fh, shape),
@@ -398,7 +462,7 @@ template newFloatNDArray(fh: var File, endianness: Endianness, size: int, shape:
         )
         else: corrupted()
 
-proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: var seq[int]): UnicodeNDArray =
+proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: var Shape): UnicodeNDArray =
     var elements = calcShapeElements(shape)
     var elem_size = elements * size
     var buf {.noinit.} = newSeq[char](elem_size)
@@ -505,7 +569,7 @@ proc toString(self: ReducePickle, depth: int): string =
 proc toString(self: MarkPickle, depth: int): string =
     return "MARK()"
 proc toString(self: BinUnicodePickle, depth: int): string =
-    return "BINUNICODE(value: " & $self.value & ")"
+    return "BINUNICODE(value: '" & $self.value & "')"
 proc toString(self: NonePickle, depth: int): string =
     return "NONE()"
 proc toString(self: BooleanPickle, depth: int): string =
@@ -806,7 +870,7 @@ proc loadEmptyContainer[T: Py_Iterable | Py_Dict](stack: var Stack): T =
 
     return value
 
-template unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack: var MetaStack): PY_Object =
+proc unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack: var MetaStack): PY_Object {.inline.} =
     let opcode = char iter()
 
     case opcode:
@@ -873,7 +937,7 @@ proc construct(self: StopPickle): ObjectNDArray =
     
     return (PY_NpMultiArray self.value).toPage()
 
-proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var seq[int]): ObjectNDArray =
+proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var Shape): ObjectNDArray =
     var elements = calcShapeElements(shape)
     let iter = unpickleFile(fh, endianness)
     var stack: Stack = newSeq[PY_Object]()
@@ -885,6 +949,8 @@ proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var seq[int])
 
     while unlikely(not iter.finished):
         let opcode = iter.unpickle(stack, memo, metastack)
+
+        echo opcode.toString
 
         if opcode of StopPickle:
             hasStop = true
@@ -933,6 +999,10 @@ proc readNumpy(fh: var File): BaseNDArray =
         of D_FLOAT: page = newFloatNDArray(fh, descr_endianness, descr_size, shape)
         of D_UNICODE: page = newUnicodeNDArray(fh, descr_endianness, descr_size, shape)
         of D_OBJECT: page = newObjectNDArray(fh, descr_endianness, shape)
+        of D_DATE_DAYS: page = newDateArray_Days(fh, descr_endianness, shape)
+        of D_DATETIME_SECONDS: page = newDateTimeArray_Seconds(fh, descr_endianness, shape)
+        of D_DATETIME_MILISECONDS: page = newDateTimeArray_Miliseconds(fh, descr_endianness, shape)
+        of D_DATETIME_MICROSECONDS: page = newDateTimeArray_Microseconds(fh, descr_endianness, shape)
         else:
             raise newException(Exception, "'" & $descr_type & "' not implemented")
 
@@ -948,4 +1018,4 @@ proc readNumpy(path: string): BaseNDArray =
 
 
 when isMainModule and appType != "lib":
-    echo $readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/str_nones.npy")
+    echo $readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/datetime.npy")
