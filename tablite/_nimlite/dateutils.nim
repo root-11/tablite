@@ -77,8 +77,8 @@ proc days2Date*(days: int): DateTime =
 
     for i in 0..11:
         if (idays < month_lengths[i]):
-            var dts_month = Month(i + 1)
-            var dts_day = MonthdayRange (idays + 1)
+            let dts_month = Month(i + 1)
+            let dts_day = MonthdayRange (idays + 1)
             return dateTime(dts_year, dts_month, dts_day, zone=utc())
         else:
             idays = (idays - month_lengths[i])
@@ -87,3 +87,6 @@ proc days2Date*(days: int): DateTime =
 
 proc date2NimDatetime*(year: int, month: int, day: int): DateTime =
     return dateTime(year, Month(month), MonthdayRange(day), zone=utc())
+
+proc datetime2NimDatetime*(year: int, month: int, day: int, hour: int, minute: int, second: int, microsecond: int): DateTime =
+    return dateTime(year, Month(month), MonthdayRange(day), hour, second, microsecond * 1000, zone=utc())
