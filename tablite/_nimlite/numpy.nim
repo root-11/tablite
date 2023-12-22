@@ -1,4 +1,4 @@
-import std/[tables, unicode, strutils, sugar, sequtils, times]
+import std/[tables, unicode, strutils, sugar, sequtils, times, endians]
 import pickleproto, dateutils
 from utils import divmod
 
@@ -112,8 +112,10 @@ type PY_Bytes* = ref object of PY_ObjectND
     value*: seq[char]
 type PY_None* = ref object of PY_ObjectND
 type PY_Date* = ref object of PY_ObjectND
+    value*: DateTime
 type PY_Time* = ref object of PY_ObjectND
 type PY_DateTime* = ref object of PY_ObjectND
+    value*: DateTime
 type Py_Iterable* = ref object of PY_Object
     elems*: seq[PY_Object]
 type Py_Tuple* = ref object of Py_Iterable
@@ -544,7 +546,7 @@ type StopPickle = ref object of PY_Object
 const WHITESPACE_CHARACTERS = "    "
 
 proc toString(self: ProtoPickle, depth: int): string =
-    return "PROTO(protocol: " & $self.value & ")"
+    return "PROTO(value: " & $self.value & ")"
 proc toString(self: GlobalPickle, depth: int): string =
     return "GLOBAL(module: '" & self.module & "', name: '" & self.name & "')"
 proc toString(self: BinPutPickle, depth: int): string =
@@ -560,7 +562,7 @@ proc toString(self: TuplePickle, depth: int): string =
     let elems = collect: (for e in self.elems: "\n" & ws2 & e.toString(depth * 2))
     return "TUPLE(" & (if self.elems.len > 3: "" else: $self.elems.len) & "\n" & ws1 & "elems: (" & elems.join(", ") & "\n" & ws1 & ")\n" & ws0 & ")"
 proc toString(self: BinBytesPickle, depth: int): string =
-    return "BINBYTES(bytes: b'" & self.value.join("") & "')"
+    return "BINBYTES(value: b'" & self.value.join("") & "')"
 proc toString(self: ReducePickle, depth: int): string =
     let ws0 = repeat(WHITESPACE_CHARACTERS, depth)
     let ws = repeat(WHITESPACE_CHARACTERS, depth + 1)
@@ -780,6 +782,20 @@ proc newReducePickle(fn: GlobalPickle, args: TuplePickle): PY_Object =
         if dtype != "O8":
             corrupted()
         return PY_NpDType(dtype: dtype)
+    elif fn.module == "datetime" and fn.name == "date":
+        if args.elems.len != 1 or not (args.elems[0] of BinBytesPickle):
+            corrupted()
+        let bytes = (BinBytesPickle args.elems[0]).value
+        var year: uint16
+        var month, day: uint8
+
+        swapEndian16(addr year, addr bytes[0])
+        copyMem(addr month, addr bytes[2], 1)
+        copyMem(addr day, addr bytes[3], 1)
+
+        return PY_Date(value: date2NimDatetime(int year, int month, int day))
+    # elif fn.module == "datetime" and fn.name == "datetime":
+    #     return PY_DateTime()
     else:
         implement("REDUCE[" & fn.module & " " & fn.name & "]: " & args.toString)
     
@@ -902,6 +918,12 @@ proc unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack: var
         of PKL_BINGET: iter.loadBinGet(stack, memo)
         else: raise newException(Exception, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
 
+proc toString(self: PY_Date, depth: int): string =
+    return "Date(" & $self.value & ")"
+
+proc toString(self: PY_DateTime, depth: int): string =
+    return "DateTime(" & $self.value & ")"
+
 proc toString(self: PY_Object, depth: int = 0): string =
     if self of ProtoPickle: return toString(ProtoPickle self, depth)
     if self of GlobalPickle: return toString(GlobalPickle self, depth)
@@ -924,6 +946,8 @@ proc toString(self: PY_Object, depth: int = 0): string =
     if self of Py_Tuple: return toString(Py_Tuple self, depth)
     if self of PY_NpDType: return repr(PY_NpDType self)
     if self of PY_NpMultiArray: return repr(PY_NpMultiArray self)
+    if self of PY_Date: return toString(PY_Date self, depth)
+    if self of PY_DateTime: return toString(PY_DateTime self, depth)
 
     return "^BasePickle"
 
@@ -950,7 +974,7 @@ proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var Shape): O
     while unlikely(not iter.finished):
         let opcode = iter.unpickle(stack, memo, metastack)
 
-        echo opcode.toString
+        # echo opcode.toString
 
         if opcode of StopPickle:
             hasStop = true
@@ -1018,4 +1042,4 @@ proc readNumpy(path: string): BaseNDArray =
 
 
 when isMainModule and appType != "lib":
-    echo $readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/datetime.npy")
+    echo $readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/date_nones.npy")
