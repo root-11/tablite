@@ -1,5 +1,5 @@
 from utils import divmod, extractUnit
-from std/times import DateTime, Month, dateTime, MonthdayRange
+from std/times import DateTime, Month, dateTime, MonthdayRange, utc
 
 const DAYS_PER_MONTH_TABLE* = [
     [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31], # not leap
@@ -79,8 +79,11 @@ proc days2Date*(days: int): DateTime =
         if (idays < month_lengths[i]):
             var dts_month = Month(i + 1)
             var dts_day = MonthdayRange (idays + 1)
-            return dateTime(dts_year, dts_month, dts_day)
+            return dateTime(dts_year, dts_month, dts_day, zone=utc())
         else:
             idays = (idays - month_lengths[i])
 
     raise newException(IndexDefect, "failed")
+
+proc date2NimDatetime*(year: int, month: int, day: int): DateTime =
+    return dateTime(year, Month(month), MonthdayRange(day), zone=utc())
