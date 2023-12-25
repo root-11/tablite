@@ -206,11 +206,9 @@ def left_join(T, other, left_keys, right_keys, left_columns=None, right_columns=
 
     if merge_keys is True:
         boolean_map = (RIGHT == -1)
-        column_names = [n for n in T.columns]  # left side only.
-        for left_name,right_name in zip(left_keys,right_keys):
+        for left_name, right_name in zip(left_keys,right_keys):
             right_name = unique_name(right_name, T.columns)
-            column_names.append(right_name)
-            result = where(result, boolean_map, left_name,right_name,new=left_name)
+            result = where(result, boolean_map, left_name, right_name, new=left_name)
     return result
 
 
