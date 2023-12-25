@@ -78,14 +78,14 @@ class SimplePage(object):
         self._incr_refcount()
 
     def _incr_refcount(self):
-        """ increment refcount of this page if it's used by this process """
+        """increment refcount of this page if it's used by this process"""
         if self.owns():
             self.refcounts[self.path] = self.refcounts.get(self.path, 0) + 1
 
     def __setstate__(self, state):
         """
-        when an object is unpickled, say in a case of multi-processing, 
-        object.__setstate__(state) is called instead of __init__, this means 
+        when an object is unpickled, say in a case of multi-processing,
+        object.__setstate__(state) is called instead of __init__, this means
         we need to update page refcount as if constructor had been called
         """
         self.__dict__.update(state)
@@ -194,7 +194,7 @@ class Column(object):
         """Create Column
 
         Args:
-            path (Path): path of table.yml
+            path (Path): path of table.yml (defaults: Config.pid_dir)
             value (Iterable, optional): Data to store. Defaults to None.
         """
         self.path = path
@@ -239,9 +239,8 @@ class Column(object):
     def repaginate(self):
         """resizes pages to Config.PAGE_SIZE"""
         new_pages = []
-        start, end = 0, 0
-        for _ in range(0, len(self) + 1, Config.PAGE_SIZE):
-            start, end = end, end + Config.PAGE_SIZE
+        for start in range(0, len(self) + 1, Config.PAGE_SIZE):
+            end = start + Config.PAGE_SIZE
             array = self[slice(start, end, 1)]
 
             np_dtype, py_dtype = pytype_from_iterable(array.tolist())
@@ -1040,7 +1039,13 @@ class Table(object):
     _pid_dir = None  # typically `Config.workdir / Config.pid`
     _ids = count()
 
-    def __init__(self, columns=None, headers=None, rows=None, _path=None) -> None:
+    def __init__(
+        self,
+        columns: [dict, None] = None,
+        headers: [list, None] = None,
+        rows: [list, None] = None,
+        _path: [Path, None] = None,
+    ) -> None:
         """creates Table
 
         Args:
@@ -1051,6 +1056,8 @@ class Table(object):
                 headers (list of strings, optional): list of column names.
                 rows (list of tuples or lists, optional): values for columns
                 Example: t = Table(headers=["a", "b"], rows=[[1,3], [2,4]])
+
+            _path (pathlib.Path, optional): path to main process working directory.
         """
         if _path is None:
             if self._pid_dir is None:
@@ -1487,7 +1494,7 @@ class Table(object):
             )                                                   # (9) two (or more) dicts as args - roughly comma sep'd json.
         >>> t.add_rows( *[
             {'row': 13, 'A': 1, 'B': 2, 'C': 3},
-            {'row': 14, 'A': 1, 'B': 2, 'C': 3} 
+            {'row': 14, 'A': 1, 'B': 2, 'C': 3}
             ])                                                  # (10) list of dicts as args
         >>> t.add_rows(row=[15,16], A=[1,1], B=[2,2], C=[3,3])  # (11) kwargs with lists as values
         ```
@@ -1665,7 +1672,7 @@ class Table(object):
                 else:
                     empty = [blanks] * 7
                     head = (col[:7].tolist() + empty)[:7]
-                    tail = (col[n - 7:].tolist() + empty)[-7:]
+                    tail = (col[n - 7 :].tolist() + empty)[-7:]
                     row = head + ["..."] + tail
                 data[name] = row
 
