@@ -5,7 +5,9 @@ from tablite.utils import unique_name, type_check
 
 
 def where(T, criteria, left, right, new):
-    """ takes from LEFT where criteria is True else RIGHT.
+    """ takes from LEFT where criteria is True else RIGHT 
+    and creates a single new column.
+    
     :param: T: Table
     :param: criteria: np.array(bool): 
             if True take left column
@@ -28,9 +30,8 @@ def where(T, criteria, left, right, new):
     col = T[new_name]
     
     for start,end in Config.page_steps(len(criteria)):
-        indices = np.arange(start,end)
-        left_values = T[left].get_by_indices(indices)
-        right_values = T[right].get_by_indices(indices)
+        left_values = T[left][start:end]
+        right_values = T[right][start:end]
         new_values = np.where(criteria, left_values, right_values)
         col.extend(new_values)
 
