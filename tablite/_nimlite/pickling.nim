@@ -1,43 +1,39 @@
 from std/endians import bigEndian16, bigEndian32, bigEndian64
-import pickleproto
+import pickleproto, pytypes
 
-type PY_NoneType* = object
-let PY_None* = PY_NoneType()
-# proc  PY_None*: PY_NoneType = PY_NoneType()
-
-type PY_Date* = object
-    year: uint16
-    month, day: uint8
+# type PY_Date* = object
+#     year: uint16
+#     month, day: uint8
 
 
-type PY_Time* = object
-    hour, minute, second: uint8
-    microsecond: uint32
-    has_tz: bool
-    tz_days, tz_seconds, tz_microseconds: int32
+# type PY_Time* = object
+#     hour, minute, second: uint8
+#     microsecond: uint32
+#     has_tz: bool
+#     tz_days, tz_seconds, tz_microseconds: int32
 
-type PY_DateTime* = object
-    date: PY_Date
-    time: PY_Time
+# type PY_DateTime* = object
+#     date: PY_Date
+#     time: PY_Time
 
-proc newPyDate*(year: uint16, month, day: uint8): PY_Date =
-    PY_Date(year: year, month: month, day: day)
+# proc newPyDate*(year: uint16, month, day: uint8): PY_Date =
+#     PY_Date(year: year, month: month, day: day)
 
-proc newPyTime*(hour: uint8, minute: uint8, second: uint8, microsecond: uint32): PY_Time =
-    return PY_Time(hour: hour, minute: minute, second: second, microsecond: microsecond)
+# proc newPyTime*(hour: uint8, minute: uint8, second: uint8, microsecond: uint32): PY_Time =
+#     return PY_Time(hour: hour, minute: minute, second: second, microsecond: microsecond)
 
-proc newPyTime*(hour: uint8, minute: uint8, second: uint8, microsecond: uint32, tz_days: int32, tz_seconds: int32, tz_microseconds: int32): PY_Time =
-    if tz_days == 0 and tz_seconds == 0:
-        return newPyTime(hour, minute, second, microsecond)
+# proc newPyTime*(hour: uint8, minute: uint8, second: uint8, microsecond: uint32, tz_days: int32, tz_seconds: int32, tz_microseconds: int32): PY_Time =
+#     if tz_days == 0 and tz_seconds == 0:
+#         return newPyTime(hour, minute, second, microsecond)
 
-    return PY_Time(
-            hour: hour, minute: minute, second: second, microsecond: microsecond,
-            has_tz: true,
-            tz_days: tz_days, tz_seconds: tz_seconds, tz_microseconds: tz_microseconds
-        )
+#     return PY_Time(
+#             hour: hour, minute: minute, second: second, microsecond: microsecond,
+#             has_tz: true,
+#             tz_days: tz_days, tz_seconds: tz_seconds, tz_microseconds: tz_microseconds
+#         )
 
-proc newPyDateTime*(date: PY_Date, time: PY_Time): PY_DateTime =
-    PY_DateTime(date: date, time: time)
+# proc newPyDateTime*(date: PY_Date, time: PY_Time): PY_DateTime =
+#     PY_DateTime(date: date, time: time)
 
 proc writePickleBinput(fh: var File, binput: var uint32): void {.inline.} =
     if binput <= 0xff:
@@ -125,12 +121,15 @@ proc writePickleBoolean(fh: var File, value: bool): void {.inline.} =
         fh.write(PKL_NEWFALSE)
 
 proc writePickleDateBody(fh: var File, value: ptr PY_Date, binput: var uint32): void {.inline.} =
-    var year: uint16
-    year.unsafeAddr.bigEndian16(value.year.unsafeAddr)
+    var year = value.getYear()
+    year.addr.bigEndian16(addr year)
 
-    discard fh.writeBuffer(year.unsafeAddr, 2)
-    discard fh.writeBuffer(value.month.unsafeAddr, 1)
-    discard fh.writeBuffer(value.day.unsafeAddr, 1)
+    var month = value.getMonth()
+    var day = value.getDay()
+
+    discard fh.writeBuffer(addr year, 2)
+    discard fh.writeBuffer(addr month, 1)
+    discard fh.writeBuffer(addr day, 1)
 
 proc writePickleDate(fh: var File, value: PY_Date, binput: var uint32): void {.inline.} =
     fh.writePickleGlobal("datetime", "date")

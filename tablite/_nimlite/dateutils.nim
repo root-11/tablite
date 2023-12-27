@@ -6,6 +6,9 @@ const DAYS_PER_MONTH_TABLE* = [
     [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]  # leap
 ]
 
+type YearRange* = range[1..9999]
+type MicrosecondRange* = range[0..999_999]
+
 proc isLeapYear*(year: int): bool {.inline.} = year mod 4 == 0 and (year mod 100 != 0 or year mod 400 == 0)
 proc getDaysInMonth*(year, month: int): int {.inline.} = DAYS_PER_MONTH_TABLE[int isLeapYear(year)][month - 1]
 
