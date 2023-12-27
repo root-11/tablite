@@ -393,11 +393,11 @@ template newFloatNDArray(fh: var File, endianness: Endianness, size: int, shape:
 
 proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: var Shape): UnicodeNDArray =
     var elements = calcShapeElements(shape)
-    var elem_size = elements * size
+    var elem_size = elements * size * 4
     var buf {.noinit.} = newSeq[char](elem_size)
-    var buffer_size = elem_size * 4
+    
 
-    if fh.readBuffer(addr buf[0], buffer_size) != buffer_size:
+    if fh.readBuffer(addr buf[0], elem_size) != elem_size:
         corrupted()
 
     return UnicodeNDArray(buf: buf, shape: shape, size: size)
@@ -494,7 +494,7 @@ proc toPython(self: Int64NDArray): nimpy.PyObject = toNumpyPrimitive[int64](self
 proc toPython(self: Float32NDArray): nimpy.PyObject = toNumpyPrimitive[float32](self.shape, addr self.buf[0])
 proc toPython(self: Float64NDArray): nimpy.PyObject = toNumpyPrimitive[float64](self.shape, addr self.buf[0])
 
-proc toPython(self: UnicodeNDArray): nimpy.PyObject = toNumpyPrimitive("U" & $self.size, self.shape, self.size, addr self.buf[0])
+proc toPython(self: UnicodeNDArray): nimpy.PyObject = toNumpyPrimitive("U" & $self.size, self.shape, self.size * 4, addr self.buf[0])
 
 proc toPython(self: TimeNDArray): nimpy.PyObject = implement("TimeNDArray.toPython")
 proc toPython(self: DateNDArray): nimpy.PyObject = implement("DateNDArray.toPython")
