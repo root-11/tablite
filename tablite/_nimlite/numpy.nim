@@ -457,7 +457,7 @@ proc readNumpy*(path: string): BaseNDArray =
 
     return arr
 
-proc toNumpyPrimitive[T: bool | int8 | int16 | int32 | int64 | float32 | float64 | string](arrType: string, shape: var Shape, buf: pointer): nimpy.PyObject =
+proc toNumpyPrimitive(arrType: string, shape: var Shape, sizeof: int, buf: pointer): nimpy.PyObject =
     let elements = calcShapeElements(shape)
     let np = pyImport("numpy")
     var ndBuf: RawPyBuffer
@@ -465,26 +465,40 @@ proc toNumpyPrimitive[T: bool | int8 | int16 | int32 | int64 | float32 | float64
 
     ndArray.getBuffer(ndBuf, PyBUF_WRITABLE or PyBUF_ND)
 
-    ndBuf.buf.copyMem(buf, sizeof(T) * elements)
+    ndBuf.buf.copyMem(buf, sizeof * elements)
     ndBuf.release()
     
     return ndArray
 
-proc toPython(self: BooleanNDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[bool]("?", self.shape, addr self.buf[0])
+proc toNumpyPrimitive[T: bool | int8 | int16 | int32 | int64 | float32 | float64](shape: var Shape, buf: pointer): nimpy.PyObject =
+    when T is bool:
+        return toNumpyPrimitive("?", shape, sizeof(T), buf)
+    else:
+        let sz = sizeof(T)
+    
+        when T is int8 or T is int16 or T is int32 or T is int64:
+            return toNumpyPrimitive("i" & $sz, shape, sz, buf)
+        else:
+            when T is float32 or T is float64:
+                return toNumpyPrimitive("f" & $sz, shape, sz, buf)
+            else:
+                corrupted()
 
-proc toPython(self: Int8NDArray): nimpy.PyObject = toNumpyPrimitive[int8]("i1", self.shape, addr self.buf[0])
-proc toPython(self: Int16NDArray): nimpy.PyObject = toNumpyPrimitive[int16]("i2", self.shape, addr self.buf[0])
-proc toPython(self: Int32NDArray): nimpy.PyObject = toNumpyPrimitive[int32]("i4", self.shape, addr self.buf[0])
-proc toPython(self: Int64NDArray): nimpy.PyObject = toNumpyPrimitive[int64]("i8", self.shape, addr self.buf[0])
+proc toPython(self: BooleanNDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[bool](self.shape, addr self.buf[0])
 
-proc toPython(self: Float32NDArray): nimpy.PyObject = toNumpyPrimitive[float32]("f4", self.shape, addr self.buf[0])
-proc toPython(self: Float64NDArray): nimpy.PyObject = toNumpyPrimitive[float64]("f8", self.shape, addr self.buf[0])
+proc toPython(self: Int8NDArray): nimpy.PyObject = toNumpyPrimitive[int8](self.shape, addr self.buf[0])
+proc toPython(self: Int16NDArray): nimpy.PyObject = toNumpyPrimitive[int16](self.shape, addr self.buf[0])
+proc toPython(self: Int32NDArray): nimpy.PyObject = toNumpyPrimitive[int32](self.shape, addr self.buf[0])
+proc toPython(self: Int64NDArray): nimpy.PyObject = toNumpyPrimitive[int64](self.shape, addr self.buf[0])
 
+proc toPython(self: Float32NDArray): nimpy.PyObject = toNumpyPrimitive[float32](self.shape, addr self.buf[0])
+proc toPython(self: Float64NDArray): nimpy.PyObject = toNumpyPrimitive[float64](self.shape, addr self.buf[0])
+
+proc toPython(self: UnicodeNDArray): nimpy.PyObject = toNumpyPrimitive("U" & $self.size, self.shape, self.size, addr self.buf[0])
 
 proc toPython(self: TimeNDArray): nimpy.PyObject = implement("TimeNDArray.toPython")
 proc toPython(self: DateNDArray): nimpy.PyObject = implement("DateNDArray.toPython")
 proc toPython(self: DateTimeNDArray): nimpy.PyObject = implement("DateTimeNDArray.toPython")
-proc toPython(self: UnicodeNDArray): nimpy.PyObject = implement("UnicodeNDArray.toPython")
 proc toPython(self: ObjectNDArray): nimpy.PyObject = implement("ObjectNDArray.toPython")
 
 proc toPython*(self: BaseNDArray): nimpy.PyObject =
@@ -502,7 +516,7 @@ proc toPython*(self: BaseNDArray): nimpy.PyObject =
     if self of ObjectNDArray: return ObjectNDArray(self).toPython()
 
 when isMainModule and appType != "lib":
-    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/float.npy")
+    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/str.npy")
 
     echo arr
 
