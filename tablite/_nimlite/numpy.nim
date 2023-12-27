@@ -109,8 +109,7 @@ proc `$`*(self: BaseNDArray): string =
     if self of ObjectNDArray: return repr(ObjectNDArray self)
     if self of DateNDArray: return repr(DateNDArray self)
     if self of DateTimeNDArray: return repr(DateTimeNDArray self)
-    else:
-        implement("BaseNDArray.`$`")
+    else: implement("BaseNDArray.`$`")
 
 
 proc validateHeader(fh: File, buf: var array[NUMPY_MAGIC_LEN, uint8], header: string, header_len: int): void {.inline.} =
@@ -189,8 +188,7 @@ proc consumeShape(header: var string, header_len: int, offset: var int): Shape =
 
         offset = offset + 1
 
-    if start_index == end_index or start_index < 0 or end_index < 0:
-        corrupted()
+    if start_index == end_index or start_index < 0 or end_index < 0: corrupted()
 
     let shape_str_seq = header[start_index..end_index].split(',')
     let len_shape_str_seq = shape_str_seq.len
@@ -199,8 +197,7 @@ proc consumeShape(header: var string, header_len: int, offset: var int): Shape =
         let sh_str = shape_str_seq[i]
 
         if sh_str.len == 0:
-            if i + 1 != len_shape_str_seq:
-                corrupted()
+            if i + 1 != len_shape_str_seq: corrupted()
             continue
 
         shape.add(parseInt(sh_str))
@@ -228,13 +225,13 @@ proc consumeDescr(header: var string, header_len: int, offset: var int): NDArray
         of '>':
             endianness = Endianness.bigEndian
         else:
-            if not (descr[0] in valid_types):
-                corrupted()
+            if not (descr[0] in valid_types): corrupted()
+
             type_offset = 0
 
     let type_string = descr[type_offset]
-    if not (type_string in valid_types):
-        corrupted()
+
+    if not (type_string in valid_types): corrupted()
 
     var size: int
     var descriptor: NDArrayTypeDescriptor
@@ -248,14 +245,12 @@ proc consumeDescr(header: var string, header_len: int, offset: var int): NDArray
 
     case type_string:
         of 'O':
-            if (type_offset + 1) != descr.len:
-                corrupted()
+            if (type_offset + 1) != descr.len: corrupted()
             size = -1
             descriptor = NDArrayTypeDescriptor.D_OBJECT
         of 'm':
             case dt_descriptor:
-            else:
-                implement(descr)
+            else: implement(descr)
         of 'M':
             case dt_descriptor:
             of "D":
@@ -264,27 +259,22 @@ proc consumeDescr(header: var string, header_len: int, offset: var int): NDArray
             of "us":
                 size = 8
                 descriptor = NDArrayTypeDescriptor.D_DATETIME_MICROSECONDS
-            else:
-                implement(descr)
+            else: implement(descr)
         else:
             size = parseInt(descr[type_offset+1..descr.len-1])
 
             case type_string:
                 of 'b':
-                    if size != 1:
-                        corrupted()
+                    if size != 1: corrupted()
                     descriptor = NDArrayTypeDescriptor.D_BOOLEAN
                 of 'i':
-                    if size != 8:
-                        raise newException(Exception, "not yet implemented")
+                    if size != 8: implement("int size != 8")
                     descriptor = NDArrayTypeDescriptor.D_INT
                 of 'f':
-                    if size != 8:
-                        raise newException(Exception, "not yet implemented")
+                    if size != 8: implement("float size != 8")
                     descriptor = NDArrayTypeDescriptor.D_FLOAT
                 of 'U':
-                    if size <= 0:
-                        corrupted()
+                    if size <= 0: corrupted()
                     descriptor = NDArrayTypeDescriptor.D_UNICODE
                 else:
                     # never happens
@@ -458,10 +448,8 @@ proc readNumpy(fh: var File): BaseNDArray =
 
     var ((descr_endianness, descr_type, descr_size), order, shape) = parseHeader(header)
 
-    if order:
-        raise newException(Exception, "'fortran_order' not implemented")
-    if shape.len != 1:
-        raise newException(Exception, "'shape' not implemented")
+    if order: implement("fortran_order")
+    if shape.len != 1: implement("shape.len != 1")
 
     var page: BaseNDArray
 
@@ -475,8 +463,7 @@ proc readNumpy(fh: var File): BaseNDArray =
         of D_DATETIME_SECONDS: page = newDateTimeArray_Seconds(fh, descr_endianness, shape)
         of D_DATETIME_MILISECONDS: page = newDateTimeArray_Miliseconds(fh, descr_endianness, shape)
         of D_DATETIME_MICROSECONDS: page = newDateTimeArray_Microseconds(fh, descr_endianness, shape)
-        else:
-            raise newException(Exception, "'" & $descr_type & "' not implemented")
+        else: implement($descr_type)
 
     return page
 
