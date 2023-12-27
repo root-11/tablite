@@ -1,5 +1,5 @@
 import std/[sugar, sequtils, unicode, enumerate]
-import numpy, pickling, ranking, infertypes, encfile, csvparse
+import numpy, pickling, ranking, infertypes, encfile, csvparse, pytypes
 
 type PageType = enum
     PG_UNSET,
