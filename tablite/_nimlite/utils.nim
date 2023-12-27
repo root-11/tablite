@@ -1,5 +1,8 @@
 from std/math import floor
 
+template corrupted*(): void = raise newException(IOError, "file corrupted")
+template implement*(name: string = ""): void = raise newException(Exception, if name.len == 0: "not yet imlemented" else: "'" & name & "' not yet imlemented")
+
 proc uniqueName*(desired_name: string, name_list: seq[string]): string {.inline.} =
     var name = desired_name
     var idx = 1
