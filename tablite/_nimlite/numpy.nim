@@ -480,7 +480,7 @@ proc readNumpy(fh: var File): BaseNDArray =
 
     return page
 
-proc readNumpy(path: string): BaseNDArray =
+proc readNumpy*(path: string): BaseNDArray =
     var fh = open(path, fmRead)
     let arr = readNumpy(fh)
 
