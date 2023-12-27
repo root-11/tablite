@@ -507,7 +507,34 @@ proc toPython(self: DateTimeNDArray): nimpy.PyObject =
 
     return toNumpyPrimitive("M8[us]", self.shape, sizeof(int64), addr buf[0])
 
-proc toPython(self: ObjectNDArray): nimpy.PyObject = implement("ObjectNDArray.toPython")
+proc toNimpy(self: PY_NoneType): nimpy.PyObject = builtins().None
+proc toNimpy(self: PY_Boolean): nimpy.PyObject = builtins().bool(self.value)
+proc toNimpy(self: PY_Int): nimpy.PyObject = implement("PY_Int.toNimpy")
+proc toNimpy(self: PY_Float): nimpy.PyObject = implement("PY_Float.toNimpy")
+proc toNimpy(self: PY_String): nimpy.PyObject = implement("PY_String.toNimpy")
+proc toNimpy(self: PY_Date): nimpy.PyObject = implement("PY_Date.toNimpy")
+proc toNimpy(self: PY_Time): nimpy.PyObject = implement("PY_Time.toNimpy")
+proc toNimpy(self: PY_DateTime): nimpy.PyObject = implement("PY_DateTime.toNimpy")
+
+proc toNimpy(self: PY_ObjectND): nimpy.PyObject =
+    if self of PY_NoneType: return PY_NoneType(self).toNimpy()
+    if self of PY_Boolean: return PY_Boolean(self).toNimpy()
+    if self of PY_Int: return PY_Int(self).toNimpy()
+    if self of PY_Float: return PY_Float(self).toNimpy()
+    if self of PY_String: return PY_String(self).toNimpy()
+    if self of PY_Date: return PY_Date(self).toNimpy()
+    if self of PY_Time: return PY_Time(self).toNimpy()
+    if self of PY_DateTime: return PY_DateTime(self).toNimpy()
+
+    implement(repr(self))
+
+proc toPython(self: ObjectNDArray): nimpy.PyObject =
+    let idCall = builtins().id
+    var buf = collect:
+        for el in self.buf:
+            idCall.callObject(el.toNimpy()).to(int64)
+    
+    toNumpyPrimitive("O8", self.shape, sizeof(int64), addr buf[0])
 
 proc toPython*(self: BaseNDArray): nimpy.PyObject =
     if self of BooleanNDArray: return BooleanNDArray(self).toPython()
@@ -522,8 +549,10 @@ proc toPython*(self: BaseNDArray): nimpy.PyObject =
     if self of UnicodeNDArray: return UnicodeNDArray(self).toPython()
     if self of ObjectNDArray: return ObjectNDArray(self).toPython()
 
+    corrupted()
+
 when isMainModule and appType != "lib":
-    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/datetime.npy")
+    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/boolean_nones.npy")
 
     echo arr
 
