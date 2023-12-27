@@ -1,5 +1,6 @@
 import std/[unicode, strutils, sugar, times]
 import dateutils, pytypes, unpickling, utils
+import nimpy as nimpy, nimpy/raw_buffers
 
 const NUMPY_MAGIC = "\x93NUMPY"
 const NUMPY_MAJOR = "\x01"
@@ -56,7 +57,6 @@ type UnicodeNDArray* = ref object of BaseNDArray
 
 type ObjectNDArray* = ref object of BaseNDArray
     buf*: seq[PyObjectND]
-
 
 proc writeNumpyHeader*(fh: File, dtype: string, shape: uint): void =
     let header = "{'descr': '" & dtype & "', 'fortran_order': False, 'shape': (" & $shape & ",)}"
@@ -457,6 +457,55 @@ proc readNumpy*(path: string): BaseNDArray =
 
     return arr
 
+proc toNumpyPrimitive[T: bool | int8 | int16 | int32 | int64 | float32 | float64 | string](arrType: string, shape: var Shape, buf: pointer): nimpy.PyObject =
+    let elements = calcShapeElements(shape)
+    let np = pyImport("numpy")
+    var ndBuf: RawPyBuffer
+    let ndArray = np.ndarray(shape, arrType)
+
+    ndArray.getBuffer(ndBuf, PyBUF_WRITABLE or PyBUF_ND)
+
+    ndBuf.buf.copyMem(buf, sizeof(T) * elements)
+    ndBuf.release()
+    
+    return ndArray
+
+proc toPython(self: BooleanNDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[bool]("?", self.shape, addr self.buf[0])
+
+proc toPython(self: Int8NDArray): nimpy.PyObject = toNumpyPrimitive[int8]("i1", self.shape, addr self.buf[0])
+proc toPython(self: Int16NDArray): nimpy.PyObject = toNumpyPrimitive[int16]("i2", self.shape, addr self.buf[0])
+proc toPython(self: Int32NDArray): nimpy.PyObject = toNumpyPrimitive[int32]("i4", self.shape, addr self.buf[0])
+proc toPython(self: Int64NDArray): nimpy.PyObject = toNumpyPrimitive[int64]("i8", self.shape, addr self.buf[0])
+
+proc toPython(self: Float32NDArray): nimpy.PyObject = toNumpyPrimitive[float32]("f4", self.shape, addr self.buf[0])
+proc toPython(self: Float64NDArray): nimpy.PyObject = toNumpyPrimitive[float64]("f8", self.shape, addr self.buf[0])
+
+
+proc toPython(self: TimeNDArray): nimpy.PyObject = implement("TimeNDArray.toPython")
+proc toPython(self: DateNDArray): nimpy.PyObject = implement("DateNDArray.toPython")
+proc toPython(self: DateTimeNDArray): nimpy.PyObject = implement("DateTimeNDArray.toPython")
+proc toPython(self: UnicodeNDArray): nimpy.PyObject = implement("UnicodeNDArray.toPython")
+proc toPython(self: ObjectNDArray): nimpy.PyObject = implement("ObjectNDArray.toPython")
+
+proc toPython*(self: BaseNDArray): nimpy.PyObject =
+    if self of BooleanNDArray: return BooleanNDArray(self).toPython()
+    if self of Int8NDArray: return Int8NDArray(self).toPython()
+    if self of Int16NDArray: return Int16NDArray(self).toPython()
+    if self of Int32NDArray: return Int32NDArray(self).toPython()
+    if self of Int64NDArray: return Int64NDArray(self).toPython()
+    if self of Float32NDArray: return Float32NDArray(self).toPython()
+    if self of Float64NDArray: return Float64NDArray(self).toPython()
+    if self of TimeNDArray: return TimeNDArray(self).toPython()
+    if self of DateNDArray: return DateNDArray(self).toPython()
+    if self of DateTimeNDArray: return DateTimeNDArray(self).toPython()
+    if self of UnicodeNDArray: return UnicodeNDArray(self).toPython()
+    if self of ObjectNDArray: return ObjectNDArray(self).toPython()
 
 when isMainModule and appType != "lib":
-    echo $readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/time.npy")
+    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/float.npy")
+
+    echo arr
+
+    let pyObj = arr.toPython()
+
+    echo $pyObj
