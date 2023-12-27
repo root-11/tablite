@@ -509,9 +509,9 @@ proc toPython(self: DateTimeNDArray): nimpy.PyObject =
 
 proc toNimpy(self: PY_NoneType): nimpy.PyObject = builtins().None
 proc toNimpy(self: PY_Boolean): nimpy.PyObject = builtins().bool(self.value)
-proc toNimpy(self: PY_Int): nimpy.PyObject = implement("PY_Int.toNimpy")
-proc toNimpy(self: PY_Float): nimpy.PyObject = implement("PY_Float.toNimpy")
-proc toNimpy(self: PY_String): nimpy.PyObject = implement("PY_String.toNimpy")
+proc toNimpy(self: PY_Int): nimpy.PyObject = builtins().int(self.value)
+proc toNimpy(self: PY_Float): nimpy.PyObject = builtins().float(self.value)
+proc toNimpy(self: PY_String): nimpy.PyObject = builtins().str(self.value)
 proc toNimpy(self: PY_Date): nimpy.PyObject = implement("PY_Date.toNimpy")
 proc toNimpy(self: PY_Time): nimpy.PyObject = implement("PY_Time.toNimpy")
 proc toNimpy(self: PY_DateTime): nimpy.PyObject = implement("PY_DateTime.toNimpy")
@@ -552,7 +552,7 @@ proc toPython*(self: BaseNDArray): nimpy.PyObject =
     corrupted()
 
 when isMainModule and appType != "lib":
-    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/boolean_nones.npy")
+    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/float_nones.npy")
 
     echo arr
 
