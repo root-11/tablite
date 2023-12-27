@@ -483,18 +483,30 @@ proc toNumpyPrimitive[T: bool | int8 | int16 | int32 | int64 | float32 | float64
 
 proc toPython(self: BooleanNDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[bool](self.shape, addr self.buf[0])
 
-proc toPython(self: Int8NDArray): nimpy.PyObject = toNumpyPrimitive[int8](self.shape, addr self.buf[0])
-proc toPython(self: Int16NDArray): nimpy.PyObject = toNumpyPrimitive[int16](self.shape, addr self.buf[0])
-proc toPython(self: Int32NDArray): nimpy.PyObject = toNumpyPrimitive[int32](self.shape, addr self.buf[0])
-proc toPython(self: Int64NDArray): nimpy.PyObject = toNumpyPrimitive[int64](self.shape, addr self.buf[0])
+proc toPython(self: Int8NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[int8](self.shape, addr self.buf[0])
+proc toPython(self: Int16NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[int16](self.shape, addr self.buf[0])
+proc toPython(self: Int32NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[int32](self.shape, addr self.buf[0])
+proc toPython(self: Int64NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[int64](self.shape, addr self.buf[0])
 
-proc toPython(self: Float32NDArray): nimpy.PyObject = toNumpyPrimitive[float32](self.shape, addr self.buf[0])
-proc toPython(self: Float64NDArray): nimpy.PyObject = toNumpyPrimitive[float64](self.shape, addr self.buf[0])
+proc toPython(self: Float32NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[float32](self.shape, addr self.buf[0])
+proc toPython(self: Float64NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[float64](self.shape, addr self.buf[0])
 
 proc toPython(self: UnicodeNDArray): nimpy.PyObject = toNumpyPrimitive("U" & $self.size, self.shape, self.size * 4, addr self.buf[0])
 
-proc toPython(self: DateNDArray): nimpy.PyObject = implement("DateNDArray.toPython")
-proc toPython(self: DateTimeNDArray): nimpy.PyObject = implement("DateTimeNDArray.toPython")
+proc toPython(self: DateNDArray): nimpy.PyObject = 
+    var buf = collect:
+        for el in self.buf:
+            el.toTime.time2Duration.inDays
+
+    return toNumpyPrimitive("M8[D]", self.shape, sizeof(int64), addr buf[0])
+
+proc toPython(self: DateTimeNDArray): nimpy.PyObject =
+    var buf = collect:
+        for el in self.buf:
+            el.toTime.time2Duration.inMicroseconds
+
+    return toNumpyPrimitive("M8[us]", self.shape, sizeof(int64), addr buf[0])
+
 proc toPython(self: ObjectNDArray): nimpy.PyObject = implement("ObjectNDArray.toPython")
 
 proc toPython*(self: BaseNDArray): nimpy.PyObject =
@@ -511,7 +523,7 @@ proc toPython*(self: BaseNDArray): nimpy.PyObject =
     if self of ObjectNDArray: return ObjectNDArray(self).toPython()
 
 when isMainModule and appType != "lib":
-    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/str.npy")
+    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/datetime.npy")
 
     echo arr
 
