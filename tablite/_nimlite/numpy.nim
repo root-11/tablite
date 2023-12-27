@@ -42,9 +42,6 @@ type Float32NDArray* = ref object of BaseNDArray
 type Float64NDArray* = ref object of BaseNDArray
     buf*: seq[float64]
 
-type TimeNDArray* = ref object of BaseNDArray
-    buf*: seq[Time]
-
 type DateNDArray* = ref object of BaseNDArray
     buf*: seq[DateTime]
 
@@ -496,7 +493,6 @@ proc toPython(self: Float64NDArray): nimpy.PyObject = toNumpyPrimitive[float64](
 
 proc toPython(self: UnicodeNDArray): nimpy.PyObject = toNumpyPrimitive("U" & $self.size, self.shape, self.size * 4, addr self.buf[0])
 
-proc toPython(self: TimeNDArray): nimpy.PyObject = implement("TimeNDArray.toPython")
 proc toPython(self: DateNDArray): nimpy.PyObject = implement("DateNDArray.toPython")
 proc toPython(self: DateTimeNDArray): nimpy.PyObject = implement("DateTimeNDArray.toPython")
 proc toPython(self: ObjectNDArray): nimpy.PyObject = implement("ObjectNDArray.toPython")
@@ -509,7 +505,6 @@ proc toPython*(self: BaseNDArray): nimpy.PyObject =
     if self of Int64NDArray: return Int64NDArray(self).toPython()
     if self of Float32NDArray: return Float32NDArray(self).toPython()
     if self of Float64NDArray: return Float64NDArray(self).toPython()
-    if self of TimeNDArray: return TimeNDArray(self).toPython()
     if self of DateNDArray: return DateNDArray(self).toPython()
     if self of DateTimeNDArray: return DateTimeNDArray(self).toPython()
     if self of UnicodeNDArray: return UnicodeNDArray(self).toPython()
