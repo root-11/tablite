@@ -114,6 +114,7 @@ type PY_None* = ref object of PY_ObjectND
 type PY_Date* = ref object of PY_ObjectND
     value*: DateTime
 type PY_Time* = ref object of PY_ObjectND
+    value*: Duration
 type PY_DateTime* = ref object of PY_ObjectND
     value*: DateTime
 type Py_Iterable* = ref object of PY_Object
@@ -813,9 +814,28 @@ proc newReducePickle(fn: GlobalPickle, args: TuplePickle): PY_Object =
         copyMem(addr microsecond, addr bytes[7], 3)
         swapEndian32(addr microsecond, addr microsecond)
 
-        return PY_Date(
+        return PY_DateTime(
             value: datetime2NimDatetime(
                 int year, int month, int day,
+                int hour, int minute, int second, int microsecond
+            )
+        )
+    elif fn.module == "datetime" and fn.name == "time":
+        if args.elems.len != 1 or not (args.elems[0] of BinBytesPickle):
+            corrupted()
+
+        let bytes = (BinBytesPickle args.elems[0]).value
+        var hour, minute, second: uint8
+        var microsecond: uint32
+
+        copyMem(addr hour, addr bytes[0], 1)
+        copyMem(addr minute, addr bytes[1], 1)
+        copyMem(addr second, addr bytes[2], 1)
+        copyMem(addr microsecond, addr bytes[3], 3)
+        swapEndian32(addr microsecond, addr microsecond)
+
+        return PY_Time(
+            value: time2NimDuration(
                 int hour, int minute, int second, int microsecond
             )
         )
@@ -949,6 +969,9 @@ proc toString(self: PY_DateTime, depth: int): string =
     let fmt = initTimeFormat("yyyy-MM-dd HH:mm:ss")
     return "DateTime(" & self.value.format(fmt) & ")"
 
+proc toString(self: PY_Time, depth: int): string =
+    return "Time(" & $self.value & ")"
+
 proc toString(self: PY_Object, depth: int = 0): string =
     if self of ProtoPickle: return toString(ProtoPickle self, depth)
     if self of GlobalPickle: return toString(GlobalPickle self, depth)
@@ -973,6 +996,7 @@ proc toString(self: PY_Object, depth: int = 0): string =
     if self of PY_NpMultiArray: return repr(PY_NpMultiArray self)
     if self of PY_Date: return toString(PY_Date self, depth)
     if self of PY_DateTime: return toString(PY_DateTime self, depth)
+    if self of PY_Time: return toString(PY_Time self, depth)
 
     return "^PY_Object"
 
@@ -1067,4 +1091,4 @@ proc readNumpy(path: string): BaseNDArray =
 
 
 when isMainModule and appType != "lib":
-    echo $readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/datetime_nones.npy")
+    echo $readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/mixed.npy")
