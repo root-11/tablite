@@ -1,7 +1,7 @@
 from std/math import pow
 from std/unicode import runeLen
 import std/strutils
-import pickling, dateutils
+import pytypes, dateutils
 
 type ParseShortDate = enum
     DONT_CARE

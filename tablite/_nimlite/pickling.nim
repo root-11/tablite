@@ -120,7 +120,7 @@ proc writePickleBoolean(fh: var File, value: bool): void {.inline.} =
     else:
         fh.write(PKL_NEWFALSE)
 
-proc writePickleDateBody(fh: var File, value: ptr PY_Date, binput: var uint32): void {.inline.} =
+proc writePickleDateBody(fh: var File, value: ptr PY_Date | ptr PY_DateTime, binput: var uint32): void {.inline.} =
     var year = value.getYear()
     year.addr.bigEndian16(addr year)
 
@@ -145,37 +145,23 @@ proc writePickleDate(fh: var File, value: PY_Date, binput: var uint32): void {.i
     fh.write(PKL_REDUCE)
     fh.writePickleBinput(binput)
 
-proc writePickleTimeBody(fh: var File, value: ptr PY_Time, binput: var uint32): void {.inline.} =
-    var microsecond: uint32
-    microsecond.unsafeAddr.bigEndian32(value.microsecond.unsafeAddr)
+proc writePickleTimeBody(fh: var File, value: ptr PY_DateTime | ptr PY_Time, binput: var uint32): void {.inline.} =
+    var microsecond = uint32 value.getMicrosecond()
+    microsecond.addr.bigEndian32(addr microsecond)
 
-    var ptr_microseconds = cast[pointer](cast[int](microsecond.unsafeAddr) + 1)
+    var second = uint8 value.getSecond()
+    var minute = uint8 value.getMinute()
+    var hour = uint8 value.getHour()
 
-    discard fh.writeBuffer(value.hour.unsafeAddr, 1)
-    discard fh.writeBuffer(value.minute.unsafeAddr, 1)
-    discard fh.writeBuffer(value.second.unsafeAddr, 1)
+    var ptr_microseconds = cast[pointer](cast[int](addr microsecond) + 1)
+
+    discard fh.writeBuffer(addr hour , 1)
+    discard fh.writeBuffer(addr minute , 1)
+    discard fh.writeBuffer(addr second , 1)
     discard fh.writeBuffer(ptr_microseconds, 3)
     fh.writePickleBinput(binput)
 
-    if not value.has_tz:
-        fh.write(PKL_TUPLE1)
-    else:
-        fh.writePickleGlobal("datetime", "timezone")
-        fh.writePickleBinput(binput)
-        fh.writePickleGlobal("datetime", "timedelta")
-        fh.writePickleBinput(binput)
-        fh.writePickleBinint(value.tz_days)
-        fh.writePickleBinint(value.tz_seconds)
-        fh.writePickleBinint(value.tz_microseconds)
-        fh.write(PKL_TUPLE3)
-        fh.writePickleBinput(binput)
-        fh.write(PKL_REDUCE)
-        fh.writePickleBinput(binput)
-        fh.write(PKL_TUPLE1)
-        fh.writePickleBinput(binput)
-        fh.write(PKL_REDUCE)
-        fh.writePickleBinput(binput)
-        fh.write(PKL_TUPLE2)
+    fh.write(PKL_TUPLE1)
 
     fh.writePickleBinput(binput)
     fh.write(PKL_REDUCE)
@@ -187,7 +173,7 @@ proc writePickleTime(fh: var File, value: PY_Time, binput: var uint32): void {.i
     fh.write(PKL_SHORT_BINBYTES)
     fh.write('\6')
 
-    fh.writePickleTimeBody(value.unsafeAddr, binput)
+    fh.writePickleTimeBody(addr value, binput)
 
 proc writePickleDatetime(fh: var File, value: PY_DateTime, binput: var uint32): void {.inline.} =
     fh.writePickleGlobal("datetime", "datetime")
@@ -195,8 +181,8 @@ proc writePickleDatetime(fh: var File, value: PY_DateTime, binput: var uint32): 
     fh.write(PKL_SHORT_BINBYTES)
     fh.write('\10')
 
-    fh.writePickleDateBody(value.date.unsafeAddr, binput)
-    fh.writePickleTimeBody(value.time.unsafeAddr, binput)
+    fh.writePickleDateBody(addr value, binput)
+    fh.writePickleTimeBody(addr value, binput)
 
 proc writePicklePyObj*(fh: var File, value: PY_NoneType, binput: var uint32): void {.inline.} = fh.write(PKL_NONE)
 proc writePicklePyObj*(fh: var File, value: int, binput: var uint32): void {.inline.} = fh.writePickleBinint(value)
