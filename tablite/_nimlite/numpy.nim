@@ -350,22 +350,10 @@ proc newBooleanNDArray(fh: var File, shape: var Shape): BooleanNDArray =
 
 template newIntNDArray(fh: var File, endianness: Endianness, size: int, shape: var Shape) =
     case size:
-        of 1: Int8NDArray(
-            buf: readPrimitiveBuffer[int8](fh, shape),
-            shape: shape
-        )
-        of 2: Int16NDArray(
-            buf: readPrimitiveBuffer[int16](fh, shape),
-            shape: shape
-        )
-        of 4: Int32NDArray(
-            buf: readPrimitiveBuffer[int32](fh, shape),
-            shape: shape
-        )
-        of 8: Int64NDArray(
-            buf: readPrimitiveBuffer[int64](fh, shape),
-            shape: shape
-        )
+        of 1: Int8NDArray(buf: readPrimitiveBuffer[int8](fh, shape), shape: shape)
+        of 2: Int16NDArray(buf: readPrimitiveBuffer[int16](fh, shape), shape: shape)
+        of 4: Int32NDArray(buf: readPrimitiveBuffer[int32](fh, shape), shape: shape)
+        of 8: Int64NDArray(buf: readPrimitiveBuffer[int64](fh, shape), shape: shape)
         else: corrupted()
 
 proc newDateArray_Days(fh: var File, endianness: Endianness, shape: var Shape): DateNDArray {.inline.} =
@@ -399,14 +387,8 @@ proc newDateTimeArray_Microseconds(fh: var File, endianness: Endianness, shape: 
 
 template newFloatNDArray(fh: var File, endianness: Endianness, size: int, shape: var Shape) =
     case size:
-        of 4: Float32NDArray(
-            buf: readPrimitiveBuffer[float32](fh, shape),
-            shape: shape
-        )
-        of 8: Float64NDArray(
-            buf: readPrimitiveBuffer[float64](fh, shape),
-            shape: shape
-        )
+        of 4: Float32NDArray(buf: readPrimitiveBuffer[float32](fh, shape), shape: shape)
+        of 8: Float64NDArray(buf: readPrimitiveBuffer[float64](fh, shape), shape: shape)
         else: corrupted()
 
 proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: var Shape): UnicodeNDArray =
