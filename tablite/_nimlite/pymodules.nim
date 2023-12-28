@@ -2,9 +2,11 @@ import nimpy as nimpy
 
 var
     isInit = false
+    iSys: nimpy.PyObject
     iBuiltins: nimpy.PyObject
     iNumpy: nimpy.PyObject
     iDateTime: nimpy.PyObject
+    iTablite: nimpy.PyObject
     PyNoneClass: nimpy.PyObject
 
 proc importPy(): void =
@@ -12,24 +14,41 @@ proc importPy(): void =
         return
 
     iBuiltins = nimpy.pyBuiltinsModule()
-    iNumpy = nimpy.pyImport("numpy")
+
+    iSys = nimpy.pyImport("sys")
     iDateTime = nimpy.pyImport("datetime")
-    
+    iTablite = nimpy.pyImport("tablite")
+    iNumpy = nimpy.pyImport("numpy")
+
     PyNoneClass = iBuiltins.None.getattr("__class__")
 
     isInit = true
 
+proc sys*(): nimpy.PyObject =
+    importPy()
+
+    return iSys
+
 proc builtins*(): nimpy.PyObject =
     importPy()
-    
+
     return iBuiltins
 
 proc numpy*(): nimpy.PyObject =
     importPy()
-    
+
     return iNumpy
 
 proc datetime*(): nimpy.PyObject =
     importPy()
-    
+
     return iDateTime
+
+proc tablite*(): nimpy.PyObject =
+    importPy()
+
+    return iTablite
+
+
+proc isNone*(py: PyObject): bool {.inline.} =
+    return builtins().isinstance(py, PyNoneClass).to(bool)
