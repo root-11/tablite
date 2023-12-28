@@ -1,14 +1,26 @@
-import std/[tables, sugar, sets, sequtils]
+import std/[tables, sugar, sets, sequtils, strutils]
 import nimpy as nimpy
 import utils
 import std/options as opt
 import pymodules as pymodules
-from numpy import getColumnLen
+from numpy import getColumnLen, getColumnTypes
+from unpickling import PageTypes
 
 type DesiredColumnInfo = object
     original_name: string
-    `type`: opt.Option[string]
+    `type`: PageTypes
     allow_empty: bool
+
+proc toPageType(name: string): PageTypes =
+    case name.toLower():
+    of "int": return PageTypes.DT_INT
+    of "float": return PageTypes.DT_FLOAT
+    of "bool": return PageTypes.DT_BOOL
+    of "str": return PageTypes.DT_STRING
+    of "date": return PageTypes.DT_DATE
+    of "time": return PageTypes.DT_TIME
+    of "datetime": return PageTypes.DT_DATETIME
+    else: raise newException(FieldDefect, "unsupported page type: '" & name & "'")
 
 proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObject, dir_pid: string): (nimpy.PyObject, nimpy.PyObject) =
     var desired_column_map = initTable[string, DesiredColumnInfo]()
@@ -43,7 +55,7 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
 
         desired_column_map[name_out] = DesiredColumnInfo(   # collect the information about the column, fill in any defaults
             original_name: name_inp,
-            `type`: if desired_type.isNone(): none[string]() else: some(desired_type.to(string)),
+            `type`: if desired_type.isNone(): PageTypes.DT_NONE else: toPageType(desired_type.to(string)),
             allow_empty: c.get("allow_empty", builtins().False).to(bool)
         )
 
@@ -98,26 +110,25 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
         
         passed_column_data[desired_name] = @[]
 
-        # col_dtypes = set(this_col.types().keys())
+        var col_dtypes = this_col.getColumnTypes().toSeqKeys()
+        var needs_to_iterate = false
 
-        # needs_to_iterate = False
+        if PageTypes.DT_NONE in col_dtypes:
+            if not desired_columns.allow_empty:
+                needs_to_iterate = true
+            else:
+                col_dtypes.delete(col_dtypes.find(PageTypes.DT_NONE))
 
-        # if NoneType in col_dtypes:
-        #     if not desired_columns.get("allow_empty", False):
-        #         needs_to_iterate = True
-        #     else:
-        #         col_dtypes.remove(NoneType)
+        if not needs_to_iterate and col_dtypes.len > 0:
+            if col_dtypes.len > 1:
+                needs_to_iterate = true
+            else:
+                let active_type = col_dtypes[0]
 
-        # if not needs_to_iterate and len(col_dtypes) > 0:
-        #     if len(col_dtypes) > 1:
-        #         needs_to_iterate = True
-        #     else:
-        #         active_type = next(iter(col_dtypes))
+                if active_type != desired_columns.`type`:
+                    needs_to_iterate = true
 
-        #         if active_type.__name__ != desired_columns["type"]:
-        #             needs_to_iterate = True
-
-        # is_correct_type[desired_name] = not needs_to_iterate
+        is_correct_type[desired_name] = not needs_to_iterate
 
         # for i in range(page_count):
         #     res_cols_pass[i][desired_name] = (dir_pid, SimplePage.next_id(dir_pid))
