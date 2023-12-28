@@ -1,4 +1,3 @@
-import nimpy as nimpy
 from std/tables import Table
 import std/times
 import dateutils
@@ -101,21 +100,3 @@ proc getMicrosecond*(self: ptr PY_Time | PY_Time): MicrosecondRange =
     let inMicroseconds = self.value.inMicroseconds()
 
     return MicrosecondRange (inMicroseconds - inSeconds)
-
-var
-    isInit = false
-    iBuiltins: nimpy.PyObject
-    PyNoneClass: nimpy.PyObject
-
-proc importPy(): void =
-    if isInit:
-        return
-
-    iBuiltins = nimpy.pyBuiltinsModule()
-    PyNoneClass = iBuiltins.None.getattr("__class__")
-    isInit = true
-
-proc builtins*(): nimpy.PyObject =
-    importPy()
-    
-    return iBuiltins
