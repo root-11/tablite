@@ -393,7 +393,6 @@ proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: v
     var elements = calcShapeElements(shape)
     var elem_size = elements * size * 4
     var buf {.noinit.} = newSeq[char](elem_size)
-    
 
     if fh.readBuffer(addr buf[0], elem_size) != elem_size:
         corrupted()
@@ -409,7 +408,7 @@ proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var Shape): O
 
     return ObjectNDArray(shape: shape, buf: buf)
 
-proc readNumpy(fh: var File): BaseNDArray =
+proc readPageInfo(fh: var File): (NDArrayDescriptor, bool, Shape) =
     var header_bytes: array[NUMPY_MAGIC_LEN, uint8]
 
     validateHeader(fh, header_bytes, NUMPY_MAGIC, NUMPY_MAGIC_LEN)
@@ -426,11 +425,15 @@ proc readNumpy(fh: var File): BaseNDArray =
     if fh.readBuffer(addr header[0], int header_size) != int header_size:
         corrupted()
 
-    var ((descr_endianness, descr_type, descr_size), order, shape) = parseHeader(header)
+    var (descr, order, shape) = parseHeader(header)
 
     if order: implement("fortran_order")
     if shape.len != 1: implement("shape.len != 1")
 
+    return (descr, order, shape)
+
+proc readNumpy(fh: var File): BaseNDArray =
+    var ((descr_endianness, descr_type, descr_size), _, shape) = readPageInfo(fh)
     var page: BaseNDArray
 
     case descr_type:
@@ -465,7 +468,7 @@ proc toNumpyPrimitive(arrType: string, shape: var Shape, sizeof: int, buf: point
 
     ndBuf.buf.copyMem(buf, sizeof * elements)
     ndBuf.release()
-    
+
     return ndArray
 
 proc toNumpyPrimitive[T: bool | int8 | int16 | int32 | int64 | float32 | float64](shape: var Shape, buf: pointer): nimpy.PyObject =
@@ -473,7 +476,7 @@ proc toNumpyPrimitive[T: bool | int8 | int16 | int32 | int64 | float32 | float64
         return toNumpyPrimitive("?", shape, sizeof(T), buf)
     else:
         let sz = sizeof(T)
-    
+
         when T is int8 or T is int16 or T is int32 or T is int64:
             return toNumpyPrimitive("i" & $sz, shape, sz, buf)
         else:
@@ -494,7 +497,7 @@ proc toPython(self: Float64NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitiv
 
 proc toPython(self: UnicodeNDArray): nimpy.PyObject = toNumpyPrimitive("U" & $self.size, self.shape, self.size * 4, addr self.buf[0])
 
-proc toPython(self: DateNDArray): nimpy.PyObject = 
+proc toPython(self: DateNDArray): nimpy.PyObject =
     var buf = collect:
         for el in self.buf:
             el.toTime.time2Duration.inDays
@@ -514,7 +517,7 @@ proc toNimpy(self: PY_Int): nimpy.PyObject = pymodules.builtins().int(self.value
 proc toNimpy(self: PY_Float): nimpy.PyObject = pymodules.builtins().float(self.value)
 proc toNimpy(self: PY_String): nimpy.PyObject = pymodules.builtins().str(self.value)
 proc toNimpy(self: PY_Date): nimpy.PyObject =
-    return pymodules.datetime().date(self.value.year, self.value.month,self.value.monthday)
+    return pymodules.datetime().date(self.value.year, self.value.month, self.value.monthday)
 proc toNimpy(self: PY_Time): nimpy.PyObject =
     let hour = self.getHour()
     let minute = self.getMinute()
@@ -522,12 +525,12 @@ proc toNimpy(self: PY_Time): nimpy.PyObject =
     let microsecond = self.getMicrosecond()
 
     return pymodules.datetime().time(
-        hour=hour, minute=minute, second=second, microsecond=microsecond
+        hour = hour, minute = minute, second = second, microsecond = microsecond
     )
 
 proc toNimpy(self: PY_DateTime): nimpy.PyObject =
     return pymodules.datetime().datetime(
-        self.value.year, self.value.month,self.value.monthday,
+        self.value.year, self.value.month, self.value.monthday,
         self.value.hour, self.value.minute, self.value.second, int(self.value.nanosecond / 1000)
     )
 
@@ -565,6 +568,27 @@ proc toPython*(self: BaseNDArray): nimpy.PyObject =
     if self of ObjectNDArray: return ObjectNDArray(self).toPython()
 
     corrupted()
+
+proc getPageLen*(fh: var File): int =
+    var (_, _, shape) = readPageInfo(fh)
+
+    return calcShapeElements(shape)
+
+proc getPageLen*(path: string): int =
+    var fh = open(path, fmRead)
+    let len = getPageLen(fh)
+
+    fh.close()
+
+    return len
+
+proc getColumnLen*(pages: openArray[string]): int =
+    var acc = 0
+
+    for p in pages:
+        acc = acc + getPageLen(p)
+
+    return acc
 
 when isMainModule and appType != "lib":
     var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/mixed.npy")
