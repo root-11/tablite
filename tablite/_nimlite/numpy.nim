@@ -1,5 +1,6 @@
 import std/[unicode, strutils, sugar, times]
 import dateutils, pytypes, unpickling, utils
+import pymodules as pymodules
 import nimpy as nimpy, nimpy/raw_buffers
 
 const NUMPY_MAGIC = "\x93NUMPY"
@@ -507,14 +508,28 @@ proc toPython(self: DateTimeNDArray): nimpy.PyObject =
 
     return toNumpyPrimitive("M8[us]", self.shape, sizeof(int64), addr buf[0])
 
-proc toNimpy(self: PY_NoneType): nimpy.PyObject = builtins().None
-proc toNimpy(self: PY_Boolean): nimpy.PyObject = builtins().bool(self.value)
-proc toNimpy(self: PY_Int): nimpy.PyObject = builtins().int(self.value)
-proc toNimpy(self: PY_Float): nimpy.PyObject = builtins().float(self.value)
-proc toNimpy(self: PY_String): nimpy.PyObject = builtins().str(self.value)
-proc toNimpy(self: PY_Date): nimpy.PyObject = implement("PY_Date.toNimpy")
-proc toNimpy(self: PY_Time): nimpy.PyObject = implement("PY_Time.toNimpy")
-proc toNimpy(self: PY_DateTime): nimpy.PyObject = implement("PY_DateTime.toNimpy")
+proc toNimpy(self: PY_NoneType): nimpy.PyObject = pymodules.builtins().None
+proc toNimpy(self: PY_Boolean): nimpy.PyObject = pymodules.builtins().bool(self.value)
+proc toNimpy(self: PY_Int): nimpy.PyObject = pymodules.builtins().int(self.value)
+proc toNimpy(self: PY_Float): nimpy.PyObject = pymodules.builtins().float(self.value)
+proc toNimpy(self: PY_String): nimpy.PyObject = pymodules.builtins().str(self.value)
+proc toNimpy(self: PY_Date): nimpy.PyObject =
+    return pymodules.datetime().date(self.value.year, self.value.month,self.value.monthday)
+proc toNimpy(self: PY_Time): nimpy.PyObject =
+    let hour = self.getHour()
+    let minute = self.getMinute()
+    let second = self.getSecond()
+    let microsecond = self.getMicrosecond()
+
+    return pymodules.datetime().time(
+        hour=hour, minute=minute, second=second, microsecond=microsecond
+    )
+
+proc toNimpy(self: PY_DateTime): nimpy.PyObject =
+    return pymodules.datetime().datetime(
+        self.value.year, self.value.month,self.value.monthday,
+        self.value.hour, self.value.minute, self.value.second, int(self.value.nanosecond / 1000)
+    )
 
 proc toNimpy(self: PY_ObjectND): nimpy.PyObject =
     if self of PY_NoneType: return PY_NoneType(self).toNimpy()
@@ -529,12 +544,12 @@ proc toNimpy(self: PY_ObjectND): nimpy.PyObject =
     implement(repr(self))
 
 proc toPython(self: ObjectNDArray): nimpy.PyObject =
-    let idCall = builtins().id
-    var buf = collect:
+    let buf = collect:
         for el in self.buf:
-            idCall.callObject(el.toNimpy()).to(int64)
-    
-    toNumpyPrimitive("O8", self.shape, sizeof(int64), addr buf[0])
+            el.toNimpy()
+
+    return numpy().array(buf)
+
 
 proc toPython*(self: BaseNDArray): nimpy.PyObject =
     if self of BooleanNDArray: return BooleanNDArray(self).toPython()
@@ -552,10 +567,10 @@ proc toPython*(self: BaseNDArray): nimpy.PyObject =
     corrupted()
 
 when isMainModule and appType != "lib":
-    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/float_nones.npy")
+    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/mixed.npy")
 
     echo arr
 
-    let pyObj = arr.toPython()
+    let pyObj = pymodules.builtins().repr(arr.toPython())
 
     echo $pyObj
