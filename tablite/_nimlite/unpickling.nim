@@ -1,11 +1,22 @@
-import std/[sequtils, strutils, sugar, tables, endians]
+import std/[sequtils, strutils, sugar, tables, endians, enumerate]
 import pytypes, pickleproto, utils
+
+
+type PageTypes* = enum
+    DT_NONE,
+    DT_BOOL,
+    DT_INT,
+    DT_FLOAT,
+    DT_STRING,
+    DT_DATE,
+    DT_TIME,
+    DT_DATETIME
 
 type IterPickle = iterator(): uint8
 type Stack = seq[PY_Object]
 type MetaStack = seq[Stack]
 type Memo = Table[int, PY_Object]
-type ObjectPage = (Shape, seq[PY_ObjectND])
+type ObjectPage = (Shape, seq[PY_ObjectND], Table[PageTypes, int])
 
 type ProtoPickle = ref object of PY_Int
 type GlobalPickle = ref object of PY_Object
@@ -495,9 +506,34 @@ proc unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack: var
         of PKL_BINGET: iter.loadBinGet(stack, memo)
         else: raise newException(Exception, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
 
+proc getType(self: PY_ObjectND): PageTypes =
+    if self of PY_NoneType: return DT_NONE
+    if self of PY_Boolean: return DT_BOOL
+    if self of PY_Int: return DT_INT
+    if self of PY_Float: return DT_FLOAT
+    if self of PY_String: return DT_STRING
+    if self of PY_Date: return DT_DATE
+    if self of PY_Time: return DT_TIME
+    if self of PY_DateTime: return DT_DATETIME
+
+    corrupted()
+
 proc toPage(arr: PY_NpMultiArray): ObjectPage =
-    let buf = collect: (for e in arr.elems: PY_ObjectND e)
-    return (arr.shape, buf)
+    var buf = newSeqOfCap[PY_ObjectND](arr.elems.len)
+    var dtypes = initTable[PageTypes, int]()
+
+    for (i, e) in enumerate(arr.elems):
+        let obj = PY_ObjectND(e)
+        let dt = obj.getType()
+        
+        buf[i] = obj
+        
+        if not (dt in dtypes):
+            dtypes[dt] = 0
+
+        dtypes[dt] = dtypes[dt] + 1
+
+    return (arr.shape, buf, dtypes)
 
 proc construct(self: StopPickle): ObjectPage {.inline.} =
     if not (self.value of PY_NpMultiArray):

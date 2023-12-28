@@ -1,4 +1,4 @@
-import std/[unicode, strutils, sugar, times]
+import std/[unicode, strutils, sugar, times, tables]
 import dateutils, pytypes, unpickling, utils
 import pymodules as pymodules
 import nimpy as nimpy, nimpy/raw_buffers
@@ -55,6 +55,7 @@ type UnicodeNDArray* = ref object of BaseNDArray
 
 type ObjectNDArray* = ref object of BaseNDArray
     buf*: seq[PyObjectND]
+    dtypes*: Table[PageTypes, int]
 
 proc writeNumpyHeader*(fh: File, dtype: string, shape: uint): void =
     let header = "{'descr': '" & dtype & "', 'fortran_order': False, 'shape': (" & $shape & ",)}"
@@ -401,12 +402,12 @@ proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: v
 
 proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var Shape): ObjectNDArray =
     var elements = calcShapeElements(shape)
-    var (shape, buf) = readPickledPage(fh, endianness, shape)
+    var (shape, buf, dtypes) = readPickledPage(fh, endianness, shape)
 
     if calcShapeElements(shape) != elements:
         corrupted()
 
-    return ObjectNDArray(shape: shape, buf: buf)
+    return ObjectNDArray(shape: shape, buf: buf, dtypes: dtypes)
 
 proc readPageInfo(fh: var File): (NDArrayDescriptor, bool, Shape) =
     var header_bytes: array[NUMPY_MAGIC_LEN, uint8]
@@ -589,6 +590,34 @@ proc getColumnLen*(pages: openArray[string]): int =
         acc = acc + getPageLen(p)
 
     return acc
+
+template toType(dtype: PageTypes, shape: Shape): Table[PageTypes, int] =
+    { dtype: calcShapeElements(shape) }.toTable
+
+proc getPageTypes*(self: BaseNDArray): Table[PageTypes, int] =
+    if self of BooleanNDArray: return DT_BOOL.toType(self.shape)
+    if self of Int8NDArray or self of Int16NDArray or self of Int32NDArray or self of Int64NDArray:
+        return DT_INT.toType(self.shape)
+    if self of Float32NDArray or self of Float64NDArray:
+        return DT_FLOAT.toType(self.shape)
+    if self of UnicodeNDArray: return DT_BOOL.toType(self.shape)
+    if self of DateNDArray: return DT_DATE.toType(self.shape)
+    if self of DateTimeNDArray: return DT_DATETIME.toType(self.shape)
+    if self of ObjectNDArray: return ObjectNDArray(self).dtypes
+
+    corrupted()
+
+proc getPageTypes*(page: string): Table[PageTypes, int] = readNumpy(page).getPageTypes()
+proc getColumnTypes*(pages: openArray[string] | seq[string]): Table[PageTypes, int] =
+    var dtypes = initTable[PageTypes, int]()
+
+    for p in pages:
+        for (t, v) in getPageTypes(p).pairs():
+            if not (t in dtypes):
+                dtypes[t] = 0
+            dtypes[t] = dtypes[t] + v
+
+    return dtypes
 
 when isMainModule and appType != "lib":
     var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/mixed.npy")
