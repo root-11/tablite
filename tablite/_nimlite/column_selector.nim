@@ -1,7 +1,8 @@
-import std/[tables, sugar, sets, sequtils, strutils]
+import std/[tables, sugar, sets, sequtils, strutils, cpuinfo]
 import nimpy as nimpy
 import utils
 import std/options as opt
+from std/math import clamp
 import pymodules as pymodules
 from numpy import getColumnLen, getColumnTypes
 from unpickling import PageTypes
@@ -89,7 +90,7 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
 
         layout_set.add(layout)
         
-    let page_count = layout_set[0][0]
+    let page_count = layout_set[0][1]
 
       # Registry of data
     var passed_column_data = initTable[string, seq[string]]()
@@ -157,17 +158,25 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
     if is_correct_type.toSeqValues().all(proc (x: bool): bool = x):
         var tbl_pass_columns = collect(initTable()):
             for (desired_name, desired_info) in desired_column_map.pairs():
-                var pyDesiredName: PyObject
-
-                pyValueToNim(nimValueToPy(desired_name), pyDesiredName)
-
-                { pyDesiredName: table[desired_info.original_name] }
+                { desired_name: table[desired_info.original_name] }
 
         let tbl_pass = tablite().Table(columns=tbl_pass_columns)
         let tbl_fail = tablite().Table(columns=failed_column_data)
 
         return (tbl_pass, tbl_fail)
-    
+
+    var tbl_pass = tablite().Table(columns=passed_column_data)
+    var tbl_fail = tablite().Table(columns=failed_column_data)
+
+    var task_list_inp = collect:
+        for i in 0..(page_count-1):
+            let el = collect(initTable()):
+                for (name, column) in columns.pairs:
+                    { name: column[i] }
+            (el, res_cols_pass[0], res_cols_fail[0])
+
+    let cpu_count = clamp(task_list_inp.len, 1, countProcessors())
+
     implement("columnSelect.convert")
 
 when isMainModule and appType != "lib":
@@ -179,7 +188,7 @@ when isMainModule and appType != "lib":
         pyDict["allow_empty"] = allow_empty
 
         if rename.isNone():
-            pyDict["rename"] = nimpy.newPyNone()
+            pyDict["rename"] = nil
         else:
             pyDict["rename"] = rename.get()
 
@@ -195,7 +204,7 @@ when isMainModule and appType != "lib":
     let table = pymodules.tablite().Table(columns=columns)
 
     let select_cols = builtins().list(@[
-        newColumnSelectorInfo("A ", "int", false, opt.none[string]())
+        newColumnSelectorInfo("A ", "float", false, opt.none[string]())
     ])
 
     let (select_pass, select_fail) = table.columnSelect(
