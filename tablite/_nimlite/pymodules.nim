@@ -8,6 +8,7 @@ var
     iDateTime: nimpy.PyObject
     iTablite: nimpy.PyObject
     iTabliteBase: nimpy.PyObject
+    iTabliteConfig: nimpy.PyObject
     PyNoneClass: nimpy.PyObject
 
 proc importPy(): void =
@@ -20,6 +21,7 @@ proc importPy(): void =
     iDateTime = nimpy.pyImport("datetime")
     iTablite = nimpy.pyImport("tablite")
     iTabliteBase = nimpy.pyImport("tablite.base")
+    iTabliteConfig = nimpy.pyImport("tablite.config")
     iNumpy = nimpy.pyImport("numpy")
 
     PyNoneClass = iBuiltins.None.getattr("__class__")
@@ -55,6 +57,11 @@ proc tabliteBase*(): nimpy.PyObject =
     importPy()
 
     return iTabliteBase
+
+proc tabliteConfig*(): nimpy.PyObject =
+    importPy()
+
+    return iTabliteConfig
 
 
 proc isNone*(py: PyObject): bool {.inline.} =
