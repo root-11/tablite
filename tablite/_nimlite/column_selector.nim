@@ -1,5 +1,6 @@
 import std/[tables, sugar, sets, sequtils, strutils, cpuinfo]
 import nimpy as nimpy
+from nimpyext import `!`
 import utils
 import std/options as opt
 from std/math import clamp
@@ -176,16 +177,37 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
             (el, res_cols_pass[0], res_cols_fail[0])
 
     let cpu_count = clamp(task_list_inp.len, 1, countProcessors())
+    let Config = tabliteConfig().Config
+    var is_mp: bool
+
+    if Config.MULTIPROCESSING_MODE.to(string) == Config.FORCE.to(string):
+        is_mp = true
+    elif Config.MULTIPROCESSING_MODE.to(string) == Config.FALSE.to(string):
+        is_mp = false
+    elif Config.MULTIPROCESSING_MODE.to(string) == Config.AUTO.to(string):
+        let is_multithreaded = cpu_count > 1
+        let is_multipage = page_count > 1
+
+        is_mp = is_multithreaded and is_multipage
+
+    var pbar = tqdm!(total:task_list_inp.len, desc: "column select")
+
+    if is_mp:
+        implement("columnSelect.convert.mp")
+    else:
+        
+
+        implement("columnSelect.convert.sp")
 
     implement("columnSelect.convert")
 
 when isMainModule and appType != "lib":
     proc newColumnSelectorInfo(column: string, `type`: string, allow_empty: bool, rename: opt.Option[string]): nimpy.PyObject =
-        let pyDict = builtins().dict()
-
-        pyDict["column"] = column
-        pyDict["type"] = `type`
-        pyDict["allow_empty"] = allow_empty
+        let pyDict = builtins().dict(
+            column=column,
+            type=`type`,
+            allow_empty=allow_empty
+        )
 
         if rename.isNone():
             pyDict["rename"] = nil
