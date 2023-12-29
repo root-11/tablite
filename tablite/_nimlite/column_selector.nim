@@ -5,6 +5,7 @@ import std/options as opt
 import pymodules as pymodules
 from numpy import getColumnLen, getColumnTypes
 from unpickling import PageTypes
+import typetraits
 
 type DesiredColumnInfo = object
     original_name: string
@@ -96,10 +97,17 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
 
     var cols = initTable[string, seq[string]]()
 
-    var res_cols_pass = collect: (for _ in 0..(page_count-1): initTable[string, seq[string]])
-    var res_cols_fail = collect: (for _ in 0..(page_count-1): initTable[string, seq[string]])
+    type ColInfo = Table[string, (string, int)]
+    var res_cols_pass = newSeqOfCap[ColInfo](page_count-1)
+    var res_cols_fail = newSeqOfCap[ColInfo](page_count-1)
+
+    for _ in 0..page_count-1:
+        res_cols_pass.add(initTable[string, (string, int)]())
+        res_cols_fail.add(initTable[string, (string, int)]())
 
     var is_correct_type = initTable[string, bool]()
+
+    template genpage(dirpid: string): (string, int) = (dir_pid, tabliteBase().SimplePage.next_id(dir_pid).to(int))
 
     for (desired_name_non_unique, desired_columns) in desired_column_map.pairs():
         let keys = passed_column_data.toSeqKeys()
@@ -130,18 +138,37 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
 
         is_correct_type[desired_name] = not needs_to_iterate
 
-        # for i in range(page_count):
-        #     res_cols_pass[i][desired_name] = (dir_pid, SimplePage.next_id(dir_pid))
+        for i in 0..(page_count-1):
+            res_cols_pass[i][desired_name] = genpage(dirpid)
 
-    # for desired_name in table.columns:
-    #     failed_column_data[desired_name] = []
+    for desired_name in desired_column_map.keys:
+        failed_column_data[desired_name] = @[]
 
-    #     for i in range(page_count):
-    #         res_cols_fail[i][desired_name] = (dir_pid, SimplePage.next_id(dir_pid))
+        for i in 0..(page_count-1):
+            res_cols_fail[i][desired_name] = genpage(dirpid)
 
-    # reject_reason_name = unique_name("reject_reason", table.columns.keys())
+    let reject_reason_name = unique_name("reject_reason", column_names)
+
+    for i in 0..(page_count-1):
+        res_cols_fail[i][reject_reason_name] = genpage(dirpid)
+
+    failed_column_data[reject_reason_name] = @[]
+
+    if is_correct_type.toSeqValues().all(proc (x: bool): bool = x):
+        var tbl_pass_columns = collect(initTable()):
+            for (desired_name, desired_info) in desired_column_map.pairs():
+                var pyDesiredName: PyObject
+
+                pyValueToNim(nimValueToPy(desired_name), pyDesiredName)
+
+                { pyDesiredName: table[desired_info.original_name] }
+
+        let tbl_pass = tablite().Table(columns=tbl_pass_columns)
+        let tbl_fail = tablite().Table(columns=failed_column_data)
+
+        return (tbl_pass, tbl_fail)
     
-    implement("columnSelect")
+    implement("columnSelect.convert")
 
 when isMainModule and appType != "lib":
     proc newColumnSelectorInfo(column: string, `type`: string, allow_empty: bool, rename: opt.Option[string]): nimpy.PyObject =
