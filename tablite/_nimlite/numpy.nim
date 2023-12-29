@@ -619,6 +619,8 @@ proc getColumnTypes*(pages: openArray[string] | seq[string]): Table[PageTypes, i
 
     return dtypes
 
+proc len*(self: BaseNDArray): int = calcShapeElements(self.shape)
+
 when isMainModule and appType != "lib":
     var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/mixed.npy")
 
