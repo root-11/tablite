@@ -94,9 +94,10 @@ class SimplePage(object):
 
     @classmethod
     def next_id(cls, path):
+        path = Path(path)
+
         while True:
             _id = next(cls.ids)
-            type_check(path, Path)
             _path = path / "pages" / f"{_id}.npy"
 
             if not _path.exists():

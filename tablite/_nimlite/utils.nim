@@ -45,7 +45,7 @@ proc toIterKeys*[K, V](self: Table[K, V]): iterator(): K =
             yield k
 
 proc toIterValues*[K, V](self: Table[K, V]): iterator(): V =
-    return iterator(): K =
+    return iterator(): V =
         for v in self.values:
             yield v
 
