@@ -55,8 +55,8 @@ def join(
     other: Table,
     left_keys: List[str],
     right_keys: List[str],
-    left_columns: [List[str], None],
-    right_columns: [List[str], None],
+    left_columns: List[str] | None,
+    right_columns: List[str] | None,
     kind: str = "inner",
     tqdm=_tqdm,
     pbar=None,
@@ -96,7 +96,17 @@ def join(
     )
 
 
-def _where(T, mapping, field, left, right, new, start, end, path):
+def _where(
+    T: Table,
+    mapping: Table,
+    field: str,
+    left: str,
+    right: str,
+    new: str,
+    start: int,
+    end: int,
+    path: Path,
+):
     """takes from LEFT where criteria is True else RIGHT.
 
     Args:
@@ -120,7 +130,15 @@ def _where(T, mapping, field, left, right, new, start, end, path):
     return Table({new: new_values}, _path=path)
 
 
-def _mapping(T, other, left_slice, right_slice, left_keys, right_keys, path):
+def _mapping(
+    T: Table,
+    other: Table,
+    left_slice: slice,
+    right_slice: slice,
+    left_keys: List[str],
+    right_keys: List[str],
+    path: Path,
+):
     """create mapping for left and right keys.
 
     Args:
@@ -197,8 +215,8 @@ def left_join(
     other: Table,
     left_keys: List[str],
     right_keys: List[str],
-    left_columns: [List[str], None] = None,
-    right_columns: [List[str], None] = None,
+    left_columns: List[str] | None = None,
+    right_columns: List[str] | None = None,
     merge_keys: bool = False,
     tqdm=_tqdm,
     pbar=None,
