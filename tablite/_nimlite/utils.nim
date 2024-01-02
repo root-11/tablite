@@ -54,31 +54,3 @@ proc extractUnit*(d: int, unit: int): (int, int) {.inline.} =
         idiv -= 1
 
     return (idiv, imod)
-
-proc toIterKeys*[K, V](self: Table[K, V]): iterator(): K =
-    return iterator(): K =
-        for k in self.keys:
-            yield k
-
-proc toIterValues*[K, V](self: Table[K, V]): iterator(): V =
-    return iterator(): V =
-        for v in self.values:
-            yield v
-
-proc toIterPairs*[K, V](self: Table[K, V]): iterator(): (K, V) =
-    return iterator(): (K, V) =
-        for (k, v) in self.pairs:
-            yield (k, v)
-
-proc toSeqKeys*[K, V](self: Table[K, V]): seq[K] =
-    return collect:
-        for e in self.toIterKeys():
-            e
-proc toSeqValues*[K, V](self: Table[K, V]): seq[V] =
-    return collect:
-        for e in self.toIterValues():
-            e
-proc toSeqPairs*[K, V](self: Table[K, V]): seq[(K, V)] =
-    return collect:
-        for e in self.toIterPairs():
-            e
