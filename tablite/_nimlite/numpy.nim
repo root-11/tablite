@@ -1,4 +1,4 @@
-import std/[unicode, strutils, sugar, times, tables]
+import std/[unicode, strutils, sugar, times, tables, enumerate]
 import dateutils, pytypes, unpickling, utils
 import pymodules as pymodules
 import nimpy as nimpy, nimpy/raw_buffers
@@ -67,6 +67,40 @@ type ObjectNDArray* = ref object of BaseNDArray
     buf*: seq[PyObjectND]
     dtypes*: Table[PageTypes, int]
     dtype* = "|O8"
+
+proc `[]`(self: UnicodeNDArray, slice: seq[int] | openArray[int]): UnicodeNDArray =
+    let shape = @[self.len]
+    let buf = newSeq[Rune](self.size * slice.len)
+
+    for (i, j) in enumerate(slice):
+        buf[i * self.size].addr.copyMem(addr self.buf[j * self.size], self.size)
+
+    return UnicodeNDArray(shape: shape, size: self.size, buf: buf)
+
+proc `[]`(self: ObjectNDArray, slice: seq[int] | openArray[int]): ObjectNDArray =
+    implement("ObjectNDArray[]")
+
+proc primitiveSlice[T: BooleanNDArray | Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray | Float32NDArray | Float64NDArray | DateNDArray | DateTimeNDArray](self: T, slice: seq[int] | openArray[int]): T =
+    let shape = @[self.len]
+    let buf = collect:
+        for i in slice:
+            self.buf[i]
+    return T(shape: shape, buf: buf)
+
+proc `[]`*[T: BaseNDArray](self: T, slice: seq[int] | openArray[int]): T =
+    if self of BooleanNDArray: return BooleanNDArray(self).primitiveSlice(slice)
+    if self of Int8NDArray: return Int8NDArray(self).primitiveSlice(slice)
+    if self of Int16NDArray: return Int16NDArray(self).primitiveSlice(slice)
+    if self of Int32NDArray: return Int32NDArray(self).primitiveSlice(slice)
+    if self of Int64NDArray: return Int64NDArray(self).primitiveSlice(slice)
+    if self of Float32NDArray: return Float32NDArray(self).primitiveSlice(slice)
+    if self of Float64NDArray: return Float64NDArray(self).primitiveSlice(slice)
+    if self of DateNDArray: return DateNDArray(self).primitiveSlice(slice)
+    if self of DateTimeNDArray: return DateTimeNDArray(self).primitiveSlice(slice)
+    if self of UnicodeNDArray: return UnicodeNDArray(self)[slice]
+    if self of ObjectNDArray: return ObjectNDArray(self)[slice]
+    
+    corrupted()
 
 proc dtype*(self: UnicodeNDArray): string = endiannessMark & "U" & $self.size
 
@@ -655,7 +689,10 @@ proc save(self: BooleanNDArray | Int8NDArray | Int16NDArray | Int32NDArray | Int
     let fh = open(path, fmWrite)
 
     fh.writeNumpyHeader(dtype, uint elements)
-    discard fh.writeBuffer(addr buf[0], size * elements)
+    when self is UnicodeNDArray:
+        discard fh.writeBuffer(addr buf[0], size * elements * self.size)
+    else:
+        discard fh.writeBuffer(addr buf[0], size * elements)
 
     fh.close()
 
