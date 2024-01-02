@@ -10,6 +10,7 @@ import numpy
 from unpickling import PageTypes
 import typetraits
 
+
 type ColInfo = Table[string, (Path, int)]
 type DesiredColumnInfo = object
     original_name: string
@@ -31,16 +32,24 @@ proc toPageType(name: string): PageTypes =
     of "datetime": return PageTypes.DT_DATETIME
     else: raise newException(FieldDefect, "unsupported page type: '" & name & "'")
 
-template makePage[T: typed](_: typedesc[T], page: typed, conv: proc): T =
+template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], reason_lst: var seq[string], conv: proc): T =
     when T is UnicodeNDArray:
         var longest = 1
         let strings = collect:
-            for v in page.buf:
-                let str = conv(v).toRunes
+            for (i, v) in enumerate(page.buf):
+                var res: seq[Rune]
+                try:
+                    res = conv(v).toRunes
 
-                longest = max(longest, str.len)
+                    longest = max(longest, res.len)
+                    mask[i] = Mask.VALID
+                except ValueError:
+                    mask[i] = Mask.INVALID
+                    reason_lst[i] = "Cannot cast"
 
-                str
+                    res = newSeq[Rune]()
+
+                res
 
         let buf = newSeq[Rune](longest * page.len)
 
@@ -50,45 +59,87 @@ template makePage[T: typed](_: typedesc[T], page: typed, conv: proc): T =
         T(shape: page.shape, buf: buf, size: longest)
     else:
         let buf = collect:
-            for v in page.buf:
-                conv(v)
+            for (i, v) in enumerate(page.buf):
+                var res = dt.default()
+
+                try:
+                    res = conv(v)
+                    mask[i] = Mask.VALID
+                except ValueError:
+                    mask[i] = Mask.INVALID
+                    reason_lst[i] = "Cannot cast"
+    
+                res
         
         T(shape: page.shape, buf: buf)
 
-proc castType(_: typedesc[PY_Boolean], page: BooleanNDArray): BooleanNDArray = page
-proc castType(_: typedesc[PY_Int], page: BooleanNDArray): Int64NDArray = implement("bool2int")
-proc castType(_: typedesc[PY_Float], page: BooleanNDArray): Float64NDArray = implement("bool2float")
-proc castType(_: typedesc[PY_String], page: BooleanNDArray): UnicodeNDArray = implement("bool2str")
-proc castType(_: typedesc[PY_Date], page: BooleanNDArray): DateNDArray = implement("bool2date")
-proc castType(_: typedesc[PY_Time], page: BooleanNDArray): ObjectNDArray = implement("bool2time")
-proc castType(_: typedesc[PY_DateTime], page: BooleanNDArray): DateTimeNDArray = implement("bool2datetime")
+proc castType(_: typedesc[PY_Boolean], page: BooleanNDArray, mask: var seq[Mask], reason_lst: var seq[string]): BooleanNDArray = page
+proc castType(_: typedesc[PY_Int], page: BooleanNDArray, mask: var seq[Mask], reason_lst: var seq[string]): Int64NDArray = implement("bool2int")
+proc castType(_: typedesc[PY_Float], page: BooleanNDArray, mask: var seq[Mask], reason_lst: var seq[string]): Float64NDArray = implement("bool2float")
+proc castType(_: typedesc[PY_String], page: BooleanNDArray, mask: var seq[Mask], reason_lst: var seq[string]): UnicodeNDArray = implement("bool2str")
+proc castType(_: typedesc[PY_Date], page: BooleanNDArray, mask: var seq[Mask], reason_lst: var seq[string]): DateNDArray = implement("bool2date")
+proc castType(_: typedesc[PY_Time], page: BooleanNDArray, mask: var seq[Mask], reason_lst: var seq[string]): ObjectNDArray = implement("bool2time")
+proc castType(_: typedesc[PY_DateTime], page: BooleanNDArray, mask: var seq[Mask], reason_lst: var seq[string]): DateTimeNDArray = implement("bool2datetime")
 
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Boolean], page: T): BooleanNDArray = BooleanNDArray.makePage(page, proc(v: int): bool = v >= 1)
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Int], page: T): T = page
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Float], page: T): Float64NDArray = Float64NDArray.makePage(page, proc(v: int): float = float v)
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_String], page: T): UnicodeNDArray = UnicodeNDArray.makePage(page, proc(v: int): string = $v)
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Date], page: T): DateNDArray = implement("int2date")
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Time], page: T): ObjectNDArray = implement("int2time")
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_DateTime], page: T): DateTimeNDArray = implement("int2datetime")
+proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Boolean], page: T, mask: var seq[Mask], reason_lst: var seq[string]): BooleanNDArray = BooleanNDArray.makePage(page, mask, reason_lst, proc(v: int): bool = v >= 1)
+proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Int], page: T, mask: var seq[Mask], reason_lst: var seq[string]): T = page
+proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Float], page: T, mask: var seq[Mask], reason_lst: var seq[string]): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, proc(v: int): float = float v)
+proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_String], page: T, mask: var seq[Mask], reason_lst: var seq[string]): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, proc(v: int): string = $v)
+proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Date], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateNDArray = implement("int2date")
+proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Time], page: T, mask: var seq[Mask], reason_lst: var seq[string]): ObjectNDArray = implement("int2time")
+proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_DateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateTimeNDArray = implement("int2datetime")
 
-proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_Boolean], page: T): BooleanNDArray = implement("float2bool")
-proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_Int], page: T): Int64NDArray = implement("float2int")
-proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_Float], page: T): T = page
-proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_String], page: T): UnicodeNDArray = implement("float2str")
-proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_Date], page: T): DateNDArray = implement("float2date")
-proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_Time], page: T): ObjectNDArray = implement("float2time")
-proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_DateTime], page: T): DateTimeNDArray = implement("float2datetime")
+proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_Boolean], page: T, mask: var seq[Mask], reason_lst: var seq[string]): BooleanNDArray = implement("float2bool")
+proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_Int], page: T, mask: var seq[Mask], reason_lst: var seq[string]): Int64NDArray = implement("float2int")
+proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_Float], page: T, mask: var seq[Mask], reason_lst: var seq[string]): T = page
+proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_String], page: T, mask: var seq[Mask], reason_lst: var seq[string]): UnicodeNDArray = implement("float2str")
+proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_Date], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateNDArray = implement("float2date")
+proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_Time], page: T, mask: var seq[Mask], reason_lst: var seq[string]): ObjectNDArray = implement("float2time")
+proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_DateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateTimeNDArray = implement("float2datetime")
 
-template convertBasicPage[T](page: T, desired: PageTypes): BaseNDArray =
+template convertBasicPage[T](page: T, desired: PageTypes, mask: var seq[Mask], reason_lst: var seq[string]): BaseNDArray =
     case desired:
-    of DT_BOOL: PY_Boolean.castType(page)
-    of DT_INT: PY_Int.castType(page)
-    of DT_FLOAT: PY_Float.castType(page)
-    of DT_STRING: PY_String.castType(page)
-    of DT_DATE: PY_Date.castType(page)
-    of DT_TIME: PY_Time.castType(page)
-    of DT_DATETIME: PY_DateTime.castType(page)
+    of DT_BOOL: PY_Boolean.castType(page, mask, reason_lst)
+    of DT_INT: PY_Int.castType(page, mask, reason_lst)
+    of DT_FLOAT: PY_Float.castType(page, mask, reason_lst)
+    of DT_STRING: PY_String.castType(page, mask, reason_lst)
+    of DT_DATE: PY_Date.castType(page, mask, reason_lst)
+    of DT_TIME: PY_Time.castType(page, mask, reason_lst)
+    of DT_DATETIME: PY_DateTime.castType(page, mask, reason_lst)
     else: corrupted()
+
+proc unusedMaskSearch(arr: var seq[Mask]): int =
+    # Partitioned search for faster unused mask retrieval
+    const stepSize = 50_000
+    let len = arr.len
+
+    if arr[^1] != Mask.UNUSED:
+        # page is full
+        return arr.len
+
+    if arr[0] == MASK.UNUSED:
+        # page is completely empty
+        return 0
+
+    var i = 0
+
+    while i < len:
+        let nextIndex = i + stepSize
+        let lastIndex = nextIndex - 1
+
+        if arr[lastIndex] != Mask.UNUSED:
+            # if the last element in the step is used, we can skip `stepSize`
+            i = nextIndex
+            continue
+
+        # last element is unused, therefore we need to check
+        for j in i..lastIndex:
+            if arr[j] == Mask.UNUSED:
+                return j
+
+        i = nextIndex
+
+    return 0
 
 proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string], reject_reason_name: string, res_pass: ColInfo, res_fail: ColInfo, desired_column_map: Table[string, DesiredColumnInfo], column_names: seq[string], is_correct_type: Table[string, bool]): (seq[(string, string)], seq[(string, string)]) =
     var cast_paths = initTable[string, (Path, bool)]()
@@ -104,7 +155,7 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
         createDir(string workdir)
 
         var valid_mask = newSeq[Mask](page_size)
-        let reason_lst = newSeq[opt.Option[string]](page_size)
+        var reason_lst = newSeq[string](page_size)
 
         for (desired_name, desired_info) in desired_column_map.pairs:
             let original_name = desired_info.original_name
@@ -147,20 +198,19 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
                 discard
             else:
                 if original_data of BooleanNDArray:
-                    converted_page = BooleanNDArray(original_data).convertBasicPage(desired_type)
-                    implement("doSliceConvert.BooleanNDArray")
+                    converted_page = BooleanNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
                 elif original_data of Int8NDArray:
-                    converted_page = Int8NDArray(original_data).convertBasicPage(desired_type)
+                    converted_page = Int8NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
                 elif original_data of Int16NDArray:
-                    converted_page = Int16NDArray(original_data).convertBasicPage(desired_type)
+                    converted_page = Int16NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
                 elif original_data of Int32NDArray:
-                    converted_page = Int32NDArray(original_data).convertBasicPage(desired_type)
+                    converted_page = Int32NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
                 elif original_data of Int64NDArray:
-                    converted_page = Int64NDArray(original_data).convertBasicPage(desired_type)
+                    converted_page = Int64NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
                 elif original_data of Float32NDArray:
-                    converted_page = Float32NDArray(original_data).convertBasicPage(desired_type)
+                    converted_page = Float32NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
                 elif original_data of Float64NDArray:
-                    converted_page = Float64NDArray(original_data).convertBasicPage(desired_type)
+                    converted_page = Float64NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
                 elif original_data of UnicodeNDArray:
                     implement("doSliceConvert.UnicodeNDArray")
                 elif original_data of DateNDArray:
@@ -171,6 +221,14 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
                     corrupted()
 
             converted_page.save(string cast_path)
+
+
+        var mask_slice = 0..<unusedMaskSearch(valid_mask)
+        
+        valid_mask = valid_mask[mask_slice]
+        reason_lst = reason_lst[mask_slice]
+
+       
     finally:
         discard
 
