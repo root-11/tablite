@@ -1,5 +1,5 @@
 import sqlite3
-from tablite import Table
+from tablite.base import Table
 from tablite.config import Config
 from tablite.join2 import left_join as _left_join
 
