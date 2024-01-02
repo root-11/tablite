@@ -1,4 +1,4 @@
-import std/[os, tables, sugar, sets, sequtils, strutils, cpuinfo, paths]
+import std/[os, tables, sugar, sets, sequtils, strutils, cpuinfo, paths, enumerate, unicode]
 import nimpy as nimpy
 from nimpyext import `!`
 import utils
@@ -31,6 +31,30 @@ proc toPageType(name: string): PageTypes =
     of "datetime": return PageTypes.DT_DATETIME
     else: raise newException(FieldDefect, "unsupported page type: '" & name & "'")
 
+template makePage[T: typed](_: typedesc[T], page: typed, conv: proc): T =
+    when T is UnicodeNDArray:
+        var longest = 1
+        let strings = collect:
+            for v in page.buf:
+                let str = conv(v).toRunes
+
+                longest = max(longest, str.len)
+
+                str
+
+        let buf = newSeq[Rune](longest * page.len)
+
+        for (i, str) in enumerate(strings):
+            buf[i * longest].addr.copyMem(addr str[0], str.len)
+
+        T(shape: page.shape, buf: buf, size: longest)
+    else:
+        let buf = collect:
+            for v in page.buf:
+                conv(v)
+        
+        T(shape: page.shape, buf: buf)
+
 proc castType(_: typedesc[PY_Boolean], page: BooleanNDArray): BooleanNDArray = page
 proc castType(_: typedesc[PY_Int], page: BooleanNDArray): Int64NDArray = implement("bool2int")
 proc castType(_: typedesc[PY_Float], page: BooleanNDArray): Float64NDArray = implement("bool2float")
@@ -39,10 +63,10 @@ proc castType(_: typedesc[PY_Date], page: BooleanNDArray): DateNDArray = impleme
 proc castType(_: typedesc[PY_Time], page: BooleanNDArray): ObjectNDArray = implement("bool2time")
 proc castType(_: typedesc[PY_DateTime], page: BooleanNDArray): DateTimeNDArray = implement("bool2datetime")
 
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Boolean], page: T): BooleanNDArray = implement("int2bool")
+proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Boolean], page: T): BooleanNDArray = BooleanNDArray.makePage(page, proc(v: int): bool = v >= 1)
 proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Int], page: T): T = page
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Float], page: T): Float64NDArray = implement("int2float")
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_String], page: T): UnicodeNDArray = implement("int2str")
+proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Float], page: T): Float64NDArray = Float64NDArray.makePage(page, proc(v: int): float = float v)
+proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_String], page: T): UnicodeNDArray = UnicodeNDArray.makePage(page, proc(v: int): string = $v)
 proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Date], page: T): DateNDArray = implement("int2date")
 proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Time], page: T): ObjectNDArray = implement("int2time")
 proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_DateTime], page: T): DateTimeNDArray = implement("int2datetime")
@@ -116,27 +140,27 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
             let desired_type = desired_info.`type`
             let allow_empty = desired_info.allow_empty
 
-            var convertedPage: BaseNDArray
+            var converted_page: BaseNDArray
 
             if original_data of ObjectNDArray:
                 # may contain mixed types or nones
                 discard
             else:
                 if original_data of BooleanNDArray:
-                    convertedPage = BooleanNDArray(original_data).convertBasicPage(desired_type)
+                    converted_page = BooleanNDArray(original_data).convertBasicPage(desired_type)
                     implement("doSliceConvert.BooleanNDArray")
                 elif original_data of Int8NDArray:
-                    convertedPage = Int8NDArray(original_data).convertBasicPage(desired_type)
+                    converted_page = Int8NDArray(original_data).convertBasicPage(desired_type)
                 elif original_data of Int16NDArray:
-                    convertedPage = Int16NDArray(original_data).convertBasicPage(desired_type)
+                    converted_page = Int16NDArray(original_data).convertBasicPage(desired_type)
                 elif original_data of Int32NDArray:
-                    convertedPage = Int32NDArray(original_data).convertBasicPage(desired_type)
+                    converted_page = Int32NDArray(original_data).convertBasicPage(desired_type)
                 elif original_data of Int64NDArray:
-                    convertedPage = Int64NDArray(original_data).convertBasicPage(desired_type)
+                    converted_page = Int64NDArray(original_data).convertBasicPage(desired_type)
                 elif original_data of Float32NDArray:
-                    convertedPage = Float32NDArray(original_data).convertBasicPage(desired_type)
+                    converted_page = Float32NDArray(original_data).convertBasicPage(desired_type)
                 elif original_data of Float64NDArray:
-                    convertedPage = Float64NDArray(original_data).convertBasicPage(desired_type)
+                    converted_page = Float64NDArray(original_data).convertBasicPage(desired_type)
                 elif original_data of UnicodeNDArray:
                     implement("doSliceConvert.UnicodeNDArray")
                 elif original_data of DateNDArray:
@@ -146,9 +170,7 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
                 else:
                     corrupted()
 
-            # make a generic
-            # let cast_data = newSeq[PY_ObjectND](sz_data)
-
+            converted_page.save(string cast_path)
     finally:
         discard
 
@@ -359,7 +381,8 @@ when isMainModule and appType != "lib":
     let table = pymodules.tablite().Table(columns = columns)
 
     let select_cols = builtins().list(@[
-        newColumnSelectorInfo("A ", "float", false, opt.none[string]())
+        newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
+        newColumnSelectorInfo("A ", "str", false, opt.none[string]())
     ])
 
     let (select_pass, select_fail) = table.columnSelect(

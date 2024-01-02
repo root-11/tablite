@@ -22,26 +22,36 @@ type NDArrayTypeDescriptor = enum
     D_DATETIME_MILISECONDS
     D_DATETIME_MICROSECONDS
 
+template gendtype[T](dt: typedesc[T], name: char): string = endiannessMark & $name & $sizeof(T)
+
 type NDArrayDescriptor = (Endianness, NDArrayTypeDescriptor, int)
 type BaseNDArray* = ref object of RootObj
     shape*: Shape
 
 type BooleanNDArray* = ref object of BaseNDArray
     buf*: seq[bool]
+    dtype* = "|b1"
 
 type Int8NDArray* = ref object of BaseNDArray
     buf*: seq[int8]
+    dtype* = gendtype(int8, 'i')
 type Int16NDArray* = ref object of BaseNDArray
     buf*: seq[int16]
+    dtype* = gendtype(int16, 'i')
 type Int32NDArray* = ref object of BaseNDArray
     buf*: seq[int32]
+    dtype* = gendtype(int32, 'i')
 type Int64NDArray* = ref object of BaseNDArray
     buf*: seq[int64]
+    dtype* = gendtype(int64, 'i')
 
 type Float32NDArray* = ref object of BaseNDArray
     buf*: seq[float32]
+    dtype* = gendtype(float32, 'f')
+
 type Float64NDArray* = ref object of BaseNDArray
     buf*: seq[float64]
+    dtype* = gendtype(float64, 'f')
 
 type DateNDArray* = ref object of BaseNDArray
     buf*: seq[DateTime]
@@ -56,6 +66,9 @@ type UnicodeNDArray* = ref object of BaseNDArray
 type ObjectNDArray* = ref object of BaseNDArray
     buf*: seq[PyObjectND]
     dtypes*: Table[PageTypes, int]
+    dtype* = "|O8"
+
+proc dtype*(self: UnicodeNDArray): string = endiannessMark & "U" & $self.size
 
 proc writeNumpyHeader*(fh: File, dtype: string, shape: uint): void =
     let header = "{'descr': '" & dtype & "', 'fortran_order': False, 'shape': (" & $shape & ",)}"
@@ -593,7 +606,7 @@ proc getColumnLen*(pages: openArray[string]): int =
     return acc
 
 template toType(dtype: PageTypes, shape: Shape): Table[PageTypes, int] =
-    { dtype: calcShapeElements(shape) }.toTable
+    {dtype: calcShapeElements(shape)}.toTable
 
 proc getPageTypes*(self: BaseNDArray): Table[PageTypes, int] =
     if self of BooleanNDArray: return DT_BOOL.toType(self.shape)
@@ -622,13 +635,45 @@ proc getColumnTypes*(pages: openArray[string] | seq[string]): Table[PageTypes, i
 
 proc len*(self: BaseNDArray): int = calcShapeElements(self.shape)
 
+proc save(self: BooleanNDArray | Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray | Float32NDArray | Float64NDArray | UnicodeNDArray, path: string): void =
+    let dtype = self.dtype
+    let buf = self.buf
+    let elements = calcShapeElements(self.shape)
+    let size = (if buf.len > 0: buf[0].sizeof else: 0)
+    let fh = open(path, fmWrite)
+
+    fh.writeNumpyHeader(dtype, uint elements)
+    discard fh.writeBuffer(addr buf[0], size * elements)
+
+    fh.close()
+
+proc save*(self: BaseNDArray, path: string): void =
+    if self of BooleanNDArray:
+        BooleanNDArray(self).save(path)
+    elif self of Int8NDArray:
+        Int8NDArray(self).save(path)
+    elif self of Int16NDArray:
+        Int16NDArray(self).save(path)
+    elif self of Int32NDArray:
+        Int32NDArray(self).save(path)
+    elif self of Int64NDArray:
+        Int64NDArray(self).save(path)
+    elif self of Float32NDArray:
+        Float32NDArray(self).save(path)
+    elif self of Float64NDArray:
+        Float64NDArray(self).save(path)
+    elif self of UnicodeNDArray:
+        UnicodeNDArray(self).save(path)
+    else:
+        implement("BaseNDArray.save")
+
 when isMainModule and appType != "lib":
     discard pyImport("sys").path.extend(@[
         "/home/ratchet/envs/callisto/lib/python3.10/site-packages",
         "/home/ratchet/Documents/dematic/tablite",
         "/home/ratchet/Documents/dematic/mplite"
     ])
-    
+
     var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/mixed.npy")
 
     echo arr

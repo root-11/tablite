@@ -1,5 +1,5 @@
 import std/[sugar, sequtils, unicode, enumerate]
-import numpy, pickling, ranking, infertypes, encfile, csvparse, pytypes
+import numpy, pickling, ranking, infertypes, encfile, csvparse, pytypes, utils
 
 type PageType = enum
     PG_UNSET,
@@ -100,7 +100,7 @@ proc dumpPageHeader*(
     if not guess_dtypes:
         for idx, (fh, i) in enumerate(zip(page_file_handlers, longest_str)):
             column_dtypes[idx] = PageType.PG_UNICODE
-            fh.writeNumpyHeader("<U" & $i, n_rows)
+            fh.writeNumpyHeader(endiannessMark & "U" & $i, n_rows)
     else:
         for i in 0..n_pages-1:
             let fh = page_file_handlers[i]
@@ -161,9 +161,9 @@ proc dumpPageHeader*(
                 else: dtype = PageType.PG_OBJECT # types cannot overlap
 
             case dtype:
-                of PageType.PG_UNICODE: fh.writeNumpyHeader("<U" & $ longest_str[i], n_rows)
-                of PageType.PG_INT32_SIMPLE, PageType.PG_INT32_US, PageType.PG_INT32_EU: fh.writeNumpyHeader("<i8", n_rows)
-                of PageType.PG_FLOAT32_SIMPLE, PageType.PG_FLOAT32_US, PageType.PG_FLOAT32_EU: fh.writeNumpyHeader("<f8", n_rows)
+                of PageType.PG_UNICODE: fh.writeNumpyHeader(endiannessMark & "U" & $ longest_str[i], n_rows)
+                of PageType.PG_INT32_SIMPLE, PageType.PG_INT32_US, PageType.PG_INT32_EU: fh.writeNumpyHeader(endiannessMark & "i8", n_rows)
+                of PageType.PG_FLOAT32_SIMPLE, PageType.PG_FLOAT32_US, PageType.PG_FLOAT32_EU: fh.writeNumpyHeader(endiannessMark & "f8", n_rows)
                 of PageType.PG_BOOL: fh.writeNumpyHeader("|b1", n_rows)
                 of PageType.PG_OBJECT, PageType.PG_DATE, PageType.PG_DATETIME, PageType.PG_DATE_SHORT:
                     dtype = PageType.PG_OBJECT
