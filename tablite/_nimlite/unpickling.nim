@@ -526,7 +526,7 @@ proc toPage(arr: PY_NpMultiArray): ObjectPage =
         let obj = PY_ObjectND(e)
         let dt = obj.getType()
         
-        buf[i] = obj
+        buf.add(obj)
         
         if not (dt in dtypes):
             dtypes[dt] = 0
