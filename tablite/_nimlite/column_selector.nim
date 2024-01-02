@@ -228,6 +228,9 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
         valid_mask = valid_mask[mask_slice]
         reason_lst = reason_lst[mask_slice]
 
+        for desired_name in desired_column_map.keys:
+            let cast_path = cast_paths[desired_name]
+
        
     finally:
         discard
@@ -322,7 +325,7 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
     template genpage(dirpid: Path): (Path, int) = (dir_pid, tabliteBase().SimplePage.next_id(string dir_pid).to(int))
 
     for (desired_name_non_unique, desired_columns) in desired_column_map.pairs():
-        let keys = passed_column_data.toSeqKeys()
+        let keys = toSeq(passed_column_data.keys)
         let desired_name = unique_name(desired_name_non_unique, keys)
         let this_col = columns[desired_columns.original_name]
 
@@ -330,7 +333,7 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
 
         passed_column_data[desired_name] = @[]
 
-        var col_dtypes = this_col.getColumnTypes().toSeqKeys()
+        var col_dtypes = toSeq(this_col.getColumnTypes().keys)
         var needs_to_iterate = false
 
         if PageTypes.DT_NONE in col_dtypes:
@@ -366,7 +369,7 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
 
     failed_column_data[reject_reason_name] = @[]
 
-    if is_correct_type.toSeqValues().all(proc (x: bool): bool = x):
+    if toSeq(is_correct_type.values).all(proc (x: bool): bool = x):
         var tbl_pass_columns = collect(initTable()):
             for (desired_name, desired_info) in desired_column_map.pairs():
                 {desired_name: table[desired_info.original_name]}
