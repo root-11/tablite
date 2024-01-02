@@ -629,7 +629,7 @@ when isMainModule and appType != "lib":
         "/home/ratchet/Documents/dematic/mplite"
     ])
     
-    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/str.npy")
+    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/mixed.npy")
 
     echo arr
 
