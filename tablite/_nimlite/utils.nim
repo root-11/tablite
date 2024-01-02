@@ -11,6 +11,9 @@ type Iterable[T] = proc: iterator: T
 template corrupted*(): void = raise newException(IOError, "file corrupted")
 template implement*(name: string = ""): void = raise newException(Exception, if name.len == 0: "not yet imlemented" else: "'" & name & "' not yet imlemented")
 
+const isLittleEndian* = system.cpuEndian == littleEndian
+const endiannessMark* = if isLittleEndian: "<" else: ">"
+
 proc uniqueName*(desired_name: string, name_list: openArray[string] | seq[string]): string {.inline.} =
     var name = desired_name
     var idx = 1
