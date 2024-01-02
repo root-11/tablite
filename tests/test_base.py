@@ -185,7 +185,8 @@ def test_speed():
         block = t["A"][a:b]  # pure numpy.
         assert len(block) == b - a
     end = time.time()
-    print(f"numpy array: {end-start}")
+    numpy_array = end - start
+    print(f"numpy array: {numpy_array}")
 
     random.seed(42)
     start = time.time()
@@ -195,7 +196,10 @@ def test_speed():
         block = t["A"][a:b].tolist()  # python.
         assert len(block) == b - a
     end = time.time()
-    print(f"python list: {end-start}")
+    python_list = end - start
+    print(f"python list: {python_list}")
+
+    assert numpy_array < python_list, "something is wrong numpy should be faster."
 
 
 def test_immutability_of_pages():
@@ -312,7 +316,13 @@ def test_table_row_functions():
     t2 = Table()
     t2.add_column("A")
     t2.add_columns("B", "C")
-    t2.add_rows(**{"A": [i + max(A) for i in A], "B": [i + max(A) for i in A], "C": [i + max(C) for i in C]})
+    t2.add_rows(
+        **{
+            "A": [i + max(A) for i in A],
+            "B": [i + max(A) for i in A],
+            "C": [i + max(C) for i in C],
+        }
+    )
     t3 = t2.stack(t)
     assert len(t3) == len(t2) + len(t)
 
@@ -557,8 +567,10 @@ def test_get_by_indices():
 
     Config.PAGE_SIZE = old_cfg
 
+
 def fn_foo_table(tbl):
     return tbl
+
 
 def test_page_refcount():
     table = Table({"A": [0, 1, 2, 3], "B": [4, 5, 6, 7]})
