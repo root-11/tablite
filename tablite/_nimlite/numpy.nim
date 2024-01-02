@@ -70,6 +70,18 @@ type ObjectNDArray* = ref object of BaseNDArray
 
 proc dtype*(self: UnicodeNDArray): string = endiannessMark & "U" & $self.size
 
+template default*(self: typedesc[BooleanNDArray]): bool = false
+template default*(self: typedesc[Int8NDArray]): int8 = 0
+template default*(self: typedesc[Int16NDArray]): int16 = 0
+template default*(self: typedesc[Int32NDArray]): int32 = 0
+template default*(self: typedesc[Int64NDArray]): int64 = 0
+template default*(self: typedesc[Float32NDArray]): float32 = 0
+template default*(self: typedesc[Float64NDArray]): float64 = 0
+template default*(self: typedesc[DateNDArray]) = DateTime()
+template default*(self: typedesc[DateTimeNDArray]) = DateTime()
+template default*(self: typedesc[UnicodeNDArray]) = Rune()
+template default*(self: typedesc[ObjectNDArray]) = PyObjectND()
+
 proc writeNumpyHeader*(fh: File, dtype: string, shape: uint): void =
     let header = "{'descr': '" & dtype & "', 'fortran_order': False, 'shape': (" & $shape & ",)}"
     let header_len = len(header)
