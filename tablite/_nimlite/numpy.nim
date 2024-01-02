@@ -50,7 +50,7 @@ type DateTimeNDArray* = ref object of BaseNDArray
     buf*: seq[DateTime]
 
 type UnicodeNDArray* = ref object of BaseNDArray
-    buf*: seq[char]
+    buf*: seq[Rune]
     size*: int
 
 type ObjectNDArray* = ref object of BaseNDArray
@@ -392,10 +392,11 @@ template newFloatNDArray(fh: var File, endianness: Endianness, size: int, shape:
 
 proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: var Shape): UnicodeNDArray =
     var elements = calcShapeElements(shape)
-    var elem_size = elements * size * 4
-    var buf {.noinit.} = newSeq[char](elem_size)
+    var elem_size = elements * size
+    var buf_size = elem_size * sizeof(Rune)
+    var buf {.noinit.} = newSeq[Rune](elem_size)
 
-    if fh.readBuffer(addr buf[0], elem_size) != elem_size:
+    if fh.readBuffer(addr buf[0], buf_size) != buf_size:
         corrupted()
 
     return UnicodeNDArray(buf: buf, shape: shape, size: size)
@@ -496,7 +497,7 @@ proc toPython(self: Int64NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[
 proc toPython(self: Float32NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[float32](self.shape, addr self.buf[0])
 proc toPython(self: Float64NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[float64](self.shape, addr self.buf[0])
 
-proc toPython(self: UnicodeNDArray): nimpy.PyObject = toNumpyPrimitive("U" & $self.size, self.shape, self.size * 4, addr self.buf[0])
+proc toPython(self: UnicodeNDArray): nimpy.PyObject = toNumpyPrimitive("U" & $self.size, self.shape, self.size * sizeof(Rune), addr self.buf[0])
 
 proc toPython(self: DateNDArray): nimpy.PyObject =
     var buf = collect:
@@ -622,7 +623,13 @@ proc getColumnTypes*(pages: openArray[string] | seq[string]): Table[PageTypes, i
 proc len*(self: BaseNDArray): int = calcShapeElements(self.shape)
 
 when isMainModule and appType != "lib":
-    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/mixed.npy")
+    discard pyImport("sys").path.extend(@[
+        "/home/ratchet/envs/callisto/lib/python3.10/site-packages",
+        "/home/ratchet/Documents/dematic/tablite",
+        "/home/ratchet/Documents/dematic/mplite"
+    ])
+    
+    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/str.npy")
 
     echo arr
 
