@@ -39,7 +39,10 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
             for (i, v) in enumerate(page.buf):
                 var res: seq[Rune]
                 try:
-                    res = conv(v).toRunes
+                    let str = conv(v)
+                    res = str.toRunes
+
+                    echo ">>>str: '" & str & "'" & " | len: " & $str.len
 
                     longest = max(longest, res.len)
                     mask[i] = Mask.VALID
@@ -54,7 +57,7 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
         let buf = newSeq[Rune](longest * page.len)
 
         for (i, str) in enumerate(strings):
-            buf[i * longest].addr.copyMem(addr str[0], str.len)
+            buf[i * longest].addr.copyMem(addr str[0], str.len * sizeof(Rune))
 
         T(shape: page.shape, buf: buf, size: longest)
     else:
@@ -68,9 +71,9 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
                 except ValueError:
                     mask[i] = Mask.INVALID
                     reason_lst[i] = "Cannot cast"
-    
+
                 res
-        
+
         T(shape: page.shape, buf: buf)
 
 proc castType(_: typedesc[PY_Boolean], page: BooleanNDArray, mask: var seq[Mask], reason_lst: var seq[string]): BooleanNDArray = page
@@ -141,6 +144,28 @@ proc unusedMaskSearch(arr: var seq[Mask]): int =
 
     return 0
 
+template finalizePage(indices: var seq[int], column_names: seq[string], pages: var seq[(string, string)], result_info: ColInfo): void =
+    if indices.len > 0:
+        for col_name in column_names:
+            let (cast_path, is_tmp) = cast_paths[col_name]
+
+            if not is_tmp:
+                pages.add((col_name, string cast_path))
+                continue
+
+            var cast_data = readNumpy(string cast_path)
+            let (dirpid, pid) = result_info[col_name]
+            let pathpid = string (dirpid / Path($pid & ".npy"))
+            
+            if cast_data.len != indices.len:
+                cast_data = cast_data[indices]
+            
+                cast_data.save(pathpid)
+            else:
+                moveFile(string cast_path, pathpid)
+
+            pages.add((col_name, pathpid))
+
 proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string], reject_reason_name: string, res_pass: ColInfo, res_fail: ColInfo, desired_column_map: Table[string, DesiredColumnInfo], column_names: seq[string], is_correct_type: Table[string, bool]): (seq[(string, string)], seq[(string, string)]) =
     var cast_paths = initTable[string, (Path, bool)]()
     var pages_pass = newSeq[(string, string)]()
@@ -152,6 +177,7 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
                 {key: path}
 
         let workdir = dir_pid / Path("processing")
+
         createDir(string workdir)
 
         var valid_mask = newSeq[Mask](page_size)
@@ -173,8 +199,8 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
                         continue
 
                     valid_mask[i] = VALID
-                cast_paths[desired_name] = (Path(original_path), false)
 
+                cast_paths[desired_name] = (Path(original_path), false)
                 continue
 
             var cast_path: Path
@@ -220,19 +246,42 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
                 else:
                     corrupted()
 
+            echo ">>>converted_page: " & $converted_page
+
             converted_page.save(string cast_path)
 
 
         var mask_slice = 0..<unusedMaskSearch(valid_mask)
-        
+
         valid_mask = valid_mask[mask_slice]
-        reason_lst = reason_lst[mask_slice]
+        
+        var invalid_indices = newSeqOfCap[int](valid_mask.len shr 2) # quarter seems okay
+        var valid_indices = newSeqOfCap[int](valid_mask.len - (valid_mask.len shr 2))
 
-        for desired_name in desired_column_map.keys:
-            let cast_path = cast_paths[desired_name]
+        reason_lst = collect:
+            for (i, m) in enumerate(valid_mask):
+                if m != Mask.INVALID:
+                    valid_indices.add(i)
+                    continue
 
-       
+                invalid_indices.add(i)
+                reason_lst[i]
+
+        echo ">>>invalid_indices: " & $invalid_indices
+        echo ">>>valid_indices: " & $valid_indices
+
+        valid_indices.finalizePage(toSeq(desired_column_map.keys), pages_pass, res_pass)
+        invalid_indices.finalizePage(toSeq(columns.keys), pages_fail, res_fail)
+
+        if reason_lst.len > 0:
+            let (reject_workdir, reject_pageid) = res_fail[reject_reason_name]
+
+
     finally:
+        for (cast_path, is_tmp) in cast_paths.values:
+            if not is_tmp:
+                continue
+            discard tryRemoveFile(string cast_path)
         discard
 
     implement("doSliceConvert")
@@ -242,6 +291,9 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObject, dir_pid: Path): (nimpy.PyObject, nimpy.PyObject) =
     var desired_column_map = initTable[string, DesiredColumnInfo]()
     var collisions = initTable[string, int]()
+
+    let dirpage = dir_pid / Path("pages")
+    createDir(string dirpage)
 
     ######################################################
     # 1. Figure out what user needs (types, column names)
@@ -354,18 +406,18 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
         is_correct_type[desired_name] = not needs_to_iterate
 
         for i in 0..<page_count:
-            res_cols_pass[i][desired_name] = genpage(dirpid)
+            res_cols_pass[i][desired_name] = genpage(dirpage)
 
     for desired_name in desired_column_map.keys:
         failed_column_data[desired_name] = @[]
 
         for i in 0..<page_count:
-            res_cols_fail[i][desired_name] = genpage(dirpid)
+            res_cols_fail[i][desired_name] = genpage(dirpage)
 
     let reject_reason_name = unique_name("reject_reason", column_names)
 
     for i in 0..<page_count:
-        res_cols_fail[i][reject_reason_name] = genpage(dirpid)
+        res_cols_fail[i][reject_reason_name] = genpage(dirpage)
 
     failed_column_data[reject_reason_name] = @[]
 
@@ -438,11 +490,11 @@ when isMainModule and appType != "lib":
         "/home/ratchet/Documents/dematic/mplite"
     ])
 
-    let columns = pymodules.builtins().dict({"A ": @[0, 1, 2]}.toTable)
+    let columns = pymodules.builtins().dict({"A ": @[0, 10, 200]}.toTable)
     let table = pymodules.tablite().Table(columns = columns)
 
     let select_cols = builtins().list(@[
-        newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
+        # newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
         newColumnSelectorInfo("A ", "str", false, opt.none[string]())
     ])
 
