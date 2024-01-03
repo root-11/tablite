@@ -88,8 +88,8 @@ proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: ty
 proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Float], page: T, mask: var seq[Mask], reason_lst: var seq[string]): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, proc(v: int): float = float v)
 proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_String], page: T, mask: var seq[Mask], reason_lst: var seq[string]): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, proc(v: int): string = $v)
 proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Date], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, proc(v: int): DateTime = v.days2Date)
+proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_DateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, proc(v: int): DateTime = delta2Date(seconds=v))
 proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Time], page: T, mask: var seq[Mask], reason_lst: var seq[string]): ObjectNDArray = implement("int2time")
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_DateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateTimeNDArray = implement("int2datetime")
 
 proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_Boolean], page: T, mask: var seq[Mask], reason_lst: var seq[string]): BooleanNDArray = implement("float2bool")
 proc castType[T: Float32NDArray | Float64NDArray](_: typedesc[PY_Int], page: T, mask: var seq[Mask], reason_lst: var seq[string]): Int64NDArray = implement("float2int")
@@ -535,6 +535,7 @@ when isMainModule and appType != "lib":
         newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
         newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
         newColumnSelectorInfo("A ", "date", false, opt.none[string]()),
+        newColumnSelectorInfo("A ", "datetime", false, opt.none[string]()),
     ])
 
     let (select_pass, select_fail) = table.columnSelect(

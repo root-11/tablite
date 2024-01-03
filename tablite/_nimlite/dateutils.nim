@@ -74,7 +74,7 @@ proc days2YearsDays(days: int): (int, int) =
 
     return (year + 2000, tdays)
 
-proc days2Date*(days: int): DateTime =
+proc days2Components(days: int): (int, Month, MonthdayRange) =
     var (dts_year, idays) = days2YearsDays(days)
     let month_lengths = DAYS_PER_MONTH_TABLE[int isLeapYear(dts_year)]
 
@@ -82,11 +82,27 @@ proc days2Date*(days: int): DateTime =
         if (idays < month_lengths[i]):
             let dts_month = Month(i + 1)
             let dts_day = MonthdayRange (idays + 1)
-            return dateTime(dts_year, dts_month, dts_day, zone=utc())
+            return (dts_year, dts_month, dts_day)
         else:
             idays = (idays - month_lengths[i])
 
     raise newException(IndexDefect, "failed")
+
+proc days2Date*(days: int): DateTime =
+    let (dts_year, dts_month, dts_day) = days2Components(days)
+
+    return dateTime(dts_year, dts_month, dts_day, zone=utc())
+
+proc delta2Date*(
+    weeks = 0, days = 0, hours = 0, minutes = 0, seconds = 0, milliseconds = 0, microseconds: int = 0
+): DateTime =
+    let (d, s, us) = toTimedelta(weeks, days, hours, minutes, seconds, milliseconds, microseconds)
+    let date = days2Date(d)
+    let durr = initDuration(seconds=s, microseconds=us)
+
+    let final = date + durr
+
+    return final
 
 proc date2NimDateTime*(year: int, month: int, day: int): DateTime {.inline.} =
     return dateTime(year, Month(month), MonthdayRange(day), zone=utc())
