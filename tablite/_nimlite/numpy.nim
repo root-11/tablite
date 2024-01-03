@@ -715,7 +715,7 @@ proc save[T: DateNDArray | DateTimeNDArray](self: T, path: string): void =
             when T is DateTimeNDArray:
                 value = el.toTime().time2Duration.inMicroseconds
             else:
-                corrupted()
+                corrupted(ObjectConversionDefect)
 
         discard fh.writeBuffer(addr value, size)
 
