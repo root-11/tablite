@@ -274,8 +274,11 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
         invalid_indices.finalizePage(toSeq(columns.keys), pages_fail, res_fail)
 
         if reason_lst.len > 0:
-            let (reject_workdir, reject_pageid) = res_fail[reject_reason_name]
-
+            let (dirpid, pid) = res_fail[reject_reason_name]
+            let pathpid = string (dirpid / Path($pid & ".npy"))
+            newNDArray(reason_lst).save(pathpid)
+            
+            pages_fail.add((reject_reason_name, pathpid))
 
     finally:
         for (cast_path, is_tmp) in cast_paths.values:
@@ -283,8 +286,6 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
                 continue
             discard tryRemoveFile(string cast_path)
         discard
-
-    implement("doSliceConvert")
 
     return (pages_pass, pages_fail)
 
@@ -467,6 +468,8 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
 
         discard pbar.update(1)
 
+    echo $result
+
     implement("columnSelect.convert")
 
 when isMainModule and appType != "lib":
@@ -494,7 +497,7 @@ when isMainModule and appType != "lib":
     let table = pymodules.tablite().Table(columns = columns)
 
     let select_cols = builtins().list(@[
-        # newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
+        newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
         newColumnSelectorInfo("A ", "str", false, opt.none[string]())
     ])
 
