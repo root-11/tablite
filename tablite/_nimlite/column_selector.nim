@@ -516,9 +516,6 @@ when isMainModule and appType != "lib":
 
         return pyDict
 
-    let envs = os.getEnv("NIM_PYTHON_MODULES", "").split(":")
-    discard pyImport("sys").path.extend(envs)
-
     let workdir = Path(pymodules.builtins().str(pymodules.tabliteConfig().Config.workdir).to(string))
     let pid = "nim"
 
