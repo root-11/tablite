@@ -7,12 +7,12 @@ import shutil
 import logging
 import warnings
 import zipfile
-from tablite.utils import load_numpy, update_access_time
 import numpy as np
-from tqdm import tqdm as _tqdm
 from pathlib import Path
-from itertools import count, chain, product, repeat
+from tqdm import tqdm as _tqdm
 from collections import defaultdict, Counter
+from itertools import count, chain, product, repeat
+from tablite.utils import load_numpy, update_access_time
 
 from tablite.datatypes import (
     DataTypes,
@@ -71,7 +71,7 @@ class SimplePage(object):
 
     def __init__(self, id, path, len, py_dtype) -> None:
         self.id = id
-        self.path = path / "pages" / f"{id}.npy"
+        self.path = Path(path) / "pages" / f"{id}.npy"
         self.len = len
         self.dtype = py_dtype
 

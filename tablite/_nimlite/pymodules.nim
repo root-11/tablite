@@ -9,7 +9,7 @@ var
     iTablite: nimpy.PyObject
     iTabliteBase: nimpy.PyObject
     iTabliteConfig: nimpy.PyObject
-    PyNoneClass: nimpy.PyObject
+    PyNoneClass*: nimpy.PyObject
 
 proc importPy(): void =
     if isInit:

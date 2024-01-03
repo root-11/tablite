@@ -2,6 +2,7 @@ import std/[unicode, strutils, sugar, times, tables, enumerate]
 import dateutils, pytypes, unpickling, utils
 import pymodules as pymodules
 import nimpy as nimpy, nimpy/raw_buffers
+from nimpyext import `!`
 
 const NUMPY_MAGIC = "\x93NUMPY"
 const NUMPY_MAJOR = "\x01"
@@ -733,6 +734,26 @@ proc save*(self: BaseNDArray, path: string): void =
         UnicodeNDArray(self).save(path)
     else:
         implement("BaseNDArray.save")
+
+proc type2PyType(`type`: PageTypes): nimpy.PyObject =
+    case `type`:
+    of DT_BOOL: return pymodules.builtins().getattr("bool")     # nim's word reservation behaviour is stupid
+    of DT_INT: return pymodules.builtins().getattr("int")       # ditto
+    of DT_FLOAT: return pymodules.builtins().getattr("float")   # ditto
+    of DT_STRING: return pymodules.builtins().str
+    of DT_NONE: return pymodules.PyNoneClass
+    of DT_DATE: return pymodules.datetime().date
+    of DT_TIME: return pymodules.datetime().time
+    of DT_DATETIME: return pymodules.datetime().datetime
+
+    implement("type2PyType.'" & $`type` & "'")
+
+proc newPyPage*(id: int, path: string, len: int, dtypes: Table[PageTypes, int]): nimpy.PyObject =
+    let pyDtypes = collect(initTable()):
+        for (dt, n) in dtypes.pairs:
+            { dt.type2PyType: n }
+    
+    return pymodules.tabliteBase().SimplePage(id, path, len, pyDtypes)
 
 when isMainModule and appType != "lib":
     discard pyImport("sys").path.extend(@[

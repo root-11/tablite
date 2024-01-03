@@ -20,11 +20,6 @@ type Mask = enum
     INVALID = -1
     UNUSED = 0
     VALID = 1
-type PageInfo = object
-    id: int
-    path: string
-    len: int
-    dtype: Table[PageTypes, int]
 
 proc toPageType(name: string): PageTypes =
     case name.toLower():
@@ -149,7 +144,7 @@ proc unusedMaskSearch(arr: var seq[Mask]): int =
 
     return 0
 
-proc finalizeSlice(indices: var seq[int], column_names: seq[string], infos: var Table[string, PageInfo], cast_paths: var Table[string, (Path, bool)], pages: var seq[(string, PageInfo)], result_info: ColInfo): void =
+proc finalizeSlice(indices: var seq[int], column_names: seq[string], infos: var Table[string, nimpy.PyObject], cast_paths: var Table[string, (Path, bool)], pages: var seq[(string, nimpy.PyObject)], result_info: ColInfo): void =
     if indices.len == 0:
         return
 
@@ -177,16 +172,11 @@ proc finalizeSlice(indices: var seq[int], column_names: seq[string], infos: var 
 
         pages.add((col_name, infos[col_name]))
 
-proc putPage(page: BaseNDArray, infos: var Table[string, PageInfo], colName: string, col: ColSliceInfo): void {.inline.} =
+proc putPage(page: BaseNDArray, infos: var Table[string, nimpy.PyObject], colName: string, col: ColSliceInfo): void {.inline.} =
     let (dir, pid) = col
-    let page = PageInfo(
-        id: pid,
-        path: string dir,
-        len: page.len,
-        dtype: page.getPageTypes()
-    )
+    let pg = newPyPage(pid, string dir, page.len, page.getPageTypes())
 
-    infos[colName] = page
+    infos[colName] = pg
 
 proc toColSliceInfo(path: Path): ColSliceInfo =
     let workdir = path.parentDir.parentDir
@@ -194,11 +184,11 @@ proc toColSliceInfo(path: Path): ColSliceInfo =
 
     return (workdir, pid)
 
-proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string], reject_reason_name: string, res_pass: ColInfo, res_fail: ColInfo, desired_column_map: Table[string, DesiredColumnInfo], column_names: seq[string], is_correct_type: Table[string, bool]): (seq[(string, PageInfo)], seq[(string, PageInfo)]) =
+proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string], reject_reason_name: string, res_pass: ColInfo, res_fail: ColInfo, desired_column_map: Table[string, DesiredColumnInfo], column_names: seq[string], is_correct_type: Table[string, bool]): (seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)]) =
     var cast_paths = initTable[string, (Path, bool)]()
-    var page_infos = initTable[string, PageInfo]()
-    var pages_pass = newSeq[(string, PageInfo)]()
-    var pages_fail = newSeq[(string, PageInfo)]()
+    var page_infos = initTable[string, nimpy.PyObject]()
+    var pages_pass = newSeq[(string, nimpy.PyObject)]()
+    var pages_fail = newSeq[(string, nimpy.PyObject)]()
 
     try:
         let page_paths = collect(initTable()):
@@ -406,7 +396,7 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
 
     var is_correct_type = initTable[string, bool]()
 
-    template genpage(dirpid: Path): ColSliceInfo = (dir_pid, tabliteBase().SimplePage.next_id(string dir_pid).to(int))
+    proc genpage(dirpid: Path): ColSliceInfo {.inline.} = (dir_pid, tabliteBase().SimplePage.next_id(string dir_pid).to(int))
 
     for (desired_name_non_unique, desired_columns) in desired_column_map.pairs():
         let keys = toSeq(passed_column_data.keys)
@@ -440,7 +430,7 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
         for i in 0..<page_count:
             res_cols_pass[i][desired_name] = genpage(dir_pid)
 
-    for desired_name in desired_column_map.keys:
+    for desired_name in columns.keys:
         failed_column_data[desired_name] = @[]
 
         for i in 0..<page_count:
@@ -489,19 +479,27 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
 
     var page_size = Config.PAGE_SIZE.to(int)
     var pbar = tqdm!(total: task_list_inp.len, desc: "column select")
-    var result = newSeqOfCap[(seq[(string, PageInfo)], seq[(string, PageInfo)])](task_list_inp.len)
+    var converted = newSeqOfCap[(seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)])](task_list_inp.len)
 
     if is_mp:
         implement("columnSelect.convert.mp")
     else:
         for (columns, res_pass, res_fail) in task_list_inp:
-            result.add(doSliceConvert(dir_pid, page_size, columns, reject_reason_name, res_pass, res_fail, desired_column_map, column_names, is_correct_type))
+            converted.add(doSliceConvert(dir_pid, page_size, columns, reject_reason_name, res_pass, res_fail, desired_column_map, column_names, is_correct_type))
 
         discard pbar.update(1)
 
-    echo $result
+    proc extendTable(table: var nimpy.PyObject, columns: seq[(string, nimpy.PyObject)]): void {.inline.} =
+        for (col_name, pg) in columns:
+            let col = table[col_name]
+            
+            discard col.pages.append(pg) # can't col.extend because nim is dumb :)
 
-    implement("columnSelect.convert")
+    for (pg_pass, pg_fail) in converted:
+        tbl_pass.extendTable(pg_pass)
+        tbl_fail.extendTable(pg_fail)
+
+    return (tbl_pass, tbl_fail)
 
 when isMainModule and appType != "lib":
     proc newColumnSelectorInfo(column: string, `type`: string, allow_empty: bool, rename: opt.Option[string]): nimpy.PyObject =
@@ -541,4 +539,4 @@ when isMainModule and appType != "lib":
         dir_pid = workdir / Path(pid)
     )
 
-    echo select_pass.show()
+    discard select_pass.show()
