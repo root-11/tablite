@@ -183,7 +183,7 @@ proc toColSliceInfo(path: Path): ColSliceInfo =
 
     return (workdir, pid)
 
-proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string], reject_reason_name: string, res_pass: ColInfo, res_fail: ColInfo, desired_column_map: Table[string, DesiredColumnInfo], column_names: seq[string], is_correct_type: Table[string, bool]): (seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)]) =
+proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string], reject_reason_name: string, res_pass: ColInfo, res_fail: ColInfo, desired_column_map: OrderedTable[string, DesiredColumnInfo], column_names: seq[string], is_correct_type: Table[string, bool]): (seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)]) =
     var cast_paths = initTable[string, (Path, bool)]()
     var page_infos = initTable[string, nimpy.PyObject]()
     var pages_pass = newSeq[(string, nimpy.PyObject)]()
@@ -304,7 +304,7 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
     return (pages_pass, pages_fail)
 
 proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObject, dir_pid: Path): (nimpy.PyObject, nimpy.PyObject) =
-    var desired_column_map = initTable[string, DesiredColumnInfo]()
+    var desired_column_map = initOrderedTable[string, DesiredColumnInfo]()
     var collisions = initTable[string, int]()
 
     let dirpage = dir_pid / Path("pages")
@@ -375,8 +375,8 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
     let page_count = layout_set[0][1]
 
     # Registry of data
-    var passed_column_data = initTable[string, seq[string]]()
-    var failed_column_data = initTable[string, seq[string]]()
+    var passed_column_data = newSeq[string]()
+    var failed_column_data = newSeq[string]()
 
     var cols = initTable[string, seq[string]]()
 
@@ -392,13 +392,13 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
     proc genpage(dirpid: Path): ColSliceInfo {.inline.} = (dir_pid, tabliteBase().SimplePage.next_id(string dir_pid).to(int))
 
     for (desired_name_non_unique, desired_columns) in desired_column_map.pairs():
-        let keys = toSeq(passed_column_data.keys)
+        let keys = toSeq(passed_column_data)
         let desired_name = unique_name(desired_name_non_unique, keys)
         let this_col = columns[desired_columns.original_name]
 
         cols[desired_name] = this_col
 
-        passed_column_data[desired_name] = @[]
+        passed_column_data.add(desired_name)
 
         var col_dtypes = toSeq(this_col.getColumnTypes().keys)
         var needs_to_iterate = false
@@ -424,7 +424,7 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
             res_cols_pass[i][desired_name] = genpage(dir_pid)
 
     for desired_name in columns.keys:
-        failed_column_data[desired_name] = @[]
+        failed_column_data.add(desired_name)
 
         for i in 0..<page_count:
             res_cols_fail[i][desired_name] = genpage(dir_pid)
@@ -434,7 +434,7 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
     for i in 0..<page_count:
         res_cols_fail[i][reject_reason_name] = genpage(dir_pid)
 
-    failed_column_data[reject_reason_name] = @[]
+    failed_column_data.add(reject_reason_name)
 
     if toSeq(is_correct_type.values).all(proc (x: bool): bool = x):
         var tbl_pass_columns = collect(initTable()):
@@ -446,8 +446,18 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
 
         return (tbl_pass, tbl_fail)
 
-    var tbl_pass = tablite().Table(columns = passed_column_data)
-    var tbl_fail = tablite().Table(columns = failed_column_data)
+    template ordered2PyDict(keys: seq[string]): nimpy.PyObject =
+        let dict = pymodules.builtins().dict()
+
+        for k in keys:
+            dict[k] = newSeq[nimpy.PyObject]()
+
+        dict
+
+    var tbl_pass = tablite().Table(columns = passed_column_data.ordered2PyDict())
+    var tbl_fail = tablite().Table(columns = failed_column_data.ordered2PyDict())
+
+    echo ">>>tbl_pass.keys: " & $passed_column_data
 
     var task_list_inp = collect:
         for i in 0..<page_count:
