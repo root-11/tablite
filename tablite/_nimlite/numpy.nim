@@ -1,4 +1,4 @@
-import std/[unicode, strutils, sugar, times, tables, enumerate]
+import std/[os, unicode, strutils, sugar, times, tables, enumerate]
 import dateutils, pytypes, unpickling, utils
 import pymodules as pymodules
 import nimpy as nimpy, nimpy/raw_buffers
@@ -756,13 +756,10 @@ proc newPyPage*(id: int, path: string, len: int, dtypes: Table[PageTypes, int]):
     return pymodules.tabliteBase().SimplePage(id, path, len, pyDtypes)
 
 when isMainModule and appType != "lib":
-    discard pyImport("sys").path.extend(@[
-        "/home/ratchet/envs/callisto/lib/python3.10/site-packages",
-        "/home/ratchet/Documents/dematic/tablite",
-        "/home/ratchet/Documents/dematic/mplite"
-    ])
+    let envs = os.getEnv("NIM_PYTHON_MODULES", "").split(":")
+    discard pyImport("sys").path.extend(envs)
 
-    var arr = readNumpy("/home/ratchet/Documents/dematic/tablite/tests/data/pages/mixed.npy")
+    var arr = readNumpy("./tests/data/pages/mixed.npy")
 
     echo arr
 
