@@ -1,4 +1,4 @@
-import std/[os, tables, sugar, sets, sequtils, strutils, cpuinfo, paths, enumerate, unicode]
+import std/[os, tables, sugar, sets, sequtils, strutils, cpuinfo, paths, enumerate, unicode, times]
 import nimpy as nimpy
 from nimpyext import `!`
 import utils
@@ -9,6 +9,7 @@ import pytypes
 import numpy
 from unpickling import PageTypes
 import typetraits
+import dateutils
 
 type ColSliceInfo = (Path, int)
 type ColInfo = Table[string, ColSliceInfo]
@@ -86,7 +87,7 @@ proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: ty
 proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Int], page: T, mask: var seq[Mask], reason_lst: var seq[string]): T = page
 proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Float], page: T, mask: var seq[Mask], reason_lst: var seq[string]): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, proc(v: int): float = float v)
 proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_String], page: T, mask: var seq[Mask], reason_lst: var seq[string]): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, proc(v: int): string = $v)
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Date], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateNDArray = implement("int2date")
+proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Date], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, proc(v: int): DateTime = v.days2Date)
 proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_Time], page: T, mask: var seq[Mask], reason_lst: var seq[string]): ObjectNDArray = implement("int2time")
 proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](_: typedesc[PY_DateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateTimeNDArray = implement("int2datetime")
 
@@ -510,6 +511,9 @@ when isMainModule and appType != "lib":
 
     let workdir = Path(pymodules.builtins().str(pymodules.tabliteConfig().Config.workdir).to(string))
     let pid = "nim"
+    let pagedir = workdir / Path(pid) / Path("pages")
+
+    createDir(string pagedir)
 
     pymodules.tabliteConfig().Config.pid = pid
 
@@ -519,7 +523,8 @@ when isMainModule and appType != "lib":
     let select_cols = builtins().list(@[
         newColumnSelectorInfo("A ", "int", false, opt.none[string]()),
         newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
-        newColumnSelectorInfo("A ", "str", false, opt.none[string]())
+        newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
+        newColumnSelectorInfo("A ", "date", false, opt.none[string]()),
     ])
 
     let (select_pass, select_fail) = table.columnSelect(
@@ -529,3 +534,5 @@ when isMainModule and appType != "lib":
     )
 
     discard select_pass.show()
+    discard select_fail.show()
+

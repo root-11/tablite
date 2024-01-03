@@ -56,9 +56,11 @@ type Float64NDArray* = ref object of BaseNDArray
 
 type DateNDArray* = ref object of BaseNDArray
     buf*: seq[DateTime]
+    dtype* = endiannessMark & "M8[D]"
 
 type DateTimeNDArray* = ref object of BaseNDArray
     buf*: seq[DateTime]
+    dtype* = endiannessMark & "M8[us]"
 
 type UnicodeNDArray* = ref object of BaseNDArray
     buf*: seq[Rune]
@@ -112,8 +114,8 @@ template default*(self: typedesc[Int32NDArray]): int32 = 0
 template default*(self: typedesc[Int64NDArray]): int64 = 0
 template default*(self: typedesc[Float32NDArray]): float32 = 0
 template default*(self: typedesc[Float64NDArray]): float64 = 0
-template default*(self: typedesc[DateNDArray]) = DateTime()
-template default*(self: typedesc[DateTimeNDArray]) = DateTime()
+template default*(self: typedesc[DateNDArray]): times.DateTime = days2Date(0)
+template default*(self: typedesc[DateTimeNDArray]): times.DateTime = days2Date(0)
 template default*(self: typedesc[UnicodeNDArray]) = Rune()
 template default*(self: typedesc[ObjectNDArray]) = PyObjectND()
 
@@ -697,6 +699,25 @@ proc save(self: BooleanNDArray | Int8NDArray | Int16NDArray | Int32NDArray | Int
 
     fh.close()
 
+proc save(self: DateNDArray, path: string): void =
+    let dtype = self.dtype
+    let elements = calcShapeElements(self.shape)
+    let size = 8
+    let fh = open(path, fmWrite)
+    var value: int64
+
+    fh.writeNumpyHeader(dtype, uint elements)
+
+    for el in self.buf:
+        value = el.toTime().time2Duration.inDays
+
+        discard fh.writeBuffer(addr value, size)
+
+    fh.close()
+
+proc save(self: DateTimeNDArray, path: string): void =
+    implement("DateTimeNDArray.save")
+
 proc newNDArray*(arr: seq[string] | openArray[string] | iterator(): string): UnicodeNDArray =
     var longest = 1
     var page_len = 0
@@ -732,6 +753,10 @@ proc save*(self: BaseNDArray, path: string): void =
         Float64NDArray(self).save(path)
     elif self of UnicodeNDArray:
         UnicodeNDArray(self).save(path)
+    elif self of DateNDArray:
+        DateNDArray(self).save(path)
+    elif self of DateTimeNDArray:
+        DateTimeNDArray(self).save(path)
     else:
         implement("BaseNDArray.save")
 
