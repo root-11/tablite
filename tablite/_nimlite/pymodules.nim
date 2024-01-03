@@ -1,3 +1,5 @@
+from std/os import getEnv
+from std/strutils import split
 import nimpy as nimpy
 
 var
@@ -14,6 +16,9 @@ var
 proc importPy(): void =
     if isInit:
         return
+
+    let envs = getEnv("NIM_PYTHON_MODULES", "").split(":")
+    discard pyImport("sys").path.extend(envs)
 
     iBuiltins = nimpy.pyBuiltinsModule()
 

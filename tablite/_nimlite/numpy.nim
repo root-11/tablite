@@ -756,9 +756,6 @@ proc newPyPage*(id: int, path: string, len: int, dtypes: Table[PageTypes, int]):
     return pymodules.tabliteBase().SimplePage(id, path, len, pyDtypes)
 
 when isMainModule and appType != "lib":
-    let envs = os.getEnv("NIM_PYTHON_MODULES", "").split(":")
-    discard pyImport("sys").path.extend(envs)
-
     var arr = readNumpy("./tests/data/pages/mixed.npy")
 
     echo arr
