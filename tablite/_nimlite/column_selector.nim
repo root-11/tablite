@@ -42,8 +42,6 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
                     let str = conv(v)
                     res = str.toRunes
 
-                    echo ">>>str: '" & str & "'" & " | len: " & $str.len
-
                     longest = max(longest, res.len)
                     mask[i] = Mask.VALID
                 except ValueError:
@@ -267,8 +265,6 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
                 else:
                     corrupted()
 
-            echo ">>>converted_page: " & $converted_page
-
             converted_page.putPage(page_infos, desired_name, res_pass[desired_name])
             converted_page.save(string cast_path)
 
@@ -288,9 +284,6 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
                 invalid_indices.add(i)
                 reason_lst[i]
 
-        echo ">>>invalid_indices: " & $invalid_indices
-        echo ">>>valid_indices: " & $valid_indices
-
         valid_indices.finalizeSlice(toSeq(desired_column_map.keys), page_infos, cast_paths, pages_pass, res_pass)
         invalid_indices.finalizeSlice(toSeq(columns.keys), page_infos, cast_paths, pages_fail, res_fail)
 
@@ -306,7 +299,6 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
             if not is_tmp:
                 continue
             discard tryRemoveFile(string cast_path)
-        discard
 
     return (pages_pass, pages_fail)
 
@@ -492,7 +484,7 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
     proc extendTable(table: var nimpy.PyObject, columns: seq[(string, nimpy.PyObject)]): void {.inline.} =
         for (col_name, pg) in columns:
             let col = table[col_name]
-            
+
             discard col.pages.append(pg) # can't col.extend because nim is dumb :)
 
     for (pg_pass, pg_fail) in converted:
@@ -520,7 +512,7 @@ when isMainModule and appType != "lib":
     let pid = "nim"
 
     pymodules.tabliteConfig().Config.pid = pid
-    
+
     let columns = pymodules.builtins().dict({"A ": @[0, 10, 200]}.toTable)
     let table = pymodules.tablite().Table(columns = columns)
 
