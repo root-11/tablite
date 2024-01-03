@@ -518,12 +518,14 @@ when isMainModule and appType != "lib":
 
         return pyDict
 
-    discard pyImport("sys").path.extend(@[
-        "/home/ratchet/envs/callisto/lib/python3.10/site-packages",
-        "/home/ratchet/Documents/dematic/tablite",
-        "/home/ratchet/Documents/dematic/mplite"
-    ])
+    let envs = os.getEnv("NIM_PYTHON_MODULES", "").split(":")
+    discard pyImport("sys").path.extend(envs)
 
+    let workdir = Path(pymodules.builtins().str(pymodules.tabliteConfig().Config.workdir).to(string))
+    let pid = "nim"
+
+    pymodules.tabliteConfig().Config.pid = pid
+    
     let columns = pymodules.builtins().dict({"A ": @[0, 10, 200]}.toTable)
     let table = pymodules.tablite().Table(columns = columns)
 
@@ -536,7 +538,7 @@ when isMainModule and appType != "lib":
     let (select_pass, select_fail) = table.columnSelect(
         select_cols,
         nimpy.pyImport("tqdm").tqdm,
-        dir_pid = Path("/media/ratchet/hdd/tablite/nim")
+        dir_pid = workdir / Path(pid)
     )
 
     echo select_pass.show()
