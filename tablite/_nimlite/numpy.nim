@@ -696,6 +696,24 @@ proc save(self: BooleanNDArray | Int8NDArray | Int16NDArray | Int32NDArray | Int
 
     fh.close()
 
+proc newNDArray*(arr: seq[string] | openArray[string] | iterator(): string): UnicodeNDArray =
+    var longest = 1
+    var page_len = 0
+    let runes = collect:
+        for str in arr:
+            let res = str.toRunes
+            longest = max(longest, res.len)
+            page_len = page_len + 1
+            res
+    
+    let shape = @[page_len]
+    let buf = newSeq[Rune](longest * page_len)
+
+    for (i, str) in enumerate(runes):
+        buf[i * longest].addr.copyMem(addr str[0], str.len * sizeof(Rune))
+
+    return UnicodeNDArray(shape: shape, buf: buf, size: longest)
+
 proc save*(self: BaseNDArray, path: string): void =
     if self of BooleanNDArray:
         BooleanNDArray(self).save(path)
