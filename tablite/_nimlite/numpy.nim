@@ -699,7 +699,7 @@ proc save(self: BooleanNDArray | Int8NDArray | Int16NDArray | Int32NDArray | Int
 
     fh.close()
 
-proc save(self: DateNDArray, path: string): void =
+proc save[T: DateNDArray | DateTimeNDArray](self: T, path: string): void =
     let dtype = self.dtype
     let elements = calcShapeElements(self.shape)
     let size = 8
@@ -709,14 +709,17 @@ proc save(self: DateNDArray, path: string): void =
     fh.writeNumpyHeader(dtype, uint elements)
 
     for el in self.buf:
-        value = el.toTime().time2Duration.inDays
+        when T is DateNDArray:
+            value = el.toTime().time2Duration.inDays
+        else:
+            when T is DateTimeNDArray:
+                value = el.toTime().time2Duration.inMicroseconds
+            else:
+                corrupted()
 
         discard fh.writeBuffer(addr value, size)
 
     fh.close()
-
-proc save(self: DateTimeNDArray, path: string): void =
-    implement("DateTimeNDArray.save")
 
 proc newNDArray*(arr: seq[string] | openArray[string] | iterator(): string): UnicodeNDArray =
     var longest = 1
