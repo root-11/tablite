@@ -8,7 +8,7 @@ randomize()
 const rand_chars = {'a'..'z','A'..'Z', '0'..'9'}
 
 type Iterable[T] = proc: iterator: T
-template corrupted*(): void = raise newException(IOError, "file corrupted")
+template corrupted*(d: typedesc = IOError): void = raise newException(d, "file corrupted")
 template implement*(name: string = ""): void = raise newException(Exception, if name.len == 0: "not yet imlemented" else: "'" & name & "' not yet imlemented")
 
 const isLittleEndian* = system.cpuEndian == littleEndian
