@@ -10,8 +10,8 @@ import numpy
 from unpickling import PageTypes
 import typetraits
 
-
-type ColInfo = Table[string, (Path, int)]
+type ColSliceInfo = (Path, int)
+type ColInfo = Table[string, ColSliceInfo]
 type DesiredColumnInfo = object
     original_name: string
     `type`: PageTypes
@@ -20,6 +20,11 @@ type Mask = enum
     INVALID = -1
     UNUSED = 0
     VALID = 1
+type PageInfo = object
+    id: int
+    path: string
+    len: int
+    dtype: Table[PageTypes, int]
 
 proc toPageType(name: string): PageTypes =
     case name.toLower():
@@ -144,32 +149,56 @@ proc unusedMaskSearch(arr: var seq[Mask]): int =
 
     return 0
 
-template finalizePage(indices: var seq[int], column_names: seq[string], pages: var seq[(string, string)], result_info: ColInfo): void =
-    if indices.len > 0:
-        for col_name in column_names:
-            let (cast_path, is_tmp) = cast_paths[col_name]
+proc finalizeSlice(indices: var seq[int], column_names: seq[string], infos: var Table[string, PageInfo], cast_paths: var Table[string, (Path, bool)], pages: var seq[(string, PageInfo)], result_info: ColInfo): void =
+    if indices.len == 0:
+        return
 
-            if not is_tmp:
-                pages.add((col_name, string cast_path))
-                continue
+    for col_name in column_names:
+        let (cast_path, is_tmp) = cast_paths[col_name]
 
-            var cast_data = readNumpy(string cast_path)
-            let (dirpid, pid) = result_info[col_name]
-            let pathpid = string (dirpid / Path($pid & ".npy"))
-            
-            if cast_data.len != indices.len:
-                cast_data = cast_data[indices]
-            
-                cast_data.save(pathpid)
-            else:
-                moveFile(string cast_path, pathpid)
+        if not is_tmp:
+            pages.add((col_name, infos[col_name]))
+            continue
 
-            pages.add((col_name, pathpid))
+        var cast_data = readNumpy(string cast_path)
+        let (dirpid, pid) = result_info[col_name]
+        let dirpage = dirpid / Path("pages")
 
-proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string], reject_reason_name: string, res_pass: ColInfo, res_fail: ColInfo, desired_column_map: Table[string, DesiredColumnInfo], column_names: seq[string], is_correct_type: Table[string, bool]): (seq[(string, string)], seq[(string, string)]) =
+        createDir(string dirpage)
+
+        let pathpid = string (dirpage / Path($pid & ".npy"))
+
+        if cast_data.len != indices.len:
+            cast_data = cast_data[indices]
+
+            cast_data.save(pathpid)
+        else:
+            moveFile(string cast_path, pathpid)
+
+        pages.add((col_name, infos[col_name]))
+
+proc putPage(page: BaseNDArray, infos: var Table[string, PageInfo], colName: string, col: ColSliceInfo): void {.inline.} =
+    let (dir, pid) = col
+    let page = PageInfo(
+        id: pid,
+        path: string dir,
+        len: page.len,
+        dtype: page.getPageTypes()
+    )
+
+    infos[colName] = page
+
+proc toColSliceInfo(path: Path): ColSliceInfo =
+    let workdir = path.parentDir.parentDir
+    let pid = parseInt(string path.extractFilename.changeFileExt(""))
+
+    return (workdir, pid)
+
+proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string], reject_reason_name: string, res_pass: ColInfo, res_fail: ColInfo, desired_column_map: Table[string, DesiredColumnInfo], column_names: seq[string], is_correct_type: Table[string, bool]): (seq[(string, PageInfo)], seq[(string, PageInfo)]) =
     var cast_paths = initTable[string, (Path, bool)]()
-    var pages_pass = newSeq[(string, string)]()
-    var pages_fail = newSeq[(string, string)]()
+    var page_infos = initTable[string, PageInfo]()
+    var pages_pass = newSeq[(string, PageInfo)]()
+    var pages_fail = newSeq[(string, PageInfo)]()
 
     try:
         let page_paths = collect(initTable()):
@@ -219,6 +248,8 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
             var converted_page: BaseNDArray
 
+            original_data.putPage(page_infos, original_name, Path(original_path).toColSliceInfo())
+
             if original_data of ObjectNDArray:
                 # may contain mixed types or nones
                 discard
@@ -248,13 +279,13 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
             echo ">>>converted_page: " & $converted_page
 
+            converted_page.putPage(page_infos, desired_name, res_pass[desired_name])
             converted_page.save(string cast_path)
-
 
         var mask_slice = 0..<unusedMaskSearch(valid_mask)
 
         valid_mask = valid_mask[mask_slice]
-        
+
         var invalid_indices = newSeqOfCap[int](valid_mask.len shr 2) # quarter seems okay
         var valid_indices = newSeqOfCap[int](valid_mask.len - (valid_mask.len shr 2))
 
@@ -270,15 +301,15 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
         echo ">>>invalid_indices: " & $invalid_indices
         echo ">>>valid_indices: " & $valid_indices
 
-        valid_indices.finalizePage(toSeq(desired_column_map.keys), pages_pass, res_pass)
-        invalid_indices.finalizePage(toSeq(columns.keys), pages_fail, res_fail)
+        valid_indices.finalizeSlice(toSeq(desired_column_map.keys), page_infos, cast_paths, pages_pass, res_pass)
+        invalid_indices.finalizeSlice(toSeq(columns.keys), page_infos, cast_paths, pages_fail, res_fail)
 
         if reason_lst.len > 0:
             let (dirpid, pid) = res_fail[reject_reason_name]
             let pathpid = string (dirpid / Path($pid & ".npy"))
             newNDArray(reason_lst).save(pathpid)
-            
-            pages_fail.add((reject_reason_name, pathpid))
+
+            pages_fail.add((reject_reason_name, page_infos[reject_reason_name]))
 
     finally:
         for (cast_path, is_tmp) in cast_paths.values:
@@ -370,12 +401,12 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
     var res_cols_fail = newSeqOfCap[ColInfo](page_count-1)
 
     for _ in 0..<page_count:
-        res_cols_pass.add(initTable[string, (Path, int)]())
-        res_cols_fail.add(initTable[string, (Path, int)]())
+        res_cols_pass.add(initTable[string, ColSliceInfo]())
+        res_cols_fail.add(initTable[string, ColSliceInfo]())
 
     var is_correct_type = initTable[string, bool]()
 
-    template genpage(dirpid: Path): (Path, int) = (dir_pid, tabliteBase().SimplePage.next_id(string dir_pid).to(int))
+    template genpage(dirpid: Path): ColSliceInfo = (dir_pid, tabliteBase().SimplePage.next_id(string dir_pid).to(int))
 
     for (desired_name_non_unique, desired_columns) in desired_column_map.pairs():
         let keys = toSeq(passed_column_data.keys)
@@ -407,18 +438,18 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
         is_correct_type[desired_name] = not needs_to_iterate
 
         for i in 0..<page_count:
-            res_cols_pass[i][desired_name] = genpage(dirpage)
+            res_cols_pass[i][desired_name] = genpage(dir_pid)
 
     for desired_name in desired_column_map.keys:
         failed_column_data[desired_name] = @[]
 
         for i in 0..<page_count:
-            res_cols_fail[i][desired_name] = genpage(dirpage)
+            res_cols_fail[i][desired_name] = genpage(dir_pid)
 
     let reject_reason_name = unique_name("reject_reason", column_names)
 
     for i in 0..<page_count:
-        res_cols_fail[i][reject_reason_name] = genpage(dirpage)
+        res_cols_fail[i][reject_reason_name] = genpage(dir_pid)
 
     failed_column_data[reject_reason_name] = @[]
 
@@ -440,7 +471,7 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
             let el = collect(initTable()):
                 for (name, column) in columns.pairs:
                     {name: column[i]}
-            (el, res_cols_pass[0], res_cols_fail[0])
+            (el, res_cols_pass[i], res_cols_fail[i])
 
     let cpu_count = clamp(task_list_inp.len, 1, countProcessors())
     let Config = tabliteConfig().Config
@@ -458,7 +489,7 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
 
     var page_size = Config.PAGE_SIZE.to(int)
     var pbar = tqdm!(total: task_list_inp.len, desc: "column select")
-    var result = newSeqOfCap[(seq[(string, string)], seq[(string, string)])](task_list_inp.len)
+    var result = newSeqOfCap[(seq[(string, PageInfo)], seq[(string, PageInfo)])](task_list_inp.len)
 
     if is_mp:
         implement("columnSelect.convert.mp")
@@ -497,6 +528,7 @@ when isMainModule and appType != "lib":
     let table = pymodules.tablite().Table(columns = columns)
 
     let select_cols = builtins().list(@[
+        newColumnSelectorInfo("A ", "int", false, opt.none[string]()),
         newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
         newColumnSelectorInfo("A ", "str", false, opt.none[string]())
     ])
