@@ -455,6 +455,34 @@ def _mp_reindex_page(
     return remapped_T
 
 
+def _gets(task, *args):
+    """helper to get kwargs of a task
+
+    *Args:
+        names from kwargs to retrieve.
+
+    Returns:
+        tuple: tuple with kw-values in same order as args
+
+    Examples:
+
+    Verbose way:
+    ```
+    >>> col = task.kwarg.get("left")
+    >>> right = task.kwarg.get("right")
+    >>> end = task.kwarg.get("end")
+    ```
+    Compact way:
+    ```
+    >>> col, start, end = task.gets("left", "start", "end")
+    ```
+    """
+    result = tuple()
+    for arg in args:
+        result += (task.kwargs.get(arg),)
+    return result
+
+
 def _mp_left_join(
     T: Table,
     other: Table,
@@ -616,7 +644,7 @@ def _mp_left_join(
             results = tm.execute(tasks, pbar=ProgressBar())
 
         for task, result in zip(tasks, results):
-            col, start, end = gets(task, "left", "start", "end")
+            col, start, end = _gets(task, "left", "start", "end")
             new_table[col][start:end] = result["bmap"][:]
 
         for name in right_keys:
@@ -630,29 +658,45 @@ def _mp_left_join(
 
     return new_table
 
-def gets(task, *args):
-    """helper to get kwargs of a task
 
-    *Args:
-        names from kwargs to retrieve.
+def _mp_inner_join(
+    T: Table,
+    other: Table,
+    left_keys: List[str],
+    right_keys: List[str],
+    left_columns: List[str] | None = None,
+    right_columns: List[str] | None = None,
+    merge_keys: bool = False,
+    tqdm=_tqdm,
+    pbar=None,
+    task_manager=None,
+):
+    pass
 
-    Returns:
-        tuple: tuple with kw-values in same order as args
+def _mp_outer_join(
+    T: Table,
+    other: Table,
+    left_keys: List[str],
+    right_keys: List[str],
+    left_columns: List[str] | None = None,
+    right_columns: List[str] | None = None,
+    merge_keys: bool = False,
+    tqdm=_tqdm,
+    pbar=None,
+    task_manager=None,
+):
+    pass
 
-    Examples:
-
-    Verbose way:
-    ```
-    >>> col = task.kwarg.get("left")
-    >>> right = task.kwarg.get("right")
-    >>> end = task.kwarg.get("end")
-    ```
-    Compact way:
-    ```
-    >>> col, start, end = task.gets("left", "start", "end")
-    ```
-    """
-    result = tuple()
-    for arg in args:
-        result += (task.kwargs.get(arg),)
-    return result
+def _mp_cross_join(
+    T: Table,
+    other: Table,
+    left_keys: List[str],
+    right_keys: List[str],
+    left_columns: List[str] | None = None,
+    right_columns: List[str] | None = None,
+    merge_keys: bool = False,
+    tqdm=_tqdm,
+    pbar=None,
+    task_manager=None,
+):
+    pass
