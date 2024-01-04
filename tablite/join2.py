@@ -14,56 +14,6 @@ from mplite import Task, TaskManager
 
 from tqdm import tqdm as _tqdm
 
-def vpus(tasks):
-    if Config.MULTIPROCESSING_MODE == Config.FALSE:
-        raise TypeError("Config.MULTIPROCESSING_MODE == Config.FALSE")
-        # the methods xxxx_join_sp should have been selected.
-    else:
-        memory_per_join = 300e6
-        max_vpus = psutil.virtual_memory().free // memory_per_join
-        return min(Config.vpus, len(tasks), max_vpus)
-
-
-def _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns):
-    sub_cls_check(T, Table)
-    sub_cls_check(other, Table)
-
-    if not isinstance(left_keys, list) and all(isinstance(k, str) for k in left_keys):
-        raise TypeError(f"Expected keys as list of strings, not {type(left_keys)}")
-    if not isinstance(right_keys, list) and all(isinstance(k, str) for k in right_keys):
-        raise TypeError(f"Expected keys as list of strings, not {type(right_keys)}")
-
-    if any(key not in T.columns for key in left_keys):
-        e = f"left key(s) not found: {[k for k in left_keys if k not in T.columns]}"
-        raise ValueError(e)
-    if any(key not in other.columns for key in right_keys):
-        e = f"right key(s) not found: {[k for k in right_keys if k not in other.columns]}"
-        raise ValueError(e)
-
-    if len(left_keys) != len(right_keys):
-        raise ValueError(f"Keys do not have same length: \n{left_keys}, \n{right_keys}")
-
-    for L, R in zip(left_keys, right_keys):
-        Lcol, Rcol = T[L], other[R]
-        if not set(Lcol.types()).intersection(set(Rcol.types())):
-            left_types = tuple(t.__name__ for t in list(Lcol.types().keys()))
-            right_types = tuple(t.__name__ for t in list(Rcol.types().keys()))
-            e = f"Type mismatch: Left key '{L}' {left_types} will never match right keys {right_types}"
-            raise TypeError(e)
-
-    if not isinstance(left_columns, list) or not left_columns:
-        raise TypeError("left_columns (list of strings) are required")
-    if any(column not in T.columns for column in left_columns):
-        e = f"Column not found: {[c for c in left_columns if c not in T.columns]}"
-        raise ValueError(e)
-
-    if not isinstance(right_columns, list) or not right_columns:
-        raise TypeError("right_columns (list or strings) are required")
-    if any(column not in other.columns for column in right_columns):
-        e = f"Column not found: {[c for c in right_columns if c not in other.columns]}"
-        raise ValueError(e)
-    # Input is now guaranteed to be valid.
-
 
 def join(
     T: Table,
@@ -73,6 +23,7 @@ def join(
     left_columns: List[str] | None,
     right_columns: List[str] | None,
     kind: str = "inner",
+    merge_keys: bool = False,
     tqdm=_tqdm,
     pbar=None,
 ):
@@ -149,6 +100,12 @@ def join(
     In other words, it will produce rows which combine each row from the first table
     with each row from the second table
     """
+    if left_columns is None:
+        left_columns = list(T.columns)
+    if right_columns is None:
+        right_columns = list(other.columns)
+    assert merge_keys in {True,False}
+
     _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
 
     fields = len(T)*len(T.columns) + len(other)*len(other.columns)
@@ -156,30 +113,179 @@ def join(
 
     return m(kind, T,other,left_keys, right_keys, left_columns, right_columns,
              tqdm=tqdm, pbar=pbar)
-    
+
+
+def vpus(tasks):
+    if Config.MULTIPROCESSING_MODE == Config.FALSE:
+        raise TypeError("Config.MULTIPROCESSING_MODE == Config.FALSE")
+        # the methods xxxx_join_sp should have been selected.
+    else:
+        memory_per_join = 300e6
+        max_vpus = psutil.virtual_memory().free // memory_per_join
+        return min(Config.vpus, len(tasks), max_vpus)
+
+
+def _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns):
+    sub_cls_check(T, Table)
+    sub_cls_check(other, Table)
+
+    if not isinstance(left_keys, list) and all(isinstance(k, str) for k in left_keys):
+        raise TypeError(f"Expected keys as list of strings, not {type(left_keys)}")
+    if not isinstance(right_keys, list) and all(isinstance(k, str) for k in right_keys):
+        raise TypeError(f"Expected keys as list of strings, not {type(right_keys)}")
+
+    if any(key not in T.columns for key in left_keys):
+        e = f"left key(s) not found: {[k for k in left_keys if k not in T.columns]}"
+        raise ValueError(e)
+    if any(key not in other.columns for key in right_keys):
+        e = f"right key(s) not found: {[k for k in right_keys if k not in other.columns]}"
+        raise ValueError(e)
+
+    if len(left_keys) != len(right_keys):
+        raise ValueError(f"Keys do not have same length: \n{left_keys}, \n{right_keys}")
+
+    for L, R in zip(left_keys, right_keys):
+        Lcol, Rcol = T[L], other[R]
+        if not set(Lcol.types()).intersection(set(Rcol.types())):
+            left_types = tuple(t.__name__ for t in list(Lcol.types().keys()))
+            right_types = tuple(t.__name__ for t in list(Rcol.types().keys()))
+            e = f"Type mismatch: Left key '{L}' {left_types} will never match right keys {right_types}"
+            raise TypeError(e)
+
+    if not isinstance(left_columns, list) or not left_columns:
+        raise TypeError("left_columns (list of strings) are required")
+    if any(column not in T.columns for column in left_columns):
+        e = f"Column not found: {[c for c in left_columns if c not in T.columns]}"
+        raise ValueError(e)
+
+    if not isinstance(right_columns, list) or not right_columns:
+        raise TypeError("right_columns (list or strings) are required")
+    if any(column not in other.columns for column in right_columns):
+        e = f"Column not found: {[c for c in right_columns if c not in other.columns]}"
+        raise ValueError(e)
+    # Input is now guaranteed to be valid.
+
+
 # -------------------------
 # SINGLE PROCESSING SECTION
 # -------------------------
 
-def _sp_join(kind, T, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=None, tqdm=_tqdm, pbar=None):
-    if left_columns is None:
-        left_columns = list(T.columns)
-    if right_columns is None:
-        right_columns = list(other.columns)
-    assert merge_keys in {True,False,None}
 
-    _mapping_methods = {
-        "inner": _sp_inner_mapping,
-        "left":  _sp_left_mapping, 
-        "outer": _sp_outer_mapping,
-        "cross": _sp_cross_mapping,
-    }
-    _mapping = _mapping_methods.get(kind, None)
+def _sp_left_mapping(T, other, left_keys, right_keys, tqdm=tqdm, pbar=pbar):
+    """
+    Args:
+        T (Table): left table
+        other (Table): right table
+        left_keys (list): list of keys for the join from left table.
+        right_keys (list): list of keys for the join from right table.
+    
+    Returns: 
+        Table: joined table
+    """
+    left_index = T.index(*left_keys)
+    right_index = other.index(*right_keys)
+    _left, _right = [], []
+    for left_key, left_ixs in left_index.items():
+        right_ixs = right_index.get(left_key, (-1,))
+        for left_ix in left_ixs:
+            for right_ix in right_ixs:
+                _left.append(left_ix)
+                _right.append(right_ix)
+
+    _left, _right = np.array(_left), np.array(_right)  # compress memory of python list to array.
+    return _left,_right
+
+
+def _sp_inner_mapping(T, other, left_keys, right_keys, tqdm=tqdm, pbar=pbar):
+    """
+    Args:
+        T (Table): left table
+        other (Table): right table
+        left_keys (list): list of keys for the join from left table.
+        right_keys (list): list of keys for the join from right table.
+    
+    Returns: 
+        Table: joined table
+
+    """
+    left_index = T.index(*left_keys)
+    right_index = other.index(*right_keys)
+    _left, _right = [], []
+    for left_key, left_ixs in left_index.items():
+        right_ixs = right_index.get(left_key, None)
+        if right_ixs is None:
+            continue
+        for left_ix in left_ixs:
+            for right_ix in right_ixs:
+                _left.append(left_ix)
+                _right.append(right_ix)
+
+    _left, _right = np.array(_left), np.array(_right)
+    return _left, _right
+
+
+def _sp_outer_mapping(T, other, left_keys, right_keys, tqdm=tqdm, pbar=pbar):
+    """
+    Args:
+        T (Table): left table
+        other (Table): right table
+        left_keys (list): list of keys for the join from left table.
+        right_keys (list): list of keys for the join from right table.
+    
+    Returns: 
+        Table: joined table
+
+    """
+    left_index = T.index(*left_keys)
+    right_index = other.index(*right_keys)
+    _left, _right, _right_unused = [], [], set(right_index.keys())
+    for left_key, left_ixs in left_index.items():
+        right_ixs = right_index.get(left_key, (-1,))
+        for left_ix in left_ixs:
+            for right_ix in right_ixs:
+                _left.append(left_ix)
+                _right.append(right_ix)
+                _right_unused.discard(left_key)
+
+    for right_key in _right_unused:
+        for right_ix in right_index[right_key]:
+            _left.append(-1)
+            _right.append(right_ix)
+
+    _left, _right = np.array(_left), np.array(_right)
+    return _left, _right
+
+
+def _sp_cross_mapping(T, other, left_keys, right_keys, tqdm=tqdm, pbar=pbar):
+    """
+    Args:
+        T (Table): left table
+        other (Table): right table
+        left_keys (list): list of keys for the join from left table.
+        right_keys (list): list of keys for the join from right table.
+    
+    Returns: 
+        Table: joined table
+
+    """
+    _left, _right = zip(*product(range(len(T)), range(len(other))))
+    _left, _right = np.array(_left), np.array(_right)
+    return _left,_right
+
+
+_sp_mapping_methods = {
+    "inner": _sp_inner_mapping,
+    "left":  _sp_left_mapping, 
+    "outer": _sp_outer_mapping,
+    "cross": _sp_cross_mapping,
+}
+
+def _sp_join(kind, T, other, left_keys, right_keys, left_columns, right_columns, merge_keys=None, tqdm=_tqdm, pbar=None):
+    _mapping = _sp_mapping_methods.get(kind, None)
     if _mapping is None:
         raise ValueError(f"join type unknown: {kind}")
     
-    _left,_right = _mapping(T, other, left_keys, right_keys, left_columns, right_columns, 
-                          tqdm=tqdm, pbar=pbar)
+    _left,_right = _mapping(T, other, left_keys, right_keys, tqdm=tqdm, pbar=pbar)
     assert len(_left) == len(_right)
 
     if pbar is None:
@@ -214,108 +320,6 @@ def _merge_keys(kind, result, T, left, right, left_keys, right_keys,):
             right_name = unique_name(right_name, T.columns)
             result = where(result, boolean_map, left_name, right_name, new=left_name)
     return result
-
-
-def _sp_left_mapping(T, other, left_keys, right_keys):
-    """
-    Args:
-        T (Table): left table
-        other (Table): right table
-        left_keys (list): list of keys for the join from left table.
-        right_keys (list): list of keys for the join from right table.
-    
-    Returns: 
-        Table: joined table
-    """
-    left_index = T.index(*left_keys)
-    right_index = other.index(*right_keys)
-    _left, _right = [], []
-    for left_key, left_ixs in left_index.items():
-        right_ixs = right_index.get(left_key, (-1,))
-        for left_ix in left_ixs:
-            for right_ix in right_ixs:
-                _left.append(left_ix)
-                _right.append(right_ix)
-
-    _left, _right = np.array(_left), np.array(_right)  # compress memory of python list to array.
-    return _left,_right
-
-
-def _sp_inner_mapping(T, other, left_keys, right_keys):
-    """
-    Args:
-        T (Table): left table
-        other (Table): right table
-        left_keys (list): list of keys for the join from left table.
-        right_keys (list): list of keys for the join from right table.
-    
-    Returns: 
-        Table: joined table
-
-    """
-    left_index = T.index(*left_keys)
-    right_index = other.index(*right_keys)
-    _left, _right = [], []
-    for left_key, left_ixs in left_index.items():
-        right_ixs = right_index.get(left_key, None)
-        if right_ixs is None:
-            continue
-        for left_ix in left_ixs:
-            for right_ix in right_ixs:
-                _left.append(left_ix)
-                _right.append(right_ix)
-
-    _left, _right = np.array(_left), np.array(_right)
-    return _left, _right
-
-
-def _sp_outer_mapping(T, other, left_keys, right_keys):
-    """
-    Args:
-        T (Table): left table
-        other (Table): right table
-        left_keys (list): list of keys for the join from left table.
-        right_keys (list): list of keys for the join from right table.
-    
-    Returns: 
-        Table: joined table
-
-    """
-    left_index = T.index(*left_keys)
-    right_index = other.index(*right_keys)
-    _left, _right, _right_unused = [], [], set(right_index.keys())
-    for left_key, left_ixs in left_index.items():
-        right_ixs = right_index.get(left_key, (-1,))
-        for left_ix in left_ixs:
-            for right_ix in right_ixs:
-                _left.append(left_ix)
-                _right.append(right_ix)
-                _right_unused.discard(left_key)
-
-    for right_key in _right_unused:
-        for right_ix in right_index[right_key]:
-            _left.append(-1)
-            _right.append(right_ix)
-
-    _left, _right = np.array(_left), np.array(_right)
-    return _left, _right
-
-
-def _sp_cross_mapping(T, other, left_keys, right_keys):
-    """
-    Args:
-        T (Table): left table
-        other (Table): right table
-        left_keys (list): list of keys for the join from left table.
-        right_keys (list): list of keys for the join from right table.
-    
-    Returns: 
-        Table: joined table
-
-    """
-    _left, _right = zip(*product(range(len(T)), range(len(other))))
-    _left, _right = np.array(_left), np.array(_right)
-    return _left,_right
 
 
 # -----------------------
@@ -467,9 +471,6 @@ def _mp_outer_mapping(
     right = other[right_keys + [right_slice]]
     left_index = left.index(*left_keys)
     right_index = right.index(*right_keys)
-    # Note: The memory footprint on indexing is unpredictable.
-    # If this crashes the user would have to create a key manually
-    # on each table and use that as index.
     del left, right
 
     _left, _right, _right_unused = [], [], set(right_index.keys())
@@ -578,6 +579,14 @@ def _gets(task, *args):
     return result
 
 
+_mp_mapping_methods = {
+    'left': _mp_left_mapping,
+    'inner': _mp_inner_mapping,
+    'outer': _mp_outer_mapping,
+    'cross': _mp_cross_mapping
+}
+
+
 def _mp_join(
         kind: str,
         T: Table,
@@ -591,11 +600,6 @@ def _mp_join(
         pbar=None,
         task_manager=None,
     ):
-    if left_columns is None:
-        left_columns = list(T.columns)
-    if right_columns is None:
-        right_columns = list(other.columns)
-    assert merge_keys in {True, False}
 
     if pbar is None:
         _pbar_created_here = True
@@ -617,13 +621,9 @@ def _mp_join(
     _pid_dir = Path(Config.workdir) / Config.pid
 
     # step 1: create mapping tasks
-    _mapping_methods = {
-        'left': _mp_left_mapping,
-        'inner': _mp_inner_mapping,
-        'outer': _mp_outer_mapping,
-        'cross': _mp_cross_mapping
-    }
-    _mapping = _mapping_methods.get(kind)
+    _mapping = _mp_mapping_methods.get(kind)
+    if _mapping is None:
+        raise ValueError(f"join type unknown: {kind}")
 
     step = Config.PAGE_SIZE
     for left in range(0, len(T) + 1, step):
