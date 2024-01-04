@@ -114,11 +114,40 @@ def join(
     return m(kind, T,other,left_keys, right_keys, left_columns, right_columns,
              tqdm=tqdm, pbar=pbar)
 
+# fmt:off
+def inner_join(T: Table, other: Table, left_keys: List[str], right_keys: List[str], 
+              left_columns: List[str] | None, right_columns: List[str] | None,
+              merge_keys: bool = False, tqdm=_tqdm, pbar=None):
+    return join(T, other, left_keys, right_keys, left_columns, right_columns, kind="inner", merge_keys=merge_keys, tqdm=tqdm,pbar=pbar)
 
-def vpus(tasks):
+def left_join(T: Table, other: Table, left_keys: List[str], right_keys: List[str], 
+              left_columns: List[str] | None, right_columns: List[str] | None,
+              merge_keys: bool = False, tqdm=_tqdm, pbar=None):
+    return join(T, other, left_keys, right_keys, left_columns, right_columns, kind="left", merge_keys=merge_keys, tqdm=tqdm,pbar=pbar)
+
+def outer_join(T: Table, other: Table, left_keys: List[str], right_keys: List[str], 
+              left_columns: List[str] | None, right_columns: List[str] | None,
+              merge_keys: bool = False, tqdm=_tqdm, pbar=None):
+    return join(T, other, left_keys, right_keys, left_columns, right_columns, kind="outer", merge_keys=merge_keys, tqdm=tqdm,pbar=pbar)
+
+def cross_join(T: Table, other: Table, left_keys: List[str], right_keys: List[str], 
+              left_columns: List[str] | None, right_columns: List[str] | None,
+              merge_keys: bool = False, tqdm=_tqdm, pbar=None):
+    return join(T, other, left_keys, right_keys, left_columns, right_columns, kind="cross", merge_keys=merge_keys, tqdm=tqdm,pbar=pbar)
+# fmt: on
+
+
+def _vpus(tasks):
+    """private helper to determine how many VPUs there is memory for.
+
+    Args:
+        tasks (list): list of tasks
+
+    Returns:
+        integer: number of VPUs
+    """
     if Config.MULTIPROCESSING_MODE == Config.FALSE:
         raise TypeError("Config.MULTIPROCESSING_MODE == Config.FALSE")
-        # the methods xxxx_join_sp should have been selected.
     else:
         memory_per_join = 300e6
         max_vpus = psutil.virtual_memory().free // memory_per_join
@@ -642,7 +671,7 @@ def _mp_join(
             )
             tasks.append(task)
 
-    with task_manager(cpu_count=vpus(tasks)) as tm:
+    with task_manager(cpu_count=_vpus(tasks)) as tm:
         results = tm.execute(tasks, pbar=ProgressBar())
 
     # step 2: assemble mapping from tasks
@@ -695,7 +724,7 @@ def _mp_join(
             )
             tasks.append(task)
 
-    with task_manager(cpu_count=vpus(tasks)) as tm:
+    with task_manager(cpu_count=_vpus(tasks)) as tm:
         results = tm.execute(tasks, pbar=ProgressBar())
 
     # step 4: assemble the result
@@ -728,7 +757,7 @@ def _mp_join(
                 )
                 tasks.append(task)
 
-        with task_manager(cpu_count=vpus(tasks)) as tm:
+        with task_manager(cpu_count=_vpus(tasks)) as tm:
             results = tm.execute(tasks, pbar=ProgressBar())
 
         for task, result in zip(tasks, results):
