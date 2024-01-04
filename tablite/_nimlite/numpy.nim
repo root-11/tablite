@@ -117,7 +117,7 @@ template default*(self: typedesc[Float64NDArray]): float64 = 0
 template default*(self: typedesc[DateNDArray]): times.DateTime = days2Date(0)
 template default*(self: typedesc[DateTimeNDArray]): times.DateTime = days2Date(0)
 template default*(self: typedesc[UnicodeNDArray]) = Rune()
-template default*(self: typedesc[ObjectNDArray]) = PyObjectND()
+template default*(self: typedesc[ObjectNDArray]): PY_ObjectND = PY_None
 
 proc writeNumpyHeader*(fh: File, dtype: string, shape: uint): void =
     let header = "{'descr': '" & dtype & "', 'fortran_order': False, 'shape': (" & $shape & ",)}"
