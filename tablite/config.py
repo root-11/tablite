@@ -2,8 +2,6 @@ import os
 import pathlib
 import tempfile
 import platform
-from mplite import TaskManager as _TaskManager
-from mplite import Task as _Task
 
 from dotenv import load_dotenv
 
@@ -93,99 +91,3 @@ class Config(object):
 
 
 _default_values = {k: v for k, v in Config.__dict__.items() if not k.startswith("__") or callable(v)}
-
-
-class Task(_Task):
-    def gets(self, *args):
-        """helper to get kwargs of a task
-
-        *Args:
-            names from kwargs to retrieve.
-
-        Returns:
-            tuple: tuple with kw-values in same order as args
-
-        Examples:
-
-        Verbose way:
-        ```
-        >>> col = task.kwarg.get("left")
-        >>> right = task.kwarg.get("right")
-        >>> end = task.kwarg.get("end")
-        ```
-        Compact way:
-        ```
-        >>> col, start, end = task.gets("left", "start", "end")
-        ```
-        """
-        result = tuple()
-        for arg in args:
-            result += self.kwargs.get(arg)
-        return result
-
-
-global_task_manager = None
-
-
-class TaskManager(object):
-    """
-    A long lived task manager so that subprocesses aren't killed.
-    """
-
-    def __enter__(cls):
-        if Config.MULTIPROCESSING_MODE == Config.FALSE:
-            return cls
-
-        global global_task_manager
-        if global_task_manager is None:
-            global_task_manager = _TaskManager(cpu_count=Config.vpus)
-            global_task_manager.start()
-        return cls
-
-    def __exit__(cls, exc_type, exc_val, exc_tb):
-        if exc_tb is not None:
-            global global_task_manager
-            if global_task_manager is not None:
-                global_task_manager.stop()
-                global_task_manager = None
-        else:
-            pass  # keep the task manager running.
-
-    def execute(cls, tasks, pbar):
-        if Config.MULTIPROCESSING_MODE == Config.FORCE:
-            _mp = True
-        elif Config.MULTIPROCESSING_MODE == Config.FALSE:
-            _mp = False
-        elif Config.vpus == 1:
-            _mp = False
-        elif Config.MULTIPROCESSING_MODE == Config.AUTO:
-            if len(tasks) <= 1:
-                _mp = False
-            else:
-                _mp = True
-        else:
-            _mp = True
-
-        if _mp:
-            results = global_task_manager.execute(tasks, pbar=pbar)
-        else:
-            pbar.update(0)
-            results = []
-            for task in tasks:
-                result = task.execute()
-                results.append(result)
-                pbar.update(1 / len(tasks))
-        return results
-
-
-import atexit
-
-
-def stop():
-    global global_task_manager
-    if global_task_manager is not None:
-        global_task_manager.stop()
-        global_task_manager = None
-
-
-atexit.register(stop)
