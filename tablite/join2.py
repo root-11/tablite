@@ -96,74 +96,23 @@ def join(
 
     Returns:
         Table: joined table.
-    """
-    fields = len(T)*len(T.columns) + len(other)*len(other.columns)
-    mp = select_processing_method(fields,sp=False,mp=True)
-
-    if mp:
-        kinds = {
-            "inner": _mp_inner_join,
-            "left":  _mp_left_join,
-            "outer": _mp_outer_join,
-            "cross": _mp_cross_join
-        }
-    else:  # sp
-        kinds = {
-            "inner": _sp_inner_join,
-            "left":  _sp_left_join, 
-            "outer": _sp_outer_join,
-            "cross": _sp_cross_join,
-        }
     
-    if kind not in kinds:
-        raise ValueError(f"join type unknown: {kind}")
+    Example: "inner"
+    ```
+    SQL:   SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
+    ```
+    Tablite: 
+    ```
+    >>> inner_join = numbers.inner_join(
+        letters, 
+        left_keys=['colour'], 
+        right_keys=['color'], 
+        left_columns=['number'], 
+        right_columns=['letter']
+    )
+    ```
     
-    f = kinds.get(kind, None)
-    return f(T, other, left_keys, right_keys, left_columns, right_columns, 
-             tqdm=tqdm, pbar=pbar)
-
-# -------------------------
-# SINGLE PROCESSING SECTION
-# -------------------------
-
-def _sp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=_tqdm, pbar=None):
-    """
-    private helper for single processing join
-    """
-    assert len(LEFT) == len(RIGHT)
-    if pbar is None:
-        total = len(left_columns) + len(right_columns)
-        pbar = tqdm(total=total, desc="join", disable=Config.TQDM_DISABLE)
-
-    result = reindex(T, LEFT, left_columns, tqdm=tqdm, pbar=pbar)
-    second = reindex(other, RIGHT, right_columns, tqdm=tqdm, pbar=pbar)
-    for name in right_columns:
-        revised_name = unique_name(name, result.columns)
-        result[revised_name] = second[name]
-    return result
-
-
-
-def _sp_left_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=None, tqdm=_tqdm, pbar=None):
-    """
-    Args:
-        T (Table): left table
-        other (Table): right table
-        left_keys (list): list of keys for the join from left table.
-        right_keys (list): list of keys for the join from right table.
-        left_columns (list): list of columns names to retain from left table. 
-            If None, all are retained.
-        right_columns (list): list of columns names to retain from right table. 
-            If None, all are retained.
-        kind (str, optional): 'inner', 'left', 'outer', 'cross'. Defaults to "inner".
-        tqdm (tqdm, optional): tqdm progress counter. Defaults to _tqdm.
-        pbar (tqdm.pbar, optional): tqdm.progressbar. Defaults to None.
-        merge_keys (boolean): merges keys to the left, so that cases where right key is None, a key exists.
-    
-    Returns: 
-        Table: joined table
-
-    Example:
+    Example: "left" 
     ```
     SQL:   SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
     ```
@@ -177,170 +126,197 @@ def _sp_left_join(T, other, left_keys, right_keys, left_columns=None, right_colu
         right_columns=['letter']
     )
     ```
+
+    Example: "outer"
+    ```
+    SQL:   SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
+    ```
+
+    Tablite: 
+    ```
+    >>> outer_join = numbers.outer_join(
+        letters, 
+        left_keys=['colour'], 
+        right_keys=['color'], 
+        left_columns=['number'], 
+        right_columns=['letter']
+        )
+    ```
+
+    Example: "cross"
+
+    CROSS JOIN returns the Cartesian product of rows from tables in the join.
+    In other words, it will produce rows which combine each row from the first table
+    with each row from the second table
     """
+    _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
+
+    fields = len(T)*len(T.columns) + len(other)*len(other.columns)
+    m = select_processing_method(fields,sp=_sp_join,mp=_mp_join)
+
+    return m(kind, T,other,left_keys, right_keys, left_columns, right_columns,
+             tqdm=tqdm, pbar=pbar)
+    
+# -------------------------
+# SINGLE PROCESSING SECTION
+# -------------------------
+
+def _sp_join(kind, T, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=None, tqdm=_tqdm, pbar=None):
     if left_columns is None:
         left_columns = list(T.columns)
     if right_columns is None:
         right_columns = list(other.columns)
     assert merge_keys in {True,False,None}
 
-    _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
+    _mapping_methods = {
+        "inner": _sp_inner_mapping,
+        "left":  _sp_left_mapping, 
+        "outer": _sp_outer_mapping,
+        "cross": _sp_cross_mapping,
+    }
+    _mapping = _mapping_methods.get(kind, None)
+    if _mapping is None:
+        raise ValueError(f"join type unknown: {kind}")
+    
+    _left,_right = _mapping(T, other, left_keys, right_keys, left_columns, right_columns, 
+                          tqdm=tqdm, pbar=pbar)
+    assert len(_left) == len(_right)
 
-    left_index = T.index(*left_keys)
-    right_index = other.index(*right_keys)
-    LEFT, RIGHT = [], []
-    for left_key, left_ixs in left_index.items():
-        right_ixs = right_index.get(left_key, (-1,))
-        for left_ix in left_ixs:
-            for right_ix in right_ixs:
-                LEFT.append(left_ix)
-                RIGHT.append(right_ix)
+    if pbar is None:
+        total = len(left_columns) + len(right_columns)
+        pbar = tqdm(total=total, desc="join", disable=Config.TQDM_DISABLE)
 
-    LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)  # compress memory of python list to array.
-    result = _sp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
+    result = reindex(T, _left, left_columns, tqdm=tqdm, pbar=pbar)
+    second = reindex(other, _right, right_columns, tqdm=tqdm, pbar=pbar)
+    for name in right_columns:
+        revised_name = unique_name(name, result.columns)
+        result[revised_name] = second[name]
 
     if merge_keys is True:
-        boolean_map = (RIGHT == -1)
+        result = _merge_keys(kind, T, _left,_right, left_keys, right_keys)
+    return result
+
+def _merge_keys(kind, result, T, left, right, left_keys, right_keys,):
+    if kind in ["inner", "cross"]:
+        for right_name in right_keys:
+            right_name = unique_name(right_name, T.columns)
+            if right_name in result.columns:
+                del result[right_name]
+    else:
+        if kind == "outer":
+            boolean_map = (left != -1)
+        elif kind == "left":
+            boolean_map = (right == -1)
+        else:
+            raise TypeError(f"bad join type: {kind}")
+        
         for left_name, right_name in zip(left_keys,right_keys):
             right_name = unique_name(right_name, T.columns)
             result = where(result, boolean_map, left_name, right_name, new=left_name)
     return result
 
 
-def _sp_inner_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=None, tqdm=_tqdm, pbar=None):
+def _sp_left_mapping(T, other, left_keys, right_keys):
     """
-    :param T: Table (left)
-    :param other: Table (right)
-    :param left_keys: list of keys for the join
-    :param right_keys: list of keys for the join
-    :param left_columns: list of left columns to retain, if None, all are retained.
-    :param right_columns: list of right columns to retain, if None, all are retained.
-    :param merge_keys: merges keys, so that only left key is present
-    :return: new Table
-    Example:
-    SQL:   SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
-    Tablite: inner_join = numbers.inner_join(
-        letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter']
-        )
+    Args:
+        T (Table): left table
+        other (Table): right table
+        left_keys (list): list of keys for the join from left table.
+        right_keys (list): list of keys for the join from right table.
+    
+    Returns: 
+        Table: joined table
     """
-    if left_columns is None:
-        left_columns = list(T.columns)
-    if right_columns is None:
-        right_columns = list(other.columns)
-    assert merge_keys in {True,False,None}
-
-    _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
-
     left_index = T.index(*left_keys)
     right_index = other.index(*right_keys)
-    LEFT, RIGHT = [], []
+    _left, _right = [], []
+    for left_key, left_ixs in left_index.items():
+        right_ixs = right_index.get(left_key, (-1,))
+        for left_ix in left_ixs:
+            for right_ix in right_ixs:
+                _left.append(left_ix)
+                _right.append(right_ix)
+
+    _left, _right = np.array(_left), np.array(_right)  # compress memory of python list to array.
+    return _left,_right
+
+
+def _sp_inner_mapping(T, other, left_keys, right_keys):
+    """
+    Args:
+        T (Table): left table
+        other (Table): right table
+        left_keys (list): list of keys for the join from left table.
+        right_keys (list): list of keys for the join from right table.
+    
+    Returns: 
+        Table: joined table
+
+    """
+    left_index = T.index(*left_keys)
+    right_index = other.index(*right_keys)
+    _left, _right = [], []
     for left_key, left_ixs in left_index.items():
         right_ixs = right_index.get(left_key, None)
         if right_ixs is None:
             continue
         for left_ix in left_ixs:
             for right_ix in right_ixs:
-                LEFT.append(left_ix)
-                RIGHT.append(right_ix)
+                _left.append(left_ix)
+                _right.append(right_ix)
 
-    LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)
-    result = _sp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-
-    if merge_keys:
-        for right_name in right_keys:
-            right_name = unique_name(right_name, T.columns)
-            if right_name in result.columns:
-                del result[right_name]
-    return result
+    _left, _right = np.array(_left), np.array(_right)
+    return _left, _right
 
 
-def _sp_outer_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=None, tqdm=_tqdm, pbar=None):
+def _sp_outer_mapping(T, other, left_keys, right_keys):
     """
-    :param T: Table (left)
-    :param other: Table (right)
-    :param left_keys: list of keys for the join
-    :param right_keys: list of keys for the join
-    :param left_columns: list of left columns to retain, if None, all are retained.
-    :param right_columns: list of right columns to retain, if None, all are retained.
-    :param merge_keys: merges keys, so that cases where a key match is None, a key exists.
-    :return: new Table
-    Example:
-    SQL:   SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
-    Tablite: outer_join = numbers.outer_join(
-        letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter']
-        )
+    Args:
+        T (Table): left table
+        other (Table): right table
+        left_keys (list): list of keys for the join from left table.
+        right_keys (list): list of keys for the join from right table.
+    
+    Returns: 
+        Table: joined table
+
     """
-    if left_columns is None:
-        left_columns = list(T.columns)
-    if right_columns is None:
-        right_columns = list(other.columns)
-    assert merge_keys in {True,False,None}
-
-    _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
-
     left_index = T.index(*left_keys)
     right_index = other.index(*right_keys)
-    LEFT, RIGHT, RIGHT_UNUSED = [], [], set(right_index.keys())
+    _left, _right, _right_unused = [], [], set(right_index.keys())
     for left_key, left_ixs in left_index.items():
         right_ixs = right_index.get(left_key, (-1,))
         for left_ix in left_ixs:
             for right_ix in right_ixs:
-                LEFT.append(left_ix)
-                RIGHT.append(right_ix)
-                RIGHT_UNUSED.discard(left_key)
+                _left.append(left_ix)
+                _right.append(right_ix)
+                _right_unused.discard(left_key)
 
-    for right_key in RIGHT_UNUSED:
+    for right_key in _right_unused:
         for right_ix in right_index[right_key]:
-            LEFT.append(-1)
-            RIGHT.append(right_ix)
+            _left.append(-1)
+            _right.append(right_ix)
 
-    LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)
-    result = _sp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-
-    if merge_keys is True:
-        boolean_map = (LEFT != -1)
-        column_names = [n for n in T.columns]
-        for left_name,right_name in zip(left_keys,right_keys):
-            right_name = unique_name(right_name, T.columns)
-            column_names.append(right_name)
-            result = where(result, boolean_map, left_name,right_name,new=left_name)
-    return result
+    _left, _right = np.array(_left), np.array(_right)
+    return _left, _right
 
 
-def _sp_cross_join(T, other, left_keys, right_keys, left_columns=None, right_columns=None, merge_keys=None, tqdm=_tqdm, pbar=None):
+def _sp_cross_mapping(T, other, left_keys, right_keys):
     """
-    :param T: Table (left)
-    :param other: Table (right)
-    :param left_keys: list of keys for the join
-    :param right_keys: list of keys for the join
-    :param left_columns: list of left columns to retain, if None, all are retained.
-    :param right_columns: list of right columns to retain, if None, all are retained.
-    :param merge_keys: merges keys, so that only left key is present
-    :return: new Table
+    Args:
+        T (Table): left table
+        other (Table): right table
+        left_keys (list): list of keys for the join from left table.
+        right_keys (list): list of keys for the join from right table.
+    
+    Returns: 
+        Table: joined table
 
-    CROSS JOIN returns the Cartesian product of rows from tables in the join.
-    In other words, it will produce rows which combine each row from the first table
-    with each row from the second table
     """
-    if left_columns is None:
-        left_columns = list(T.columns)
-    if right_columns is None:
-        right_columns = list(other.columns)
-    assert merge_keys in {True,False,None}
+    _left, _right = zip(*product(range(len(T)), range(len(other))))
+    _left, _right = np.array(_left), np.array(_right)
+    return _left,_right
 
-    _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
-
-    LEFT, RIGHT = zip(*product(range(len(T)), range(len(other))))
-
-    LEFT, RIGHT = np.array(LEFT), np.array(RIGHT)
-    result = _sp_join(T, other, LEFT, RIGHT, left_columns, right_columns, tqdm=tqdm, pbar=pbar)
-
-    if merge_keys:
-        for right_name in right_keys:
-            right_name = unique_name(right_name, T.columns)
-            if right_name in result.columns:
-                del result[right_name]
-    return result
 
 # -----------------------
 # MULTIPROCESSING SECTION
@@ -381,7 +357,90 @@ def _mp_where(
     return Table({new: new_values}, _path=path)
 
 
-def _mp_mapping(
+def _mp_left_mapping(
+    T: Table,
+    other: Table,
+    left_slice: slice,
+    right_slice: slice,
+    left_keys: List[str],
+    right_keys: List[str],
+    path: Path,
+):
+    """create mapping for left and right keys.
+
+    Args:
+        T (Table): left table
+        Other (Table): right table
+        left_slice (slice): slice of left table to perform mapping on.
+        right_slice (slice): slice of right table to perform mapping on.
+        left_keys (list): list of keys for the join from left table.
+        right_keys (list): list of keys for the join from right table.
+        path (pathlib.Path): directory of the main process
+
+    Returns:
+        Table: table initiated in the main process' working directory
+    """
+    left = T[left_keys + [left_slice]]
+    right = other[right_keys + [right_slice]]
+    left_index = left.index(*left_keys)
+    right_index = right.index(*right_keys)
+    del left, right
+
+    _left, _right = [], []
+    for left_key, left_ixs in left_index.items():
+        right_ixs = right_index.get(left_key, (-1,))
+        for left_ix in left_ixs:
+            for right_ix in right_ixs:
+                _left.append(left_ix)
+                _right.append(right_ix)
+
+    mapping = Table({"left": _left, "right": _right}, _path=path)
+    return mapping
+
+def _mp_inner_mapping(
+    T: Table,
+    other: Table,
+    left_slice: slice,
+    right_slice: slice,
+    left_keys: List[str],
+    right_keys: List[str],
+    path: Path,
+):
+    """create mapping for left and right keys.
+
+    Args:
+        T (Table): left table
+        Other (Table): right table
+        left_slice (slice): slice of left table to perform mapping on.
+        right_slice (slice): slice of right table to perform mapping on.
+        left_keys (list): list of keys for the join from left table.
+        right_keys (list): list of keys for the join from right table.
+        path (pathlib.Path): directory of the main process
+
+    Returns:
+        Table: table initiated in the main process' working directory
+    """
+    left = T[left_keys + [left_slice]]
+    right = other[right_keys + [right_slice]]
+    left_index = left.index(*left_keys)
+    right_index = right.index(*right_keys)
+    del left, right
+
+    _left, _right = [], []
+    for left_key, left_ixs in left_index.items():
+        right_ixs = right_index.get(left_key, None)
+        if right_ixs is None:
+            continue
+        for left_ix in left_ixs:
+            for right_ix in right_ixs:
+                _left.append(left_ix)
+                _right.append(right_ix)
+
+    mapping = Table({"left": _left, "right": _right}, _path=path)
+    return mapping
+
+
+def _mp_outer_mapping(
     T: Table,
     other: Table,
     left_slice: slice,
@@ -413,14 +472,50 @@ def _mp_mapping(
     # on each table and use that as index.
     del left, right
 
-    _left, _right = [], []
+    _left, _right, _right_unused = [], [], set(right_index.keys())
     for left_key, left_ixs in left_index.items():
         right_ixs = right_index.get(left_key, (-1,))
         for left_ix in left_ixs:
             for right_ix in right_ixs:
                 _left.append(left_ix)
                 _right.append(right_ix)
+                _right_unused.discard(left_key)
 
+    for right_key in _right_unused:
+        for right_ix in right_index[right_key]:
+            _left.append(-1)
+            _right.append(right_ix)
+
+    mapping = Table({"left": _left, "right": _right}, _path=path)
+    return mapping
+
+
+def _mp_cross_mapping(
+    T: Table,
+    other: Table,
+    left_slice: slice,
+    right_slice: slice,
+    left_keys: List[str],
+    right_keys: List[str],
+    path: Path,
+):
+    """create mapping for left and right keys.
+
+    Args:
+        T (Table): left table
+        Other (Table): right table
+        left_slice (slice): slice of left table to perform mapping on.
+        right_slice (slice): slice of right table to perform mapping on.
+        left_keys (list): list of keys for the join from left table.
+        right_keys (list): list of keys for the join from right table.
+        path (pathlib.Path): directory of the main process
+
+    Returns:
+        Table: table initiated in the main process' working directory
+    """
+    lr = range(left_slice.start, left_slice.stop)
+    rr = range(right_slice.start, right_slice.stop)
+    _left, _right = zip(*product(lr, rr))
     mapping = Table({"left": _left, "right": _right}, _path=path)
     return mapping
 
@@ -483,39 +578,24 @@ def _gets(task, *args):
     return result
 
 
-def _mp_left_join(
-    T: Table,
-    other: Table,
-    left_keys: List[str],
-    right_keys: List[str],
-    left_columns: List[str] | None = None,
-    right_columns: List[str] | None = None,
-    merge_keys: bool = False,
-    tqdm=_tqdm,
-    pbar=None,
-    task_manager=None,
-):
-    """perform left join on two tables.
-
-    Args:
-        T (Table): _description_
-        other (Table): _description_
-        left_keys (list of column names): left keys to join on.
-        right_keys (list of column names): right keys to join on.
-        left_columns (list of column names, optional): Columns to keep. Defaults to None.
-        right_columns (list of column names, optional): Columns to keep. Defaults to None.
-        merge_keys (bool, optional): merges keys to the left, so that cases where right key is None, a key exists.
-            Defaults to False.
-        tqdm (tqdm, optional): _description_. Defaults to _tqdm.
-        pbar (tqdm.pbar, optional): _description_. Defaults to None.
-    """
+def _mp_join(
+        kind: str,
+        T: Table,
+        other: Table,
+        left_keys: List[str],
+        right_keys: List[str],
+        left_columns: List[str] | None = None,
+        right_columns: List[str] | None = None,
+        merge_keys: bool = False,
+        tqdm=_tqdm,
+        pbar=None,
+        task_manager=None,
+    ):
     if left_columns is None:
         left_columns = list(T.columns)
     if right_columns is None:
         right_columns = list(other.columns)
     assert merge_keys in {True, False}
-
-    _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
 
     if pbar is None:
         _pbar_created_here = True
@@ -531,19 +611,27 @@ def _mp_left_join(
     # create left and right index
     if task_manager is None:
         task_manager = TaskManager
-
+    
     tasks = []
 
     _pid_dir = Path(Config.workdir) / Config.pid
 
     # step 1: create mapping tasks
+    _mapping_methods = {
+        'left': _mp_left_mapping,
+        'inner': _mp_inner_mapping,
+        'outer': _mp_outer_mapping,
+        'cross': _mp_cross_mapping
+    }
+    _mapping = _mapping_methods.get(kind)
+
     step = Config.PAGE_SIZE
     for left in range(0, len(T) + 1, step):
         for right in range(0, len(other) + 1, step):
             left_slice = slice(left, left + step, 1)
             right_slice = slice(right, right + step, 1)
             task = Task(
-                _mp_mapping,
+                _mapping,
                 T=T,
                 other=other,
                 left_slice=left_slice,
@@ -649,7 +737,6 @@ def _mp_left_join(
 
         for name in right_keys:
             del new_table[name]
-
     else:
         pbar.update(1)
 
@@ -657,46 +744,3 @@ def _mp_left_join(
         pbar.close()
 
     return new_table
-
-
-def _mp_inner_join(
-    T: Table,
-    other: Table,
-    left_keys: List[str],
-    right_keys: List[str],
-    left_columns: List[str] | None = None,
-    right_columns: List[str] | None = None,
-    merge_keys: bool = False,
-    tqdm=_tqdm,
-    pbar=None,
-    task_manager=None,
-):
-    pass
-
-def _mp_outer_join(
-    T: Table,
-    other: Table,
-    left_keys: List[str],
-    right_keys: List[str],
-    left_columns: List[str] | None = None,
-    right_columns: List[str] | None = None,
-    merge_keys: bool = False,
-    tqdm=_tqdm,
-    pbar=None,
-    task_manager=None,
-):
-    pass
-
-def _mp_cross_join(
-    T: Table,
-    other: Table,
-    left_keys: List[str],
-    right_keys: List[str],
-    left_columns: List[str] | None = None,
-    right_columns: List[str] | None = None,
-    merge_keys: bool = False,
-    tqdm=_tqdm,
-    pbar=None,
-    task_manager=None,
-):
-    pass
