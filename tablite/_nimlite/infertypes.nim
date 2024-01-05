@@ -81,6 +81,19 @@ proc inferInt*(str: ptr string, is_simple: bool, is_american: bool): int {.inlin
 
     return value * sign
 
+proc inferInt*(str: ptr string): int {.inline.} =
+    try:
+        return str.inferInt(true, false)
+    except ValueError:
+        discard
+
+    try:
+        return str.inferInt(false, false)
+    except ValueError:
+        discard
+
+    return str.inferInt(false, true)
+
 proc inferFloat*(str: ptr string, is_simple: bool, is_american: bool): float {.inline.} =
     var sstr = str[].multiReplace(
         ("\"", ""),
@@ -159,6 +172,19 @@ proc inferFloat*(str: ptr string, is_simple: bool, is_american: bool): float {.i
     var exp: float = (if is_exponent: pow(10, (exponent * exponent_sign)) else: 1.0)
 
     return (value * sign) * exp
+
+proc inferFloat*(str: ptr string): float {.inline.} =
+    try:
+        return str.inferFloat(true, false)
+    except ValueError:
+        discard
+
+    try:
+        return str.inferFloat(false, false)
+    except ValueError:
+        discard
+
+    return str.inferFloat(false, true)
 
 proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool): (array[3, string], int) {.inline.} =
     const accepted_tokens = [' ', '.', '-', '/']
@@ -320,7 +346,18 @@ proc inferDate*(str: ptr string, is_short: bool, is_american: bool): PY_Date {.i
 
     return wordsToDate(date_words.unsafeAddr, is_american)
 
+proc inferDate*(str: ptr string): PY_Date {.inline.} =
+    try:
+        return str.inferDate(false, false)
+    except:
+        discard
 
+    try:
+        return str.inferDate(false, true)
+    except:
+        discard
+
+    return str.inferDate(true, false)
 
 proc parse_hh_mm_ss_ff(tstr: ptr string): (uint8, uint8, uint8, uint32) {.inline.} =
     # Parses things of the form HH[:MM[:SS[.fff[fff]]]]
@@ -453,3 +490,12 @@ proc inferDatetime*(str: ptr string, is_american: bool): PY_DateTime {.inline.} 
     let time = inferTime(tstr.unsafeAddr)
 
     return newPyDateTime(date, time)
+
+
+proc inferDatetime*(str: ptr string): PY_DateTime {.inline.} =
+    try:
+        return str.inferDatetime(false)
+    except ValueError:
+        discard
+
+    return str.inferDatetime(true)

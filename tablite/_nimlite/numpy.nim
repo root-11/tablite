@@ -1,4 +1,4 @@
-import std/[os, unicode, strutils, sugar, times, tables, enumerate]
+import std/[os, unicode, strutils, sugar, times, tables, enumerate, sequtils]
 import dateutils, pytypes, unpickling, utils
 import pymodules as pymodules
 import nimpy as nimpy, nimpy/raw_buffers
@@ -99,14 +99,27 @@ iterator pgIter*(self: UnicodeNDArray): string =
     let empty = Rune('\x00')
     var i = 0
 
+    # echo ">>>len: " & $len & " | buf: " & $buf
+
     while i < len:
         let next = i + sz
-        
-        for j in i..<next:
-            if buf[j] == empty:
-                yield $buf[i..<j]
-                break
 
+        var str: string
+
+        if buf[next - 1] != empty:
+            # max string
+            str = $buf[i..<next]
+        elif buf[i] == empty:
+            # empty string
+            str = ""
+        else:
+            # locate end of string
+            for j in countdown(next - 1, i):
+                if buf[j] != empty:
+                    str = $buf[i..j]
+                    break
+
+        yield str
         i = next
 
 proc `[]`(self: UnicodeNDArray, slice: seq[int] | openArray[int]): UnicodeNDArray =
