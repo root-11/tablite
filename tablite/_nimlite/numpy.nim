@@ -134,6 +134,8 @@ proc `[]`(self: ObjectNDArray, slice: seq[int] | openArray[int]): ObjectNDArray 
     implement("ObjectNDArray[]")
 
 proc primitiveSlice[T: BooleanNDArray | Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray | Float32NDArray | Float64NDArray | DateNDArray | DateTimeNDArray](self: T, slice: seq[int] | openArray[int]): T =
+    echo $self
+    
     let buf = collect:
         for i in slice:
             self.buf[i]
@@ -845,14 +847,16 @@ proc type2PyType(`type`: PageTypes): nimpy.PyObject =
     of DT_TIME: return pymodules.datetime().time
     of DT_DATETIME: return pymodules.datetime().datetime
 
-    implement("type2PyType.'" & $`type` & "'")
+    implement("type2PyType.'" & $ `type` & "'")
 
 proc newPyPage*(id: int, path: string, len: int, dtypes: Table[PageTypes, int]): nimpy.PyObject =
     let pyDtypes = collect(initTable()):
         for (dt, n) in dtypes.pairs:
             { dt.type2PyType: n }
-    
-    return pymodules.tabliteBase().SimplePage(id, path, len, pyDtypes)
+
+    let pg = pymodules.tabliteBase().SimplePage(id, path, len, pyDtypes)
+
+    return pg
 
 when isMainModule and appType != "lib":
     var arr = readNumpy("./tests/data/pages/mixed.npy")
