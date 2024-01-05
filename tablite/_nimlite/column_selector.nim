@@ -81,16 +81,26 @@ type ToTime = object
 type CastablePrimitives = bool | int | float | string | ToDate | ToDateTime
 type CastedPrimitives = bool | int | float | string | DateTime
 
-macro mkCaster(caster: untyped, override: typedesc = nil) =
+macro mkCaster(caster: untyped) =
     expectKind(caster, nnkLambda)
     expectLen(caster.params, 2)
-    expectKind(override, {nnkNilLit, nnkSym})
 
-    let castR = if override.kind == nnkNilLit: caster.params[0] else: override
+    let castR = caster.params[0]
     let castT = caster.params[1][1]
 
     let descT = newNimNode(nnkBracketExpr)
     let paramsT = newIdentDefs(newIdentNode("T"), descT)
+
+    var trueCastR: NimNode
+
+    if castR.strVal in [ToDate.name, ToDateTime.name]:
+        trueCastR = newIdentNode(DateTime.name)
+    elif castR.strVal == ToTime.name:
+        trueCastR = newIdentNode(PY_Time.name)
+    elif castR.strVal in [bool.name, int.name, float.name, string.name]:
+        trueCastR = castR
+    else:
+        raise newException(FieldDefect, "Uncastable type '" & $castR.strVal & "'")
 
     descT.add(newIdentNode("typedesc"))
     descT.add(castT)
@@ -101,7 +111,7 @@ macro mkCaster(caster: untyped, override: typedesc = nil) =
     descR.add(newIdentNode("typedesc"))
     descR.add(castR)
 
-    let subProc = newProc(params=toSeq(caster.params), body=caster.body, procType=nnkLambda)
+    let subProc = newProc(params=[trueCastR, caster.params[1]], body=caster.body, procType=nnkLambda)
     let makerProc = newProc(newIdentNode("fnCast"), params=[newNimNode(nnkProcTy), paramsT, paramsR], body=subProc)
 
     return makerProc
@@ -120,26 +130,27 @@ mkCaster proc(v: bool): bool = v
 mkCaster proc(v: bool): int = int v
 mkCaster proc(v: bool): float = float v
 mkCaster proc(v: bool): string = (if v: "True" else: "False")
-mkCaster proc(v: bool): DateTime = days2Date(int v), ToDate
-mkCaster proc(v: bool): DateTime = delta2Date(seconds=int v), ToDateTime
-mkCaster proc(v: bool): PY_Time = implement("bool2time"), ToTime
+mkCaster proc(v: bool): ToDate = days2Date(int v)
+mkCaster proc(v: bool): ToDateTime = delta2Date(seconds=int v)
+mkCaster proc(v: bool): ToTime = implement("bool2time")
 
 mkCaster proc(v: int): bool = v >= 1
 mkCaster proc(v: int): int = v
 mkCaster proc(v: int): float = float v
 mkCaster proc(v: int): string = $v
-mkCaster proc(v: int): DateTime = v.days2Date, ToDate
-mkCaster proc(v: int): DateTime = delta2Date(seconds=v), ToDateTime
-mkCaster proc(v: int): PY_Time = implement("bool2time"), ToTime
+mkCaster proc(v: int): ToDate = v.days2Date
+mkCaster proc(v: int): ToDateTime = delta2Date(seconds=v)
+mkCaster proc(v: int): ToTime = implement("bool2time")
 
 mkCaster proc(v: float): bool = v >= 1
 mkCaster proc(v: float): int = int v
 mkCaster proc(v: float): float = v
 mkCaster proc(v: float): string = $v
-mkCaster proc(v: float): DateTime = days2Date(int v), ToDate
-mkCaster proc(v: float): DateTime = implement("float2datetime"), ToDateTime
-mkCaster proc(v: float): PY_Time = implement("bool2time"), ToTime
+mkCaster proc(v: float): ToDate = days2Date(int v)
+mkCaster proc(v: float): ToDateTime = implement("float2datetime")
+mkCaster proc(v: float): ToTime = implement("bool2time")
 
+# TODO: turn into macro
 proc castType[T: BooleanNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string]): BooleanNDArray = page
 proc castType[T: BooleanNDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string]): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
 proc castType[T: BooleanNDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string]): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
