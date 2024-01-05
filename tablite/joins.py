@@ -111,7 +111,7 @@ def join(
     fields = len(T)*len(T.columns) + len(other)*len(other.columns)
     m = select_processing_method(fields,sp=_sp_join,mp=_mp_join)
 
-    return m(kind, T,other,left_keys, right_keys, left_columns, right_columns,
+    return m(kind, T,other,left_keys, right_keys, left_columns, right_columns, merge_keys=merge_keys,
              tqdm=tqdm, pbar=pbar)
 
 # fmt:off
@@ -200,7 +200,7 @@ def _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns
 # -------------------------
 
 
-def _sp_left_mapping(T, other, left_keys, right_keys, tqdm=tqdm, pbar=pbar):
+def _sp_left_mapping(T, other, left_keys, right_keys, tqdm, pbar):
     """
     Args:
         T (Table): left table
@@ -225,7 +225,7 @@ def _sp_left_mapping(T, other, left_keys, right_keys, tqdm=tqdm, pbar=pbar):
     return _left,_right
 
 
-def _sp_inner_mapping(T, other, left_keys, right_keys, tqdm=tqdm, pbar=pbar):
+def _sp_inner_mapping(T, other, left_keys, right_keys, tqdm, pbar):
     """
     Args:
         T (Table): left table
@@ -253,7 +253,7 @@ def _sp_inner_mapping(T, other, left_keys, right_keys, tqdm=tqdm, pbar=pbar):
     return _left, _right
 
 
-def _sp_outer_mapping(T, other, left_keys, right_keys, tqdm=tqdm, pbar=pbar):
+def _sp_outer_mapping(T, other, left_keys, right_keys, tqdm, pbar):
     """
     Args:
         T (Table): left table
@@ -285,7 +285,7 @@ def _sp_outer_mapping(T, other, left_keys, right_keys, tqdm=tqdm, pbar=pbar):
     return _left, _right
 
 
-def _sp_cross_mapping(T, other, left_keys, right_keys, tqdm=tqdm, pbar=pbar):
+def _sp_cross_mapping(T, other, left_keys, right_keys, tqdm, pbar):
     """
     Args:
         T (Table): left table
@@ -331,12 +331,12 @@ def _sp_join(kind, T, other, left_keys, right_keys, left_columns, right_columns,
         result = _merge_keys(kind, T, _left,_right, left_keys, right_keys)
     return result
 
-def _merge_keys(kind, result, T, left, right, left_keys, right_keys,):
+def _merge_keys(kind, T, left, right, left_keys, right_keys,):
     if kind in ["inner", "cross"]:
         for right_name in right_keys:
             right_name = unique_name(right_name, T.columns)
-            if right_name in result.columns:
-                del result[right_name]
+            if right_name in T.columns:
+                del T[right_name]
     else:
         if kind == "outer":
             boolean_map = (left != -1)
@@ -347,8 +347,8 @@ def _merge_keys(kind, result, T, left, right, left_keys, right_keys,):
         
         for left_name, right_name in zip(left_keys,right_keys):
             right_name = unique_name(right_name, T.columns)
-            result = where(result, boolean_map, left_name, right_name, new=left_name)
-    return result
+            T = where(T, boolean_map, left_name, right_name, new=left_name)
+    return T
 
 
 # -----------------------
@@ -543,8 +543,8 @@ def _mp_cross_mapping(
     Returns:
         Table: table initiated in the main process' working directory
     """
-    lr = range(left_slice.start, left_slice.stop)
-    rr = range(right_slice.start, right_slice.stop)
+    lr = range(left_slice.start, min(left_slice.stop, len(T)))
+    rr = range(right_slice.start, min(right_slice.stop, len(other)))
     _left, _right = zip(*product(lr, rr))
     mapping = Table({"left": _left, "right": _right}, _path=path)
     return mapping
@@ -575,7 +575,17 @@ def _mp_reindex_page(
     """
     part = slice(start, end)
     ix_arr = mapping[index][part]
-    array = T[column_name].get_by_indices(ix_arr)
+    if ix_arr[0]==start and ix_arr[-1] == end-1 and np.all(ix_arr == np.arange(start,end)):  
+        array = T[column_name][part]
+    else:
+        array = T[column_name].get_by_indices(ix_arr)
+        # in the array, the index of -1 will be wrong.
+        # so if there is any -1 in the indices, they will
+        # have to be replaced with Nones
+        mask = ix_arr == -1
+        if np.any(mask):
+            nones = np.full(ix_arr.shape, fill_value=None)
+            array = np.where(mask, nones, array)
     remapped_T = Table({column_name: array}, _path=path)
     return remapped_T
 

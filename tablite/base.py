@@ -676,9 +676,10 @@ class Column(object):
             range_match = np.asarray(((indices >= start) & (indices < end)) | (indices == -1)).nonzero()[0]
             if len(range_match):
                 sub_index = np.take(indices, range_match)
-                sub_index = np.where(sub_index == -1, -1, sub_index - start)
-                # diss: the line above is required to cover for cases where len(data) > (-1 - start)
-                #       as sub_index2 otherwise will raise index error
+                # sub_index2 otherwise will raise index error where len(data) > (-1 - start)
+                # so the clause below is required:
+                if len(data) > (-1 - start):
+                    sub_index = np.where(sub_index == -1, -1, sub_index - start)
                 arr = np.take(data, sub_index)
                 dtypes.add(arr.dtype)
                 np.put(values, range_match, arr)
