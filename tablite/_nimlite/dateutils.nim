@@ -1,4 +1,5 @@
 import std/times
+from std/math import splitDecimal
 from utils import divmod, extractUnit
 
 const DAYS_PER_MONTH_TABLE* = [
@@ -113,8 +114,12 @@ proc datetime2NimDatetime*(year: int, month: int, day: int, hour: int, minute: i
 proc time2NimDuration*(hour: int, minute: int, second: int, microsecond: int): Duration {.inline.} =
     return initDuration(hours=hour, minutes=minute, seconds=second, microseconds=microsecond)
 
-proc duration2Time*(self: Duration): Time {.inline.} =
-    return Time() + self
+proc duration2Time*(self: Duration): Time {.inline.} = Time() + self
+proc time2Duration*(self: Time): Duration {.inline.} = self - Time()
+proc seconds2Duration*(seconds: float): Duration {.inline.} =
+    let (secs, frac) = seconds.splitDecimal()
+    let us = frac * 1_000_000
+    return initDuration(seconds=int secs, microseconds=int us)
 
-proc time2Duration*(self: Time): Duration {.inline.} =
-    return self - Time()
+proc duration2Date*(dur: Duration): DateTime {.inline.} = DateTime() + dur
+proc seconds2Date*(seconds: float): DateTime {.inline.} = duration2Date(seconds2Duration(seconds))
