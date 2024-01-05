@@ -2,6 +2,7 @@ import std/[os, unicode, strutils, sugar, times, tables, enumerate]
 import dateutils, pytypes, unpickling, utils
 import pymodules as pymodules
 import nimpy as nimpy, nimpy/raw_buffers
+import pickling
 from nimpyext import `!`
 
 const NUMPY_MAGIC = "\x93NUMPY"
@@ -303,10 +304,13 @@ proc consumeDescr(header: var string, header_len: int, offset: var int): NDArray
             corrupted()
 
         dt_descriptor = descr[(type_offset + 3)..^2]
+    elif type_string == 'O':
+        if (type_offset + 1) != descr.len:
+            if descr[type_offset + 1] != '8' or (type_offset + 2) != descr.len:
+                corrupted()
 
     case type_string:
         of 'O':
-            if (type_offset + 1) != descr.len: corrupted()
             size = -1
             descriptor = NDArrayTypeDescriptor.D_OBJECT
         of 'm':
@@ -721,6 +725,23 @@ proc save[T: DateNDArray | DateTimeNDArray](self: T, path: string): void =
 
     fh.close()
 
+proc save(self: ObjectNDArray, path: string): void =
+    let dtype = self.dtype
+    let elements = uint calcShapeElements(self.shape)
+    var fh = open(path, fmWrite)
+
+    var binput: uint32 = 0
+
+    fh.writeNumpyHeader(dtype, elements)
+    fh.writePickleStart(binput, elements)
+
+    for el in self.buf:
+        fh.writePicklePyObj(el, binput)
+
+    fh.writePickleFinish(binput, elements)
+
+    fh.close()
+
 proc newNDArray*(arr: seq[string] | openArray[string] | iterator(): string): UnicodeNDArray =
     var longest = 1
     var page_len = 0
@@ -760,6 +781,8 @@ proc save*(self: BaseNDArray, path: string): void =
         DateNDArray(self).save(path)
     elif self of DateTimeNDArray:
         DateTimeNDArray(self).save(path)
+    elif self of ObjectNDArray:
+        ObjectNDArray(self).save(path)
     else:
         implement("BaseNDArray.save")
 

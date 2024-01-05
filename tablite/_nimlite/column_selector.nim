@@ -132,7 +132,7 @@ mkCaster proc(v: bool): float = float v
 mkCaster proc(v: bool): string = (if v: "True" else: "False")
 mkCaster proc(v: bool): ToDate = days2Date(int v)
 mkCaster proc(v: bool): ToDateTime = delta2Date(seconds=int v)
-mkCaster proc(v: bool): ToTime = implement("bool2time")
+mkCaster proc(v: bool): ToTime = secondsToPY_Time(float v)
 
 mkCaster proc(v: int): bool = v >= 1
 mkCaster proc(v: int): int = v
@@ -140,15 +140,15 @@ mkCaster proc(v: int): float = float v
 mkCaster proc(v: int): string = $v
 mkCaster proc(v: int): ToDate = v.days2Date
 mkCaster proc(v: int): ToDateTime = delta2Date(seconds=v)
-mkCaster proc(v: int): ToTime = implement("bool2time")
+mkCaster proc(v: int): ToTime = secondsToPY_Time(float v)
 
 mkCaster proc(v: float): bool = v >= 1
 mkCaster proc(v: float): int = int v
 mkCaster proc(v: float): float = v
 mkCaster proc(v: float): string = $v
 mkCaster proc(v: float): ToDate = days2Date(int v)
-mkCaster proc(v: float): ToDateTime = implement("float2datetime")
-mkCaster proc(v: float): ToTime = implement("bool2time")
+mkCaster proc(v: float): ToDateTime = seconds2Date(v)
+mkCaster proc(v: float): ToTime = secondsToPY_Time(v)
 
 # TODO: turn into macro
 proc castType[T: BooleanNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string]): BooleanNDArray = page

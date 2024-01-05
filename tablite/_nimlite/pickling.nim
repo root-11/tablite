@@ -1,5 +1,6 @@
 from std/endians import bigEndian16, bigEndian32, bigEndian64
 import pickleproto, pytypes
+from utils import implement
 
 proc writePickleBinput(fh: var File, binput: var uint32): void {.inline.} =
     if binput <= 0xff:
@@ -151,9 +152,32 @@ proc writePicklePyObj*(fh: var File, value: int, binput: var uint32): void {.inl
 proc writePicklePyObj*(fh: var File, value: float, binput: var uint32): void {.inline.} = fh.writePickleBinfloat(value)
 proc writePicklePyObj*(fh: var File, value: string, binput: var uint32): void {.inline.} = fh.writePickleBinunicode(value)
 proc writePicklePyObj*(fh: var File, value: bool, binput: var uint32): void {.inline.} = fh.writePickleBoolean(value)
+proc writePicklePyObj*(fh: var File, value: PY_Int, binput: var uint32): void {.inline.} = fh.writePickleBinint(value.value)
+proc writePicklePyObj*(fh: var File, value: PY_Float, binput: var uint32): void {.inline.} = fh.writePickleBinfloat(value.value)
+proc writePicklePyObj*(fh: var File, value: PY_String, binput: var uint32): void {.inline.} = fh.writePickleBinunicode(value.value)
+proc writePicklePyObj*(fh: var File, value: PY_Boolean, binput: var uint32): void {.inline.} = fh.writePickleBoolean(value.value)
 proc writePicklePyObj*(fh: var File, value: PY_Date, binput: var uint32): void {.inline.} = fh.writePickleDate(value, binput)
 proc writePicklePyObj*(fh: var File, value: PY_Time, binput: var uint32): void {.inline.} = fh.writePickleTime(value, binput)
 proc writePicklePyObj*(fh: var File, value: PY_DateTime, binput: var uint32): void {.inline.} = fh.writePickleDatetime(value, binput)
+proc writePicklePyObj*(fh: var File, value: PY_ObjectND, binput: var uint32): void {.inline.} =
+    if value of PY_Int:
+        fh.writePicklePyObj(PY_Int(value), binput)
+    elif value of PY_Float:
+        fh.writePicklePyObj(PY_Float(value), binput)
+    elif value of PY_String:
+        fh.writePicklePyObj(PY_String(value), binput)
+    elif value of PY_Boolean:
+        fh.writePicklePyObj(PY_Boolean(value), binput)
+    elif value of PY_Date:
+        fh.writePicklePyObj(PY_Date(value), binput)
+    elif value of PY_Time:
+        fh.writePicklePyObj(PY_Time(value), binput)
+    elif value of PY_DateTime:
+        fh.writePicklePyObj(PY_DateTime(value), binput)
+    elif value of PY_NoneType:
+        fh.writePicklePyObj(PY_NoneType(value), binput)
+    else:
+        implement("PY_ObjectND.writePicklePyObj")
 
 proc writePickleStart*(fh: var File, binput: var uint32, elem_count: uint): void {.inline.} =
     binput = 0

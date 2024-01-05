@@ -61,6 +61,8 @@ proc newPY_Time*(hour, minute, second: uint8, microsecond: uint32): PY_Time {.in
         )
     )
 
+proc secondsToPY_Time*(seconds: float): PY_Time = PY_Time(value: seconds2Duration(seconds))
+
 proc `$`*(self: PY_Date): string {.inline.} = "Date(" & self.value.format(fmtDate) & ")"
 proc `$`*(self: PY_Time): string {.inline.} = "Time(" & $self.value & ")"
 proc `$`*(self: PY_DateTime): string {.inline.} = "DateTime(" & self.value.format(fmtDateTime) & ")"
