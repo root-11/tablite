@@ -7,6 +7,7 @@ from std/math import clamp
 import pymodules as pymodules
 import pytypes
 import numpy
+import infertypes as infer
 from unpickling import PageTypes
 import typetraits
 import dateutils
@@ -107,7 +108,7 @@ macro mkCaster(caster: untyped) =
 
     if castT.strVal in [FromDate.name, FromDateTime.name]:
         trueCastT = newIdentDefs(nameCastT, newIdentNode(DateTime.name))
-    elif castT.strVal in [bool.name, int.name, float.name, string.name, PY_Time.name]:
+    elif castT.strVal in [bool.name, int.name, float.name, string.name, PY_Time.name, PY_ObjectND.name]:
         trueCastT = newIdentDefs(nameCastT, castT)
     else:
         raise newException(FieldDefect, "Uncastable value type '" & $castT.strVal & "'")
@@ -132,6 +133,7 @@ macro tdesc(_: typedesc[Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray
 macro tdesc(_: typedesc[Float32NDArray | Float64NDArray]): typedesc = bindSym(float.name)
 macro tdesc(_: typedesc[DateNDArray]): typedesc = bindSym(FromDate.name)
 macro tdesc(_: typedesc[DateTimeNDArray]): typedesc = bindSym(FromDateTime.name)
+macro tdesc(_: typedesc[ObjectNDArray]): typedesc = bindSym(PY_ObjectND.name)
 
 mkCaster proc(v: bool): bool = v
 mkCaster proc(v: bool): int = int v
@@ -173,13 +175,21 @@ mkCaster proc(v: FromDateTime): ToDate = v.datetime2Date
 mkCaster proc(v: FromDateTime): ToDateTime = v
 mkCaster proc(v: FromDateTime): ToTime = v.newPY_Time
 
-mkCaster proc(v: string): bool = implement("string.fnCast.bool")
-mkCaster proc(v: string): int = implement("string.fnCast.int")
-mkCaster proc(v: string): float = implement("string.fnCast.float")
-mkCaster proc(v: string): string = implement("string.fnCast.string")
-mkCaster proc(v: string): ToDate = implement("string.fnCast.ToDate")
-mkCaster proc(v: string): ToDateTime = implement("string.fnCast.ToDateTime")
-mkCaster proc(v: string): ToTime = implement("string.fnCast.ToTime")
+mkCaster proc(v: string): bool = infer.inferBool(addr v)
+mkCaster proc(v: string): int = infer.inferInt(addr v)
+mkCaster proc(v: string): float = infer.inferFloat(addr v)
+mkCaster proc(v: string): string = v
+mkCaster proc(v: string): ToDate = infer.inferDate(addr v).value
+mkCaster proc(v: string): ToDateTime = infer.inferDatetime(addr v).value
+mkCaster proc(v: string): ToTime = infer.inferTime(addr v)
+
+mkCaster proc(v: PY_ObjectND): bool = implement("PY_ObjectND.fnCast.bool")
+mkCaster proc(v: PY_ObjectND): int = implement("PY_ObjectND.fnCast.int")
+mkCaster proc(v: PY_ObjectND): float = implement("PY_ObjectND.fnCast.float")
+mkCaster proc(v: PY_ObjectND): string = implement("PY_ObjectND.fnCast.string")
+mkCaster proc(v: PY_ObjectND): ToDate = implement("PY_ObjectND.fnCast.ToDate")
+mkCaster proc(v: PY_ObjectND): ToDateTime = implement("PY_ObjectND.fnCast.ToDateTime")
+mkCaster proc(v: PY_ObjectND): ToTime = implement("PY_ObjectND.fnCast.ToTime")
 
 # TODO: turn into macro
 proc castType[T: BooleanNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string]): BooleanNDArray = page
@@ -229,6 +239,14 @@ proc castType[T: UnicodeNDArray](R: typedesc[string], page: T, mask: var seq[Mas
 proc castType[T: UnicodeNDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
 proc castType[T: UnicodeNDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
 proc castType[T: UnicodeNDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string]): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
+
+proc castType[T: ObjectNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string]): BooleanNDArray = BooleanNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
+proc castType[T: ObjectNDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string]): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
+proc castType[T: ObjectNDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string]): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
+proc castType[T: ObjectNDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string]): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
+proc castType[T: ObjectNDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
+proc castType[T: ObjectNDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
+proc castType[T: ObjectNDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string]): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
 
 
 # template castType[T](R: typedesc, page: T, mask: var seq[Mask], reason_lst: var seq[string]) =
@@ -375,32 +393,30 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
             original_data.putPage(page_infos, original_name, Path(original_path).toColSliceInfo())
 
-            if original_data of ObjectNDArray:
-                # may contain mixed types or nones
-                implement("doSliceConvert.ObjectNDArray")
+            if original_data of BooleanNDArray:
+                converted_page = BooleanNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            elif original_data of Int8NDArray:
+                converted_page = Int8NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            elif original_data of Int16NDArray:
+                converted_page = Int16NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            elif original_data of Int32NDArray:
+                converted_page = Int32NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            elif original_data of Int64NDArray:
+                converted_page = Int64NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            elif original_data of Float32NDArray:
+                converted_page = Float32NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            elif original_data of Float64NDArray:
+                converted_page = Float64NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            elif original_data of UnicodeNDArray:
+                converted_page = UnicodeNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            elif original_data of DateNDArray:
+                converted_page = DateNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            elif original_data of DateTimeNDArray:
+                converted_page = DateTimeNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            elif original_data of ObjectNDArray:
+                converted_page = ObjectNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
             else:
-                if original_data of BooleanNDArray:
-                    converted_page = BooleanNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-                elif original_data of Int8NDArray:
-                    converted_page = Int8NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-                elif original_data of Int16NDArray:
-                    converted_page = Int16NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-                elif original_data of Int32NDArray:
-                    converted_page = Int32NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-                elif original_data of Int64NDArray:
-                    converted_page = Int64NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-                elif original_data of Float32NDArray:
-                    converted_page = Float32NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-                elif original_data of Float64NDArray:
-                    converted_page = Float64NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-                elif original_data of UnicodeNDArray:
-                    converted_page = UnicodeNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-                elif original_data of DateNDArray:
-                    converted_page = DateNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-                elif original_data of DateTimeNDArray:
-                    converted_page = DateTimeNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-                else:
-                    corrupted()
+                corrupted()
 
             converted_page.putPage(page_infos, desired_name, res_pass[desired_name])
             converted_page.save(string cast_path)
@@ -426,8 +442,11 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
         if reason_lst.len > 0:
             let (dirpid, pid) = res_fail[reject_reason_name]
-            let pathpid = string (dirpid / Path($pid & ".npy"))
-            newNDArray(reason_lst).save(pathpid)
+            let pathpid = string (dirpid / Path("pages") / Path($pid & ".npy"))
+            let page = newNDArray(reason_lst)
+
+            page.save(pathpid)
+            page.putPage(page_infos, reject_reason_name, res_fail[reject_reason_name])
 
             pages_fail.add((reject_reason_name, page_infos[reject_reason_name]))
 
@@ -661,16 +680,20 @@ when isMainModule and appType != "lib":
 
     pymodules.tabliteConfig().Config.pid = pid
 
-    let columns = pymodules.builtins().dict({"A ": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(10), nimValueToPy(200)]}.toTable)
+    # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(10), nimValueToPy(200)]}.toTable)
+    let columns = pymodules.builtins().dict({"A ": @["1", "22", "333"]}.toTable)
+    # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy("0"), nimValueToPy("10"), nimValueToPy("200")]}.toTable)
     let table = pymodules.tablite().Table(columns = columns)
+
+    discard table.show()
 
     let select_cols = builtins().list(@[
         newColumnSelectorInfo("A ", "int", false, opt.none[string]()),
-        newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
-        newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
-        newColumnSelectorInfo("A ", "date", false, opt.none[string]()),
-        newColumnSelectorInfo("A ", "datetime", false, opt.none[string]()),
-        newColumnSelectorInfo("A ", "time", false, opt.none[string]()),
+        # newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
+        # newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
+        # newColumnSelectorInfo("A ", "date", false, opt.none[string]()),
+        # newColumnSelectorInfo("A ", "datetime", false, opt.none[string]()),
+        # newColumnSelectorInfo("A ", "time", false, opt.none[string]()),
     ])
 
     let (select_pass, select_fail) = table.columnSelect(
