@@ -121,5 +121,8 @@ proc seconds2Duration*(seconds: float): Duration {.inline.} =
     let us = frac * 1_000_000
     return initDuration(seconds=int secs, microseconds=int us)
 
+proc duration2Seconds*(dur: Duration): float {.inline.} = dur.inMicroseconds / 1_000_000
+
 proc duration2Date*(dur: Duration): DateTime {.inline.} = DateTime() + dur
 proc seconds2Date*(seconds: float): DateTime {.inline.} = duration2Date(seconds2Duration(seconds))
+proc datetime2Date*(self: DateTime): DateTime {.inline.} = dateTime(self.year, self.month, self.monthday)

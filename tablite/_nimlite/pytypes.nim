@@ -2,8 +2,8 @@ from std/tables import Table
 import std/times
 import dateutils
 
-const fmtDate = initTimeFormat("yyyy-MM-dd")
-const fmtDateTime = initTimeFormat("yyyy-MM-dd HH:mm:ss")
+const fmtDate* = initTimeFormat("yyyy-MM-dd")
+const fmtDateTime* = initTimeFormat("yyyy-MM-dd HH:mm:ss")
 
 type Shape* = seq[int]
 type PY_Object* = ref object of RootObj
@@ -46,6 +46,7 @@ proc newPY_DateTime*(year: uint16, month, day, hour, minute, second: uint8, micr
         )
     )
 
+proc secondsToPY_Time*(seconds: float): PY_Time = PY_Time(value: seconds2Duration(seconds))
 
 proc newPY_Time*(hour, minute, second: uint8, microsecond: uint32, tz_days, tz_seconds, tz_microseconds: int32): PY_Time {.inline.} =
     let dur = initDuration(days = tz_days, seconds = tz_seconds, microseconds = tz_microseconds)
@@ -61,7 +62,8 @@ proc newPY_Time*(hour, minute, second: uint8, microsecond: uint32): PY_Time {.in
         )
     )
 
-proc secondsToPY_Time*(seconds: float): PY_Time = PY_Time(value: seconds2Duration(seconds))
+
+proc newPY_Time*(date: DateTime): PY_Time = PY_Time(value: date.toTime.time2Duration)
 
 proc `$`*(self: PY_Date): string {.inline.} = "Date(" & self.value.format(fmtDate) & ")"
 proc `$`*(self: PY_Time): string {.inline.} = "Time(" & $self.value & ")"
