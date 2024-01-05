@@ -37,7 +37,7 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
     when T is UnicodeNDArray:
         var longest = 1
         let strings = collect:
-            for (i, v) in enumerate(page.buf):
+            for (i, v) in enumerate(page.pgIter):
                 var res: seq[Rune]
                 try:
                     let str = conv(v)
@@ -61,7 +61,7 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
         T(shape: page.shape, buf: buf, size: longest)
     else:
         let buf = collect:
-            for (i, v) in enumerate(page.buf):
+            for (i, v) in enumerate(page.pgIter):
                 var res = dt.default()
 
                 try:
@@ -127,6 +127,7 @@ macro mkCaster(caster: untyped) =
     return makerProc
 
 macro tdesc(_: typedesc[BooleanNDArray]): typedesc = bindSym(bool.name)
+macro tdesc(_: typedesc[UnicodeNDArray]): typedesc = bindSym(string.name)
 macro tdesc(_: typedesc[Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray]): typedesc = bindSym(int.name)
 macro tdesc(_: typedesc[Float32NDArray | Float64NDArray]): typedesc = bindSym(float.name)
 macro tdesc(_: typedesc[DateNDArray]): typedesc = bindSym(FromDate.name)
@@ -172,6 +173,14 @@ mkCaster proc(v: FromDateTime): ToDate = v.datetime2Date
 mkCaster proc(v: FromDateTime): ToDateTime = v
 mkCaster proc(v: FromDateTime): ToTime = v.newPY_Time
 
+mkCaster proc(v: string): bool = implement("string.fnCast.bool")
+mkCaster proc(v: string): int = implement("string.fnCast.int")
+mkCaster proc(v: string): float = implement("string.fnCast.float")
+mkCaster proc(v: string): string = implement("string.fnCast.string")
+mkCaster proc(v: string): ToDate = implement("string.fnCast.ToDate")
+mkCaster proc(v: string): ToDateTime = implement("string.fnCast.ToDateTime")
+mkCaster proc(v: string): ToTime = implement("string.fnCast.ToTime")
+
 # TODO: turn into macro
 proc castType[T: BooleanNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string]): BooleanNDArray = page
 proc castType[T: BooleanNDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string]): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
@@ -212,6 +221,14 @@ proc castType[T: DateTimeNDArray](R: typedesc[string], page: T, mask: var seq[Ma
 proc castType[T: DateTimeNDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
 proc castType[T: DateTimeNDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateTimeNDArray = page
 proc castType[T: DateTimeNDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string]): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
+
+proc castType[T: UnicodeNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string]): BooleanNDArray = BooleanNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
+proc castType[T: UnicodeNDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string]): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
+proc castType[T: UnicodeNDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string]): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
+proc castType[T: UnicodeNDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string]): UnicodeNDArray = page
+proc castType[T: UnicodeNDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
+proc castType[T: UnicodeNDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string]): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
+proc castType[T: UnicodeNDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string]): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R))
 
 
 # template castType[T](R: typedesc, page: T, mask: var seq[Mask], reason_lst: var seq[string]) =
@@ -377,7 +394,7 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
                 elif original_data of Float64NDArray:
                     converted_page = Float64NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
                 elif original_data of UnicodeNDArray:
-                    implement("doSliceConvert.UnicodeNDArray")
+                    converted_page = UnicodeNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
                 elif original_data of DateNDArray:
                     converted_page = DateNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
                 elif original_data of DateTimeNDArray:

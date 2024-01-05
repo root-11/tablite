@@ -72,6 +72,43 @@ type ObjectNDArray* = ref object of BaseNDArray
     dtypes*: Table[PageTypes, int]
     dtype* = "|O8"
 
+iterator pgIter*(self: BooleanNDArray): bool =
+    for el in self.buf:
+        yield el
+
+iterator pgIter*(self: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray): int =
+    for el in self.buf:
+        yield int el
+
+iterator pgIter*(self: Float32NDArray | Float64NDArray): float =
+    for el in self.buf:
+        yield float el
+
+iterator pgIter*(self: DateNDArray | DateTimeNDArray): DateTime =
+    for el in self.buf:
+        yield el
+
+iterator pgIter*(self: ObjectNDArray): PY_ObjectND =
+    for el in self.buf:
+        yield el
+
+iterator pgIter*(self: UnicodeNDArray): string =
+    let sz = self.size
+    let buf = self.buf
+    let len = buf.len
+    let empty = Rune('\x00')
+    var i = 0
+
+    while i < len:
+        let next = i + sz
+        
+        for j in i..<next:
+            if buf[j] == empty:
+                yield $buf[i..<j]
+                break
+
+        i = next
+
 proc `[]`(self: UnicodeNDArray, slice: seq[int] | openArray[int]): UnicodeNDArray =
     let shape = @[self.len]
     let buf = newSeq[Rune](self.size * slice.len)
@@ -117,7 +154,7 @@ template default*(self: typedesc[Float32NDArray]): float32 = 0
 template default*(self: typedesc[Float64NDArray]): float64 = 0
 template default*(self: typedesc[DateNDArray]): times.DateTime = days2Date(0)
 template default*(self: typedesc[DateTimeNDArray]): times.DateTime = days2Date(0)
-template default*(self: typedesc[UnicodeNDArray]) = Rune()
+template default*(self: typedesc[UnicodeNDArray]): string = ""
 template default*(self: typedesc[ObjectNDArray]): PY_ObjectND = PY_None
 
 proc writeNumpyHeader*(fh: File, dtype: string, shape: uint): void =
