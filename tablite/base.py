@@ -109,7 +109,12 @@ class SimplePage(object):
         return self.len
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.path}, {self.get()})"
+        try:
+            return f"{self.__class__.__name__}({self.path}, {self.get()})"
+        except FileNotFoundError as e:
+            return f"{self.__class__.__name__}({self.path}, <{type(e).__name__}>)"
+        except Exception as e:
+            return f"{self.__class__.__name__}({self.path}, <{e}>)"
 
     def __hash__(self) -> int:
         return hash(self.id)
