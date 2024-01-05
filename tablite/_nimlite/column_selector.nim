@@ -51,6 +51,7 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
                     reason_lst[i] = "Cannot cast"
 
                     res = newSeq[Rune]()
+                    continue
 
                 res
 
@@ -71,6 +72,7 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
                 except ValueError:
                     mask[i] = Mask.INVALID
                     reason_lst[i] = "Cannot cast"
+                    continue
 
                 res
 
@@ -297,6 +299,12 @@ proc unusedMaskSearch(arr: var seq[Mask]): int =
 
     return 0
 
+proc putPage(page: BaseNDArray, infos: var Table[string, nimpy.PyObject], colName: string, col: ColSliceInfo): void {.inline.} =
+    let (dir, pid) = col
+    let pg = newPyPage(pid, string dir, page.len, page.getPageTypes())
+
+    infos[colName] = pg
+
 proc finalizeSlice(indices: var seq[int], column_names: seq[string], infos: var Table[string, nimpy.PyObject], cast_paths: var Table[string, (Path, bool)], pages: var seq[(string, nimpy.PyObject)], result_info: ColInfo): void =
     if indices.len == 0:
         return
@@ -318,18 +326,12 @@ proc finalizeSlice(indices: var seq[int], column_names: seq[string], infos: var 
 
         if cast_data.len != indices.len:
             cast_data = cast_data[indices]
-
+            cast_data.putPage(infos, col_name, result_info[col_name])
             cast_data.save(pathpid)
         else:
             moveFile(string cast_path, pathpid)
 
         pages.add((col_name, infos[col_name]))
-
-proc putPage(page: BaseNDArray, infos: var Table[string, nimpy.PyObject], colName: string, col: ColSliceInfo): void {.inline.} =
-    let (dir, pid) = col
-    let pg = newPyPage(pid, string dir, page.len, page.getPageTypes())
-
-    infos[colName] = pg
 
 proc toColSliceInfo(path: Path): ColSliceInfo =
     let workdir = path.parentDir.parentDir
@@ -681,7 +683,7 @@ when isMainModule and appType != "lib":
     pymodules.tabliteConfig().Config.pid = pid
 
     # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(10), nimValueToPy(200)]}.toTable)
-    let columns = pymodules.builtins().dict({"A ": @["1", "22", "333"]}.toTable)
+    let columns = pymodules.builtins().dict({"A ": @["1", "22", "333", ""]}.toTable)
     # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy("0"), nimValueToPy("10"), nimValueToPy("200")]}.toTable)
     let table = pymodules.tablite().Table(columns = columns)
 
