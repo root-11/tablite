@@ -61,7 +61,7 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
         for (i, str) in enumerate(strings):
             buf[i * longest].addr.copyMem(addr str[0], str.len * sizeof(Rune))
 
-        T(shape: shape, buf: buf, size: longest, kind: K_STRING)
+        T(shape: shape, buf: buf, size: longest, kind: K_UNICODE)
     else:
         let buf = collect:
             for (i, v) in enumerate(page.pgIter):
@@ -415,31 +415,18 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
             var converted_page: BaseNDArray
 
-            if original_data of BooleanNDArray:
-                converted_page = BooleanNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            elif original_data of Int8NDArray:
-                converted_page = Int8NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            elif original_data of Int16NDArray:
-                converted_page = Int16NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            elif original_data of Int32NDArray:
-                converted_page = Int32NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            elif original_data of Int64NDArray:
-                converted_page = Int64NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            elif original_data of Float32NDArray:
-                converted_page = Float32NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            elif original_data of Float64NDArray:
-                converted_page = Float64NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            elif original_data of UnicodeNDArray:
-                converted_page = UnicodeNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            elif original_data of DateNDArray:
-                converted_page = DateNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            elif original_data of DateTimeNDArray:
-                converted_page = DateTimeNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            elif original_data of ObjectNDArray:
-                converted_page = ObjectNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            else:
-                corrupted()
-
+            case original_data.kind:
+            of K_BOOLEAN: converted_page = BooleanNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            of K_INT8: converted_page = Int8NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            of K_INT16: converted_page = Int16NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            of K_INT32: converted_page = Int32NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            of K_INT64: converted_page = Int64NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            of K_FLOAT32: converted_page = Float32NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            of K_FLOAT64: converted_page = Float64NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            of K_UNICODE: converted_page = UnicodeNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            of K_DATE: converted_page = DateNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            of K_DATETIME: converted_page = DateTimeNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            of K_OBJECT: converted_page = ObjectNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
 
             converted_page.putPage(page_infos_pass, desired_name, res_pass[desired_name])
             converted_page.save(string cast_path)
