@@ -654,14 +654,15 @@ proc toNimpy(self: PY_DateTime): nimpy.PyObject =
     )
 
 proc toNimpy(self: PY_ObjectND): nimpy.PyObject =
-    if self of PY_NoneType: return PY_NoneType(self).toNimpy()
-    if self of PY_Boolean: return PY_Boolean(self).toNimpy()
-    if self of PY_Int: return PY_Int(self).toNimpy()
-    if self of PY_Float: return PY_Float(self).toNimpy()
-    if self of PY_String: return PY_String(self).toNimpy()
-    if self of PY_Date: return PY_Date(self).toNimpy()
-    if self of PY_Time: return PY_Time(self).toNimpy()
-    if self of PY_DateTime: return PY_DateTime(self).toNimpy()
+    case self.kind:
+    of K_NONETYPE: return PY_NoneType(self).toNimpy()
+    of K_BOOLEAN: return PY_Boolean(self).toNimpy()
+    of K_INT: return PY_Int(self).toNimpy()
+    of K_FLOAT: return PY_Float(self).toNimpy()
+    of K_STRING: return PY_String(self).toNimpy()
+    of K_DATE: return PY_Date(self).toNimpy()
+    of K_TIME: return PY_Time(self).toNimpy()
+    of K_DATETIME: return PY_DateTime(self).toNimpy()
 
     implement(repr(self))
 

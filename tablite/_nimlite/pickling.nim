@@ -160,24 +160,15 @@ proc writePicklePyObj*(fh: var File, value: PY_Date, binput: var uint32): void {
 proc writePicklePyObj*(fh: var File, value: PY_Time, binput: var uint32): void {.inline.} = fh.writePickleTime(value, binput)
 proc writePicklePyObj*(fh: var File, value: PY_DateTime, binput: var uint32): void {.inline.} = fh.writePickleDatetime(value, binput)
 proc writePicklePyObj*(fh: var File, value: PY_ObjectND, binput: var uint32): void {.inline.} =
-    if value of PY_Int:
-        fh.writePicklePyObj(PY_Int(value), binput)
-    elif value of PY_Float:
-        fh.writePicklePyObj(PY_Float(value), binput)
-    elif value of PY_String:
-        fh.writePicklePyObj(PY_String(value), binput)
-    elif value of PY_Boolean:
-        fh.writePicklePyObj(PY_Boolean(value), binput)
-    elif value of PY_Date:
-        fh.writePicklePyObj(PY_Date(value), binput)
-    elif value of PY_Time:
-        fh.writePicklePyObj(PY_Time(value), binput)
-    elif value of PY_DateTime:
-        fh.writePicklePyObj(PY_DateTime(value), binput)
-    elif value of PY_NoneType:
-        fh.writePicklePyObj(PY_NoneType(value), binput)
-    else:
-        implement("PY_ObjectND.writePicklePyObj")
+    case value.kind:
+    of K_INT: fh.writePicklePyObj(PY_Int(value), binput)
+    of K_FLOAT: fh.writePicklePyObj(PY_Float(value), binput)
+    of K_STRING: fh.writePicklePyObj(PY_String(value), binput)
+    of K_BOOLEAN: fh.writePicklePyObj(PY_Boolean(value), binput)
+    of K_DATE: fh.writePicklePyObj(PY_Date(value), binput)
+    of K_TIME: fh.writePicklePyObj(PY_Time(value), binput)
+    of K_DATETIME: fh.writePicklePyObj(PY_DateTime(value), binput)
+    of K_NONETYPE: fh.writePicklePyObj(PY_NoneType(value), binput)
 
 proc writePickleStart*(fh: var File, binput: var uint32, elem_count: uint): void {.inline.} =
     binput = 0

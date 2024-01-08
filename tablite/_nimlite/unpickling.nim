@@ -18,7 +18,8 @@ type MetaStack = seq[Stack]
 type Memo = Table[int, PY_Object]
 type ObjectPage = (Shape, seq[PY_ObjectND], Table[PageTypes, int])
 
-type ProtoPickle = ref object of PY_Int
+type ProtoPickle = ref object of PY_Object
+    value: int
 type GlobalPickle = ref object of PY_Object
     module: string
     name: string
@@ -234,24 +235,24 @@ proc loadBinFloat(iter: IterPickle, stack: var Stack): BinFloatPickle {.inline.}
         arr[i] = iter()
 
     let flt = float cast[float64](arr)
-    let value = BinFloatPickle(value: flt)
+    let value = BinFloatPickle(value: flt, kind: K_FLOAT)
 
     stack.add(value)
 
     return value
 
 proc loadBinInt(iter: IterPickle, stack: var Stack): BinIntPickle {.inline.} =
-    let value = BinIntPickle(value: int iter.readIntOfSize(4))
+    let value = BinIntPickle(value: int iter.readIntOfSize(4), kind: K_INT)
     stack.add(value)
     return value
 
 proc loadBinInt1(iter: IterPickle, stack: var Stack): BinIntPickle {.inline.} =
-    let value = BinIntPickle(value: int int iter())
+    let value = BinIntPickle(value: int int iter(), kind: K_INT)
     stack.add(value)
     return value
 
 proc loadBinInt2(iter: IterPickle, stack: var Stack): BinIntPickle {.inline.} =
-    let value = BinIntPickle(value: int iter.readIntOfSize(2))
+    let value = BinIntPickle(value: int iter.readIntOfSize(2), kind: K_INT)
     stack.add(value)
     return value
 
@@ -314,7 +315,7 @@ proc loadBinUnicode(iter: IterPickle, stack: var Stack): BinUnicodePickle {.inli
     for _ in 0..(sz - 1):
         res = res & char iter()
 
-    let value = BinUnicodePickle(value: res)
+    let value = BinUnicodePickle(value: res, kind: K_STRING)
 
     stack.add(value)
 
@@ -454,14 +455,14 @@ proc loadStop(stack: var Stack): StopPickle {.inline.} =
     return StopPickle(value: stack.pop())
 
 proc loadBoolean(bval: bool, stack: var Stack): BooleanPickle {.inline.} =
-    let value = BooleanPickle(value: bval)
+    let value = BooleanPickle(value: bval, kind: K_BOOLEAN)
 
     stack.add(value)
 
     return value
 
 proc loadNone(stack: var Stack): NonePickle {.inline.} =
-    let value = NonePickle()
+    let value = NonePickle(kind: K_NONETYPE)
 
     stack.add(value)
 
@@ -507,16 +508,15 @@ proc unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack: var
         else: raise newException(Exception, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
 
 proc getType(self: PY_ObjectND): PageTypes =
-    if self of PY_NoneType: return DT_NONE
-    if self of PY_Boolean: return DT_BOOL
-    if self of PY_Int: return DT_INT
-    if self of PY_Float: return DT_FLOAT
-    if self of PY_String: return DT_STRING
-    if self of PY_Date: return DT_DATE
-    if self of PY_Time: return DT_TIME
-    if self of PY_DateTime: return DT_DATETIME
-
-    corrupted()
+    case self.kind:
+    of K_NONETYPE: return DT_NONE
+    of K_BOOLEAN: return DT_BOOL
+    of K_INT: return DT_INT
+    of K_FLOAT: return DT_FLOAT
+    of K_STRING: return DT_STRING
+    of K_DATE: return DT_DATE
+    of K_TIME: return DT_TIME
+    of K_DATETIME: return DT_DATETIME
 
 proc toPage(arr: PY_NpMultiArray): ObjectPage =
     var buf = newSeqOfCap[PY_ObjectND](arr.elems.len)
