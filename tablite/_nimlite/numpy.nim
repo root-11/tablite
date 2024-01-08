@@ -184,6 +184,7 @@ proc `[]`(self: ObjectNDArray, slice: seq[int] | openArray[int]): BaseNDArray =
     let shape = @[buf.len]
 
     if typeList.len == 1:
+        # we are single type, we can potentially simplify this page
         let baseType = typeList[0]
 
         case baseType:
@@ -205,13 +206,13 @@ proc `[]`(self: ObjectNDArray, slice: seq[int] | openArray[int]): BaseNDArray =
         of DT_STRING:
             let newBuf = collect: (for v in buf: PY_String(v).value)
             return newBuf.newNDArray
-        of DT_NONE, DT_TIME: discard
+        of DT_NONE, DT_TIME: 
+            # nones and times are always treated as objects
+            discard
 
     return ObjectNDArray(shape: shape, buf: buf, kind: self.kind, dtypes: dtypes)
 
 proc primitiveSlice[T: BooleanNDArray | Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray | Float32NDArray | Float64NDArray | DateNDArray | DateTimeNDArray](self: T, slice: seq[int] | openArray[int]): T =
-    echo $self
-    
     let buf = collect:
         for i in slice:
             self.buf[i]

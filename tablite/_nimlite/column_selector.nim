@@ -240,11 +240,12 @@ template obj2prim(v: PY_ObjectND) =
     of K_STRING: PY_String.obj2primCast(string, R, v)
     of K_DATE: PY_Date.obj2primCast(FromDate, R, v)
     of K_DATETIME: PY_Date.obj2primCast(FromDateTime, R, v)
+    of K_NONETYPE: raise newException(ValueError, "cannot cast")
     else: implement("PY_ObjectND." & $v.kind)
 
-mkCaster proc(v: PY_ObjectND): bool = implement("PY_ObjectND.fnCast.bool")
+mkCaster proc(v: PY_ObjectND): bool = v.obj2prim()
 mkCaster proc(v: PY_ObjectND): int = v.obj2prim()
-mkCaster proc(v: PY_ObjectND): float = implement("PY_ObjectND.fnCast.float")
+mkCaster proc(v: PY_ObjectND): float = v.obj2prim()
 mkCaster proc(v: PY_ObjectND): string = v.obj2prim()
 mkCaster proc(v: PY_ObjectND): ToDate = implement("PY_ObjectND.fnCast.ToDate")
 mkCaster proc(v: PY_ObjectND): ToDateTime = implement("PY_ObjectND.fnCast.ToDateTime")
@@ -759,8 +760,8 @@ when isMainModule and appType != "lib":
     discard table.show(dtype=true)
 
     let select_cols = builtins().list(@[
-        # newColumnSelectorInfo("A ", "int", false, opt.none[string]()),
-        # newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
+        newColumnSelectorInfo("A ", "int", false, opt.none[string]()),
+        newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "bool", false, opt.none[string]()),
         newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "date", false, opt.none[string]()),
