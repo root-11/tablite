@@ -542,11 +542,20 @@ def _mp_cross_mapping(
 
     Returns:
         Table: table initiated in the main process' working directory
-    """
-    lr = range(left_slice.start, min(left_slice.stop, len(T)))
-    rr = range(right_slice.start, min(right_slice.stop, len(other)))
-    _left, _right = zip(*product(lr, rr))
-    mapping = Table({"left": _left, "right": _right}, _path=path)
+    """   
+    rr = np.arange(right_slice.start, min(right_slice.stop, len(other)))
+    tmp = Table({"right": rr}, _path=path)
+    right = tmp["right"]
+    rr_shape = rr.shape
+    del rr
+
+    lr = np.arange(left_slice.start, min(left_slice.stop, len(T)))
+    mapping = Table({"left": [], "right": []}, _path=path)
+    for a in lr:
+        mapping["right"].extend(right)  
+        # by using the right filepointer above, the page-id is 
+        # repeated, costing 0 Mb in storage.
+        mapping["left"].extend(np.full(rr_shape, a))
     return mapping
 
 
