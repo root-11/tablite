@@ -33,9 +33,8 @@ type KindNDArray* = enum
     K_FLOAT32,
     K_FLOAT64,
     K_DATE,
-    K_TIME,
     K_DATETIME,
-    K_STRING,
+    K_UNICODE,
     K_OBJECT
 
 template gendtype[T](dt: typedesc[T], name: char): string = endiannessMark & $name & $sizeof(T)
@@ -156,7 +155,7 @@ proc `[]`(self: UnicodeNDArray, slice: seq[int] | openArray[int]): UnicodeNDArra
         buf[i * self.size].addr.copyMem(addr self.buf[j * self.size], self.size)
 
 
-    return UnicodeNDArray(shape: @[slice.len], size: self.size, buf: buf, kind: K_STRING)
+    return UnicodeNDArray(shape: @[slice.len], size: self.size, buf: buf, kind: K_UNICODE)
 
 proc `[]`(self: ObjectNDArray, slice: seq[int] | openArray[int]): ObjectNDArray =
     implement("ObjectNDArray[]")
@@ -170,19 +169,18 @@ proc primitiveSlice[T: BooleanNDArray | Int8NDArray | Int16NDArray | Int32NDArra
     return T(shape: @[buf.len], buf: buf, kind: self.kind)
 
 proc `[]`*[T: BaseNDArray](self: T, slice: seq[int] | openArray[int]): T =
-    if self of BooleanNDArray: return BooleanNDArray(self).primitiveSlice(slice)
-    if self of Int8NDArray: return Int8NDArray(self).primitiveSlice(slice)
-    if self of Int16NDArray: return Int16NDArray(self).primitiveSlice(slice)
-    if self of Int32NDArray: return Int32NDArray(self).primitiveSlice(slice)
-    if self of Int64NDArray: return Int64NDArray(self).primitiveSlice(slice)
-    if self of Float32NDArray: return Float32NDArray(self).primitiveSlice(slice)
-    if self of Float64NDArray: return Float64NDArray(self).primitiveSlice(slice)
-    if self of DateNDArray: return DateNDArray(self).primitiveSlice(slice)
-    if self of DateTimeNDArray: return DateTimeNDArray(self).primitiveSlice(slice)
-    if self of UnicodeNDArray: return UnicodeNDArray(self)[slice]
-    if self of ObjectNDArray: return ObjectNDArray(self)[slice]
-    
-    corrupted()
+    case self.kind:
+    of K_BOOLEAN: return BooleanNDArray(self).primitiveSlice(slice)
+    of K_INT8: return Int8NDArray(self).primitiveSlice(slice)
+    of K_INT16: return Int16NDArray(self).primitiveSlice(slice)
+    of K_INT32: return Int32NDArray(self).primitiveSlice(slice)
+    of K_INT64: return Int64NDArray(self).primitiveSlice(slice)
+    of K_FLOAT32: return Float32NDArray(self).primitiveSlice(slice)
+    of K_FLOAT64: return Float64NDArray(self).primitiveSlice(slice)
+    of K_DATE: return DateNDArray(self).primitiveSlice(slice)
+    of K_DATETIME: return DateTimeNDArray(self).primitiveSlice(slice)
+    of K_UNICODE: return UnicodeNDArray(self)[slice]
+    of K_OBJECT: return ObjectNDArray(self)[slice]
 
 proc dtype*(self: UnicodeNDArray): string = endiannessMark & "U" & $self.size
 
@@ -242,14 +240,15 @@ proc repr(self: ObjectNDArray): string =
     return "ObjectNDArray(buf: @[" & elems.join(", ") & "], shape: " & $self.shape & ")"
 
 proc `$`*(self: BaseNDArray): string =
-    if self of BooleanNDArray: return repr(BooleanNDArray self)
-    if self of Int64NDArray: return repr(Int64NDArray self)
-    if self of Float64NDArray: return repr(Float64NDArray self)
-    if self of UnicodeNDArray: return repr(UnicodeNDArray self)
-    if self of ObjectNDArray: return repr(ObjectNDArray self)
-    if self of DateNDArray: return repr(DateNDArray self)
-    if self of DateTimeNDArray: return repr(DateTimeNDArray self)
-    else: implement("BaseNDArray.`$`")
+    case self.kind:
+    of K_BOOLEAN: return repr(BooleanNDArray self)
+    of K_INT64: return repr(Int64NDArray self)
+    of K_FLOAT64: return repr(Float64NDArray self)
+    of K_UNICODE: return repr(UnicodeNDArray self)
+    of K_OBJECT: return repr(ObjectNDArray self)
+    of K_DATE: return repr(DateNDArray self)
+    of K_DATETIME: return repr(DateTimeNDArray self)
+    else: implement("BaseNDArray.`$`" & $self.kind)
 
 
 proc validateHeader(fh: File, buf: var array[NUMPY_MAGIC_LEN, uint8], header: string, header_len: int): void {.inline.} =
@@ -544,7 +543,7 @@ proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: v
     if fh.readBuffer(addr buf[0], buf_size) != buf_size:
         corrupted()
 
-    return UnicodeNDArray(buf: buf, shape: shape, size: size, kind: K_STRING)
+    return UnicodeNDArray(buf: buf, shape: shape, size: size, kind: K_UNICODE)
 
 proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var Shape): ObjectNDArray =
     var elements = calcShapeElements(shape)
@@ -703,19 +702,18 @@ proc toPython(self: ObjectNDArray): nimpy.PyObject =
 
 
 proc toPython*(self: BaseNDArray): nimpy.PyObject =
-    if self of BooleanNDArray: return BooleanNDArray(self).toPython()
-    if self of Int8NDArray: return Int8NDArray(self).toPython()
-    if self of Int16NDArray: return Int16NDArray(self).toPython()
-    if self of Int32NDArray: return Int32NDArray(self).toPython()
-    if self of Int64NDArray: return Int64NDArray(self).toPython()
-    if self of Float32NDArray: return Float32NDArray(self).toPython()
-    if self of Float64NDArray: return Float64NDArray(self).toPython()
-    if self of DateNDArray: return DateNDArray(self).toPython()
-    if self of DateTimeNDArray: return DateTimeNDArray(self).toPython()
-    if self of UnicodeNDArray: return UnicodeNDArray(self).toPython()
-    if self of ObjectNDArray: return ObjectNDArray(self).toPython()
-
-    corrupted()
+    case self.kind:
+    of K_BOOLEAN: return BooleanNDArray(self).toPython()
+    of K_INT8: return Int8NDArray(self).toPython()
+    of K_INT16: return Int16NDArray(self).toPython()
+    of K_INT32: return Int32NDArray(self).toPython()
+    of K_INT64: return Int64NDArray(self).toPython()
+    of K_FLOAT32: return Float32NDArray(self).toPython()
+    of K_FLOAT64: return Float64NDArray(self).toPython()
+    of K_DATE: return DateNDArray(self).toPython()
+    of K_DATETIME: return DateTimeNDArray(self).toPython()
+    of K_UNICODE: return UnicodeNDArray(self).toPython()
+    of K_OBJECT: return ObjectNDArray(self).toPython()
 
 proc getPageLen*(fh: var File): int =
     var (_, _, shape) = readPageInfo(fh)
@@ -742,15 +740,16 @@ template toType(dtype: PageTypes, shape: Shape): Table[PageTypes, int] =
     {dtype: calcShapeElements(shape)}.toTable
 
 proc getPageTypes*(self: BaseNDArray): Table[PageTypes, int] =
-    if self of BooleanNDArray: return DT_BOOL.toType(self.shape)
-    if self of Int8NDArray or self of Int16NDArray or self of Int32NDArray or self of Int64NDArray:
+    case self.kind:
+    of K_BOOLEAN: return DT_BOOL.toType(self.shape)
+    of K_INT8, K_INT16, K_INT32, K_INT64:
         return DT_INT.toType(self.shape)
-    if self of Float32NDArray or self of Float64NDArray:
+    of K_FLOAT32, K_FLOAT64:
         return DT_FLOAT.toType(self.shape)
-    if self of UnicodeNDArray: return DT_BOOL.toType(self.shape)
-    if self of DateNDArray: return DT_DATE.toType(self.shape)
-    if self of DateTimeNDArray: return DT_DATETIME.toType(self.shape)
-    if self of ObjectNDArray: return ObjectNDArray(self).dtypes
+    of K_UNICODE: return DT_BOOL.toType(self.shape)
+    of K_DATE: return DT_DATE.toType(self.shape)
+    of K_DATETIME: return DT_DATETIME.toType(self.shape)
+    of K_OBJECT: return ObjectNDArray(self).dtypes
 
     corrupted()
 
@@ -838,33 +837,21 @@ proc newNDArray*(arr: seq[string] | openArray[string] | iterator(): string): Uni
     for (i, str) in enumerate(runes):
         buf[i * longest].addr.copyMem(addr str[0], str.len * sizeof(Rune))
 
-    return UnicodeNDArray(shape: shape, buf: buf, size: longest, kind: K_STRING)
+    return UnicodeNDArray(shape: shape, buf: buf, size: longest, kind: K_UNICODE)
 
 proc save*(self: BaseNDArray, path: string): void =
-    if self of BooleanNDArray:
-        BooleanNDArray(self).save(path)
-    elif self of Int8NDArray:
-        Int8NDArray(self).save(path)
-    elif self of Int16NDArray:
-        Int16NDArray(self).save(path)
-    elif self of Int32NDArray:
-        Int32NDArray(self).save(path)
-    elif self of Int64NDArray:
-        Int64NDArray(self).save(path)
-    elif self of Float32NDArray:
-        Float32NDArray(self).save(path)
-    elif self of Float64NDArray:
-        Float64NDArray(self).save(path)
-    elif self of UnicodeNDArray:
-        UnicodeNDArray(self).save(path)
-    elif self of DateNDArray:
-        DateNDArray(self).save(path)
-    elif self of DateTimeNDArray:
-        DateTimeNDArray(self).save(path)
-    elif self of ObjectNDArray:
-        ObjectNDArray(self).save(path)
-    else:
-        implement("BaseNDArray.save")
+    case self.kind:
+    of K_BOOLEAN: BooleanNDArray(self).save(path)
+    of K_INT8: Int8NDArray(self).save(path)
+    of K_INT16: Int16NDArray(self).save(path)
+    of K_INT32: Int32NDArray(self).save(path)
+    of K_INT64: Int64NDArray(self).save(path)
+    of K_FLOAT32: Float32NDArray(self).save(path)
+    of K_FLOAT64: Float64NDArray(self).save(path)
+    of K_UNICODE: UnicodeNDArray(self).save(path)
+    of K_DATE: DateNDArray(self).save(path)
+    of K_DATETIME: DateTimeNDArray(self).save(path)
+    of K_OBJECT: ObjectNDArray(self).save(path)
 
 proc type2PyType(`type`: PageTypes): nimpy.PyObject =
     case `type`:
