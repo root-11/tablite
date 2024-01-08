@@ -25,9 +25,9 @@ def where(T, criteria, left, right, new):
     else:
         criteria = np.array(criteria, dtype='bool')
     
-    new_name = unique_name(new, list(T.columns))
-    T.add_column(new_name)
-    col = T[new_name]
+    new_uq = unique_name(new, list(T.columns))
+    T.add_column(new_uq)
+    col = T[new_uq]
     
     for start,end in Config.page_steps(len(criteria)):
         left_values = T[left][start:end]
@@ -35,10 +35,16 @@ def where(T, criteria, left, right, new):
         new_values = np.where(criteria, left_values, right_values)
         col.extend(new_values)
 
-    del T[left]
-    del T[right]
-    if new != new_name and new not in T.columns:
-        T[new] = T[new_name]
-        del T[new_name]
+    if new == right:
+        T[right] = T[new_uq]  # keep column order
+        del T[new_uq]
+        del T[left]
+    elif new == left:
+        T[left] = T[new_uq]  # keep column order
+        del T[new_uq]
+        del T[right]
+    else:
+        T[new] = T[new_uq]
+        del T[left]
+        del T[right]
     return T
-
