@@ -415,18 +415,20 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
             var converted_page: BaseNDArray
 
+            template castPage(T: typedesc) = T(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+
             case original_data.kind:
-            of K_BOOLEAN: converted_page = BooleanNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            of K_INT8: converted_page = Int8NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            of K_INT16: converted_page = Int16NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            of K_INT32: converted_page = Int32NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            of K_INT64: converted_page = Int64NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            of K_FLOAT32: converted_page = Float32NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            of K_FLOAT64: converted_page = Float64NDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            of K_UNICODE: converted_page = UnicodeNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            of K_DATE: converted_page = DateNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            of K_DATETIME: converted_page = DateTimeNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
-            of K_OBJECT: converted_page = ObjectNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
+            of K_BOOLEAN: converted_page = BooleanNDArray.castPage
+            of K_INT8: converted_page = Int8NDArray.castPage
+            of K_INT16: converted_page = Int16NDArray.castPage
+            of K_INT32: converted_page = Int32NDArray.castPage
+            of K_INT64: converted_page = Int64NDArray.castPage
+            of K_FLOAT32: converted_page = Float32NDArray.castPage
+            of K_FLOAT64: converted_page = Float64NDArray.castPage
+            of K_UNICODE: converted_page = UnicodeNDArray.castPage
+            of K_DATE: converted_page = DateNDArray.castPage
+            of K_DATETIME: converted_page = DateTimeNDArray.castPage
+            of K_OBJECT: converted_page = ObjectNDArray.castPage
 
             converted_page.putPage(page_infos_pass, desired_name, res_pass[desired_name])
             converted_page.save(string cast_path)
