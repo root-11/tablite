@@ -125,8 +125,6 @@ iterator pgIter*(self: UnicodeNDArray): string =
     let empty = Rune('\x00')
     var i = 0
 
-    # echo ">>>len: " & $len & " | buf: " & $buf
-
     while i < len:
         let next = i + sz
 

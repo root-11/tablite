@@ -35,28 +35,25 @@ proc toPageType(name: string): PageTypes =
     else: raise newException(FieldDefect, "unsupported page type: '" & name & "'")
 
 template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], reason_lst: var seq[string], conv: proc, allow_empty: bool): T =
-    var canBeNone: bool
-    var isObjectPage: bool
-
-    # only string and object types can have nones
-    case page.kind:
-    of K_UNICODE: canBeNone = true
-    of K_OBJECT:
-        let types = page.getPageTypes()
-
-        if DT_NONE in types:
-            if likely(types[DT_NONE] > 0):
-                canBeNone = true
-
-        isObjectPage = true
-    else:
-        canBeNone = false
-        isObjectPage = false
-
-    echo "canBeNone: " & $canBeNone & " | isObjectPage: " & $isObjectPage
-
     when T is UnicodeNDArray:
-        echo ">>>unicode array"
+        var canBeNone: bool
+        var isObjectPage: bool
+
+        # only string and object types can have nones
+        case page.kind:
+        of K_UNICODE: canBeNone = true
+        of K_OBJECT:
+            let types = page.getPageTypes()
+
+            if DT_NONE in types:
+                if likely(types[DT_NONE] > 0):
+                    canBeNone = true
+
+            isObjectPage = true
+        else:
+            canBeNone = false
+            isObjectPage = false
+
         var longest = 1
         let strings = collect:
             for (i, v) in enumerate(page.pgIter):
@@ -173,6 +170,8 @@ macro mkCaster(caster: untyped) =
     let subProc = newProc(params=[trueCastR, trueCastT], body=caster.body, procType=nnkLambda)
     let makerProc = newProc(newIdentNode("fnCast"), params=[newNimNode(nnkProcTy), paramsT, paramsR], body=subProc)
 
+    echo makerProc.repr
+
     return makerProc
 
 macro tdesc(_: typedesc[BooleanNDArray]): typedesc = bindSym(bool.name)
@@ -215,6 +214,14 @@ mkCaster proc(v: FromDate): ToDate = v
 mkCaster proc(v: FromDate): ToDateTime = v
 mkCaster proc(v: FromDate): ToTime = v.newPY_Time
 
+mkCaster proc(v: PY_Time): bool = v.value.inSeconds >= 1
+mkCaster proc(v: PY_Time): int = v.value.inSeconds
+mkCaster proc(v: PY_Time): float = v.value.duration2Seconds
+mkCaster proc(v: PY_Time): string = $v.value.duration2Time
+mkCaster proc(v: PY_Time): ToDate = v.value.duration2Date
+mkCaster proc(v: PY_Time): ToDateTime = v.value.duration2Date
+mkCaster proc(v: PY_Time): ToTime = v
+
 mkCaster proc(v: FromDateTime): bool = v.toTime.time2Duration.inSeconds >= 1
 mkCaster proc(v: FromDateTime): int = v.toTime.time2Duration.inSeconds
 mkCaster proc(v: FromDateTime): float = v.toTime.time2Duration.duration2Seconds
@@ -239,9 +246,9 @@ template obj2prim(v: PY_ObjectND) =
     of K_FLOAT: PY_Float.obj2primCast(float, R, v)
     of K_STRING: PY_String.obj2primCast(string, R, v)
     of K_DATE: PY_Date.obj2primCast(FromDate, R, v)
+    of K_TIME: PY_Time.fnCast(R)(PY_Time(v))
     of K_DATETIME: PY_Date.obj2primCast(FromDateTime, R, v)
     of K_NONETYPE: raise newException(ValueError, "cannot cast")
-    else: implement("PY_ObjectND.obj2prim." & $v.kind)
 
 mkCaster proc(v: PY_ObjectND): bool = v.obj2prim()
 mkCaster proc(v: PY_ObjectND): int = v.obj2prim()
@@ -488,9 +495,6 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
                 invalid_indices.add(i)
                 reason_lst[i]
-
-        echo ">>>page_infos_fail: " & $page_infos_fail
-        echo ">>>cast_paths_fail: " & $cast_paths_fail
 
         valid_indices.finalizeSlice(toSeq(desired_column_map.keys), page_infos_pass, cast_paths_pass, pages_pass, res_pass)
         invalid_indices.finalizeSlice(toSeq(columns.keys), page_infos_fail, cast_paths_fail, pages_fail, res_fail)
