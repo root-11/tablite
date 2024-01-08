@@ -61,7 +61,7 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
         for (i, str) in enumerate(strings):
             buf[i * longest].addr.copyMem(addr str[0], str.len * sizeof(Rune))
 
-        T(shape: shape, buf: buf, size: longest)
+        T(shape: shape, buf: buf, size: longest, kind: K_STRING)
     else:
         let buf = collect:
             for (i, v) in enumerate(page.pgIter):
@@ -78,7 +78,7 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
                 res
         let shape = @[buf.len]
 
-        T(shape: shape, buf: buf)
+        T(shape: shape, buf: buf, kind: T.pageKind)
 
 type
     ToDate = object
@@ -707,8 +707,8 @@ when isMainModule and appType != "lib":
 
     pymodules.tabliteConfig().Config.pid = pid
 
-    let columns = pymodules.builtins().dict({"A ": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(10), nimValueToPy(200)]}.toTable)
-    # let columns = pymodules.builtins().dict({"A ": @[1, 22, 333]}.toTable)
+    # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(10), nimValueToPy(200)]}.toTable)
+    let columns = pymodules.builtins().dict({"A ": @[1, 22, 333]}.toTable)
     # let columns = pymodules.builtins().dict({"A ": @["1", "22", "333", ""]}.toTable)
     # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy("0"), nimValueToPy("10"), nimValueToPy("200")]}.toTable)
     let table = pymodules.tablite().Table(columns = columns)
@@ -716,8 +716,8 @@ when isMainModule and appType != "lib":
     discard table.show(dtype=true)
 
     let select_cols = builtins().list(@[
-        newColumnSelectorInfo("A ", "int", false, opt.none[string]()),
-        newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
+        # newColumnSelectorInfo("A ", "int", false, opt.none[string]()),
+        # newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
         newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "date", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "datetime", false, opt.none[string]()),

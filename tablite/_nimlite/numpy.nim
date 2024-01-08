@@ -24,11 +24,26 @@ type NDArrayTypeDescriptor = enum
     D_DATETIME_MILISECONDS
     D_DATETIME_MICROSECONDS
 
+type KindNDArray* = enum
+    K_BOOLEAN,
+    K_INT8,
+    K_INT16
+    K_INT32,
+    K_INT64,
+    K_FLOAT32,
+    K_FLOAT64,
+    K_DATE,
+    K_TIME,
+    K_DATETIME,
+    K_STRING,
+    K_OBJECT
+
 template gendtype[T](dt: typedesc[T], name: char): string = endiannessMark & $name & $sizeof(T)
 
 type NDArrayDescriptor = (Endianness, NDArrayTypeDescriptor, int)
-type BaseNDArray* = ref object of RootObj
+type BaseNDArray* {.requiresInit.} = ref object of RootObj
     shape*: Shape
+    kind*: KindNDArray
 
 type BooleanNDArray* = ref object of BaseNDArray
     buf*: seq[bool]
@@ -71,6 +86,18 @@ type ObjectNDArray* = ref object of BaseNDArray
     buf*: seq[PyObjectND]
     dtypes*: Table[PageTypes, int]
     dtype* = "|O8"
+
+proc pageKind*(_: typedesc[BooleanNDArray]): KindNDArray = K_BOOLEAN
+proc pageKind*(_: typedesc[Int8NDArray]): KindNDArray = K_INT8
+proc pageKind*(_: typedesc[Int16NDArray]): KindNDArray = K_INT16
+proc pageKind*(_: typedesc[Int32NDArray]): KindNDArray = K_INT32
+proc pageKind*(_: typedesc[Int64NDArray]): KindNDArray = K_INT64
+proc pageKind*(_: typedesc[Float32NDArray]): KindNDArray = K_FLOAT32
+proc pageKind*(_: typedesc[Float64NDArray]): KindNDArray = K_FLOAT64
+proc pageKind*(_: typedesc[DateNDArray]): KindNDArray = K_DATE
+proc pageKind*(_: typedesc[DateTimeNDArray]): KindNDArray = K_DATETIME
+proc pageKind*(_: typedesc[UnicodeNDArray]): KindNDArray = K_STRING
+proc pageKind*(_: typedesc[ObjectNDArray]): KindNDArray = K_OBJECT
 
 iterator pgIter*(self: BooleanNDArray): bool =
     for el in self.buf:
@@ -129,7 +156,7 @@ proc `[]`(self: UnicodeNDArray, slice: seq[int] | openArray[int]): UnicodeNDArra
         buf[i * self.size].addr.copyMem(addr self.buf[j * self.size], self.size)
 
 
-    return UnicodeNDArray(shape: @[slice.len], size: self.size, buf: buf)
+    return UnicodeNDArray(shape: @[slice.len], size: self.size, buf: buf, kind: K_STRING)
 
 proc `[]`(self: ObjectNDArray, slice: seq[int] | openArray[int]): ObjectNDArray =
     implement("ObjectNDArray[]")
@@ -140,7 +167,7 @@ proc primitiveSlice[T: BooleanNDArray | Int8NDArray | Int16NDArray | Int32NDArra
     let buf = collect:
         for i in slice:
             self.buf[i]
-    return T(shape: @[buf.len], buf: buf)
+    return T(shape: @[buf.len], buf: buf, kind: self.kind)
 
 proc `[]`*[T: BaseNDArray](self: T, slice: seq[int] | openArray[int]): T =
     if self of BooleanNDArray: return BooleanNDArray(self).primitiveSlice(slice)
@@ -461,27 +488,28 @@ template readPrimitiveBuffer[T: typed](fh: var File, shape: var Shape): seq[T] =
 proc newBooleanNDArray(fh: var File, shape: var Shape): BooleanNDArray =
     return BooleanNDArray(
         buf: readPrimitiveBuffer[bool](fh, shape),
-        shape: shape
+        shape: shape,
+        kind: K_BOOLEAN
     )
 
 template newIntNDArray(fh: var File, endianness: Endianness, size: int, shape: var Shape) =
     case size:
-        of 1: Int8NDArray(buf: readPrimitiveBuffer[int8](fh, shape), shape: shape)
-        of 2: Int16NDArray(buf: readPrimitiveBuffer[int16](fh, shape), shape: shape)
-        of 4: Int32NDArray(buf: readPrimitiveBuffer[int32](fh, shape), shape: shape)
-        of 8: Int64NDArray(buf: readPrimitiveBuffer[int64](fh, shape), shape: shape)
+        of 1: Int8NDArray(buf: readPrimitiveBuffer[int8](fh, shape), shape: shape, kind: K_INT8)
+        of 2: Int16NDArray(buf: readPrimitiveBuffer[int16](fh, shape), shape: shape, kind: K_INT16)
+        of 4: Int32NDArray(buf: readPrimitiveBuffer[int32](fh, shape), shape: shape, kind: K_INT32)
+        of 8: Int64NDArray(buf: readPrimitiveBuffer[int64](fh, shape), shape: shape, kind: K_INT64)
         else: corrupted()
 
 proc newDateArray_Days(fh: var File, endianness: Endianness, shape: var Shape): DateNDArray {.inline.} =
     let buf = collect: (for v in readPrimitiveBuffer[int64](fh, shape): days2Date(v))
 
-    return DateNDArray(buf: buf, shape: shape)
+    return DateNDArray(buf: buf, shape: shape, kind: K_DATE)
 
 proc newDateTimeArray_Seconds(fh: var File, endianness: Endianness, shape: var Shape): DateTimeNDArray {.inline.} =
     let data = readPrimitiveBuffer[int64](fh, shape)
     let buf = collect: (for v in data: initTime(v, 0).utc())
 
-    return DateTimeNDArray(buf: buf, shape: shape)
+    return DateTimeNDArray(buf: buf, shape: shape, kind: K_DATETIME)
 
 proc newDateTimeArray_Miliseconds(fh: var File, endianness: Endianness, shape: var Shape): DateTimeNDArray {.inline.} =
     let data = readPrimitiveBuffer[int64](fh, shape)
@@ -490,7 +518,7 @@ proc newDateTimeArray_Miliseconds(fh: var File, endianness: Endianness, shape: v
             let (s, m) = divmod(v, 1000)
             initTime(s, m * 1000).utc()
 
-    return DateTimeNDArray(buf: buf, shape: shape)
+    return DateTimeNDArray(buf: buf, shape: shape, kind: K_DATETIME)
 
 proc newDateTimeArray_Microseconds(fh: var File, endianness: Endianness, shape: var Shape): DateTimeNDArray {.inline.} =
     let data = readPrimitiveBuffer[int64](fh, shape)
@@ -499,12 +527,12 @@ proc newDateTimeArray_Microseconds(fh: var File, endianness: Endianness, shape: 
             let (s, u) = divmod(v, 1_000_000)
             initTime(s, u).utc()
 
-    return DateTimeNDArray(buf: buf, shape: shape)
+    return DateTimeNDArray(buf: buf, shape: shape, kind: K_DATETIME)
 
 template newFloatNDArray(fh: var File, endianness: Endianness, size: int, shape: var Shape) =
     case size:
-        of 4: Float32NDArray(buf: readPrimitiveBuffer[float32](fh, shape), shape: shape)
-        of 8: Float64NDArray(buf: readPrimitiveBuffer[float64](fh, shape), shape: shape)
+        of 4: Float32NDArray(buf: readPrimitiveBuffer[float32](fh, shape), shape: shape, kind: K_FLOAT32)
+        of 8: Float64NDArray(buf: readPrimitiveBuffer[float64](fh, shape), shape: shape, kind: K_FLOAT64)
         else: corrupted()
 
 proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: var Shape): UnicodeNDArray =
@@ -516,7 +544,7 @@ proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: v
     if fh.readBuffer(addr buf[0], buf_size) != buf_size:
         corrupted()
 
-    return UnicodeNDArray(buf: buf, shape: shape, size: size)
+    return UnicodeNDArray(buf: buf, shape: shape, size: size, kind: K_STRING)
 
 proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var Shape): ObjectNDArray =
     var elements = calcShapeElements(shape)
@@ -525,7 +553,7 @@ proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var Shape): O
     if calcShapeElements(shape) != elements:
         corrupted()
 
-    return ObjectNDArray(shape: shape, buf: buf, dtypes: dtypes)
+    return ObjectNDArray(shape: shape, buf: buf, dtypes: dtypes, kind: K_OBJECT)
 
 proc readPageInfo(fh: var File): (NDArrayDescriptor, bool, Shape) =
     var header_bytes: array[NUMPY_MAGIC_LEN, uint8]
@@ -810,7 +838,7 @@ proc newNDArray*(arr: seq[string] | openArray[string] | iterator(): string): Uni
     for (i, str) in enumerate(runes):
         buf[i * longest].addr.copyMem(addr str[0], str.len * sizeof(Rune))
 
-    return UnicodeNDArray(shape: shape, buf: buf, size: longest)
+    return UnicodeNDArray(shape: shape, buf: buf, size: longest, kind: K_STRING)
 
 proc save*(self: BaseNDArray, path: string): void =
     if self of BooleanNDArray:
