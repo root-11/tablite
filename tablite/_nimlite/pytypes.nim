@@ -5,9 +5,20 @@ import dateutils
 const fmtDate* = initTimeFormat("yyyy-MM-dd")
 const fmtDateTime* = initTimeFormat("yyyy-MM-dd HH:mm:ss")
 
+type KindObjectND* = enum
+    K_NONETYPE,
+    K_BOOLEAN,
+    K_INT,
+    K_FLOAT,
+    K_STRING,
+    K_DATE,
+    K_TIME,
+    K_DATETIME
+
 type Shape* = seq[int]
 type PY_Object* = ref object of RootObj
-type PY_ObjectND* = ref object of PY_Object
+type PY_ObjectND* {.requiresInit.} = ref object of PY_Object
+    kind*: KindObjectND
 type PY_Boolean* = ref object of PY_ObjectND
     value*: bool
 type PY_Int* = ref object of PY_ObjectND
@@ -16,7 +27,7 @@ type PY_Float* = ref object of PY_ObjectND
     value*: float
 type PY_String* = ref object of PY_ObjectND
     value*: string
-type PY_Bytes* = ref object of PY_ObjectND
+type PY_Bytes* = ref object of PY_Object
     value*: seq[char]
 type PY_NoneType* = ref object of PY_ObjectND
 type PY_Date* = ref object of PY_ObjectND
@@ -33,37 +44,37 @@ type Py_Set* = ref object of Py_Iterable
 type Py_Dict* = ref object of Py_Object
     elems*: Table[PY_Object, PY_Object]
 
-let PY_None* = PY_NoneType()
+let PY_None* = PY_NoneType(kind: KindObjectND.K_NONETYPE)
 
-proc newPY_Date*(year: uint16, month, day: uint8): PY_Date {.inline.} = PY_Date(value: date2NimDatetime(int year, int month, int day))
+proc newPY_Date*(year: uint16, month, day: uint8): PY_Date {.inline.} = PY_Date(value: date2NimDatetime(int year, int month, int day), kind: K_DATE)
 
-proc newPY_DateTime*(date: PY_Date, time: PY_Time): PY_DateTime = PY_DateTime(value: date.value + time.value)
+proc newPY_DateTime*(date: PY_Date, time: PY_Time): PY_DateTime = PY_DateTime(value: date.value + time.value, kind: K_DATETIME)
 proc newPY_DateTime*(year: uint16, month, day, hour, minute, second: uint8, microsecond: uint32): PY_DateTime {.inline.} =
     return PY_DateTime(
         value: datetime2NimDatetime(
             int year, int month, int day,
             int hour, int minute, int second, int microsecond
-        )
+        ), kind: K_DATETIME
     )
 
-proc secondsToPY_Time*(seconds: float): PY_Time = PY_Time(value: seconds2Duration(seconds))
+proc secondsToPY_Time*(seconds: float): PY_Time = PY_Time(value: seconds2Duration(seconds), kind: K_TIME)
 
 proc newPY_Time*(hour, minute, second: uint8, microsecond: uint32, tz_days, tz_seconds, tz_microseconds: int32): PY_Time {.inline.} =
     let dur = initDuration(days = tz_days, seconds = tz_seconds, microseconds = tz_microseconds)
     let time = time2NimDuration(int hour, int minute, int second, int microsecond).duration2Time
     let delta = time2Duration(time - dur)
 
-    return PY_Time(value: delta)
+    return PY_Time(value: delta, kind: K_TIME)
 
 proc newPY_Time*(hour, minute, second: uint8, microsecond: uint32): PY_Time {.inline.} =
     return PY_Time(
         value: time2NimDuration(
             int hour, int minute, int second, int microsecond
-        )
+        ), kind: K_TIME
     )
 
 
-proc newPY_Time*(date: DateTime): PY_Time = PY_Time(value: date.toTime.time2Duration)
+proc newPY_Time*(date: DateTime): PY_Time = PY_Time(value: date.toTime.time2Duration, kind: K_TIME)
 
 proc `$`*(self: PY_ObjectND): string {.inline.} = "PY_ObjectND"
 proc `$`*(self: PY_Date): string {.inline.} = "Date(" & self.value.format(fmtDate) & ")"

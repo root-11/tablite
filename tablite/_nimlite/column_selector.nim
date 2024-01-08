@@ -187,8 +187,19 @@ mkCaster proc(v: string): ToDate = infer.inferDate(addr v).value
 mkCaster proc(v: string): ToDateTime = infer.inferDatetime(addr v).value
 mkCaster proc(v: string): ToTime = infer.inferTime(addr v)
 
+template obj2primCast[R](T1: typedesc, T2: typedesc, TR: typedesc[R], v: PY_ObjectND): R = T2.fnCast(TR)(T1(v).value)
+template obj2prim(v: PY_ObjectND) =
+    case v.kind:
+    of K_BOOLEAN: PY_Boolean.obj2primCast(bool, R, v)
+    of K_INT: PY_Int.obj2primCast(int, R, v)
+    of K_FLOAT: PY_Float.obj2primCast(float, R, v)
+    of K_STRING: PY_String.obj2primCast(string, R, v)
+    of K_DATE: PY_Date.obj2primCast(FromDate, R, v)
+    of K_DATETIME: PY_Date.obj2primCast(FromDateTime, R, v)
+    else: implement("PY_ObjectND." & $v.kind)
+
 mkCaster proc(v: PY_ObjectND): bool = implement("PY_ObjectND.fnCast.bool")
-mkCaster proc(v: PY_ObjectND): int = implement("PY_ObjectND.fnCast.int")
+mkCaster proc(v: PY_ObjectND): int = v.obj2prim()
 mkCaster proc(v: PY_ObjectND): float = implement("PY_ObjectND.fnCast.float")
 mkCaster proc(v: PY_ObjectND): string = implement("PY_ObjectND.fnCast.string")
 mkCaster proc(v: PY_ObjectND): ToDate = implement("PY_ObjectND.fnCast.ToDate")
@@ -696,8 +707,8 @@ when isMainModule and appType != "lib":
 
     pymodules.tabliteConfig().Config.pid = pid
 
-    # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(10), nimValueToPy(200)]}.toTable)
-    let columns = pymodules.builtins().dict({"A ": @[1, 22, 333]}.toTable)
+    let columns = pymodules.builtins().dict({"A ": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(10), nimValueToPy(200)]}.toTable)
+    # let columns = pymodules.builtins().dict({"A ": @[1, 22, 333]}.toTable)
     # let columns = pymodules.builtins().dict({"A ": @["1", "22", "333", ""]}.toTable)
     # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy("0"), nimValueToPy("10"), nimValueToPy("200")]}.toTable)
     let table = pymodules.tablite().Table(columns = columns)
@@ -707,7 +718,7 @@ when isMainModule and appType != "lib":
     let select_cols = builtins().list(@[
         newColumnSelectorInfo("A ", "int", false, opt.none[string]()),
         newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
-        # newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
+        newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "date", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "datetime", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "time", false, opt.none[string]()),
