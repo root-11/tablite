@@ -603,12 +603,16 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
     failed_column_data.add(reject_reason_name)
 
     if toSeq(is_correct_type.values).all(proc (x: bool): bool = x):
-        var tbl_pass_columns = collect(initTable()):
+        let tbl_pass_columns = collect(initTable()):
             for (desired_name, desired_info) in desired_column_map.pairs():
                 {desired_name: table[desired_info.original_name]}
 
+        let tbl_fail_columns = collect(initTable()):
+            for desired_name in failed_column_data:
+                {desired_name: newSeq[nimpy.PyObject]()}
+
         let tbl_pass = tablite().Table(columns = tbl_pass_columns)
-        let tbl_fail = tablite().Table(columns = failed_column_data)
+        let tbl_fail = tablite().Table(columns = tbl_fail_columns)
 
         return (tbl_pass, tbl_fail)
 
@@ -692,8 +696,8 @@ when isMainModule and appType != "lib":
     pymodules.tabliteConfig().Config.pid = pid
 
     # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(10), nimValueToPy(200)]}.toTable)
-    # let columns = pymodules.builtins().dict({"A ": @["1", "22", "333"]}.toTable)
-    let columns = pymodules.builtins().dict({"A ": @["1", "22", "333", ""]}.toTable)
+    let columns = pymodules.builtins().dict({"A ": @[1, 22, 333]}.toTable)
+    # let columns = pymodules.builtins().dict({"A ": @["1", "22", "333", ""]}.toTable)
     # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy("0"), nimValueToPy("10"), nimValueToPy("200")]}.toTable)
     let table = pymodules.tablite().Table(columns = columns)
 
