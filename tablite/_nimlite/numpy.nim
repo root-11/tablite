@@ -746,12 +746,10 @@ proc getPageTypes*(self: BaseNDArray): Table[PageTypes, int] =
         return DT_INT.toType(self.shape)
     of K_FLOAT32, K_FLOAT64:
         return DT_FLOAT.toType(self.shape)
-    of K_UNICODE: return DT_BOOL.toType(self.shape)
+    of K_UNICODE: return DT_STRING.toType(self.shape)
     of K_DATE: return DT_DATE.toType(self.shape)
     of K_DATETIME: return DT_DATETIME.toType(self.shape)
     of K_OBJECT: return ObjectNDArray(self).dtypes
-
-    corrupted()
 
 proc getPageTypes*(page: string): Table[PageTypes, int] = readNumpy(page).getPageTypes()
 proc getColumnTypes*(pages: openArray[string] | seq[string]): Table[PageTypes, int] =
