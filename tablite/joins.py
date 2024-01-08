@@ -328,15 +328,15 @@ def _sp_join(kind, T, other, left_keys, right_keys, left_columns, right_columns,
         result[revised_name] = second[name]
 
     if merge_keys is True:
-        result = _merge_keys(kind, T, _left,_right, left_keys, right_keys)
+        result = _merge_keys(kind, T, result, _left,_right, left_keys, right_keys)
     return result
 
-def _merge_keys(kind, T, left, right, left_keys, right_keys,):
+def _merge_keys(kind, T, result, left, right, left_keys, right_keys):
     if kind in ["inner", "cross"]:
         for right_name in right_keys:
             right_name = unique_name(right_name, T.columns)
-            if right_name in T.columns:
-                del T[right_name]
+            if right_name in result.columns:
+                del result[right_name]
     else:
         if kind == "outer":
             boolean_map = (left != -1)
@@ -347,8 +347,8 @@ def _merge_keys(kind, T, left, right, left_keys, right_keys,):
         
         for left_name, right_name in zip(left_keys,right_keys):
             right_name = unique_name(right_name, T.columns)
-            T = where(T, boolean_map, left_name, right_name, new=left_name)
-    return T
+            result = where(result, boolean_map, left_name, right_name, new=left_name)
+    return result
 
 
 # -----------------------
