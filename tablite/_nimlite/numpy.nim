@@ -819,10 +819,12 @@ proc save(self: BooleanNDArray | Int8NDArray | Int16NDArray | Int32NDArray | Int
     let fh = open(path, fmWrite)
 
     fh.writeNumpyHeader(dtype, uint elements)
-    when self is UnicodeNDArray:
-        discard fh.writeBuffer(addr buf[0], size * elements * self.size)
-    else:
-        discard fh.writeBuffer(addr buf[0], size * elements)
+
+    if buf.len > 0:
+        when self is UnicodeNDArray:
+            discard fh.writeBuffer(addr buf[0], size * elements * self.size)
+        else:
+            discard fh.writeBuffer(addr buf[0], size * elements)
 
     fh.close()
 

@@ -231,7 +231,7 @@ mkCaster proc(v: string): ToDate = infer.inferDate(addr v).value
 mkCaster proc(v: string): ToDateTime = infer.inferDatetime(addr v).value
 mkCaster proc(v: string): ToTime = infer.inferTime(addr v)
 
-template obj2primCast[R](T1: typedesc, T2: typedesc, TR: typedesc[R], v: PY_ObjectND): R = T2.fnCast(TR)(T1(v).value)
+template obj2primCast[R](T1: typedesc, T2: typedesc, TR: typedesc[R], v: PY_ObjectND) = return T2.fnCast(TR)(T1(v).value)
 template obj2prim(v: PY_ObjectND) =
     case v.kind:
     of K_BOOLEAN: PY_Boolean.obj2primCast(bool, R, v)
@@ -241,15 +241,15 @@ template obj2prim(v: PY_ObjectND) =
     of K_DATE: PY_Date.obj2primCast(FromDate, R, v)
     of K_DATETIME: PY_Date.obj2primCast(FromDateTime, R, v)
     of K_NONETYPE: raise newException(ValueError, "cannot cast")
-    else: implement("PY_ObjectND." & $v.kind)
+    else: implement("PY_ObjectND.obj2prim." & $v.kind)
 
 mkCaster proc(v: PY_ObjectND): bool = v.obj2prim()
 mkCaster proc(v: PY_ObjectND): int = v.obj2prim()
 mkCaster proc(v: PY_ObjectND): float = v.obj2prim()
 mkCaster proc(v: PY_ObjectND): string = v.obj2prim()
-mkCaster proc(v: PY_ObjectND): ToDate = implement("PY_ObjectND.fnCast.ToDate")
-mkCaster proc(v: PY_ObjectND): ToDateTime = implement("PY_ObjectND.fnCast.ToDateTime")
-mkCaster proc(v: PY_ObjectND): ToTime = implement("PY_ObjectND.fnCast.ToTime")
+mkCaster proc(v: PY_ObjectND): ToDate = v.obj2prim()
+mkCaster proc(v: PY_ObjectND): ToDateTime = v.obj2prim()
+mkCaster proc(v: PY_ObjectND): ToTime = v.obj2prim()
 
 # TODO: turn into macro
 proc castType[T: BooleanNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BooleanNDArray = page
@@ -368,18 +368,13 @@ proc finalizeSlice(indices: var seq[int], column_names: seq[string], infos: var 
 
     for col_name in column_names:
         let (src_path, dst_path, is_tmp) = cast_paths[col_name]
-
-        if not is_tmp:
-            pages.add((col_name, infos[col_name]))
-            continue
-
         var cast_data = readNumpy(string src_path)
 
         if cast_data.len != indices.len:
             cast_data = cast_data[indices]
             cast_data.putPage(infos, col_name, result_info[col_name])
             cast_data.save(string dst_path)
-        elif src_path != dst_path:
+        elif src_path != dst_path and is_tmp:
             moveFile(string src_path, string dst_path)
 
         pages.add((col_name, infos[col_name]))
@@ -412,11 +407,11 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
         for (k, v) in page_paths.pairs:
             let (wd, pid) = res_fail[k]
-            cast_paths_fail[k] = (Path v, wd / Path("pages") / Path($pid & ".npy"), true)
+            cast_paths_fail[k] = (Path v, wd / Path("pages") / Path($pid & ".npy"), false)
 
         let (rj_wd, rj_pid) = res_fail[reject_reason_name]
         let reject_reason_path = rj_wd / Path("pages") / Path($rj_pid & ".npy")
-        cast_paths_fail[reject_reason_name] = (reject_reason_path, reject_reason_path, true)
+        cast_paths_fail[reject_reason_name] = (reject_reason_path, reject_reason_path, false)
 
         for (desired_name, desired_info) in desired_column_map.pairs:
             let original_name = desired_info.original_name
@@ -460,12 +455,7 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
             var converted_page: BaseNDArray
 
-            template castPage(T: typedesc) = 
-                if not allow_empty:
-                    T(original_data).convertBasicPage(desired_type, valid_mask, reason_lst, allow_empty)
-                else:
-                    implement("castPage.convertComplexPage")
-                    # T(original_data).convertComplexPage(desired_type, valid_mask, reason_lst, allow_empty)
+            template castPage(T: typedesc) = T(original_data).convertBasicPage(desired_type, valid_mask, reason_lst, allow_empty)
 
             case original_data.kind:
             of K_BOOLEAN: converted_page = BooleanNDArray.castPage
@@ -498,6 +488,9 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
                 invalid_indices.add(i)
                 reason_lst[i]
+
+        echo ">>>page_infos_fail: " & $page_infos_fail
+        echo ">>>cast_paths_fail: " & $cast_paths_fail
 
         valid_indices.finalizeSlice(toSeq(desired_column_map.keys), page_infos_pass, cast_paths_pass, pages_pass, res_pass)
         invalid_indices.finalizeSlice(toSeq(columns.keys), page_infos_fail, cast_paths_fail, pages_fail, res_fail)
@@ -760,10 +753,10 @@ when isMainModule and appType != "lib":
     discard table.show(dtype=true)
 
     let select_cols = builtins().list(@[
-        newColumnSelectorInfo("A ", "int", false, opt.none[string]()),
-        newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
+        newColumnSelectorInfo("A ", "int", true, opt.none[string]()),
+        # newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "bool", false, opt.none[string]()),
-        newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
+        # newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "date", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "datetime", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "time", false, opt.none[string]()),
