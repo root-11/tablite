@@ -154,11 +154,60 @@ proc `[]`(self: UnicodeNDArray, slice: seq[int] | openArray[int]): UnicodeNDArra
     for (i, j) in enumerate(slice):
         buf[i * self.size].addr.copyMem(addr self.buf[j * self.size], self.size)
 
-
     return UnicodeNDArray(shape: @[slice.len], size: self.size, buf: buf, kind: K_UNICODE)
 
-proc `[]`(self: ObjectNDArray, slice: seq[int] | openArray[int]): ObjectNDArray =
-    implement("ObjectNDArray[]")
+proc `[]`(self: ObjectNDArray, slice: seq[int] | openArray[int]): BaseNDArray =
+    var dtypes = initTable[PageTypes, int]()
+    let buf = collect:
+        for i in slice:
+            let el = self.buf[i]
+            var dt: PageTypes
+
+            case el.kind:
+            of K_BOOLEAN: dt = DT_BOOL
+            of K_INT: dt = DT_INT
+            of K_NONETYPE: dt = DT_NONE
+            of K_FLOAT: dt = DT_FLOAT
+            of K_STRING: dt = DT_STRING
+            of K_DATE: dt = DT_DATE
+            of K_TIME: dt = DT_TIME
+            of K_DATETIME: dt = DT_DATETIME
+
+            if unlikely(not (dt in dtypes)):
+                dtypes[dt] = 0
+
+            dtypes[dt] = dtypes[dt] + 1
+
+            el
+
+    let typeList = toSeq(dtypes.keys)
+    let shape = @[buf.len]
+
+    if typeList.len == 1:
+        let baseType = typeList[0]
+
+        case baseType:
+        of DT_BOOL:
+            let newBuf = collect: (for v in buf: PY_Boolean(v).value)
+            return BooleanNDArray(shape: shape, buf: newBuf, kind: K_BOOLEAN)
+        of DT_INT:
+            let newBuf = collect: (for v in buf: int64 PY_Int(v).value)
+            return Int64NDArray(shape: shape, buf: newBuf, kind: K_INT64)
+        of DT_FLOAT:
+            let newBuf = collect: (for v in buf: float64 PY_Float(v).value)
+            return Float64NDArray(shape: shape, buf: newBuf, kind: K_FLOAT64)
+        of DT_DATE:
+            let newBuf = collect: (for v in buf: PY_Date(v).value)
+            return DateNDArray(shape: shape, buf: newBuf, kind: K_DATE)
+        of DT_DATETIME:
+            let newBuf = collect: (for v in buf: PY_DateTime(v).value)
+            return DateTimeNDArray(shape: shape, buf: newBuf, kind: K_DATETIME)
+        of DT_STRING:
+            let newBuf = collect: (for v in buf: PY_String(v).value)
+            return newBuf.newNDArray
+        of DT_NONE, DT_TIME: discard
+
+    return ObjectNDArray(shape: shape, buf: buf, kind: self.kind, dtypes: dtypes)
 
 proc primitiveSlice[T: BooleanNDArray | Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray | Float32NDArray | Float64NDArray | DateNDArray | DateTimeNDArray](self: T, slice: seq[int] | openArray[int]): T =
     echo $self
@@ -736,20 +785,16 @@ proc getColumnLen*(pages: openArray[string]): int =
 
     return acc
 
-template toType(dtype: PageTypes, shape: Shape): Table[PageTypes, int] =
-    {dtype: calcShapeElements(shape)}.toTable
-
+template toType(dtype: PageTypes, shape: Shape): Table[PageTypes, int] = {dtype: calcShapeElements(shape)}.toTable
 proc getPageTypes*(self: BaseNDArray): Table[PageTypes, int] =
     case self.kind:
-    of K_BOOLEAN: return DT_BOOL.toType(self.shape)
-    of K_INT8, K_INT16, K_INT32, K_INT64:
-        return DT_INT.toType(self.shape)
-    of K_FLOAT32, K_FLOAT64:
-        return DT_FLOAT.toType(self.shape)
-    of K_UNICODE: return DT_STRING.toType(self.shape)
-    of K_DATE: return DT_DATE.toType(self.shape)
-    of K_DATETIME: return DT_DATETIME.toType(self.shape)
-    of K_OBJECT: return ObjectNDArray(self).dtypes
+    of K_BOOLEAN: DT_BOOL.toType(self.shape)
+    of K_INT8, K_INT16, K_INT32, K_INT64: DT_INT.toType(self.shape)
+    of K_FLOAT32, K_FLOAT64: DT_FLOAT.toType(self.shape)
+    of K_UNICODE: DT_STRING.toType(self.shape)
+    of K_DATE: DT_DATE.toType(self.shape)
+    of K_DATETIME: DT_DATETIME.toType(self.shape)
+    of K_OBJECT: ObjectNDArray(self).dtypes
 
 proc getPageTypes*(page: string): Table[PageTypes, int] = readNumpy(page).getPageTypes()
 proc getColumnTypes*(pages: openArray[string] | seq[string]): Table[PageTypes, int] =
