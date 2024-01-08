@@ -36,6 +36,7 @@ proc toPageType(name: string): PageTypes =
 
 template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], reason_lst: var seq[string], conv: proc): T =
     when T is UnicodeNDArray:
+        echo ">>>unicode array"
         var longest = 1
         let strings = collect:
             for (i, v) in enumerate(page.pgIter):
@@ -707,6 +708,7 @@ when isMainModule and appType != "lib":
     let select_cols = builtins().list(@[
         # newColumnSelectorInfo("A ", "int", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
+        # newColumnSelectorInfo("A ", "bool", false, opt.none[string]()),
         newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "date", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "datetime", false, opt.none[string]()),
