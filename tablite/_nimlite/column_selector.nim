@@ -314,7 +314,6 @@ proc finalizeSlice(indices: var seq[int], column_names: seq[string], infos: var 
         let (src_path, dst_path, is_tmp) = cast_paths[col_name]
 
         if not is_tmp:
-            echo ">>>dont finalize: " & col_name & " | src_path: " & (string src_path) & " | dst_path: " & (string dst_path)
             pages.add((col_name, infos[col_name]))
             continue
 
@@ -449,9 +448,6 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
                 invalid_indices.add(i)
                 reason_lst[i]
 
-        echo ">>>invalid_indices: " & $invalid_indices
-        echo ">>>reason_lst: " & $reason_lst
-
         valid_indices.finalizeSlice(toSeq(desired_column_map.keys), page_infos_pass, cast_paths_pass, pages_pass, res_pass)
         invalid_indices.finalizeSlice(toSeq(columns.keys), page_infos_fail, cast_paths_fail, pages_fail, res_fail)
 
@@ -464,8 +460,6 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
             page.putPage(page_infos_fail, reject_reason_name, res_fail[reject_reason_name])
 
             pages_fail.add((reject_reason_name, page_infos_fail[reject_reason_name]))
-
-        echo pages_fail
 
     finally:
         for (cast_path, _, is_tmp) in cast_paths_pass.values:

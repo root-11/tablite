@@ -128,7 +128,8 @@ proc `[]`(self: UnicodeNDArray, slice: seq[int] | openArray[int]): UnicodeNDArra
     for (i, j) in enumerate(slice):
         buf[i * self.size].addr.copyMem(addr self.buf[j * self.size], self.size)
 
-    return UnicodeNDArray(shape: @[buf.len], size: self.size, buf: buf)
+
+    return UnicodeNDArray(shape: @[slice.len], size: self.size, buf: buf)
 
 proc `[]`(self: ObjectNDArray, slice: seq[int] | openArray[int]): ObjectNDArray =
     implement("ObjectNDArray[]")
