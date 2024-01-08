@@ -450,16 +450,17 @@ def test_join_with_key_merge():
     # | 5|None|None|   6|  16|
     # | 6|None|None|   7|  17|
     # +==+====+====+====+====+
+    assert list(c.columns.keys()) == ["A", "B", "C", "D"]
     assert c["A"] == [1,2,3,None,5,None,None]
     assert c['C'] == [1,2,3,None,None,6,7]
 
     d = c.copy().merge("A", "C", new="E", criteria=[v != None for v in c['A']])
-    assert "A" not in d.columns
-    assert "C" not in d.columns
+    assert list(d.columns.keys()) == list("BDE")
     assert d["E"] == [1,2,3,None,5,6,7]
 
 
     e = a.join(b,left_keys=['A'], right_keys=['C'], left_columns=['A', 'B'], right_columns=['C','D'], kind="outer", merge_keys=True)
+    assert list(e.columns.keys()) == list("ABD")
     assert e["A"] == [1,2,3,None,5,6,7]
     
 
