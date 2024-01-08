@@ -366,10 +366,13 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
             let original_name = desired_info.original_name
             let original_path = Path page_paths[original_name]
             let sz_data = getPageLen(string original_path)
+            let original_data = readNumpy(string original_path)
 
             assert valid_mask.len >= sz_data, "Invalid mask size"
 
             let already_cast = is_correct_type[desired_name]
+
+            original_data.putPage(page_infos_fail, original_name, original_path.toColSliceInfo)
 
             if already_cast:
                 # we already know the type, just set the mask
@@ -380,6 +383,7 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
                     valid_mask[i] = VALID
 
                 cast_paths_pass[desired_name] = (original_path, original_path, false)
+                original_data.putPage(page_infos_pass, desired_name, original_path.toColSliceInfo)
                 continue
 
             var cast_path: Path
@@ -395,14 +399,11 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
             cast_paths_pass[desired_name] = (cast_path, dst_path, true)
 
-            let original_data = readNumpy(string original_path)
             let desired_type = desired_info.`type`
             let allow_empty = desired_info.allow_empty
 
             var converted_page: BaseNDArray
 
-            original_data.putPage(page_infos_fail, original_name, original_path.toColSliceInfo) 
-            
             if original_data of BooleanNDArray:
                 converted_page = BooleanNDArray(original_data).convertBasicPage(desired_type, valid_mask, reason_lst)
             elif original_data of Int8NDArray:
@@ -705,7 +706,7 @@ when isMainModule and appType != "lib":
 
     let select_cols = builtins().list(@[
         newColumnSelectorInfo("A ", "int", false, opt.none[string]()),
-        # newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
+        newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "date", false, opt.none[string]()),
         # newColumnSelectorInfo("A ", "datetime", false, opt.none[string]()),
