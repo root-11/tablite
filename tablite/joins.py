@@ -10,8 +10,6 @@ from tablite.base import Table, Column
 from tablite.utils import sub_cls_check, unique_name, type_check
 from tablite.mp_utils import select_processing_method
 from mplite import Task, TaskManager
-
-
 from tqdm import tqdm as _tqdm
 
 
@@ -151,7 +149,7 @@ def _vpus(tasks):
     else:
         memory_per_join = 300e6
         max_vpus = psutil.virtual_memory().free // memory_per_join
-        return min(Config.vpus, len(tasks), max_vpus)
+        return int(min(Config.vpus, len(tasks), max_vpus))
 
 
 def _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns):
@@ -221,7 +219,7 @@ def _sp_left_mapping(T, other, left_keys, right_keys, tqdm, pbar):
                 _left.append(left_ix)
                 _right.append(right_ix)
 
-    _left, _right = np.array(_left), np.array(_right)  # compress memory of python list to array.
+    _left, _right = np.array(_left, dtype=int), np.array(_right, dtype=int)
     return _left,_right
 
 
@@ -249,7 +247,7 @@ def _sp_inner_mapping(T, other, left_keys, right_keys, tqdm, pbar):
                 _left.append(left_ix)
                 _right.append(right_ix)
 
-    _left, _right = np.array(_left), np.array(_right)
+    _left, _right = np.array(_left, dtype=int), np.array(_right, dtype=int)
     return _left, _right
 
 
@@ -281,7 +279,7 @@ def _sp_outer_mapping(T, other, left_keys, right_keys, tqdm, pbar):
             _left.append(-1)
             _right.append(right_ix)
 
-    _left, _right = np.array(_left), np.array(_right)
+    _left, _right = np.array(_left, dtype=int), np.array(_right, dtype=int)
     return _left, _right
 
 
@@ -298,7 +296,7 @@ def _sp_cross_mapping(T, other, left_keys, right_keys, tqdm, pbar):
 
     """
     _left, _right = zip(*product(range(len(T)), range(len(other))))
-    _left, _right = np.array(_left), np.array(_right)
+    _left, _right = np.array(_left, dtype=int), np.array(_right, dtype=int)
     return _left,_right
 
 
