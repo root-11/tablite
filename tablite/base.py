@@ -1326,12 +1326,14 @@ class Table(object):
         ----------------------------------------
         ```
         """
+        if isinstance(path, str):
+            path = Path(path)
         type_check(path, Path)
         if path.is_dir():
             raise TypeError(f"filename needed: {path}")
         if path.suffix != ".tpz":
-            path += ".tpz"
-
+            path = path.parent / (path.parts[-1] + ".tpz")
+        
         # create yaml document
         _page_counter = 0
         d = {}
