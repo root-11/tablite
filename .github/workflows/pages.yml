@@ -61,6 +61,9 @@ jobs:
         id: get_tag_or_branch
         run: |
           echo "tag_or_branch=$(echo ${GITHUB_REF#refs/*/})" >> $GITHUB_OUTPUT
+      - name: Replace H1 to H2, H2 to H3, ... in all Juptyer Notebooks
+        run: |
+          find . -name "*.ipynb" -type f -exec sed -i 's/"#/"##/' {} \;
       - name: Deploy with Mike
         run: |
           mike deploy --push --update-aliases ${{ steps.get_tag_or_branch.outputs.tag_or_branch }} latest
