@@ -7,12 +7,13 @@ import shutil
 import logging
 import warnings
 import zipfile
-from tablite.utils import load_numpy, update_access_time
-import numpy as np
-from tqdm import tqdm as _tqdm
+from typing import List
 from pathlib import Path
 from itertools import count, chain, product, repeat
 from collections import defaultdict, Counter
+import numpy as np
+from tablite.utils import load_numpy, update_access_time
+from tqdm import tqdm as _tqdm
 
 from tablite.datatypes import (
     DataTypes,
@@ -351,7 +352,7 @@ class Column(object):
         start, end = 0, 0
         for page in self.pages:
             start, end = end, end + page.len
-            yield start, end, page.get()
+            yield start, end, page
 
     def __getitem__(self, item):  # USER FUNCTION.
         """gets numpy array.
@@ -617,7 +618,7 @@ class Column(object):
                 new_page = Page(self.path, new_data)
                 self.pages[index] = new_page
 
-    def _del_by_slice(self, key):
+    def _del_by_slice(self, key:slice) -> None:
         """handles the following case:
         ```
         del column[m:n:o]
@@ -650,7 +651,7 @@ class Column(object):
         new_arrays = self._paginate(pruned)
         self.pages = head + [Page(self.path, arr) for arr in new_arrays] + tail
 
-    def get_by_indices(self, indices):
+    def get_by_indices(self, indices: List[int] | np.ndarray) -> np.ndarray:
         """retrieves values from column given a set of indices.
 
         Args:
@@ -672,9 +673,11 @@ class Column(object):
         dtypes = set()
         values = np.empty(indices.shape, dtype=object)  # placeholder for the indexed values.
 
-        for start, end, data in self.iter_by_page():
+        for start, end, page in self.iter_by_page():
             range_match = np.asarray(((indices >= start) & (indices < end)) | (indices == -1)).nonzero()[0]
             if len(range_match):
+                # only fetch the data if there's a range match!
+                data = page.get() 
                 sub_index = np.take(indices, range_match)
                 # sub_index2 otherwise will raise index error where len(data) > (-1 - start)
                 # so the clause below is required:
