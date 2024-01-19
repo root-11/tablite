@@ -72,6 +72,9 @@ plugins:
   - mike
   - same-dir
   - awesome-pages
+  - gen-files:
+      scripts:
+        - reference.py
 
 extra:
   version:
