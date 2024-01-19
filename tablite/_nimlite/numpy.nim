@@ -83,7 +83,7 @@ type UnicodeNDArray* = ref object of BaseNDArray
 
 type ObjectNDArray* = ref object of BaseNDArray
     buf*: seq[PyObjectND]
-    dtypes*: Table[PageTypes, int]
+    dtypes*: Table[KindObjectND, int]
     dtype* = "|O8"
 
 proc pageKind*(_: typedesc[BooleanNDArray]): KindNDArray = K_BOOLEAN
@@ -155,21 +155,11 @@ proc `[]`(self: UnicodeNDArray, slice: seq[int] | openArray[int]): UnicodeNDArra
     return UnicodeNDArray(shape: @[slice.len], size: self.size, buf: buf, kind: K_UNICODE)
 
 proc `[]`(self: ObjectNDArray, slice: seq[int] | openArray[int]): BaseNDArray =
-    var dtypes = initTable[PageTypes, int]()
+    var dtypes = initTable[KindObjectND, int]()
     let buf = collect:
         for i in slice:
             let el = self.buf[i]
-            var dt: PageTypes
-
-            case el.kind:
-            of K_BOOLEAN: dt = DT_BOOL
-            of K_INT: dt = DT_INT
-            of K_NONETYPE: dt = DT_NONE
-            of K_FLOAT: dt = DT_FLOAT
-            of K_STRING: dt = DT_STRING
-            of K_DATE: dt = DT_DATE
-            of K_TIME: dt = DT_TIME
-            of K_DATETIME: dt = DT_DATETIME
+            let dt = el.kind
 
             if unlikely(not (dt in dtypes)):
                 dtypes[dt] = 0
@@ -186,25 +176,25 @@ proc `[]`(self: ObjectNDArray, slice: seq[int] | openArray[int]): BaseNDArray =
         let baseType = typeList[0]
 
         case baseType:
-        of DT_BOOL:
+        of K_BOOLEAN:
             let newBuf = collect: (for v in buf: PY_Boolean(v).value)
             return BooleanNDArray(shape: shape, buf: newBuf, kind: K_BOOLEAN)
-        of DT_INT:
+        of K_INT:
             let newBuf = collect: (for v in buf: int64 PY_Int(v).value)
             return Int64NDArray(shape: shape, buf: newBuf, kind: K_INT64)
-        of DT_FLOAT:
+        of K_FLOAT:
             let newBuf = collect: (for v in buf: float64 PY_Float(v).value)
             return Float64NDArray(shape: shape, buf: newBuf, kind: K_FLOAT64)
-        of DT_DATE:
+        of K_DATE:
             let newBuf = collect: (for v in buf: PY_Date(v).value)
             return DateNDArray(shape: shape, buf: newBuf, kind: K_DATE)
-        of DT_DATETIME:
+        of K_DATETIME:
             let newBuf = collect: (for v in buf: PY_DateTime(v).value)
             return DateTimeNDArray(shape: shape, buf: newBuf, kind: K_DATETIME)
-        of DT_STRING:
+        of K_STRING:
             let newBuf = collect: (for v in buf: PY_String(v).value)
             return newBuf.newNDArray
-        of DT_NONE, DT_TIME: 
+        of K_NONETYPE, K_TIME: 
             # nones and times are always treated as objects
             discard
 
@@ -784,20 +774,20 @@ proc getColumnLen*(pages: openArray[string]): int =
 
     return acc
 
-template toType(dtype: PageTypes, shape: Shape): Table[PageTypes, int] = {dtype: calcShapeElements(shape)}.toTable
-proc getPageTypes*(self: BaseNDArray): Table[PageTypes, int] =
+template toType(dtype: KindObjectND, shape: Shape): Table[KindObjectND, int] = {dtype: calcShapeElements(shape)}.toTable
+proc getPageTypes*(self: BaseNDArray): Table[KindObjectND, int] =
     case self.kind:
-    of K_BOOLEAN: DT_BOOL.toType(self.shape)
-    of K_INT8, K_INT16, K_INT32, K_INT64: DT_INT.toType(self.shape)
-    of K_FLOAT32, K_FLOAT64: DT_FLOAT.toType(self.shape)
-    of K_UNICODE: DT_STRING.toType(self.shape)
-    of K_DATE: DT_DATE.toType(self.shape)
-    of K_DATETIME: DT_DATETIME.toType(self.shape)
+    of K_BOOLEAN: K_BOOLEAN.toType(self.shape)
+    of K_INT8, K_INT16, K_INT32, K_INT64: K_INT.toType(self.shape)
+    of K_FLOAT32, K_FLOAT64: K_FLOAT.toType(self.shape)
+    of K_UNICODE: K_STRING.toType(self.shape)
+    of K_DATE: K_DATE.toType(self.shape)
+    of K_DATETIME: K_DATETIME.toType(self.shape)
     of K_OBJECT: ObjectNDArray(self).dtypes
 
-proc getPageTypes*(page: string): Table[PageTypes, int] = readNumpy(page).getPageTypes()
-proc getColumnTypes*(pages: openArray[string] | seq[string]): Table[PageTypes, int] =
-    var dtypes = initTable[PageTypes, int]()
+proc getPageTypes*(page: string): Table[KindObjectND, int] = readNumpy(page).getPageTypes()
+proc getColumnTypes*(pages: openArray[string] | seq[string]): Table[KindObjectND, int] =
+    var dtypes = initTable[KindObjectND, int]()
 
     for p in pages:
         for (t, v) in getPageTypes(p).pairs():
@@ -897,20 +887,20 @@ proc save*(self: BaseNDArray, path: string): void =
     of K_DATETIME: DateTimeNDArray(self).save(path)
     of K_OBJECT: ObjectNDArray(self).save(path)
 
-proc type2PyType(`type`: PageTypes): nimpy.PyObject =
+proc type2PyType(`type`: KindObjectND): nimpy.PyObject =
     case `type`:
-    of DT_BOOL: return pymodules.builtins().getattr("bool")     # nim's word reservation behaviour is stupid
-    of DT_INT: return pymodules.builtins().getattr("int")       # ditto
-    of DT_FLOAT: return pymodules.builtins().getattr("float")   # ditto
-    of DT_STRING: return pymodules.builtins().str
-    of DT_NONE: return pymodules.PyNoneClass
-    of DT_DATE: return pymodules.datetime().date
-    of DT_TIME: return pymodules.datetime().time
-    of DT_DATETIME: return pymodules.datetime().datetime
+    of K_BOOLEAN: return pymodules.builtins().getattr("bool")     # nim's word reservation behaviour is stupid
+    of K_INT: return pymodules.builtins().getattr("int")       # ditto
+    of K_FLOAT: return pymodules.builtins().getattr("float")   # ditto
+    of K_STRING: return pymodules.builtins().str
+    of K_NONETYPE: return pymodules.PyNoneClass
+    of K_DATE: return pymodules.datetime().date
+    of K_TIME: return pymodules.datetime().time
+    of K_DATETIME: return pymodules.datetime().datetime
 
     implement("type2PyType.'" & $ `type` & "'")
 
-proc newPyPage*(id: int, path: string, len: int, dtypes: Table[PageTypes, int]): nimpy.PyObject =
+proc newPyPage*(id: int, path: string, len: int, dtypes: Table[KindObjectND, int]): nimpy.PyObject =
     let pyDtypes = collect(initTable()):
         for (dt, n) in dtypes.pairs:
             { dt.type2PyType: n }
