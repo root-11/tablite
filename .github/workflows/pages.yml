@@ -54,9 +54,9 @@ jobs:
           python --version
           python -m pip list
       - name: Set Env for tablite Import
-        uses: allenevans/set-env@v2.0.0
+        uses: allenevans/set-env@v3.0.0
         with:
-          USE_NIMPORTER: false
+          USE_NIMPORTER: 'false'
       - name: Configure Git user
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
