@@ -21,7 +21,6 @@ jobs:
     environment:
       name: github-pages
       url: https://root-11.github.io/tablite/
-      # url: https://Jetman80.github.io/tablite/
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -46,8 +45,19 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: pip
-          cache-dependency-path: requirements_mkdocs.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements_mkdocs.txt
+      - name: Install Nim Lang
+        uses: jiro4989/setup-nim-action@v1
+        with:
+          nim-version: "2.0.0"
+      - name: Nimble Install dependencies
+        run: |
+          nimble -y refresh
+          nimble -y install nimpy argparse
       - name: Install PIPs
+        run: python -m pip install -r requirements.txt
         run: python -m pip install -r requirements_mkdocs.txt
       - name: Show Python version and PIPs
         run: |
@@ -57,6 +67,7 @@ jobs:
         uses: allenevans/set-env@v3.0.0
         with:
           USE_NIMPORTER: 'false'
+          PYTHONPATH: '.:tablite'
       - name: Configure Git user
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
