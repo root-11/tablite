@@ -46,6 +46,17 @@ type Py_Dict* = ref object of Py_Object
 
 let PY_None* = PY_NoneType(kind: KindObjectND.K_NONETYPE)
 
+proc toRepr*(self: PY_ObjectND): string {.inline.} =
+    case self.kind:
+    of K_NONETYPE: "None"
+    of K_BOOLEAN: $PY_Boolean(self).value
+    of K_INT: $PY_Int(self).value
+    of K_FLOAT: $PY_Float(self).value
+    of K_STRING: $PY_String(self).value
+    of K_DATE: PY_Date(self).value.format(fmtDate)
+    of K_TIME: $PY_Time(self).value
+    of K_DATETIME: PY_DateTime(self).value.format(fmtDateTime)
+
 proc newPY_Date*(year: uint16, month, day: uint8): PY_Date {.inline.} = PY_Date(value: date2NimDatetime(int year, int month, int day), kind: K_DATE)
 
 proc newPY_DateTime*(date: PY_Date, time: PY_Time): PY_DateTime = PY_DateTime(value: date.value + time.value, kind: K_DATETIME)
@@ -77,9 +88,9 @@ proc newPY_Time*(hour, minute, second: uint8, microsecond: uint32): PY_Time {.in
 proc newPY_Time*(date: DateTime): PY_Time = PY_Time(value: date.toTime.time2Duration, kind: K_TIME)
 
 proc `$`*(self: PY_ObjectND): string {.inline.} = "PY_ObjectND"
-proc `$`*(self: PY_Date): string {.inline.} = "Date(" & self.value.format(fmtDate) & ")"
-proc `$`*(self: PY_Time): string {.inline.} = "Time(" & $self.value & ")"
-proc `$`*(self: PY_DateTime): string {.inline.} = "DateTime(" & self.value.format(fmtDateTime) & ")"
+proc `$`*(self: PY_Date): string {.inline.} = "Date(" & self.toRepr & ")"
+proc `$`*(self: PY_Time): string {.inline.} = "Time(" & self.toRepr & ")"
+proc `$`*(self: PY_DateTime): string {.inline.} = "DateTime(" & self.toRepr & ")"
 
 proc calcShapeElements*(shape: var Shape): int {.inline.} =
     var elements = 1

@@ -1,22 +1,11 @@
 import std/[sequtils, strutils, sugar, tables, endians, enumerate]
 import pytypes, pickleproto, utils
 
-
-type PageTypes* = enum
-    DT_NONE,
-    DT_BOOL,
-    DT_INT,
-    DT_FLOAT,
-    DT_STRING,
-    DT_DATE,
-    DT_TIME,
-    DT_DATETIME
-
 type IterPickle = iterator(): uint8
 type Stack = seq[PY_Object]
 type MetaStack = seq[Stack]
 type Memo = Table[int, PY_Object]
-type ObjectPage = (Shape, seq[PY_ObjectND], Table[PageTypes, int])
+type ObjectPage = (Shape, seq[PY_ObjectND], Table[KindObjectND, int])
 
 type ProtoPickle = ref object of PY_Object
     value: int
@@ -507,20 +496,20 @@ proc unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack: var
         of PKL_BINGET: iter.loadBinGet(stack, memo)
         else: raise newException(Exception, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
 
-proc getType(self: PY_ObjectND): PageTypes =
+proc getType(self: PY_ObjectND): KindObjectND =
     case self.kind:
-    of K_NONETYPE: return DT_NONE
-    of K_BOOLEAN: return DT_BOOL
-    of K_INT: return DT_INT
-    of K_FLOAT: return DT_FLOAT
-    of K_STRING: return DT_STRING
-    of K_DATE: return DT_DATE
-    of K_TIME: return DT_TIME
-    of K_DATETIME: return DT_DATETIME
+    of K_NONETYPE: return K_NONETYPE
+    of K_BOOLEAN: return K_BOOLEAN
+    of K_INT: return K_INT
+    of K_FLOAT: return K_FLOAT
+    of K_STRING: return K_STRING
+    of K_DATE: return K_DATE
+    of K_TIME: return K_TIME
+    of K_DATETIME: return K_DATETIME
 
 proc toPage(arr: PY_NpMultiArray): ObjectPage =
     var buf = newSeqOfCap[PY_ObjectND](arr.elems.len)
-    var dtypes = initTable[PageTypes, int]()
+    var dtypes = initTable[KindObjectND, int]()
 
     for (i, e) in enumerate(arr.elems):
         let obj = PY_ObjectND(e)

@@ -8,7 +8,6 @@ import pymodules as pymodules
 import pytypes
 import numpy
 import infertypes as infer
-from unpickling import PageTypes
 import typetraits
 import dateutils
 
@@ -16,25 +15,46 @@ type ColSliceInfo = (Path, int)
 type ColInfo = Table[string, ColSliceInfo]
 type DesiredColumnInfo = object
     original_name: string
-    `type`: PageTypes
+    `type`: KindObjectND
     allow_empty: bool
 type Mask = enum
     INVALID = -1
     UNUSED = 0
     VALID = 1
 
-proc toPageType(name: string): PageTypes =
+proc toPageType(name: string): KindObjectND =
     case name.toLower():
-    of "int": return PageTypes.DT_INT
-    of "float": return PageTypes.DT_FLOAT
-    of "bool": return PageTypes.DT_BOOL
-    of "str": return PageTypes.DT_STRING
-    of "date": return PageTypes.DT_DATE
-    of "time": return PageTypes.DT_TIME
-    of "datetime": return PageTypes.DT_DATETIME
+    of "int": return KindObjectND.K_INT
+    of "float": return KindObjectND.K_FLOAT
+    of "bool": return KindObjectND.K_BOOLEAN
+    of "str": return KindObjectND.K_STRING
+    of "date": return KindObjectND.K_DATE
+    of "time": return KindObjectND.K_TIME
+    of "datetime": return KindObjectND.K_DATETIME
     else: raise newException(FieldDefect, "unsupported page type: '" & name & "'")
 
-template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], reason_lst: var seq[string], conv: proc, allow_empty: bool): T =
+template makePage[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[Mask], reason_lst: var seq[string], conv: proc, allow_empty: bool, original_name: string, desired_name: string, desired_type: KindObjectND): T =
+    template getTypeUserName(t: KindObjectND): string =
+        case t:
+        of K_BOOLEAN: "bool"
+        of K_INT: "int"
+        of K_FLOAT: "float"
+        of K_STRING: "str"
+        of K_DATE: "date"
+        of K_TIME: "time"
+        of K_DATETIME: "datetime"
+        of K_NONETYPE: "NoneType"
+    
+    template createCastErrorReason(v: string, kind: KindObjectND): string =
+        "Cannot cast '" & v & "' from '" & original_name & "[" & getTypeUserName(kind) & "]' to '" & desired_name & "[" & getTypeUserName(desired_type) & "]'."
+    
+    template createNoneErrorReason(): string =
+        "'" & original_name & "' cannot be empty in '" & desired_name & "[" & getTypeUserName(desired_type) & "]'."
+
+    template createEmptyErrorReason(): string =
+        "'" & original_name & "' cannot be empty string in '" & desired_name & "[" & getTypeUserName(desired_type) & "]'."
+
+
     when T is UnicodeNDArray:
         var canBeNone: bool
         var isObjectPage: bool
@@ -45,8 +65,8 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
         of K_OBJECT:
             let types = page.getPageTypes()
 
-            if DT_NONE in types:
-                if likely(types[DT_NONE] > 0):
+            if K_NONETYPE in types:
+                if likely(types[K_NONETYPE] > 0):
                     canBeNone = true
 
             isObjectPage = true
@@ -64,7 +84,7 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
                         when v is string:
                             if v.len == 0:
                                 mask[i] = Mask.INVALID
-                                reason_lst[i] = "Empty string not allowed"
+                                reason_lst[i] = createEmptyErrorReason()
                                 continue
                     else:
                         when v is PY_ObjectND:
@@ -72,11 +92,11 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
                             of K_STRING:
                                 if PY_String(v).value.len == 0:
                                     mask[i] = Mask.INVALID
-                                    reason_lst[i] = "Empty string not allowed"
+                                    reason_lst[i] = createEmptyErrorReason()
                                     continue
                             of K_NONETYPE:
                                 mask[i] = Mask.INVALID
-                                reason_lst[i] = "Empty not allowed"
+                                reason_lst[i] = createNoneErrorReason()
                                 continue
                             else:
                                 discard
@@ -89,7 +109,18 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
                     mask[i] = Mask.VALID
                 except ValueError:
                     mask[i] = Mask.INVALID
-                    reason_lst[i] = "Cannot cast"
+
+                    var kind {.noinit.}: KindObjectND
+                    var strRepr {.noinit.}: string
+
+                    when v is PY_ObjectND:
+                        kind = v.kind
+                        strRepr = v.toRepr
+                    else:
+                        strRepr = $v
+                        implement("other")
+
+                    reason_lst[i] = createCastErrorReason(strRepr, kind)
 
                     res = newSeq[Rune]()
                     continue
@@ -108,12 +139,38 @@ template makePage[T: typed](dt: typedesc[T], page: typed, mask: var seq[Mask], r
             for (i, v) in enumerate(page.pgIter):
                 var res = dt.default()
 
+                when v is PY_ObjectND:
+                    case v.kind:
+                    of K_NONETYPE:
+                        if not allow_empty:
+                            reason_lst[i] = createNoneErrorReason()
+                            mask[i] = Mask.INVALID
+                            continue
+                    of K_STRING:
+                        if not allow_empty and PY_String(v).value.len == 0:
+                            reason_lst[i] = createNoneErrorReason()
+                            mask[i] = Mask.INVALID
+                            continue
+                    else:
+                        discard
+
                 try:
                     res = conv(v)
                     mask[i] = Mask.VALID
                 except ValueError:
                     mask[i] = Mask.INVALID
-                    reason_lst[i] = "Cannot cast"
+
+                    var kind {.noinit.}: KindObjectND
+                    var strRepr {.noinit.}: string
+
+                    when v is PY_ObjectND:
+                        kind = v.kind
+                        strRepr = v.toRepr
+                    else:
+                        strRepr = $v
+                        implement("other")
+
+                    reason_lst[i] = createCastErrorReason(strRepr, kind)
                     continue
 
                 res
@@ -171,14 +228,6 @@ proc newMkCaster(caster: NimNode): NimNode =
     let makerProc = newProc(newIdentNode("fnCast"), params = [newNimNode(nnkProcTy), paramsT, paramsR], body = subProc)
 
     return makerProc
-
-macro tdesc(T: typedesc[BooleanNDArray]): typedesc = bindSym(bool.name)
-macro tdesc(_: typedesc[UnicodeNDArray]): typedesc = bindSym(string.name)
-macro tdesc(_: typedesc[BooleanNDArray | UnicodeNDArray | Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray]): typedesc = bindSym(int.name)
-macro tdesc(_: typedesc[Float32NDArray | Float64NDArray]): typedesc = bindSym(float.name)
-macro tdesc(_: typedesc[DateNDArray]): typedesc = bindSym(FromDate.name)
-macro tdesc(_: typedesc[DateTimeNDArray]): typedesc = bindSym(FromDateTime.name)
-macro tdesc(_: typedesc[ObjectNDArray]): typedesc = bindSym(PY_ObjectND.name)
 
 macro mkCaster(caster: untyped) = newMkCaster(caster)
 macro mkCasters(converters: untyped) =
@@ -297,35 +346,33 @@ mkCasters:
         ToDateTime = v.obj2prim()
         ToTime = v.obj2prim()
 
-macro mkPageCaster(typeCast: openArray[typedesc], overrides: untyped) =
-    expectKind(typeCast, nnkBracket)
-    expectMinLen(typeCast, 1)
+macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
+    expectKind(nBaseType, nnkSym)
 
-    let allPageTypes = [
-        BooleanNDArray.name,
-        Int8NDArray.name, Int16NDArray.name, Int32NDArray.name, Int64NDArray.name,
-        Float32NDArray.name, Float64NDArray.name,
-        DateNDArray.name, DateTimeNDArray.name,
-        UnicodeNDArray.name,
-        ObjectNDArray.name
-    ]
-
-    const tPageTypes = {
-        BooleanNDArray.name: bool.name,
-        UnicodeNDArray.name: string.name,
-        # --- int
-        Int8NDArray.name: int.name,
-        Int16NDArray.name: int.name,
-        Int32NDArray.name: int.name,
-        Int64NDArray.name: int.name,
-        # --- float
-        Float32NDArray.name: float.name,
-        Float64NDArray.name: float.name,
-        # ---
-        DateNDArray.name: FromDate.name,
-        DateTimeNDArray.name: FromDateTime.name,
-        ObjectNDArray.name: PY_ObjectND.name,
+    const tPageGenerics = {
+        bool.name: @[BooleanNDArray.name],
+        int.name: @[Int8NDArray.name, Int16NDArray.name, Int32NDArray.name, Int64NDArray.name],
+        float.name: @[Float32NDArray.name, Float64NDArray.name],
+        FromDate.name: @[DateNDArray.name],
+        FromDateTime.name: @[DateTimeNDArray.name],
+        string.name: @[UnicodeNDArray.name],
+        PY_ObjectND.name: @[ObjectNDArray.name],
     }.toTable
+
+    let pageGenerics = tPageGenerics[nBaseType.strVal]
+    let nPageGenerics = collect: (for ch in pageGenerics: newIdentNode(ch))
+
+    const tCasterPage = {
+        bool.name: BooleanNDArray.name,
+        int.name: Int64NDArray.name,
+        float.name: Float64NDArray.name,
+        string.name: UnicodeNDArray.name,
+        ToDate.name: DateNDArray.name,
+        ToDateTime.name: DateTimeNDArray.name,
+        ToTime.name: ObjectNDArray.name
+    }.toTable
+
+    const allCastTypes = [bool.name, int.name, float.name, string.name, ToDate.name, ToDateTime.name, ToTime.name]
 
     let nMaskSeq = newNimNode(nnkBracketExpr).add(bindSym("seq"), bindSym(Mask.name))
     let nMaskVarTy = newNimNode(nnkVarTy).add(nMaskSeq)
@@ -333,126 +380,152 @@ macro mkPageCaster(typeCast: openArray[typedesc], overrides: untyped) =
 
     let nReasonListSeq = newNimNode(nnkBracketExpr).add(bindSym("seq"), bindSym(string.name))
     let nReasonListVarTy = newNimNode(nnkVarTy).add(nReasonListSeq)
-    let nReasonListDef = newIdentDefs(newIdentNode("reason_list"), nReasonListVarTy)
+    let nReasonListDef = newIdentDefs(newIdentNode("reason_lst"), nReasonListVarTy)
 
     let nAllowEmpty = newIdentDefs(newIdentNode("allow_empty"), bindSym(bool.name))
+    let nOriginaName = newIdentDefs(newIdentNode("original_name"), bindSym(string.name))
+    let nDesiredName = newIdentDefs(newIdentNode("desired_name"), bindSym(string.name))
+    let nDesiredType = newIdentDefs(newIdentNode("desired_type"), bindSym(KindObjectND.name))
 
-    let nodes = newNimNode(nnkStmtList)
+    let nProcNodes = newNimNode(nnkStmtList)
 
-    let selfTypes = collect:
-        for nT in typeCast.children:
-            expectKind(nT, nnkSym)
+    let nGeneric = newNimNode(nnkGenericParams)
+    var nGenTypes {.noinit.}: NimNode
 
-            nT.strVal
+    if nPageGenerics.len > 1:
+        var nNextT = nPageGenerics[^1]
 
-    for nT in typeCast.children:
-        expectKind(nT, nnkSym)
+        for i in countdown(nPageGenerics.len - 2, 1):
+            nNextT = infix(nPageGenerics[i], "|", nNextT)
 
-        let selfType = nT.strVal
+        nGenTypes = infix(nPageGenerics[0], "|", nNextT)
 
-        if not (selfType in allPageTypes):
-            raise newException(ValueError, "invalid symbol name '" & selfType & "'")
+    else:
+        nGenTypes = nPageGenerics[0]
 
-        for newCaster in allPageTypes:
-            let nPageType = newIdentNode(tPageTypes[newCaster])
-            let nPageReturnType = newIdentNode(newCaster)
-            let nArgReturnType = newIdentDefs(newIdentNode("R"), nPageType)
-            let nInPage = newIdentDefs(newIdentNode("page"), nT)
-            let nArgs = [nPageReturnType, nArgReturnType, nInPage, nMaskDef, nReasonListDef, nAllowEmpty]
-            var nBody: NimNode
+    let nGenIdet = newIdentDefs(newIdentNode("T"), nGenTypes)
 
-            if newCaster in selfTypes:
-                nBody = overrides
-            else:
-                nBody = newNimNode(nnkStmtList)
+    nGeneric.add(nGenIdet)
 
-                let nCallCasterFn = newDotExpr(nPageType, newIdentNode("fnCast"))
-                let nCallCaster = newCall(nCallCasterFn, newIdentNode("R"))
+    for newCaster in allCastTypes:
+        var nPageReturnType {.noinit.}: NimNode
+        var nBody {.noinit.}: NimNode
 
-                let nCallMkPageFn = newDotExpr(nPageReturnType, newIdentNode("makePage"))
-                let nCallArgs = [newIdentNode("page"), newIdentNode("mask"), nCallCaster, newIdentNode("allow_empty")]
-                let nCallMkPage = newCall(nCallMkPageFn, nCallArgs)
+        let tCasterPage = tCasterPage[newCaster]
+        let nPageTypeDesc = newNimNode(nnkBracketExpr).add(newIdentNode("typedesc"), newIdentNode(newCaster))
+        let nArgReturnType = newIdentDefs(newIdentNode("R"), nPageTypeDesc)
+        let nInPage = newIdentDefs(newIdentNode("page"), newIdentNode("T"))
 
-                nBody.add(nCallMkPage)
-                
+        if tCasterPage in pageGenerics:
+            nBody = overrides
+            nPageReturnType = (if nPageGenerics.len > 1: newIdentNode("T") else: newIdentNode(tCasterPage))
+        else:
+            nPageReturnType = newIdentNode(tCasterPage)
+            nBody = newNimNode(nnkStmtList)
 
-            let nNewProc = newProc(newIdentNode("castType"), nArgs, nBody)
+            let nCallCasterFn = newDotExpr(nBaseType, newIdentNode("fnCast"))
+            let nCallCaster = newCall(nCallCasterFn, newIdentNode("R"))
 
-            nodes.add(nNewProc)
+            let nCallMkPageFn = newDotExpr(nPageReturnType, newIdentNode("makePage"))
+            let nCallArgs = [newIdentNode("page"), newIdentNode("mask"), newIdentNode("reason_lst"), nCallCaster, newIdentNode("allow_empty"), newIdentNode("original_name"), newIdentNode("desired_name"), newIdentNode("desired_type")]
+            let nCallMkPage = newCall(nCallMkPageFn, nCallArgs)
 
-    echo nodes.repr
+            nBody.add(nCallMkPage)
 
-    implement("hi")
+        let nArgs = [nPageReturnType, nArgReturnType, nInPage, nMaskDef, nReasonListDef, nAllowEmpty, nOriginaName, nDesiredName, nDesiredType]
+        let nNewProc = newProc(newIdentNode("castType"), nArgs, nBody)
 
-mkPageCaster([Int8NDArray, Int16NDArray, Int32NDArray, Int64NDArray]):
-    page
+        nProcNodes.add(nNewProc)
+        nNewProc[2] = nGeneric
 
-# TODO: turn into macro
-proc castType[T: BooleanNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BooleanNDArray = page
-proc castType[T: BooleanNDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: BooleanNDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: BooleanNDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: BooleanNDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: BooleanNDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: BooleanNDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+        echo nNewProc.repr
 
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BooleanNDArray = BooleanNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): T = page
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+    return nProcNodes
 
-proc castType[T: Float32NDArray | Float64NDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BooleanNDArray = BooleanNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: Float32NDArray | Float64NDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: Float32NDArray | Float64NDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): T = page
-proc castType[T: Float32NDArray | Float64NDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: Float32NDArray | Float64NDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: Float32NDArray | Float64NDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: Float32NDArray | Float64NDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+mkPageCaster(bool): page
+mkPageCaster(int): page
+mkPageCaster(float): page
+mkPageCaster(FromDate): page
+mkPageCaster(FromDateTime): page
+mkPageCaster(string): (if allow_empty: page else: UnicodeNDArray.makePage(page, mask, reason_lst, string.fnCast(R), allow_empty, original_name, desired_name, desired_type))
+mkPageCaster(PY_ObjectND): ObjectNDArray.makePage(page, mask, reason_lst, PY_ObjectND.fnCast(R), allow_empty, original_name, desired_name, desired_type)
 
-proc castType[T: DateNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BooleanNDArray = BooleanNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: DateNDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: DateNDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: DateNDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: DateNDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateNDArray = page
-proc castType[T: DateNDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: DateNDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
 
-proc castType[T: DateTimeNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BooleanNDArray = BooleanNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: DateTimeNDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: DateTimeNDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: DateTimeNDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: DateTimeNDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: DateTimeNDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateTimeNDArray = page
-proc castType[T: DateTimeNDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# # TODO: turn into macro
+# macro tdesc(T: typedesc[BooleanNDArray]): typedesc = bindSym(bool.name)
+# macro tdesc(_: typedesc[UnicodeNDArray]): typedesc = bindSym(string.name)
+# macro tdesc(_: typedesc[BooleanNDArray | UnicodeNDArray | Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray]): typedesc = bindSym(int.name)
+# macro tdesc(_: typedesc[Float32NDArray | Float64NDArray]): typedesc = bindSym(float.name)
+# macro tdesc(_: typedesc[DateNDArray]): typedesc = bindSym(FromDate.name)
+# macro tdesc(_: typedesc[DateTimeNDArray]): typedesc = bindSym(FromDateTime.name)
+# macro tdesc(_: typedesc[ObjectNDArray]): typedesc = bindSym(PY_ObjectND.name)
 
-proc castType[T: UnicodeNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BooleanNDArray = BooleanNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: UnicodeNDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: UnicodeNDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: UnicodeNDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): UnicodeNDArray = (if allow_empty: page else: UnicodeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty))
-proc castType[T: UnicodeNDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: UnicodeNDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: UnicodeNDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: BooleanNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BooleanNDArray = page
+# proc castType[T: BooleanNDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: BooleanNDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: BooleanNDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: BooleanNDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: BooleanNDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: BooleanNDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
 
-proc castType[T: ObjectNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BooleanNDArray = BooleanNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: ObjectNDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: ObjectNDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: ObjectNDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: ObjectNDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: ObjectNDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
-proc castType[T: ObjectNDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BooleanNDArray = BooleanNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): T = page
+# proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: Int8NDArray | Int16NDArray | Int32NDArray | Int64NDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
 
-template convertBasicPage[T](page: T, desired: PageTypes, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BaseNDArray =
-    case desired:
-    of DT_BOOL: bool.castType(page, mask, reason_lst, allow_empty)
-    of DT_INT: int.castType(page, mask, reason_lst, allow_empty)
-    of DT_FLOAT: float.castType(page, mask, reason_lst, allow_empty)
-    of DT_STRING: string.castType(page, mask, reason_lst, allow_empty)
-    of DT_DATE: ToDate.castType(page, mask, reason_lst, allow_empty)
-    of DT_TIME: ToTime.castType(page, mask, reason_lst, allow_empty)
-    of DT_DATETIME: ToDateTime.castType(page, mask, reason_lst, allow_empty)
+# proc castType[T: Float32NDArray | Float64NDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BooleanNDArray = BooleanNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: Float32NDArray | Float64NDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: Float32NDArray | Float64NDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): T = page
+# proc castType[T: Float32NDArray | Float64NDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: Float32NDArray | Float64NDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: Float32NDArray | Float64NDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: Float32NDArray | Float64NDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+
+# proc castType[T: DateNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BooleanNDArray = BooleanNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: DateNDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: DateNDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: DateNDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: DateNDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateNDArray = page
+# proc castType[T: DateNDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: DateNDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+
+# proc castType[T: DateTimeNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BooleanNDArray = BooleanNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: DateTimeNDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: DateTimeNDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: DateTimeNDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: DateTimeNDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: DateTimeNDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateTimeNDArray = page
+# proc castType[T: DateTimeNDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+
+# proc castType[T: UnicodeNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BooleanNDArray = BooleanNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: UnicodeNDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: UnicodeNDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: UnicodeNDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): UnicodeNDArray = (if allow_empty: page else: UnicodeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty))
+# proc castType[T: UnicodeNDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: UnicodeNDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: UnicodeNDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+
+# proc castType[T: ObjectNDArray](R: typedesc[bool], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): BooleanNDArray = BooleanNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: ObjectNDArray](R: typedesc[int], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Int64NDArray = Int64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: ObjectNDArray](R: typedesc[float], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): Float64NDArray = Float64NDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: ObjectNDArray](R: typedesc[string], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): UnicodeNDArray = UnicodeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: ObjectNDArray](R: typedesc[ToDate], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateNDArray = DateNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: ObjectNDArray](R: typedesc[ToDateTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): DateTimeNDArray = DateTimeNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+# proc castType[T: ObjectNDArray](R: typedesc[ToTime], page: T, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool): ObjectNDArray = ObjectNDArray.makePage(page, mask, reason_lst, T.tdesc.fnCast(R), allow_empty)
+
+
+template convertBasicPage[T](page: T, desired_type: KindObjectND, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool, original_name: string, desired_name: string): BaseNDArray =
+    case desired_type:
+    of K_BOOLEAN: bool.castType(page, mask, reason_lst, allow_empty, original_name, desired_name, desired_type)
+    of K_INT: int.castType(page, mask, reason_lst, allow_empty, original_name, desired_name, desired_type)
+    of K_FLOAT: float.castType(page, mask, reason_lst, allow_empty, original_name, desired_name, desired_type)
+    of K_STRING: string.castType(page, mask, reason_lst, allow_empty, original_name, desired_name, desired_type)
+    of K_DATE: ToDate.castType(page, mask, reason_lst, allow_empty, original_name, desired_name, desired_type)
+    of K_TIME: ToTime.castType(page, mask, reason_lst, allow_empty, original_name, desired_name, desired_type)
+    of K_DATETIME: ToDateTime.castType(page, mask, reason_lst, allow_empty, original_name, desired_name, desired_type)
     else: corrupted()
 
 proc unusedMaskSearch(arr: var seq[Mask]): int =
@@ -586,7 +659,10 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
             var converted_page: BaseNDArray
 
-            template castPage(T: typedesc) = T(original_data).convertBasicPage(desired_type, valid_mask, reason_lst, allow_empty)
+            template castPage(T: typedesc) = T(original_data).convertBasicPage(
+                desired_type, valid_mask, reason_lst, allow_empty,
+                original_name, desired_name
+            )
 
             case original_data.kind:
             of K_BOOLEAN: converted_page = BooleanNDArray.castPage
@@ -677,7 +753,7 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
 
         desired_column_map[name_out] = DesiredColumnInfo( # collect the information about the column, fill in any defaults
             original_name: name_inp,
-            `type`: if desired_type.isNone(): PageTypes.DT_NONE else: toPageType(desired_type.to(string)),
+            `type`: if desired_type.isNone(): K_NONETYPE else: toPageType(desired_type.to(string)),
             allow_empty: c.get("allow_empty", builtins().False).to(bool)
         )
 
@@ -741,11 +817,11 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
         var col_dtypes = toSeq(this_col.getColumnTypes().keys)
         var needs_to_iterate = false
 
-        if PageTypes.DT_NONE in col_dtypes:
+        if K_NONETYPE in col_dtypes:
             if not desired_columns.allow_empty:
                 needs_to_iterate = true
             else:
-                col_dtypes.delete(col_dtypes.find(PageTypes.DT_NONE))
+                col_dtypes.delete(col_dtypes.find(K_NONETYPE))
 
         if not needs_to_iterate and col_dtypes.len > 0:
             if col_dtypes.len > 1:
@@ -757,7 +833,7 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
                 if active_type != desired_columns.`type`:
                     # not same type, need to cast
                     needs_to_iterate = true
-                elif active_type == DT_STRING and not desired_columns.allow_empty:
+                elif active_type == K_STRING and not desired_columns.allow_empty:
                     # we may have same type but we still need to filter empty strings
                     needs_to_iterate = true
 
@@ -874,15 +950,15 @@ when isMainModule and appType != "lib":
 
     # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(10), nimValueToPy(200)]}.toTable)
     # let columns = pymodules.builtins().dict({"A ": @[1, 22, 333]}.toTable)
-    # let columns = pymodules.builtins().dict({"A ": @["1", "22", "333", ""]}.toTable)
-    let columns = pymodules.builtins().dict({"A ": @[nimValueToPy("1"), nimValueToPy("222"), nimValueToPy("333"), nimValueToPy(nil)]}.toTable)
+    # let columns = pymodules.builtins().dict({"A ": @["1", "22", "333", "", "abc"]}.toTable)
+    let columns = pymodules.builtins().dict({"A ": @[nimValueToPy("1"), nimValueToPy("222"), nimValueToPy("333"), nimValueToPy(nil), nimValueToPy("abc")]}.toTable)
     let table = pymodules.tablite().Table(columns = columns)
 
     discard table.show(dtype = true)
 
     let select_cols = builtins().list(@[
         newColumnSelectorInfo("A ", "int", true, opt.none[string]()),
-        # newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
+        newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
             # newColumnSelectorInfo("A ", "bool", false, opt.none[string]()),
             # newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
             # newColumnSelectorInfo("A ", "date", false, opt.none[string]()),
