@@ -438,7 +438,7 @@ macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
         nProcNodes.add(nNewProc)
         nNewProc[2] = nGeneric
 
-        echo nNewProc.repr
+        # echo nNewProc.repr
 
     return nProcNodes
 
@@ -477,7 +477,7 @@ proc unusedMaskSearch(arr: var seq[Mask]): int =
     var i = 0
 
     while i < len:
-        let nextIndex = i + stepSize
+        let nextIndex = min(i + stepSize, arr.len)
         let lastIndex = nextIndex - 1
 
         if arr[lastIndex] != Mask.UNUSED:
@@ -650,7 +650,7 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
     return (pages_pass, pages_fail)
 
-proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObject, dir_pid: Path): (nimpy.PyObject, nimpy.PyObject) =
+proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObject, dir_pid: Path, TaskManager: nimpy.PyObject): (nimpy.PyObject, nimpy.PyObject) =
     var desired_column_map = initOrderedTable[string, DesiredColumnInfo]()
     var collisions = initTable[string, int]()
 
@@ -880,6 +880,8 @@ when isMainModule and appType != "lib":
     createDir(string pagedir)
 
     pymodules.tabliteConfig().Config.pid = pid
+    pymodules.tabliteConfig().Config.PAGE_SIZE = 2
+    pymodules.tabliteConfig().Config.MULTIPROCESSING_MODE = pymodules.tabliteConfig().Config.FALSE
 
     # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(10), nimValueToPy(200)]}.toTable)
     # let columns = pymodules.builtins().dict({"A ": @[1, 22, 333]}.toTable)
@@ -902,7 +904,8 @@ when isMainModule and appType != "lib":
     let (select_pass, select_fail) = table.columnSelect(
         select_cols,
         nimpy.pyImport("tqdm").tqdm,
-        dir_pid = workdir / Path(pid)
+        dir_pid = workdir / Path(pid),
+        Taskmanager = mplite().TaskManager
     )
 
     discard select_pass.show(dtype = true)

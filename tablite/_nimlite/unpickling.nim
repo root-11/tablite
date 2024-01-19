@@ -28,6 +28,7 @@ type ReducePickle = ref object of Py_Object
     value: PY_Object
 
 type MarkPickle = ref object of PY_Object
+type AppendPickle = ref object of PY_Object
 type BuildPickle = ref object of PY_Object
 type AppendsPickle = ref object of Py_Iterable
 type StopPickle = ref object of PY_Object
@@ -432,6 +433,14 @@ proc loadBuild(stack: var Stack): PY_Object {.inline.} =
 
     return inst
 
+proc loadAppend(stack: var Stack): AppendPickle {.inline.} =
+    let value = stack.pop()
+    let list = Py_Iterable stack[^1]
+
+    list.elems.add(value)
+
+    return AppendPickle()
+
 proc loadAppends(stack: var Stack, metastack: var MetaStack): Py_Iterable {.inline.} =
     let elems = popMark(stack, metastack)
     let obj = Py_Iterable stack[^1]
@@ -491,6 +500,7 @@ proc unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack: var
         of PKL_EMPTY_DICT: loadEmptyContainer[Py_Dict](stack)
         of PKL_EMPTY_SET: loadEmptyContainer[Py_Set](stack)
         of PKL_EMPTY_TUPLE: loadEmptyContainer[Py_Tuple](stack)
+        of PKL_APPEND: loadAppend(stack)
         of PKL_APPENDS: loadAppends(stack, metastack)
         of PKL_STOP: loadStop(stack)
         of PKL_BINGET: iter.loadBinGet(stack, memo)
