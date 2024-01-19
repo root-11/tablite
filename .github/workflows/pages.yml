@@ -69,6 +69,14 @@ jobs:
         with:
           USE_NIMPORTER: 'false'
           PYTHONPATH: '.:tablite'
+          NIMLITE_DIR:  'tablite/_nimlite'
+          NIM_PACKAGE_NAME: 'nimlite'
+          TABLITE_PACKAGE_NAME: 'tablite'
+          NIMC_FLAGS: '--app:lib --threads:on -d:release -d:danger'
+      - name: Compile NimLite
+        run: |
+          nim c ${{ env.NIMC_FLAGS }} --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.so ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
+          python -c "print(__import__('${{ env.TABLITE_PACKAGE_NAME }}.${{ env.NIM_PACKAGE_NAME }}').__file__)"
       - name: Configure Git user
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
