@@ -6,4 +6,4 @@ nav:
     - Changelog: changelog.md
     - Benchmarks: benchmarks.ipynb
     - Tutorial: tutorial.ipynb
-  - Reference: reference.md
+  - Reference: reference # virtual folder created by gen-files plugin and reference.py
