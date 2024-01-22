@@ -650,6 +650,9 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
     return (pages_pass, pages_fail)
 
+proc doSliceConvertPy(): string {.exportpy.} =
+    return "slice converted"
+
 proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObject, dir_pid: Path, TaskManager: nimpy.PyObject): (nimpy.PyObject, nimpy.PyObject) =
     var desired_column_map = initOrderedTable[string, DesiredColumnInfo]()
     var collisions = initTable[string, int]()
@@ -839,7 +842,36 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
     var converted = newSeqOfCap[(seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)])](task_list_inp.len)
 
     if is_mp:
-        implement("columnSelect.convert.mp")
+        echo appType
+        when appType != "lib":
+            implement("cannot execute in app mode")
+        else:
+            template colInfoToPy(tbl: ColInfo): Table[string, (string, int)] =
+                collect(initTable()):
+                    for (cn, ct) in tbl.pairs:
+                        let (cp, ci) = ct
+                        {cn: (string cp, ci)}
+
+            let tasks = collect:
+                for (columns, res_pass, res_fail) in task_list_inp:
+                    let pyResPass = colInfoToPy(res_pass)
+                    let pyResFail = colInfoToPy(res_fail)
+                    let ipkl = dill().dumps(doSliceConvertPy)
+
+                    mplite().Task(tabliteBase().capsuleIntermediate, ipkl, string dir_pid, page_size, columns, reject_reason_name, pyResPass, pyResFail, desired_column_map, column_names, is_correct_type)
+
+            # echo tasks
+
+            let tm = TaskManager!(cpu_count=cpu_count)
+            
+            discard tm.start()
+
+            let results = tm.execute(tasks)#, pbar=pbar)
+
+            discard tm.stop()
+
+            echo results
+            implement("columnSelect.convert.mp")
     else:
         for (columns, res_pass, res_fail) in task_list_inp:
             converted.add(doSliceConvert(dir_pid, page_size, columns, reject_reason_name, res_pass, res_fail, desired_column_map, column_names, is_correct_type))
@@ -881,7 +913,7 @@ when isMainModule and appType != "lib":
 
     pymodules.tabliteConfig().Config.pid = pid
     pymodules.tabliteConfig().Config.PAGE_SIZE = 2
-    pymodules.tabliteConfig().Config.MULTIPROCESSING_MODE = pymodules.tabliteConfig().Config.FALSE
+    # pymodules.tabliteConfig().Config.MULTIPROCESSING_MODE = pymodules.tabliteConfig().Config.FALSE
 
     # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(10), nimValueToPy(200)]}.toTable)
     # let columns = pymodules.builtins().dict({"A ": @[1, 22, 333]}.toTable)

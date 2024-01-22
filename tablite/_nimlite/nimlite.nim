@@ -89,6 +89,9 @@ when isMainModule and appType == "lib":
             echo $e.msg & "\n" & $e.getStackTrace
             raise e
 
+    proc doSliceConvertPy(): string {.exportpy.} =
+        return "slice converted"
+
 when isMainModule and appType != "lib":
     import argparse
     import std/[sugar, json]
