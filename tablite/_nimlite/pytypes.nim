@@ -15,6 +15,18 @@ type KindObjectND* = enum
     K_TIME,
     K_DATETIME
 
+proc str2ObjKind*(val: string): KindObjectND =
+    case val:
+    of "K_NONETYPE": K_NONETYPE
+    of "K_BOOLEAN": K_BOOLEAN
+    of "K_INT": K_INT
+    of "K_FLOAT": K_FLOAT
+    of "K_STRING": K_STRING
+    of "K_DATE": K_DATE
+    of "K_TIME": K_TIME
+    of "K_DATETIME": K_DATETIME
+    else: raise newException(ValueError, "invalid object kind: " & val)
+
 type Shape* = seq[int]
 type PY_Object* = ref object of RootObj
 type PY_ObjectND* {.requiresInit.} = ref object of PY_Object
@@ -127,3 +139,15 @@ proc getMicrosecond*(self: ptr PY_Time | PY_Time): MicrosecondRange =
     let inMicroseconds = self.value.inMicroseconds()
 
     return MicrosecondRange (inMicroseconds - inSeconds)
+
+proc newPY_Object*(): PY_ObjectND {.inline.} = PY_None
+proc newPY_Object*(v: bool): PY_ObjectND {.inline.} = PY_Boolean(value: v, kind: K_BOOLEAN)
+proc newPY_Object*(v: int): PY_ObjectND {.inline.} = PY_Int(value: v, kind: K_INT)
+proc newPY_Object*(v: float): PY_ObjectND {.inline.} = PY_Float(value: v, kind: K_FLOAT)
+proc newPY_Object*(v: string): PY_ObjectND {.inline.} = PY_String(value: v, kind: K_STRING)
+proc newPY_Object*(v: DateTime, k: KindObjectND): PY_ObjectND {.inline.} =
+    case k:
+    of K_DATE: return PY_Date(value: v, kind: k)
+    of K_DATETIME: return PY_DateTime(value: v, kind: k)
+    of K_TIME: return newPY_Time(v)
+    else: raise newException(Exception, "invalid date type: " & $k)

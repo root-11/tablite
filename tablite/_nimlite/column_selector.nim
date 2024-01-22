@@ -11,8 +11,8 @@ import infertypes as infer
 import typetraits
 import dateutils
 
-type ColSliceInfo = (Path, int)
-type ColInfo = Table[string, ColSliceInfo]
+type ColSliceInfo = (string, int)
+type ColInfo* = Table[string, ColSliceInfo]
 type DesiredColumnInfo = object
     original_name: string
     `type`: KindObjectND
@@ -21,6 +21,30 @@ type Mask = enum
     INVALID = -1
     UNUSED = 0
     VALID = 1
+
+proc toPyObj*(infos: var OrderedTable[string, DesiredColumnInfo]): nimpy.PyObject =
+    let elems = collect:
+        for (name, info) in infos.pairs:
+            (name, (info.original_name, $info.`type`, info.allow_empty))
+
+    let res = builtins().dict(elems)
+
+    return res
+
+proc fromPyObjToDesiredInfos*(pyInfos: nimpy.PyObject): OrderedTable[string, DesiredColumnInfo] =
+    let res = collect(initOrderedTable()):
+        for k in pyInfos:
+            let pyInfo = pyInfos[k]
+            let (pyName, pyType, pyAllowEmpty) = (pyInfo[0], pyInfo[1], pyInfo[2])
+            let info = DesiredColumnInfo(
+                original_name: pyName.to(string),
+                `type`: str2ObjKind(pyType.to(string)),
+                allow_empty: pyAllowEmpty.to(bool)
+            )
+
+            {k.to(string): info}
+
+    return res
 
 proc toPageType(name: string): KindObjectND =
     case name.toLower():
@@ -33,7 +57,7 @@ proc toPageType(name: string): KindObjectND =
     of "datetime": return KindObjectND.K_DATETIME
     else: raise newException(FieldDefect, "unsupported page type: '" & name & "'")
 
-template makePage[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[Mask], reason_lst: var seq[string], conv: proc, allow_empty: bool, original_name: string, desired_name: string, desired_type: KindObjectND): T =
+template makePage[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[Mask], reason_lst: var seq[string], conv: proc, allow_empty: bool, original_name: string, desired_name: string, desired_type: KindObjectND): BaseNDArray =
     template getTypeUserName(t: KindObjectND): string =
         case t:
         of K_BOOLEAN: "bool"
@@ -44,15 +68,17 @@ template makePage[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[Ma
         of K_TIME: "time"
         of K_DATETIME: "datetime"
         of K_NONETYPE: "NoneType"
-    
+
     template createCastErrorReason(v: string, kind: KindObjectND): string =
         "Cannot cast '" & v & "' from '" & original_name & "[" & getTypeUserName(kind) & "]' to '" & desired_name & "[" & getTypeUserName(desired_type) & "]'."
-    
+
     template createNoneErrorReason(): string =
         "'" & original_name & "' cannot be empty in '" & desired_name & "[" & getTypeUserName(desired_type) & "]'."
 
     template createEmptyErrorReason(): string =
         "'" & original_name & "' cannot be empty string in '" & desired_name & "[" & getTypeUserName(desired_type) & "]'."
+
+    echo ">>>page type" & T.name
 
 
     when T is UnicodeNDArray:
@@ -133,7 +159,7 @@ template makePage[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[Ma
         for (i, str) in enumerate(strings):
             buf[i * longest].addr.copyMem(addr str[0], str.len * sizeof(Rune))
 
-        T(shape: shape, buf: buf, size: longest, kind: K_UNICODE)
+        BaseNDArray T(shape: shape, buf: buf, size: longest, kind: K_UNICODE)
     else:
         let buf = collect:
             for (i, v) in enumerate(page.pgIter):
@@ -145,11 +171,16 @@ template makePage[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[Ma
                         if not allow_empty:
                             reason_lst[i] = createNoneErrorReason()
                             mask[i] = Mask.INVALID
-                            continue
+                        else:
+                            mask[i] = Mask.VALID
+                        continue
                     of K_STRING:
-                        if not allow_empty and PY_String(v).value.len == 0:
-                            reason_lst[i] = createNoneErrorReason()
-                            mask[i] = Mask.INVALID
+                        if PY_String(v).value.len == 0:
+                            if not allow_empty:
+                                reason_lst[i] = createNoneErrorReason()
+                                mask[i] = Mask.INVALID
+                            else:
+                                mask[i] = Mask.VALID
                             continue
                     else:
                         discard
@@ -176,7 +207,7 @@ template makePage[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[Ma
                 res
         let shape = @[buf.len]
 
-        T(shape: shape, buf: buf, kind: T.pageKind)
+        BaseNDArray T(shape: shape, buf: buf, kind: T.pageKind)
 
 type
     ToDate = object
@@ -185,7 +216,7 @@ type
     FromDateTime = object
     ToTime = object
 
-proc newMkCaster(caster: NimNode): NimNode =
+proc newMkCaster(caster: NimNode, isPyCaster: bool): NimNode =
     expectKind(caster, nnkLambda)
     expectLen(caster.params, 2)
 
@@ -205,6 +236,8 @@ proc newMkCaster(caster: NimNode): NimNode =
         trueCastR = newIdentNode(PY_Time.name)
     elif castR.strVal in [bool.name, int.name, float.name, string.name]:
         trueCastR = castR
+    # elif castR.strVal == PY_ObjectND.name:
+    #     trueCastR = castR
     else:
         raise newException(FieldDefect, "Uncastable return type '" & $castR.strVal & "'")
 
@@ -224,12 +257,13 @@ proc newMkCaster(caster: NimNode): NimNode =
     descR.add(newIdentNode("typedesc"))
     descR.add(castR)
 
-    let subProc = newProc(params = [trueCastR, trueCastT], body = caster.body, procType = nnkLambda)
-    let makerProc = newProc(newIdentNode("fnCast"), params = [newNimNode(nnkProcTy), paramsT, paramsR], body = subProc)
+    if isPyCaster:
+        let subProc = newProc(params = [newIdentNode(PY_ObjectND.name), trueCastT], body = caster.body, procType = nnkLambda)
+        return newProc(newIdentNode("fnPyCast"), params = [newNimNode(nnkProcTy), paramsT, paramsR], body = subProc)
+    else:
+        let subProc = newProc(params = [trueCastR, trueCastT], body = caster.body, procType = nnkLambda)
+        return newProc(newIdentNode("fnCast"), params = [newNimNode(nnkProcTy), paramsT, paramsR], body = subProc)
 
-    return makerProc
-
-macro mkCaster(caster: untyped) = newMkCaster(caster)
 macro mkCasters(converters: untyped) =
     expectKind(converters, nnkStmtList)
     expectKind(converters[0], nnkLambda)
@@ -250,7 +284,36 @@ macro mkCasters(converters: untyped) =
         let toBody = cvtr[1]
         let toFunc = newProc(params = [toType, identity], body = toBody, procType = nnkLambda)
 
-        nodes.add(newMkCaster(toFunc))
+        nodes.add(newMkCaster(toFunc, false))
+
+        case toType.strVal:
+        of bool.name, int.name, float.name, string.name:
+            let tBodyPy = newCall(newIdentNode("newPY_Object"), toBody)
+            let toFuncPy = newProc(params = [toType, identity], body = tBodyPy, procType = nnkLambda)
+            let nToPy = newMkCaster(toFuncPy, true)
+
+            nodes.add(nToPy)
+        of ToDate.name, ToDateTime.name, ToTime.name:
+            var kind {.noinit.}: KindObjectND
+
+            case toType.strVal:
+            of ToDate.name: kind = KindObjectND.K_DATE
+            of ToDateTime.name: kind = KindObjectND.K_DATETIME
+            of ToTime.name: kind = KindObjectND.K_TIME
+
+            let tBodyPy = newCall(newIdentNode("newPY_Object"), toBody, newIdentNode($kind))
+            let toFuncPy = newProc(params = [toType, identity], body = tBodyPy, procType = nnkLambda)
+            let nToPy = newMkCaster(toFuncPy, true)
+
+            echo nToPy.repr
+
+            nodes.add(nToPy)
+        else:
+            implement(toType.strVal)
+
+    echo nodes.repr
+
+    # implement("okay")
 
     return nodes
 
@@ -423,22 +486,44 @@ macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
             nPageReturnType = newIdentNode(tCasterPage)
             nBody = newNimNode(nnkStmtList)
 
-            let nCallCasterFn = newDotExpr(nBaseType, newIdentNode("fnCast"))
-            let nCallCaster = newCall(nCallCasterFn, newIdentNode("R"))
+            let nIfStmt = newNimNode(nnkIfStmt)
+            let nElifBranch = newNimNode(nnkElifBranch)
+            let nAllowPrefix = newNimNode(nnkPrefix)
+            let nElse = newNimNode(nnkElse)
 
-            let nCallMkPageFn = newDotExpr(nPageReturnType, newIdentNode("makePage"))
-            let nCallArgs = [newIdentNode("page"), newIdentNode("mask"), newIdentNode("reason_lst"), nCallCaster, newIdentNode("allow_empty"), newIdentNode("original_name"), newIdentNode("desired_name"), newIdentNode("desired_type")]
-            let nCallMkPage = newCall(nCallMkPageFn, nCallArgs)
+            template statements(nPageReturnType: NimNode, fnName: string): NimNode =
+                let nCallCasterFn = newDotExpr(nBaseType, newIdentNode(fnName))
+                let nCallCaster = newCall(nCallCasterFn, newIdentNode("R"))
 
-            nBody.add(nCallMkPage)
+                let nCallMkPageFn = newDotExpr(nPageReturnType, newIdentNode("makePage"))
+                let nCallArgs = [newIdentNode("page"), newIdentNode("mask"), newIdentNode("reason_lst"), nCallCaster, newIdentNode("allow_empty"), newIdentNode("original_name"), newIdentNode("desired_name"), newIdentNode("desired_type")]
+                let nCallMkPage = newCall(nCallMkPageFn, nCallArgs)
 
-        let nArgs = [nPageReturnType, nArgReturnType, nInPage, nMaskDef, nReasonListDef, nAllowEmpty, nOriginaName, nDesiredName, nDesiredType]
+                nCallMkPage
+
+            nAllowPrefix.add(newIdentNode("not"))
+            nAllowPrefix.add(newIdentNode("allow_empty"))
+
+            nElifBranch.add(nAllowPrefix)
+
+            if nPageReturnType.strVal != ObjectNDArray.name:
+                nElifBranch.add(statements(nPageReturnType, "fnCast"))
+                nElse.add(statements(newIdentNode(ObjectNDArray.name), "fnPyCast"))
+                nIfStmt.add(nElifBranch)
+                nIfStmt.add(nElse)
+                nBody.add(nIfStmt)
+            else:
+                nBody.add(statements(nPageReturnType, "fnCast"))
+
+        let nArgs = [newIdentNode(BaseNDArray.name), nArgReturnType, nInPage, nMaskDef, nReasonListDef, nAllowEmpty, nOriginaName, nDesiredName, nDesiredType]
         let nNewProc = newProc(newIdentNode("castType"), nArgs, nBody)
 
         nProcNodes.add(nNewProc)
         nNewProc[2] = nGeneric
 
-        # echo nNewProc.repr
+        echo nNewProc.repr
+
+    # implement("hi")
 
     return nProcNodes
 
@@ -517,12 +602,12 @@ proc finalizeSlice(indices: var seq[int], column_names: seq[string], infos: var 
         pages.add((col_name, infos[col_name]))
 
 proc toColSliceInfo(path: Path): ColSliceInfo =
-    let workdir = path.parentDir.parentDir
+    let workdir = string path.parentDir.parentDir
     let pid = parseInt(string path.extractFilename.changeFileExt(""))
 
     return (workdir, pid)
 
-proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string], reject_reason_name: string, res_pass: ColInfo, res_fail: ColInfo, desired_column_map: OrderedTable[string, DesiredColumnInfo], column_names: seq[string], is_correct_type: Table[string, bool]): (seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)]) =
+proc doSliceConvert*(dir_pid: Path, page_size: int, columns: Table[string, string], reject_reason_name: string, res_pass: ColInfo, res_fail: ColInfo, desired_column_map: OrderedTable[string, DesiredColumnInfo], column_names: seq[string], is_correct_type: Table[string, bool]): (seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)]) =
     var cast_paths_pass = initTable[string, (Path, Path, bool)]()
     var cast_paths_fail = initTable[string, (Path, Path, bool)]()
     var page_infos_pass = initTable[string, nimpy.PyObject]()
@@ -544,10 +629,10 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
         for (k, v) in page_paths.pairs:
             let (wd, pid) = res_fail[k]
-            cast_paths_fail[k] = (Path v, wd / Path("pages") / Path($pid & ".npy"), false)
+            cast_paths_fail[k] = (Path v, Path(wd) / Path("pages") / Path($pid & ".npy"), false)
 
         let (rj_wd, rj_pid) = res_fail[reject_reason_name]
-        let reject_reason_path = rj_wd / Path("pages") / Path($rj_pid & ".npy")
+        let reject_reason_path = Path(rj_wd) / Path("pages") / Path($rj_pid & ".npy")
         cast_paths_fail[reject_reason_name] = (reject_reason_path, reject_reason_path, false)
 
         for (desired_name, desired_info) in desired_column_map.pairs:
@@ -582,7 +667,7 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
                 path_exists = fileExists(string cast_path)
 
             let (workdir, pid) = res_pass[desired_name]
-            let pagedir = workdir / Path("pages")
+            let pagedir = Path(workdir) / Path("pages")
             let dst_path = pagedir / Path($pid & ".npy")
 
             cast_paths_pass[desired_name] = (cast_path, dst_path, true)
@@ -634,7 +719,7 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
         if reason_lst.len > 0:
             let (dirpid, pid) = res_fail[reject_reason_name]
-            let pathpid = string (dirpid / Path("pages") / Path($pid & ".npy"))
+            let pathpid = string (Path(dirpid) / Path("pages") / Path($pid & ".npy"))
             let page = newNDArray(reason_lst)
 
             page.save(pathpid)
@@ -650,14 +735,13 @@ proc doSliceConvert(dir_pid: Path, page_size: int, columns: Table[string, string
 
     return (pages_pass, pages_fail)
 
-proc doSliceConvertPy(): string {.exportpy.} =
-    return "slice converted"
-
-proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObject, dir_pid: Path, TaskManager: nimpy.PyObject): (nimpy.PyObject, nimpy.PyObject) =
+proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dir_pid: string): (
+    Table[string, seq[string]], int, Table[string, bool], OrderedTable[string, DesiredColumnInfo], seq[string], seq[string], seq[ColInfo], seq[ColInfo], seq[string], string
+) =
     var desired_column_map = initOrderedTable[string, DesiredColumnInfo]()
     var collisions = initTable[string, int]()
 
-    let dirpage = dir_pid / Path("pages")
+    let dirpage = Path(dir_pid) / Path("pages")
     createDir(string dirpage)
 
     ######################################################
@@ -739,7 +823,7 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
 
     var is_correct_type = initTable[string, bool]()
 
-    proc genpage(dirpid: Path): ColSliceInfo {.inline.} = (dir_pid, tabliteBase().SimplePage.next_id(string dir_pid).to(int))
+    proc genpage(dirpid: string): ColSliceInfo {.inline.} = (dir_pid, tabliteBase().SimplePage.next_id(string dir_pid).to(int))
 
     for (desired_name_non_unique, desired_columns) in desired_column_map.pairs():
         let keys = toSeq(passed_column_data)
@@ -791,6 +875,11 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
 
     failed_column_data.add(reject_reason_name)
 
+    return (columns, page_count, is_correct_type, desired_column_map, passed_column_data, failed_column_data, res_cols_pass, res_cols_fail, column_names, reject_reason_name)
+
+proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObject, dir_pid: Path, TaskManager: nimpy.PyObject): (nimpy.PyObject, nimpy.PyObject) =
+    var (columns, page_count, is_correct_type, desired_column_map, passed_column_data, failed_column_data, res_cols_pass, res_cols_fail, column_names, reject_reason_name) = collectColumnSelectInfo(table, cols, string dir_pid)
+
     if toSeq(is_correct_type.values).all(proc (x: bool): bool = x):
         let tbl_pass_columns = collect(initTable()):
             for (desired_name, desired_info) in desired_column_map.pairs():
@@ -823,58 +912,12 @@ proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObj
                     {name: column[i]}
             (el, res_cols_pass[i], res_cols_fail[i])
 
-    let cpu_count = clamp(task_list_inp.len, 1, countProcessors())
-    let Config = tabliteConfig().Config
-    var is_mp: bool
-
-    if Config.MULTIPROCESSING_MODE.to(string) == Config.FORCE.to(string):
-        is_mp = true
-    elif Config.MULTIPROCESSING_MODE.to(string) == Config.FALSE.to(string):
-        is_mp = false
-    elif Config.MULTIPROCESSING_MODE.to(string) == Config.AUTO.to(string):
-        let is_multithreaded = cpu_count > 1
-        let is_multipage = page_count > 1
-
-        is_mp = is_multithreaded and is_multipage
-
-    var page_size = Config.PAGE_SIZE.to(int)
+    var page_size = tabliteConfig().Config.PAGE_SIZE.to(int)
     var pbar = tqdm!(total: task_list_inp.len, desc: "column select")
     var converted = newSeqOfCap[(seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)])](task_list_inp.len)
 
-    if is_mp:
-        echo appType
-        when appType != "lib":
-            implement("cannot execute in app mode")
-        else:
-            template colInfoToPy(tbl: ColInfo): Table[string, (string, int)] =
-                collect(initTable()):
-                    for (cn, ct) in tbl.pairs:
-                        let (cp, ci) = ct
-                        {cn: (string cp, ci)}
-
-            let tasks = collect:
-                for (columns, res_pass, res_fail) in task_list_inp:
-                    let pyResPass = colInfoToPy(res_pass)
-                    let pyResFail = colInfoToPy(res_fail)
-                    let ipkl = dill().dumps(doSliceConvertPy)
-
-                    mplite().Task(tabliteBase().capsuleIntermediate, ipkl, string dir_pid, page_size, columns, reject_reason_name, pyResPass, pyResFail, desired_column_map, column_names, is_correct_type)
-
-            # echo tasks
-
-            let tm = TaskManager!(cpu_count=cpu_count)
-            
-            discard tm.start()
-
-            let results = tm.execute(tasks)#, pbar=pbar)
-
-            discard tm.stop()
-
-            echo results
-            implement("columnSelect.convert.mp")
-    else:
-        for (columns, res_pass, res_fail) in task_list_inp:
-            converted.add(doSliceConvert(dir_pid, page_size, columns, reject_reason_name, res_pass, res_fail, desired_column_map, column_names, is_correct_type))
+    for (columns, res_pass, res_fail) in task_list_inp:
+        converted.add(doSliceConvert(dir_pid, page_size, columns, reject_reason_name, res_pass, res_fail, desired_column_map, column_names, is_correct_type))
 
         discard pbar.update(1)
 
@@ -912,25 +955,28 @@ when isMainModule and appType != "lib":
     createDir(string pagedir)
 
     pymodules.tabliteConfig().Config.pid = pid
-    pymodules.tabliteConfig().Config.PAGE_SIZE = 2
+    # pymodules.tabliteConfig().Config.PAGE_SIZE = 2
     # pymodules.tabliteConfig().Config.MULTIPROCESSING_MODE = pymodules.tabliteConfig().Config.FALSE
 
     # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(10), nimValueToPy(200)]}.toTable)
     # let columns = pymodules.builtins().dict({"A ": @[1, 22, 333]}.toTable)
     # let columns = pymodules.builtins().dict({"A ": @["1", "22", "333", "", "abc"]}.toTable)
-    let columns = pymodules.builtins().dict({"A ": @[nimValueToPy("1"), nimValueToPy("222"), nimValueToPy("333"), nimValueToPy(nil), nimValueToPy("abc")]}.toTable)
+    # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy("1"), nimValueToPy("222"), nimValueToPy("333"), nimValueToPy(nil), nimValueToPy("abc")]}.toTable)
+    let columns = pymodules.builtins().dict({"A": @[nimValueToPy("0"), nimValueToPy(nil), nimValueToPy("2")], "B": @[nimValueToPy("3"), nimValueToPy(nil), nimValueToPy("4")]}.toTable)
     let table = pymodules.tablite().Table(columns = columns)
 
     discard table.show(dtype = true)
 
     let select_cols = builtins().list(@[
-        newColumnSelectorInfo("A ", "int", true, opt.none[string]()),
-        newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
-            # newColumnSelectorInfo("A ", "bool", false, opt.none[string]()),
-            # newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
-            # newColumnSelectorInfo("A ", "date", false, opt.none[string]()),
-            # newColumnSelectorInfo("A ", "datetime", false, opt.none[string]()),
-            # newColumnSelectorInfo("A ", "time", false, opt.none[string]()),
+        # newColumnSelectorInfo("A ", "int", true, opt.none[string]()),
+            # newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
+                # newColumnSelectorInfo("A ", "bool", false, opt.none[string]()),
+                # newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
+                # newColumnSelectorInfo("A ", "date", false, opt.none[string]()),
+                # newColumnSelectorInfo("A ", "datetime", false, opt.none[string]()),
+                # newColumnSelectorInfo("A ", "time", false, opt.none[string]()),
+        newColumnSelectorInfo("A", "int", true, opt.none[string]()),
+        newColumnSelectorInfo("B", "int", true, opt.none[string]()),
     ])
 
     let (select_pass, select_fail) = table.columnSelect(
