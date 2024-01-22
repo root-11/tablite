@@ -1,6 +1,5 @@
 import os
 import io
-import dill
 import math
 import yaml
 import atexit
@@ -1786,18 +1785,3 @@ class Table(object):
                 seen.add(key_hash)
                 unique.add(ix)
         return np.array(sorted(unique))
-
-def capsuleIntermediate(pkld_fn: bytes, *args, **kwargs):
-    """
-        this is an intermediate level function because we cannot call the function from nim when using multiprocessing
-        because the function lives as a python lambda within nim runtime, while it wouldn't be necessary when the app is built as library
-        it would complicate testing when we want to do run it as a nim program instead of a library through python
-    """
-    print("loading pickle: ", pkld_fn)
-    fn = dill.loads(pkld_fn)
-
-    print(args)
-    print(kwargs)
-
-    return "hi"
-    # return fn(*args, **kwargs)
