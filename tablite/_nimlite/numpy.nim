@@ -1,4 +1,6 @@
 import std/[os, unicode, strutils, sugar, times, tables, enumerate, sequtils]
+from std/macros import bindSym
+from std/typetraits import name
 import dateutils, pytypes, unpickling, utils
 import pymodules as pymodules
 import nimpy as nimpy, nimpy/raw_buffers
@@ -86,17 +88,17 @@ type ObjectNDArray* = ref object of BaseNDArray
     dtypes*: Table[KindObjectND, int]
     dtype* = "|O8"
 
-proc pageKind*(_: typedesc[BooleanNDArray]): KindNDArray = K_BOOLEAN
-proc pageKind*(_: typedesc[Int8NDArray]): KindNDArray = K_INT8
-proc pageKind*(_: typedesc[Int16NDArray]): KindNDArray = K_INT16
-proc pageKind*(_: typedesc[Int32NDArray]): KindNDArray = K_INT32
-proc pageKind*(_: typedesc[Int64NDArray]): KindNDArray = K_INT64
-proc pageKind*(_: typedesc[Float32NDArray]): KindNDArray = K_FLOAT32
-proc pageKind*(_: typedesc[Float64NDArray]): KindNDArray = K_FLOAT64
-proc pageKind*(_: typedesc[DateNDArray]): KindNDArray = K_DATE
-proc pageKind*(_: typedesc[DateTimeNDArray]): KindNDArray = K_DATETIME
-proc pageKind*(_: typedesc[UnicodeNDArray]): KindNDArray = K_STRING
-proc pageKind*(_: typedesc[ObjectNDArray]): KindNDArray = K_OBJECT
+template pageKind*(_: typedesc[BooleanNDArray]): KindNDArray = KindNDArray.K_BOOLEAN
+template pageKind*(_: typedesc[Int8NDArray]): KindNDArray = KindNDArray.K_INT8
+template pageKind*(_: typedesc[Int16NDArray]): KindNDArray = KindNDArray.K_INT16
+template pageKind*(_: typedesc[Int32NDArray]): KindNDArray = KindNDArray.K_INT32
+template pageKind*(_: typedesc[Int64NDArray]): KindNDArray = KindNDArray.K_INT64
+template pageKind*(_: typedesc[Float32NDArray]): KindNDArray = KindNDArray.K_FLOAT32
+template pageKind*(_: typedesc[Float64NDArray]): KindNDArray = KindNDArray.K_FLOAT64
+template pageKind*(_: typedesc[DateNDArray]): KindNDArray = KindNDArray.K_DATE
+template pageKind*(_: typedesc[DateTimeNDArray]): KindNDArray = KindNDArray.K_DATETIME
+template pageKind*(_: typedesc[UnicodeNDArray]): KindNDArray = KindNDArray.K_UNICODE
+template pageKind*(_: typedesc[ObjectNDArray]): KindNDArray = KindNDArray.K_OBJECT
 
 iterator pgIter*(self: BooleanNDArray): bool =
     for el in self.buf:
@@ -221,6 +223,18 @@ proc `[]`*[T: BaseNDArray](self: T, slice: seq[int] | openArray[int]): T =
     of K_OBJECT: return ObjectNDArray(self)[slice]
 
 proc dtype*(self: UnicodeNDArray): string = endiannessMark & "U" & $self.size
+
+macro baseType*(self: typedesc[BooleanNDArray]): typedesc[bool] = bindSym(bool.name)
+macro baseType*(self: typedesc[Int8NDArray]): typedesc[int8] = bindSym(int8.name)
+macro baseType*(self: typedesc[Int16NDArray]): typedesc[int16] = bindSym(int16.name)
+macro baseType*(self: typedesc[Int32NDArray]): typedesc[int32] = bindSym(int32.name)
+macro baseType*(self: typedesc[Int64NDArray]): typedesc[int64] = bindSym(int64.name)
+macro baseType*(self: typedesc[Float32NDArray]): typedesc[float32] = bindSym(float32.name)
+macro baseType*(self: typedesc[Float64NDArray]): typedesc[float64] = bindSym(float64.name)
+macro baseType*(self: typedesc[DateNDArray]): typedesc[DateTime] = bindSym(DateTime.name)
+macro baseType*(self: typedesc[DateTimeNDArray]): typedesc[DateTime] = bindSym(DateTime.name)
+macro baseType*(self: typedesc[UnicodeNDArray]): typedesc[string] = bindSym(string.name)
+macro baseType*(self: typedesc[ObjectNDArray]): typedesc[PY_ObjectND] = bindSym(PY_ObjectND.name)
 
 template default*(self: typedesc[BooleanNDArray]): bool = false
 template default*(self: typedesc[Int8NDArray]): int8 = 0
