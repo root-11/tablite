@@ -1,5 +1,5 @@
 import std/[times, osproc, enumerate, options, strutils]
-import funcs/text_reader/[taskargs, table, encfile, csvparse, text_reader]
+import taskargs, table, encfile, csvparse, text_reader
 
 proc runTask*(path: string, encoding: string, dialect: TabliteDialect, task: TabliteTask, import_fields: seq[uint], guess_dtypes: bool): void =
     toTaskArgs(
