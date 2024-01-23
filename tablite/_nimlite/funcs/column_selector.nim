@@ -1,15 +1,23 @@
-import funcs/column_selector/sliceconv
-import funcs/column_selector/infos
-import funcs/column_selector/collectinfo
+
+import column_selector/sliceconv
+import column_selector/infos
+import column_selector/collectinfo
+
+export ColInfo
+export toPyObj
+export collectColumnSelectInfo
+export doSliceConvert
+export fromPyObjToDesiredInfos
 
 when isMainModule and appType != "lib":
+
     import std/[os, tables, sugar, sets, sequtils, paths, macros]
     import nimpy as nimpy
-    from nimpyext import `!`
-    import utils
+    from ../nimpyext import `!`
+    import ../utils
     import std/options as opt
-    import pymodules as pymodules
-    import numpy
+    import ../pymodules as pymodules
+    import ../numpy
     import typetraits
 
     proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObject, dir_pid: Path, TaskManager: nimpy.PyObject): (nimpy.PyObject, nimpy.PyObject) =
