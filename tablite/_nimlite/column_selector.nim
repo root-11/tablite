@@ -164,6 +164,8 @@ template makePage[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[Ma
         let buf = collect:
             for (i, v) in enumerate(page.pgIter):
                 var res = dt.default()
+                var skip = false
+                var alreadyChecked = false
 
                 when v is PY_ObjectND:
                     case v.kind:
@@ -171,38 +173,41 @@ template makePage[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[Ma
                         if not allow_empty:
                             reason_lst[i] = createNoneErrorReason()
                             mask[i] = Mask.INVALID
+                            continue
                         else:
                             mask[i] = Mask.VALID
-                        continue
+                            alreadyChecked = true
                     of K_STRING:
                         if PY_String(v).value.len == 0:
                             if not allow_empty:
                                 reason_lst[i] = createNoneErrorReason()
                                 mask[i] = Mask.INVALID
+                                continue
                             else:
                                 mask[i] = Mask.VALID
-                            continue
+                                alreadyChecked = true
                     else:
                         discard
+                
+                if likely(not alreadyChecked):
+                    try:
+                        res = conv(v)
+                        mask[i] = Mask.VALID
+                    except ValueError:
+                        mask[i] = Mask.INVALID
 
-                try:
-                    res = conv(v)
-                    mask[i] = Mask.VALID
-                except ValueError:
-                    mask[i] = Mask.INVALID
+                        var kind {.noinit.}: KindObjectND
+                        var strRepr {.noinit.}: string
 
-                    var kind {.noinit.}: KindObjectND
-                    var strRepr {.noinit.}: string
+                        when v is PY_ObjectND:
+                            kind = v.kind
+                            strRepr = v.toRepr
+                        else:
+                            strRepr = $v
+                            implement("other")
 
-                    when v is PY_ObjectND:
-                        kind = v.kind
-                        strRepr = v.toRepr
-                    else:
-                        strRepr = $v
-                        implement("other")
-
-                    reason_lst[i] = createCastErrorReason(strRepr, kind)
-                    continue
+                        reason_lst[i] = createCastErrorReason(strRepr, kind)
+                        continue
 
                 res
         let shape = @[buf.len]
@@ -380,23 +385,23 @@ mkCasters:
 mkCasters:
     proc (v: string) =
         bool = infer.inferBool(addr v)
-        int = infer.inferInt(addr v)
+        int = int infer.inferFloat(addr v)
         float = infer.inferFloat(addr v)
         string = v
         ToDate = infer.inferDate(addr v).value
         ToDateTime = infer.inferDatetime(addr v).value
         ToTime = infer.inferTime(addr v)
 
-template obj2primCast[R](T1: typedesc, T2: typedesc, TR: typedesc[R], v: PY_ObjectND) = return T2.fnCast(TR)(T1(v).value)
+# template obj2primCast[R](T1: typedesc, T2: typedesc, TR: typedesc[R], v: PY_ObjectND) = return T2.fnCast(TR)(T1(v).value)
 template obj2prim(v: PY_ObjectND) =
     case v.kind:
-    of K_BOOLEAN: PY_Boolean.obj2primCast(bool, R, v)
-    of K_INT: PY_Int.obj2primCast(int, R, v)
-    of K_FLOAT: PY_Float.obj2primCast(float, R, v)
-    of K_STRING: PY_String.obj2primCast(string, R, v)
-    of K_DATE: PY_Date.obj2primCast(FromDate, R, v)
+    of K_BOOLEAN: bool.fnCast(R)(PY_Boolean(v).value) # PY_Boolean.obj2primCast(bool, R, v)
+    of K_INT: int.fnCast(R)(PY_Int(v).value) # PY_Int.obj2primCast(int, R, v)
+    of K_FLOAT: float.fnCast(R)(PY_Float(v).value) # PY_Float.obj2primCast(float, R, v)
+    of K_STRING: string.fnCast(R)(PY_String(v).value) # PY_String.obj2primCast(string, R, v)
+    of K_DATE: FromDate.fnCast(R)(PY_Date(v).value) # PY_Date.obj2primCast(FromDate, R, v)
     of K_TIME: PY_Time.fnCast(R)(PY_Time(v))
-    of K_DATETIME: PY_Date.obj2primCast(FromDateTime, R, v)
+    of K_DATETIME: FromDateTime.fnCast(R)(PY_Date(v).value) # PY_Date.obj2primCast(FromDateTime, R, v)
     of K_NONETYPE: raise newException(ValueError, "cannot cast")
 
 mkCasters:
@@ -593,6 +598,7 @@ proc finalizeSlice(indices: var seq[int], column_names: seq[string], infos: var 
         var cast_data = readNumpy(string src_path)
 
         if cast_data.len != indices.len:
+            echo "indices: " & $indices & "| cast_data: " & $cast_data
             cast_data = cast_data[indices]
             cast_data.putPage(infos, col_name, result_info[col_name])
             cast_data.save(string dst_path)
@@ -713,6 +719,12 @@ proc doSliceConvert*(dir_pid: Path, page_size: int, columns: Table[string, strin
 
                 invalid_indices.add(i)
                 reason_lst[i]
+
+        echo "invalid_indices:" & $invalid_indices
+        echo "valid_indices:" & $valid_indices
+
+        echo "cast_paths_pass: " & $cast_paths_pass
+
 
         valid_indices.finalizeSlice(toSeq(desired_column_map.keys), page_infos_pass, cast_paths_pass, pages_pass, res_pass)
         invalid_indices.finalizeSlice(toSeq(columns.keys), page_infos_fail, cast_paths_fail, pages_fail, res_fail)
