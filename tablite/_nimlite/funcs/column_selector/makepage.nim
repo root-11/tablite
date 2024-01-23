@@ -1,7 +1,29 @@
-import std/[enumerate, unicode]
+import std/[enumerate, unicode, tables]
 import ../../numpy
 import ../../pytypes
 from mask import Mask
+
+proc canBeNone*(page: BaseNDArray): bool =
+    var canBeNone {.noinit.}: bool
+
+    case page.kind:
+    of K_STRING: canBeNone = true
+    of K_OBJECT:
+        let types = page.getPageTypes()
+
+        if K_NONETYPE in types:
+            if likely(types[K_NONETYPE] > 0):
+                # there is at least one none in the page, we need to check for it
+                canBeNone = true
+
+        if not canBeNone and K_STRING in types:
+            if likely(types[K_STRING] > 0):
+                # there can be at least one empty string in the page, we need to check forit
+                canBeNone = true
+    else:
+        canBeNone = false
+
+    return canBeNone
 
 template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[Mask], reason_lst: var seq[string], conv: proc, allow_empty: bool, original_name: string, desired_name: string, desired_type: KindObjectND): BaseNDArray =
     template getTypeUserName(t: KindObjectND): string =
@@ -28,18 +50,7 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
 
     when page is ObjectNDArray:
         # this is an object page, check for strings and nones
-        var canBeNone = false
-        let types = page.getPageTypes()
-
-        if K_NONETYPE in types:
-            if likely(types[K_NONETYPE] > 0):
-                # there is at least one none in the page, we need to check for it
-                canBeNone = true
-
-        if not canBeNone and K_STRING in types:
-            if likely(types[K_STRING] > 0):
-                # there can be at least one empty string in the page, we need to check forit
-                canBeNone = true
+        let canBeNone = page.canBeNone
     else:
         var inTypeKind {.noinit.}: KindObjectND
 
