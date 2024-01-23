@@ -20,11 +20,14 @@ proc importPy(): void =
         return
 
     let envs = getEnv("NIM_PYTHON_MODULES", "").split(":")
-    discard pyImport("sys").path.extend(envs)
+    iSys = nimpy.pyImport("sys")
+    
+    discard iSys.path.extend(envs)
+
+    echo $iSys.path
 
     iBuiltins = nimpy.pyBuiltinsModule()
 
-    iSys = nimpy.pyImport("sys")
     iDateTime = nimpy.pyImport("datetime")
     iTablite = nimpy.pyImport("tablite")
     iTabliteBase = nimpy.pyImport("tablite.base")
