@@ -22,7 +22,8 @@ when isMainModule and appType != "lib":
     import ../funcs/text_reader/cli
     import ../pymodules
 
-    let workdir = Path(builtins().str(tabliteConfig().Config.workdir).to(string))
+    let Config = tabliteConfig().Config
+    let workdir = Path(builtins().str(Config.workdir).to(string))
 
     var path_csv: string
     var encoding: FileEncoding
@@ -32,7 +33,7 @@ when isMainModule and appType != "lib":
     var pid = string (workdir / Path("nim"))
     var taskname = "task"
     var use_json = false
-    var page_size = uint 1_000_000
+    var page_size = uint Config.PAGE_SIZE.to(int)
 
     const boolean_true_choices = ["true", "yes", "t", "y"]
     # const boolean_false_choices = ["false", "no", "f", "n"]
@@ -189,12 +190,12 @@ when isMainModule and appType != "lib":
             # (path_csv, encoding) = ("tests/data/book1.csv", str2Enc($ENC_UTF8))
             # (path_csv, encoding) = ("tests/data/detect_misalignment.csv", str2Enc($ENC_UTF8))
             # (path_csv, encoding) = (dirdata & "/Ritual B2B orderlines updated.csv", str2Enc($ENC_UTF8))
-            (path_csv, encoding) = (dirdata & "/Ritual B2B orderlines_small.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = (dirdata & "/Ritual B2B orderlines_small.csv", str2Enc($ENC_UTF8))
             # (path_csv, encoding) = ("tests/data/utf16_test.csv", str2Enc($ENC_UTF16))
             # (path_csv, encoding) = ("tests/data/win1250_test.csv", str2ConvEnc("Windows-1252"))
 
             # (path_csv, encoding) = ("tests/data/book1.txt", str2Enc($ENC_UTF8))
-            # (path_csv, encoding) = ("tests/data/gdocs1.csv", str2Enc($ENC_UTF8))
+            (path_csv, encoding) = ("tests/data/gdocs1.csv", str2Enc($ENC_UTF8))
             # (path_csv, encoding) = (dirdata & "/Dematic YDC Order Data.csv", str2Enc($ENC_UTF8))
             # (path_csv, encoding) = (dirdata & "/Dematic YDC Order Data_1M.csv", str2Enc($ENC_UTF8))
             # (path_csv, encoding) = (dirdata & "/Dematic YDC Order Data_1M_1col.csv", str2Enc($ENC_UTF8))

@@ -49,7 +49,7 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
         of K_FLOAT32, K_FLOAT64: inTypeKind = KindObjectND.K_FLOAT
         of K_DATE: inTypeKind = KindObjectND.K_DATE
         of K_DATETIME: inTypeKind = KindObjectND.K_DATETIME
-        of K_UNICODE: inTypeKind = KindObjectND.K_STRING
+        of K_STRING: inTypeKind = KindObjectND.K_STRING
         of K_OBJECT: discard # we're never this type
 
     when T is UnicodeNDArray:

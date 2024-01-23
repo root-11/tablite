@@ -36,7 +36,7 @@ type KindNDArray* = enum
     K_FLOAT64,
     K_DATE,
     K_DATETIME,
-    K_UNICODE,
+    K_STRING,
     K_OBJECT
 
 template gendtype[T](dt: typedesc[T], name: char): string = endiannessMark & $name & $sizeof(T)
@@ -97,7 +97,7 @@ template pageKind*(_: typedesc[Float32NDArray]): KindNDArray = KindNDArray.K_FLO
 template pageKind*(_: typedesc[Float64NDArray]): KindNDArray = KindNDArray.K_FLOAT64
 template pageKind*(_: typedesc[DateNDArray]): KindNDArray = KindNDArray.K_DATE
 template pageKind*(_: typedesc[DateTimeNDArray]): KindNDArray = KindNDArray.K_DATETIME
-template pageKind*(_: typedesc[UnicodeNDArray]): KindNDArray = KindNDArray.K_UNICODE
+template pageKind*(_: typedesc[UnicodeNDArray]): KindNDArray = KindNDArray.K_STRING
 template pageKind*(_: typedesc[ObjectNDArray]): KindNDArray = KindNDArray.K_OBJECT
 
 iterator pgIter*(self: BooleanNDArray): bool =
@@ -154,7 +154,7 @@ proc `[]`(self: UnicodeNDArray, slice: seq[int] | openArray[int]): UnicodeNDArra
     for (i, j) in enumerate(slice):
         buf[i * self.size].addr.copyMem(addr self.buf[j * self.size], self.size)
 
-    return UnicodeNDArray(shape: @[slice.len], size: self.size, buf: buf, kind: K_UNICODE)
+    return UnicodeNDArray(shape: @[slice.len], size: self.size, buf: buf, kind: K_STRING)
 
 proc `[]`(self: ObjectNDArray, slice: seq[int] | openArray[int]): BaseNDArray =
     var dtypes = initTable[KindObjectND, int]()
@@ -219,7 +219,7 @@ proc `[]`*[T: BaseNDArray](self: T, slice: seq[int] | openArray[int]): T =
     of K_FLOAT64: return Float64NDArray(self).primitiveSlice(slice)
     of K_DATE: return DateNDArray(self).primitiveSlice(slice)
     of K_DATETIME: return DateTimeNDArray(self).primitiveSlice(slice)
-    of K_UNICODE: return UnicodeNDArray(self)[slice]
+    of K_STRING: return UnicodeNDArray(self)[slice]
     of K_OBJECT: return ObjectNDArray(self)[slice]
 
 proc dtype*(self: UnicodeNDArray): string = endiannessMark & "U" & $self.size
@@ -296,7 +296,7 @@ proc `$`*(self: BaseNDArray): string =
     of K_BOOLEAN: return repr(BooleanNDArray self)
     of K_INT64: return repr(Int64NDArray self)
     of K_FLOAT64: return repr(Float64NDArray self)
-    of K_UNICODE: return repr(UnicodeNDArray self)
+    of K_STRING: return repr(UnicodeNDArray self)
     of K_OBJECT: return repr(ObjectNDArray self)
     of K_DATE: return repr(DateNDArray self)
     of K_DATETIME: return repr(DateTimeNDArray self)
@@ -595,7 +595,7 @@ proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: v
     if fh.readBuffer(addr buf[0], buf_size) != buf_size:
         corrupted()
 
-    return UnicodeNDArray(buf: buf, shape: shape, size: size, kind: K_UNICODE)
+    return UnicodeNDArray(buf: buf, shape: shape, size: size, kind: K_STRING)
 
 proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var Shape): ObjectNDArray =
     var elements = calcShapeElements(shape)
@@ -764,7 +764,7 @@ proc toPython*(self: BaseNDArray): nimpy.PyObject =
     of K_FLOAT64: return Float64NDArray(self).toPython()
     of K_DATE: return DateNDArray(self).toPython()
     of K_DATETIME: return DateTimeNDArray(self).toPython()
-    of K_UNICODE: return UnicodeNDArray(self).toPython()
+    of K_STRING: return UnicodeNDArray(self).toPython()
     of K_OBJECT: return ObjectNDArray(self).toPython()
 
 proc getPageLen*(fh: var File): int =
@@ -794,7 +794,7 @@ proc getPageTypes*(self: BaseNDArray): Table[KindObjectND, int] =
     of K_BOOLEAN: K_BOOLEAN.toType(self.shape)
     of K_INT8, K_INT16, K_INT32, K_INT64: K_INT.toType(self.shape)
     of K_FLOAT32, K_FLOAT64: K_FLOAT.toType(self.shape)
-    of K_UNICODE: K_STRING.toType(self.shape)
+    of K_STRING: K_STRING.toType(self.shape)
     of K_DATE: K_DATE.toType(self.shape)
     of K_DATETIME: K_DATETIME.toType(self.shape)
     of K_OBJECT: ObjectNDArray(self).dtypes
@@ -885,7 +885,7 @@ proc newNDArray*(arr: seq[string] | openArray[string] | iterator(): string): Uni
     for (i, str) in enumerate(runes):
         buf[i * longest].addr.copyMem(addr str[0], str.len * sizeof(Rune))
 
-    return UnicodeNDArray(shape: shape, buf: buf, size: longest, kind: K_UNICODE)
+    return UnicodeNDArray(shape: shape, buf: buf, size: longest, kind: K_STRING)
 
 proc save*(self: BaseNDArray, path: string): void =
     case self.kind:
@@ -896,7 +896,7 @@ proc save*(self: BaseNDArray, path: string): void =
     of K_INT64: Int64NDArray(self).save(path)
     of K_FLOAT32: Float32NDArray(self).save(path)
     of K_FLOAT64: Float64NDArray(self).save(path)
-    of K_UNICODE: UnicodeNDArray(self).save(path)
+    of K_STRING: UnicodeNDArray(self).save(path)
     of K_DATE: DateNDArray(self).save(path)
     of K_DATETIME: DateTimeNDArray(self).save(path)
     of K_OBJECT: ObjectNDArray(self).save(path)
@@ -911,8 +911,6 @@ proc type2PyType(`type`: KindObjectND): nimpy.PyObject =
     of K_DATE: return pymodules.datetime().date
     of K_TIME: return pymodules.datetime().time
     of K_DATETIME: return pymodules.datetime().datetime
-
-    implement("type2PyType.'" & $ `type` & "'")
 
 proc newPyPage*(id: int, path: string, len: int, dtypes: Table[KindObjectND, int]): nimpy.PyObject =
     let pyDtypes = collect(initTable()):

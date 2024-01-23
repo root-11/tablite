@@ -131,5 +131,3 @@ when isMainModule and appType != "lib":
 
     discard select_pass.show(dtype = true)
     discard select_fail.show(dtype = true)
-
-    implement("keep pages")

@@ -1,4 +1,5 @@
-import std/[sugar, sequtils, unicode, enumerate]
+import nimpy as nimpy
+import std/[sugar, sequtils, unicode, enumerate, tables]
 import encfile, csvparse
 import ../../[numpy, pickling, ranking, infertypes, pytypes, utils]
 
@@ -218,14 +219,26 @@ proc dumpPageBody*(
         page_file_handlers: var seq[File],
         longest_str: var seq[uint], ranks: var seq[Rank], column_dtypes: var seq[PageType],
         binput: var uint32
-    ): void =
+    ): (seq[Table[KindObjectND, int]], seq[int]) =
+    var bodyLens = newSeq[int](n_pages)
+    var typeCounts = collect:
+        for _ in 0..<n_pages:
+            initTable[KindObjectND, int]()
+
+    template addType(dtypes: ptr Table[KindObjectND, int], dt: KindObjectND, i: int): void =
+        if not (dt in dtypes[]):
+            dtypes[][dt] = 0
+
+        dtypes[][dt] = dtypes[][dt] + 1
+        bodyLens[i] = bodyLens[i] + 1
+
     for (row_idx, fields, field_count) in obj.parseCSV(fh):
         if row_count >= 0 and row_idx >= (uint row_count):
             break
 
         var fidx = -1
 
-        for idx in 0..field_count-1:
+        for idx in 0..<field_count:
             if not ((uint idx) in import_fields):
                 continue
 
@@ -233,20 +246,28 @@ proc dumpPageBody*(
 
             var str = fields[idx]
             var fh = page_file_handlers[fidx]
+            var dtypes = addr typeCounts[fidx]
 
             if not guess_dtypes:
                 fh.writeNumpyUnicode(str, longest_str[fidx])
+                dtypes.addType(K_STRING, fidx)
             else:
                 let dt = column_dtypes[fidx]
                 var rank = ranks[fidx]
 
                 case dt:
-                    of PageType.PG_UNICODE: fh.writeNumpyUnicode(str, longest_str[fidx])
+                    of PageType.PG_UNICODE:
+                        fh.writeNumpyUnicode(str, longest_str[fidx])
+                        dtypes.addType(K_STRING, fidx)
                     of PageType.PG_INT32_SIMPLE, PageType.PG_INT32_US, PageType.PG_INT32_EU:
                         fh.writeNumpyInt(inferLocaleInt(rank, str))
+                        dtypes.addType(K_INT, fidx)
                     of PageType.PG_FLOAT32_SIMPLE, PageType.PG_FLOAT32_US, PageType.PG_FLOAT32_EU:
                         fh.writeNumpyFloat(inferLocaleFloat(rank, str))
-                    of PageType.PG_BOOL: fh.writeNumpyBool(str)
+                        dtypes.addType(K_FLOAT, fidx)
+                    of PageType.PG_BOOL:
+                        fh.writeNumpyBool(str)
+                        dtypes.addType(K_BOOLEAN, fidx)
                     of PageType.PG_OBJECT:
                         for r_addr in rank.iter():
                             let dt = r_addr[0]
@@ -254,34 +275,49 @@ proc dumpPageBody*(
                                 case dt:
                                     of DataTypes.DT_INT_SIMPLE:
                                         fh.writePicklePyObj(str.unsafeAddr.inferInt(true, false), binput)
+                                        dtypes.addType(K_INT, fidx)
                                     of DataTypes.DT_INT_US:
                                         fh.writePicklePyObj(str.unsafeAddr.inferInt(false, true), binput)
+                                        dtypes.addType(K_INT, fidx)
                                     of DataTypes.DT_INT_EU:
                                         fh.writePicklePyObj(str.unsafeAddr.inferInt(false, false), binput)
+                                        dtypes.addType(K_INT, fidx)
                                     of DataTypes.DT_FLOAT_SIMPLE:
                                         fh.writePicklePyObj(str.unsafeAddr.inferFloat(true, false), binput)
+                                        dtypes.addType(K_FLOAT, fidx)
                                     of DataTypes.DT_FLOAT_US:
                                         fh.writePicklePyObj(str.unsafeAddr.inferFloat(false, true), binput)
+                                        dtypes.addType(K_FLOAT, fidx)
                                     of DataTypes.DT_FLOAT_EU:
                                         fh.writePicklePyObj(str.unsafeAddr.inferFloat(false, false), binput)
+                                        dtypes.addType(K_FLOAT, fidx)
                                     of DataTypes.DT_BOOL:
                                         fh.writePicklePyObj(str.unsafeAddr.inferBool(), binput)
+                                        dtypes.addType(K_BOOLEAN, fidx)
                                     of DataTypes.DT_DATE:
                                         fh.writePicklePyObj(str.unsafeAddr.inferDate(false, false), binput)
+                                        dtypes.addType(K_DATE, fidx)
                                     of DataTypes.DT_DATE_SHORT:
                                         fh.writePicklePyObj(str.unsafeAddr.inferDate(true, false), binput)
+                                        dtypes.addType(K_DATE, fidx)
                                     of DataTypes.DT_DATE_US:
                                         fh.writePicklePyObj(str.unsafeAddr.inferDate(false, true), binput)
+                                        dtypes.addType(K_DATE, fidx)
                                     of DataTypes.DT_TIME:
                                         fh.writePicklePyObj(str.unsafeAddr.inferTime(), binput)
+                                        dtypes.addType(K_TIME, fidx)
                                     of DataTypes.DT_DATETIME:
                                         fh.writePicklePyObj(str.unsafeAddr.inferDatetime(false), binput)
+                                        dtypes.addType(K_DATETIME, fidx)
                                     of DataTypes.DT_DATETIME_US:
                                         fh.writePicklePyObj(str.unsafeAddr.inferDatetime(true), binput)
+                                        dtypes.addType(K_DATETIME, fidx)
                                     of DataTypes.DT_STRING:
                                         fh.writePicklePyObj(str, binput)
+                                        dtypes.addType(K_STRING, fidx)
                                     of DataTypes.DT_NONE:
                                         fh.writePicklePyObj(str.unsafeAddr.inferNone, binput)
+                                        dtypes.addType(K_NONETYPE, fidx)
                                     of DataTypes.DT_MAX_ELEMENTS:
                                         raise newException(Exception, "not a type")
                             except ValueError:
@@ -291,17 +327,23 @@ proc dumpPageBody*(
 
         for idx in (fidx+1)..n_pages-1:
             var fh = page_file_handlers[idx]
+            var dtypes = addr typeCounts[idx]
 
             if not guess_dtypes:
                 fh.writeNumpyUnicode(none_str, longest_str[idx])
+                dtypes.addType(K_STRING, idx)
             else:
                 let dt = column_dtypes[idx]
 
                 case dt:
                     of PageType.PG_UNICODE:
                         fh.writeNumpyUnicode(none_str, longest_str[idx])
+                        dtypes.addType(K_STRING, idx)
                     else:
                         fh.writePicklePyObj(PY_None, binput)
+                        dtypes.addType(K_NONETYPE, idx)
+
+    return (typeCounts, bodyLens)
 
 
 proc dumpPageFooter*(

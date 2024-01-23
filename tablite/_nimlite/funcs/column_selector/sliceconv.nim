@@ -122,7 +122,7 @@ proc doSliceConvert*(dir_pid: Path, page_size: int, columns: Table[string, strin
             of K_INT64: converted_page = Int64NDArray.castPage
             of K_FLOAT32: converted_page = Float32NDArray.castPage
             of K_FLOAT64: converted_page = Float64NDArray.castPage
-            of K_UNICODE: converted_page = UnicodeNDArray.castPage
+            of K_STRING: converted_page = UnicodeNDArray.castPage
             of K_DATE: converted_page = DateNDArray.castPage
             of K_DATETIME: converted_page = DateTimeNDArray.castPage
             of K_OBJECT: converted_page = ObjectNDArray.castPage

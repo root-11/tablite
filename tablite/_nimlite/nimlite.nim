@@ -14,6 +14,7 @@ when isLib:
     import nimpy
     import std/[paths]
     import std/[os, options, tables]
+    import pymodules
 
     # -------- COLUMN SELECTOR --------
     import funcs/column_selector as column_selector
@@ -49,9 +50,9 @@ when isLib:
         tsk_offset: uint,
         tsk_count: int,
         import_fields: seq[uint]
-    ): void {.exportpy.} =
+    ): seq[PyObject] {.exportpy.} =
         try:
-            text_reader.toTaskArgs(
+            return text_reader.toTaskArgs(
                 path = path,
                 encoding = encoding,
                 dia_delimiter = dia_delimiter,
