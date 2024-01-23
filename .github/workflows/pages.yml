@@ -1,0 +1,95 @@
+name: Generate Mkdocs and publish them to Pages
+
+on:
+  push:
+    tags:
+      - "*"
+    branches:
+      - master
+      - main
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: https://root-11.github.io/tablite/
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ '3.10' ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Init Cache Var by Week Number (%V)
+        run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
+      - name: Use Cache
+        uses: actions/cache@v3
+        with:
+          key: mkdocs-material-${{ env.cache_id }}
+          path: .cache
+          restore-keys: |
+            mkdocs-material-
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements_mkdocs.txt
+      - name: Install Nim Lang
+        uses: jiro4989/setup-nim-action@v1
+        with:
+          nim-version: "2.0.0"
+      - name: Nimble Install dependencies
+        run: |
+          nimble -y refresh
+          nimble -y install nimpy argparse
+      - name: Install PIPs
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements_mkdocs.txt
+      - name: Show Python version and PIPs
+        run: |
+          python --version
+          python -m pip list
+      - name: Set Env for tablite Import
+        uses: allenevans/set-env@v3.0.0
+        with:
+          USE_NIMPORTER: 'false'
+          PYTHONPATH: '.:tablite'
+          NIMLITE_DIR:  'tablite/_nimlite'
+          NIM_PACKAGE_NAME: 'nimlite'
+          TABLITE_PACKAGE_NAME: 'tablite'
+          NIMC_FLAGS: '--app:lib --threads:on -d:release -d:danger'
+      - name: Compile NimLite
+        run: |
+          nim c ${{ env.NIMC_FLAGS }} --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.so ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
+          python -c "print(__import__('${{ env.TABLITE_PACKAGE_NAME }}.${{ env.NIM_PACKAGE_NAME }}').__file__)"
+      - name: Configure Git user
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+      - name: Get tag or branch name
+        id: get_tag_or_branch
+        run: |
+          echo "tag_or_branch=$(echo ${GITHUB_REF#refs/*/})" >> $GITHUB_OUTPUT
+      - name: Replace H1 to H2, H2 to H3, ... in all Juptyer Notebooks
+        run: |
+          find . -name "*.ipynb" -type f -exec sed -i 's/"#/"##/' {} \;
+      - name: Deploy with Mike
+        run: |
+          mike deploy --push --update-aliases ${{ steps.get_tag_or_branch.outputs.tag_or_branch }} latest
+          mike set-default --push latest
+          mike list

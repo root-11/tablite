@@ -1,0 +1,9 @@
+# vi: set ft=yaml:
+# reference: https://github.com/lukasgeiter/mkdocs-awesome-pages-plugin#features
+nav:
+  - Home:
+    - README.md
+    - Changelog: changelog.md
+    - Benchmarks: benchmarks.ipynb
+    - Tutorial: tutorial.ipynb
+  - Reference: reference # virtual folder created by gen-files plugin and reference.py

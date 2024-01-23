@@ -10,6 +10,7 @@ def synthetic_order_data(rows=100_000):
     """Creates a synthetic dataset for testing that looks like this:
     (depending on number of rows)
 
+    ```
     +=========+=======+=============+===================+=====+===+=====+====+===+=====+=====+===================+==================+
     |    ~    |   #   |      1      |         2         |  3  | 4 |  5  | 6  | 7 |  8  |  9  |         10        |        11        |
     |   row   |  int  |     int     |      datetime     | int |int| int |str |str|mixed|mixed|       float       |      float       |
@@ -30,12 +31,13 @@ def synthetic_order_data(rows=100_000):
     |7,999,998|7999999|1382206732187|2021-11-13 00:00:00|50993|  1|24832|C5-2|UDL|None |ABC  |0.08425329763360942|12.707735293126758|
     |7,999,999|8000000| 600688069780|2021-09-28 00:00:00|50510|  0|15819|C3-4|IGY|None |ABC  |  1.066241687256579|13.862069804070295|
     +=========+=======+=============+===================+=====+===+=====+====+===+=====+=====+===================+==================+
+    ```
 
     Args:
         rows (int, optional): number of rows wanted. Defaults to 100_000.
 
     Returns:
-        Table: Populated table.
+        Table (Table): Populated table.
     """  # noqa
     rows = int(rows)
 
