@@ -1,5 +1,5 @@
 import std/[os, strutils]
-import csvparse, encfile, utils, table
+import csvparse, encfile, ../../utils, table
 
 type TaskArgs* = object
     path*: string
