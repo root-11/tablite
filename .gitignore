@@ -10,6 +10,8 @@ tests/new.zip
 __pycache__
 */_nimlite/*
 !*/_nimlite/**.nim
+!*/_nimlite/funcs/
+!*/_nimlite/funcs/column_selector/**.nim
 !*/_nimlite/**.py
 !*/_nimlite/**.pyi
 
