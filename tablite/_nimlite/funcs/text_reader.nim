@@ -177,29 +177,30 @@ when isMainModule and appType != "lib":
 
     p.run()
 
-    # let dirname = getCurrentDir()
 
     if opts.import.isNone and opts.task.isNone:
         when defined(DEV_BUILD):
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/split_lines.csv", str2Enc($ENC_UTF8))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dealz Poland v1.csv", str2Enc($ENC_UTF8))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/floats.csv", str2Enc($ENC_UTF8))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/bad_empty.csv", str2Enc($ENC_UTF8))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.csv", str2Enc($ENC_UTF8))
-            (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/detect_misalignment.csv", str2Enc($ENC_UTF8))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Ritual B2B orderlines updated.csv", str2Enc($ENC_UTF8))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Ritual B2B orderlines_small.csv", str2Enc($ENC_UTF8))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_test.csv", str2Enc($ENC_UTF16))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/win1250_test.csv", str2ConvEnc("Windows-1252"))
+            let dirdata = os.getEnv("DATA_DIR", ".")
 
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/book1.txt", str2Enc($ENC_UTF8))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/gdocs1.csv", str2Enc($ENC_UTF8))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data.csv", str2Enc($ENC_UTF8))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data_1M.csv", str2Enc($ENC_UTF8))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/Dematic YDC Order Data_1M_1col.csv", str2Enc($ENC_UTF8))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/callisto/tests/testing/data/gesaber_data.csv", str2Enc($ENC_UTF8))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_be.csv", str2Enc($ENC_UTF16))
-            # (path_csv, encoding) = ("/home/ratchet/Documents/dematic/tablite/tests/data/utf16_le.csv", str2Enc($ENC_UTF16))
+            # (path_csv, encoding) = ("tests/data/split_lines.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = (dirdata & "/Dealz Poland v1.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("tests/data/floats.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("tests/data/bad_empty.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("tests/data/book1.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("tests/data/detect_misalignment.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = (dirdata & "/Ritual B2B orderlines updated.csv", str2Enc($ENC_UTF8))
+            (path_csv, encoding) = (dirdata & "/Ritual B2B orderlines_small.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("tests/data/utf16_test.csv", str2Enc($ENC_UTF16))
+            # (path_csv, encoding) = ("tests/data/win1250_test.csv", str2ConvEnc("Windows-1252"))
+
+            # (path_csv, encoding) = ("tests/data/book1.txt", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("tests/data/gdocs1.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = (dirdata & "/Dematic YDC Order Data.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = (dirdata & "/Dematic YDC Order Data_1M.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = (dirdata & "/Dematic YDC Order Data_1M_1col.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = (dirdata & "/gesaber_data.csv", str2Enc($ENC_UTF8))
+            # (path_csv, encoding) = ("tests/data/utf16_be.csv", str2Enc($ENC_UTF16))
+            # (path_csv, encoding) = ("tests/data/utf16_le.csv", str2Enc($ENC_UTF16))
 
             # cols = some(@["\"Item\"", "\"Materiál\"", "\"Objem\"", "\"Jednotka objemu\"", "\"Free Inv Pcs\""])
             # dialect.quoting = Quoting.QUOTE_NONE
