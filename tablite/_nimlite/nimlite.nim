@@ -1,20 +1,14 @@
-import std/[os, options, tables, paths]
+import std/[os, options, tables]
 import encfile, table, csvparse
 
 when isMainModule and appType == "lib":
+    import std/[paths]
     import nimpy
-    import pylayer, textreader, taskargs, pymodules, column_selector
+    import pylayer, textreader, taskargs, pymodules
+    
+    include includes/column_selector
 
-    proc collect_column_select_info*(table: PyObject, cols: PyObject, dir_pid: string): (
-       Table[string, seq[string]], int, Table[string, bool], PyObject, seq[string], seq[string], seq[ColInfo], seq[ColInfo], seq[string], string
-    ) {.exportpy.} =
-        var (columns, page_count, is_correct_type, desired_column_map, passed_column_data, failed_column_data, res_cols_pass, res_cols_fail, column_names, reject_reason_name) = column_selector.collectColumnSelectInfo(table, cols, dir_pid)
-
-        return (columns, page_count, is_correct_type, desired_column_map.toPyObj, passed_column_data, failed_column_data, res_cols_pass, res_cols_fail, column_names, reject_reason_name)
-
-    proc do_slice_convert*(dir_pid: string, page_size: int, columns: Table[string, string], reject_reason_name: string, res_pass: ColInfo, res_fail: ColInfo, desired_column_map: PyObject, column_names: seq[string], is_correct_type: Table[string, bool]): (seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)]) {.exportpy.} =
-        return column_selector.doSliceConvert(Path(dir_pid), page_size, columns, reject_reason_name, res_pass, res_fail, desired_column_map.fromPyObjToDesiredInfos, column_names, is_correct_type)
-
+    
     proc text_reader_task(
         path: string,
         encoding: string,
@@ -98,9 +92,6 @@ when isMainModule and appType == "lib":
         except Exception as e:
             echo $e.msg & "\n" & $e.getStackTrace
             raise e
-
-    proc doSliceConvertPy(): string {.exportpy.} =
-        return "slice converted"
 
 when isMainModule and appType != "lib":
     import argparse
