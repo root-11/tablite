@@ -15,19 +15,21 @@ export encfile
 export csvparse
 
 when isMainModule and appType != "lib":
+    import nimpy
+    import std/[sugar, json, paths]
     import argparse
-    import std/[sugar, json]
     import ../utils
     import ../funcs/text_reader/cli
     import ../pymodules
 
+    let workdir = Path(builtins().str(tabliteConfig().Config.workdir).to(string))
 
     var path_csv: string
     var encoding: FileEncoding
     var dialect: Dialect
     var cols = none[seq[string]]()
     var guess_dtypes: bool
-    var pid = string (Path(tabliteConfig().Config.workdir.to(string)) / Path("nim"))
+    var pid = string (workdir / Path("nim"))
     var taskname = "task"
     var use_json = false
     var page_size = uint 1_000_000

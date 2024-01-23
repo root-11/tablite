@@ -24,8 +24,6 @@ proc importPy(): void =
     
     discard iSys.path.extend(envs)
 
-    echo $iSys.path
-
     iBuiltins = nimpy.pyBuiltinsModule()
 
     iDateTime = nimpy.pyImport("datetime")
