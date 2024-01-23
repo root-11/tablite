@@ -5,7 +5,7 @@ import ../../numpy
 from ../../pytypes import PY_ObjectND, KindObjectND
 import casters
 from mask import Mask
-from makepage import makePage
+from makepage import makePage, canBeNone
 from ../../utils import corrupted, implement
 
 macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
@@ -87,7 +87,8 @@ macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
 
             let nIfStmt = newNimNode(nnkIfStmt)
             let nElifBranch = newNimNode(nnkElifBranch)
-            let nAllowPrefix = newNimNode(nnkPrefix)
+            let nAllowPrefix = prefix(newIdentNode("allowEmpty"), "not")
+            let nCheckNone = prefix(newCall(newIdentNode("canBeNone"), newIdentNode("page")), "not")
             let nElse = newNimNode(nnkElse)
 
             template statements(nPageReturnType: NimNode, fnName: string): NimNode =
@@ -100,10 +101,7 @@ macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
 
                 nCallMkPage
 
-            nAllowPrefix.add(newIdentNode("not"))
-            nAllowPrefix.add(newIdentNode("allow_empty"))
-
-            nElifBranch.add(nAllowPrefix)
+            nElifBranch.add(infix(nAllowPrefix, "or", nCheckNone))
 
             if not (nPageReturnType.strVal in [ObjectNDArray.name, UnicodeNDArray.name]):
                 nElifBranch.add(statements(nPageReturnType, "fnCast"))
@@ -117,8 +115,8 @@ macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
         let nArgs = [newIdentNode(BaseNDArray.name), nArgReturnType, nInPage, nMaskDef, nReasonListDef, nAllowEmpty, nOriginaName, nDesiredName, nDesiredType]
         let nNewProc = newProc(postfix(newIdentNode("castType"), "*"), nArgs, nBody)
 
-        nProcNodes.add(nNewProc)
         nNewProc[2] = nGeneric
+        nProcNodes.add(nNewProc)
 
     return nProcNodes
 

@@ -119,7 +119,7 @@ when isMainModule and appType != "lib":
                 # newColumnSelectorInfo("A ", "datetime", false, opt.none[string]()),
                 # newColumnSelectorInfo("A ", "time", false, opt.none[string]()),
         newColumnSelectorInfo("A", "int", true, opt.none[string]()),
-        newColumnSelectorInfo("B", "int", true, opt.none[string]()),
+        newColumnSelectorInfo("B", "str", true, opt.none[string]()),
     ])
 
     let (select_pass, select_fail) = table.columnSelect(
