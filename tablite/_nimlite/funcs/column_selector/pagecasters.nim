@@ -6,7 +6,7 @@ from ../../pytypes import PY_ObjectND, KindObjectND
 import casters
 from mask import Mask
 from makepage import makePage
-from ../../utils import corrupted
+from ../../utils import corrupted, implement
 
 macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
     expectKind(nBaseType, nnkSym)
@@ -105,7 +105,7 @@ macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
 
             nElifBranch.add(nAllowPrefix)
 
-            if nPageReturnType.strVal != ObjectNDArray.name:
+            if not (nPageReturnType.strVal in [ObjectNDArray.name, UnicodeNDArray.name]):
                 nElifBranch.add(statements(nPageReturnType, "fnCast"))
                 nElse.add(statements(newIdentNode(ObjectNDArray.name), "fnPyCast"))
                 nIfStmt.add(nElifBranch)
