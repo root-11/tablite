@@ -1,7 +1,9 @@
-import std/[os, enumerate, sugar, tables, json, options, strutils]
+import nimpy as nimpy
+import std/[os, enumerate, sugar, tables, json, options, strutils, paths]
 import encfile, csvparse, table, ../../utils, paging, taskargs
+from ../../numpy import newPyPage
 
-proc textReaderTask*(task: TaskArgs): void =
+proc textReaderTask*(task: TaskArgs): seq[nimpy.PyObject] =
     var dialect = task.dialect
     var encoding = task.encoding
     var destinations = task.destinations
@@ -39,7 +41,7 @@ proc textReaderTask*(task: TaskArgs): void =
         try:
             fh.setFilePos(int64 row_offset, fspSet)
 
-            dumpPageBody(
+            let (pgTypes, pgLens) = dumpPageBody(
                 obj = obj,
                 fh = fh,
                 guess_dtypes = guess_dtypes,
@@ -60,6 +62,18 @@ proc textReaderTask*(task: TaskArgs): void =
                 column_dtypes = column_dtypes,
                 binput = binput
             )
+
+            let elems = collect:
+                for i in 0..<n_pages:
+                    let path = Path(destinations[i])
+                    let workdir = string path.parentDir.parentDir
+                    let id = parseInt(string path.extractFilename.changeFileExt(""))
+                    let dtypes = pgTypes[i]
+                    let len = pgLens[i]
+
+                    newPyPage(id, workdir, len, dtypes)
+
+            return elems
         finally:
             for f in page_file_handlers:
                 f.close()

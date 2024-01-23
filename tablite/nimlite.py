@@ -19,17 +19,8 @@ if True:
     sys.argv.clear()
     sys.argv.extend(paths)  # importing nim module messes with pythons launch arguments!!!
 
-
-class NimPage(SimplePage):
-    def __init__(self, id, path, data) -> None:
-        _len = len(data)
-        _, _dtype = pytype_from_iterable(data) if _len > 0 else (None, object)
-
-        super().__init__(id, path, _len, _dtype)
-
-
 def text_reader_task(*, pid, path, encoding, dialect, task, import_fields, guess_dtypes):
-    nl.text_reader_task(
+    return nl.text_reader_task(
         path=path,
         encoding=encoding,
         dia_delimiter=dialect["delimiter"],
@@ -47,18 +38,6 @@ def text_reader_task(*, pid, path, encoding, dialect, task, import_fields, guess
         import_fields=import_fields,
         guess_dtypes=guess_dtypes
     )
-
-    pages = []
-    for p in (Path(p) for p in task["pages"]):
-        try:
-            id = int(p.name.replace(p.suffix, ""))
-            arr = load_numpy(p)
-            page = NimPage(id, pid, arr)
-            pages.append(page)
-        except:
-            raise
-
-    return pages
 
 
 def text_reader(

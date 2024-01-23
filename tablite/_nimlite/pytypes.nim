@@ -17,14 +17,14 @@ type KindObjectND* = enum
 
 proc str2ObjKind*(val: string): KindObjectND =
     case val:
-    of "K_NONETYPE": K_NONETYPE
-    of "K_BOOLEAN": K_BOOLEAN
-    of "K_INT": K_INT
-    of "K_FLOAT": K_FLOAT
-    of "K_STRING": K_STRING
-    of "K_DATE": K_DATE
-    of "K_TIME": K_TIME
-    of "K_DATETIME": K_DATETIME
+    of $K_NONETYPE: K_NONETYPE
+    of $K_BOOLEAN: K_BOOLEAN
+    of $K_INT: K_INT
+    of $K_FLOAT: K_FLOAT
+    of $K_STRING: K_STRING
+    of $K_DATE: K_DATE
+    of $K_TIME: K_TIME
+    of $K_DATETIME: K_DATETIME
     else: raise newException(ValueError, "invalid object kind: " & val)
 
 type Shape* = seq[int]
