@@ -1,5 +1,5 @@
 import std/[os, enumerate, sugar, tables, json, options, strutils]
-import encfile, csvparse, table, utils, paging, taskargs
+import encfile, csvparse, table, ../../utils, paging, taskargs
 
 proc textReaderTask*(task: TaskArgs): void =
     var dialect = task.dialect

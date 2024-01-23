@@ -1,6 +1,6 @@
-import nimpy
 import std/options
-import encfile, table, csvparse, textreader, pytypes
+import encfile, table, csvparse, text_reader
+import ../../pytypes
 
 proc textReader*(
     pid: string, path: string, encoding: FileEncoding,
