@@ -55,7 +55,7 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
     when T is UnicodeNDArray:
         # string arrays are first saved into separate sequences, after we collect them we will copy their memory to single buffer
         var longest = 1
-        var runeBuf = newSeq[seq[Rune]](page.len)
+        var runeBuf = newSeqOfCap[seq[Rune]](page.len)
     else:
         # we know the maximum size of the sequence based on the page size as we cannot manifest new values
         var buf = newSeqOfCap[T.baseType](page.len)
@@ -112,7 +112,8 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
         try:
             when T is UnicodeNDArray:
                 # our result is a string page, so we need to know the maximum length and convert to runes
-                let res = conv(v).toRunes
+                let str = conv(v)
+                let res = str.toRunes
 
                 longest = max(longest, res.len)
                 runeBuf.add(res)
@@ -135,7 +136,7 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
     when T is UnicodeNDArray:
         # we need to turn the individual strings into contigous block
         let strCount = runeBuf.len
-        let buf = newSeq[Rune](longest * strCount)
+        var buf = newSeq[Rune](longest * strCount)
 
         for (i, str) in enumerate(runeBuf):
             buf[i * longest].addr.copyMem(addr str[0], str.len * sizeof(Rune))
