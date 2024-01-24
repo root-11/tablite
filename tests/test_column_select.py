@@ -768,6 +768,30 @@ def test_casting_str_4():
     for true, expect in zip((list(l) for l in select_1_pass.columns.values()), results):
         assert true == expect
 
+def test_casting_str_5():
+    col_name = "str"
+    input_values = ["1970/01/01", "1970/01/02"]
+
+    tbl = Table({col_name: input_values})
+
+    types = ["date", "datetime"]
+    results = [
+        [date(1970, 1, 1), date(1970, 1, 2)],
+        [datetime(1970, 1, 1), datetime(1970, 1, 2)],
+    ]
+
+    select_1_pass, select_1_fail = tbl.column_select(cols=[
+        {"column": col_name, "type": t, "allow_empty": False, "rename": t}
+        for t in types
+    ])
+
+    assert len(select_1_pass) == 2, select_1_pass.show()
+    assert len(select_1_fail) == 0, select_1_fail.show()
+    assert list(select_1_pass.columns.keys()) == types
+    
+    for true, expect in zip((list(l) for l in select_1_pass.columns.values()), results):
+        assert true == expect
+
 def test_casting_date_1():
     col_name = "date"
     input_values = [date(1970, 1, 1), date(1970, 1, 2)]
@@ -1018,4 +1042,4 @@ def test_casting_datetime_2_nones():
         assert true == expect
 
 if __name__ == "__main__":
-    test_casting_str_2_nones()
+    test_casting_str_5()
