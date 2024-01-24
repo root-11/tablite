@@ -23,12 +23,11 @@ proc uniqueName*(desired_name: string, name_list: openArray[string] | seq[string
 
 proc unescapeSeq*(str: string): string {.inline.} = # nim has no true unescape
     case str:
-        of "\\n": return "\n"
-        of "\\t": return "\t"
-        of "\\\"": return "\""
-        of "\\\\": return "\\"
-
-    return str
+    of "\\n": return "\n"
+    of "\\t": return "\t"
+    of "\\\"": return "\""
+    of "\\\\": return "\\"
+    else: return str
 
 proc divmod*(x: int, y: int): (int, int) {.inline.} =
     let z = int(floor(x / y))
