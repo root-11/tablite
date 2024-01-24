@@ -183,8 +183,18 @@ mkCasters:
         int = int infer.inferFloat(addr v)
         float = infer.inferFloat(addr v)
         string = v
-        ToDate = infer.inferDate(addr v).value
-        ToDateTime = infer.inferDatetime(addr v).value
+        ToDate = (
+            try:
+                infer.inferDate(addr v).value
+            except ValueError:
+                infer.inferDatetime(addr v).value
+        )
+        ToDateTime = (
+            try:
+                infer.inferDatetime(addr v).value
+            except ValueError:
+                infer.inferDate(addr v).value
+        )
         ToTime = infer.inferTime(addr v)
 
 template obj2prim(v: PY_ObjectND) =
