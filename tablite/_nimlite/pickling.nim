@@ -1,6 +1,5 @@
 from std/endians import bigEndian16, bigEndian32, bigEndian64
 import pickleproto, pytypes
-from utils import implement
 
 proc writePickleBinput(fh: var File, binput: var uint32): void {.inline.} =
     if binput <= 0xff:
@@ -107,6 +106,8 @@ proc writePickleDate(fh: var File, value: PY_Date, binput: var uint32): void {.i
     fh.writePickleBinput(binput)
     fh.write(PKL_REDUCE)
     fh.writePickleBinput(binput)
+
+import std/times
 
 proc writePickleTimeBody(fh: var File, value: ptr PY_DateTime | ptr PY_Time, binput: var uint32): void {.inline.} =
     var microsecond = uint32 value.getMicrosecond()

@@ -1,13 +1,10 @@
 from std/random import randomize, sample
 from std/math import floor
-from std/sugar import collect
-from std/tables import Table
 
 randomize()
 
 const rand_chars = {'a'..'z','A'..'Z', '0'..'9'}
 
-type Iterable[T] = proc: iterator: T
 template corrupted*(d: typedesc = IOError): void = raise newException(d, "file corrupted")
 template implement*(name: string = ""): void = raise newException(Exception, if name.len == 0: "not yet imlemented" else: "'" & name & "' not yet imlemented")
 

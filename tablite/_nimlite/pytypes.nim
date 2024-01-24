@@ -4,6 +4,7 @@ import dateutils
 
 const fmtDate* = initTimeFormat("yyyy-MM-dd")
 const fmtDateTime* = initTimeFormat("yyyy-MM-dd HH:mm:ss")
+const fmtTime* = initTimeFormat("HH:mm:ss")
 
 type KindObjectND* = enum
     K_NONETYPE,
@@ -66,7 +67,7 @@ proc toRepr*(self: PY_ObjectND): string {.inline.} =
     of K_FLOAT: $PY_Float(self).value
     of K_STRING: $PY_String(self).value
     of K_DATE: PY_Date(self).value.format(fmtDate)
-    of K_TIME: $PY_Time(self).value
+    of K_TIME: $PY_Time(self).value.duration2Date.format(fmtTime)
     of K_DATETIME: PY_DateTime(self).value.format(fmtDateTime)
 
 proc newPY_Date*(year: uint16, month, day: uint8): PY_Date {.inline.} = PY_Date(value: date2NimDatetime(int year, int month, int day), kind: K_DATE)
@@ -121,7 +122,7 @@ proc getMinute*(self: ptr PY_DateTime | PY_DateTime): MinuteRange = self.value.m
 proc getSecond*(self: ptr PY_DateTime | PY_DateTime): SecondRange = self.value.second()
 proc getMicrosecond*(self: ptr PY_DateTime | PY_DateTime): MicrosecondRange = MicrosecondRange (self.value.nanosecond() / 1000)
 
-proc getHour*(self: ptr PY_Time | PY_Time): HourRange = HourRange self.value.inHours()
+proc getHour*(self: ptr PY_Time | PY_Time): HourRange = HourRange self.value.inHours() mod 24
 proc getMinute*(self: ptr PY_Time | PY_Time): MinuteRange =
     let inHours = self.value.inHours() * 60
     let inMinutes = self.value.inMinutes()

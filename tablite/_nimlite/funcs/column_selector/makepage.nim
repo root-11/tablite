@@ -1,4 +1,4 @@
-import std/[enumerate, unicode, tables]
+import std/[enumerate, unicode, tables, times]
 import ../../numpy
 import ../../pytypes
 from mask import Mask
@@ -68,6 +68,12 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
         var longest = 1
         var runeBuf = newSeqOfCap[seq[Rune]](page.len)
     else:
+        when T is ObjectNDArray:
+            var dtypes = {
+                KindObjectND.K_NONETYPE: 0,
+                desired_type: 0
+            }.toTable
+
         # we know the maximum size of the sequence based on the page size as we cannot manifest new values
         var buf = newSeqOfCap[T.baseType](page.len)
 
@@ -78,9 +84,14 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
             else:
                 when T is ObjectNDArray:
                     buf.add(PY_None)
+                    dtypes[KindObjectND.K_NONETYPE] = dtypes[KindObjectND.K_NONETYPE] + 1
             mask[i] = Mask.VALID
 
     for (i, v) in enumerate(page.pgIter):
+        # 0. Check if already invalid, if so, skip
+        if mask[i] == Mask.INVALID:
+            continue
+
         # 1. Emptiness test
         when page is UnicodeNDArray:
             # original page is made of strings, check for empty strings
@@ -131,6 +142,8 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
             else:
                 buf.add(conv(v))
 
+            when T is ObjectNDArray:
+                dtypes[desired_type] = dtypes[desired_type] + 1
             mask[i] = Mask.VALID
         except ValueError:
             # 2b. we couldn't cast the type, generate error string
@@ -138,7 +151,13 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
                 let inTypeKind = v.kind
                 let strRepr = v.toRepr
             else:
-                let strRepr = $v
+                when page is DateNDArray:
+                    let strRepr = v.format(fmtDate)
+                else:
+                    when page is DateTimeNDArray:
+                        let strRepr = v.format(fmtDateTime)
+                    else:
+                        let strRepr = $v
 
             reason_lst[i] = createCastErrorReason(strRepr, inTypeKind)
             mask[i] = Mask.INVALID
@@ -154,6 +173,9 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
 
         let res = T(shape: @[strCount], buf: buf, size: longest, kind: T.pageKind)
     else:
-        let res = T(shape: @[buf.len], buf: buf, kind: T.pageKind)
+        when T is ObjectNDArray:
+            let res = T(shape: @[buf.len], dtypes: dtypes, buf: buf, kind: T.pageKind)
+        else:
+            let res = T(shape: @[buf.len], buf: buf, kind: T.pageKind)
 
     BaseNDArray res
