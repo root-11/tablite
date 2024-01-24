@@ -373,7 +373,7 @@ def test_casting_bool_1():
         [1, 0],
         [1.0, 0.0],
         ["True", "False"],
-        [date(1970, 1, 2), date(1970, 1, 1)],
+        [date(1970, 1, 1), date(1970, 1, 1)],
         [time(0, 0, 1), time(0, 0, 0)],
         [datetime(1970, 1, 1, 0, 0, 1), datetime(1970, 1, 1, 0, 0, 0)]
     ]
@@ -402,7 +402,7 @@ def test_casting_int_1():
         [1, 0],
         [1.0, 0.0],
         ["1", "0"],
-        [date(1970, 1, 2), date(1970, 1, 1)],
+        [date(1970, 1, 1), date(1970, 1, 1)],
         [time(0, 0, 1), time(0, 0, 0)],
         [datetime(1970, 1, 1, 0, 0, 1), datetime(1970, 1, 1, 0, 0, 0)]
     ]
@@ -431,7 +431,7 @@ def test_casting_float_1():
         [1, 0],
         [1.0, 0.0],
         ["1.0", "0.0"],
-        [date(1970, 1, 2), date(1970, 1, 1)],
+        [date(1970, 1, 1), date(1970, 1, 1)],
         [time(0, 0, 1), time(0, 0, 0)],
         [datetime(1970, 1, 1, 0, 0, 1), datetime(1970, 1, 1, 0, 0, 0)]
     ]
@@ -475,18 +475,18 @@ def test_casting_str_1():
 
 def test_casting_date_1():
     col_name = "date"
-    input_values = [date(2000, 1, 1), date(2000, 1, 2)]
+    input_values = [date(1970, 1, 1), date(1970, 1, 2)]
 
     tbl = Table({col_name: input_values})
 
     types = ["bool", "int", "float", "str", "date", "datetime"]
     results = [
-        [True, True],
-        [946684800, 946771200],
-        [946684800.0, 946771200.0],
-        ["2000-01-01", "2000-01-02"],
-        [date(2000, 1, 1), date(2000, 1, 2)],
-        [datetime(2000, 1, 1), datetime(2000, 1, 2)],
+        [False, True],
+        [0, 86400],
+        [0.0, 86400.0],
+        ["1970-01-01", "1970-01-02"],
+        [date(1970, 1, 1), date(1970, 1, 2)],
+        [datetime(1970, 1, 1), datetime(1970, 1, 2)],
     ]
 
     select_1_pass, select_1_fail = tbl.column_select(cols=[
@@ -530,18 +530,18 @@ def test_casting_time_1():
 
 def test_casting_datetime_1():
     col_name = "datetime"
-    input_values = [datetime(2000, 1, 1), datetime(2000, 1, 2)]
+    input_values = [datetime(1970, 1, 1), datetime(1970, 1, 2)]
 
     tbl = Table({col_name: input_values})
 
     types = ["bool", "int", "float", "str", "date", "datetime"]
     results = [
-        [True, True],
-        [946684800, 946771200],
-        [946684800.0, 946771200.0],
-        ["2000-01-01 00:00:00", "2000-01-02 00:00:00"],
-        [date(2000, 1, 1), date(2000, 1, 2)],
-        [datetime(2000, 1, 1), datetime(2000, 1, 2)],
+        [False, True],
+        [0, 86400],
+        [0.0, 86400.0],
+        ["1970-01-01 00:00:00", "1970-01-02 00:00:00"],
+        [date(1970, 1, 1), date(1970, 1, 2)],
+        [datetime(1970, 1, 1), datetime(1970, 1, 2)],
     ]
 
     select_1_pass, select_1_fail = tbl.column_select(cols=[
@@ -557,4 +557,4 @@ def test_casting_datetime_1():
         assert true == expect
 
 if __name__ == "__main__":
-    test_casting_time_1()
+    test_casting_int_1()

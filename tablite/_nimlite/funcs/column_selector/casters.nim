@@ -123,7 +123,7 @@ mkCasters:
         int = int v
         float = float v
         string = (if v: "True" else: "False")
-        ToDate = days2Date(int v)
+        ToDate = delta2Date(seconds = int v).datetime2Date
         ToDateTime = delta2Date(seconds = int v)
         ToTime = secondsToPY_Time(float v)
 
@@ -133,7 +133,7 @@ mkCasters:
         int = v
         float = float v
         string = $v
-        ToDate = v.days2Date
+        ToDate = delta2Date(seconds = v).datetime2Date
         ToDateTime = delta2Date(seconds = v)
         ToTime = secondsToPY_Time(float v)
 
@@ -143,7 +143,7 @@ mkCasters:
         int = int v
         float = v
         string = $v
-        ToDate = days2Date(int v)
+        ToDate = delta2Date(seconds = int v).datetime2Date
         ToDateTime = seconds2Date(v)
         ToTime = secondsToPY_Time(v)
 
