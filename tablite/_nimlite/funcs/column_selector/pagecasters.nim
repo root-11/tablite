@@ -120,12 +120,27 @@ macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
 
     return nProcNodes
 
+mkPageCaster(string):
+    if not allowEmpty:
+        # if we're casting to string and we don't allow empties, process per row
+        UnicodeNDArray.makePage(page, mask, reason_lst, string.fnCast(R), allow_empty, original_name, desired_name, desired_type)
+    else:
+        when page is ObjectNDArray:
+            if page.canBeNone:
+                # if input page can be nones, cast per row
+                UnicodeNDArray.makePage(page, mask, reason_lst, string.fnCast(R), allow_empty, original_name, desired_name, desired_type)
+            else:
+                # if input page can't have nones, return as is
+                page
+        else:
+            # otherwise return the page
+            page
+
 mkPageCaster(bool): page
 mkPageCaster(int): page
 mkPageCaster(float): page
 mkPageCaster(FromDate): page
 mkPageCaster(FromDateTime): page
-mkPageCaster(string): (if allow_empty: page else: UnicodeNDArray.makePage(page, mask, reason_lst, string.fnCast(R), allow_empty, original_name, desired_name, desired_type))
 mkPageCaster(PY_ObjectND): ObjectNDArray.makePage(page, mask, reason_lst, PY_ObjectND.fnCast(R), allow_empty, original_name, desired_name, desired_type)
 
 template convertBasicPage*[T](page: T, desired_type: KindObjectND, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool, original_name: string, desired_name: string): BaseNDArray =

@@ -25,7 +25,7 @@ proc canBeNone*(page: BaseNDArray): bool =
 
     return canBeNone
 
-template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[Mask], reason_lst: var seq[string], conv: proc, allow_empty: bool, original_name: string, desired_name: string, desired_type: KindObjectND): BaseNDArray =
+template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[Mask], reasonLst: var seq[string], conv: proc, allowEmpty: bool, originalName: string, desiredName: string, desiredType: KindObjectND): BaseNDArray =
     template getTypeUserName(t: KindObjectND): string =
         case t:
         of K_BOOLEAN: "bool"
@@ -38,15 +38,15 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
         of K_NONETYPE: "NoneType"
 
     template createCastErrorReason(v: string, kind: KindObjectND): string =
-        "Cannot cast '" & v & "' from '" & original_name & "[" & getTypeUserName(kind) & "]' to '" & desired_name & "[" & getTypeUserName(desired_type) & "]'."
+        "Cannot cast '" & v & "' from '" & originalName & "[" & getTypeUserName(kind) & "]' to '" & desiredName & "[" & getTypeUserName(desiredType) & "]'."
 
     when page is ObjectNDArray:
         template createNoneErrorReason(): string =
-            "'" & original_name & "' cannot be empty in '" & desired_name & "[" & getTypeUserName(desired_type) & "]'."
+            "'" & originalName & "' cannot be empty in '" & desiredName & "[" & getTypeUserName(desiredType) & "]'."
 
     when page is UnicodeNDArray or page is ObjectNDArray:
         template createEmptyErrorReason(): string =
-            "'" & original_name & "' cannot be empty string in '" & desired_name & "[" & getTypeUserName(desired_type) & "]'."
+            "'" & originalName & "' cannot be empty string in '" & desiredName & "[" & getTypeUserName(desiredType) & "]'."
 
     when page is ObjectNDArray:
         # this is an object page, check for strings and nones
@@ -71,7 +71,7 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
         when T is ObjectNDArray:
             var dtypes = {
                 KindObjectND.K_NONETYPE: 0,
-                desired_type: 0
+                desiredType: 0
             }.toTable
 
         # we know the maximum size of the sequence based on the page size as we cannot manifest new values
@@ -97,9 +97,9 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
             # original page is made of strings, check for empty strings
             if unlikely(v.len == 0):
                 # empty string
-                if not allow_empty:
+                if not allowEmpty:
                     mask[i] = Mask.INVALID
-                    reason_lst[i] = createEmptyErrorReason()
+                    reasonLst[i] = createEmptyErrorReason()
                 else:
                     addEmpty(i)
                 continue
@@ -112,17 +112,17 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
                     of K_STRING:
                         if PY_String(v).value.len == 0:
                             # empty string
-                            if not allow_empty:
+                            if not allowEmpty:
                                 mask[i] = Mask.INVALID
-                                reason_lst[i] = createEmptyErrorReason()
+                                reasonLst[i] = createEmptyErrorReason()
                             else:
                                 addEmpty(i)
                             continue
                     of K_NONETYPE:
-                        if not allow_empty:
+                        if not allowEmpty:
                             # empty object
                             mask[i] = Mask.INVALID
-                            reason_lst[i] = createNoneErrorReason()
+                            reasonLst[i] = createNoneErrorReason()
                         else:
                             addEmpty(i)
                         continue
@@ -143,7 +143,7 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
                 buf.add(conv(v))
 
             when T is ObjectNDArray:
-                dtypes[desired_type] = dtypes[desired_type] + 1
+                dtypes[desiredType] = dtypes[desiredType] + 1
             mask[i] = Mask.VALID
         except ValueError:
             # 2b. we couldn't cast the type, generate error string
@@ -159,7 +159,7 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
                     else:
                         let strRepr = $v
 
-            reason_lst[i] = createCastErrorReason(strRepr, inTypeKind)
+            reasonLst[i] = createCastErrorReason(strRepr, inTypeKind)
             mask[i] = Mask.INVALID
 
     # 3. Dump the page
@@ -169,6 +169,10 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
         var buf = newSeq[Rune](longest * strCount)
 
         for (i, str) in enumerate(runeBuf):
+            # copy the individual string runes into padded contigous buffer
+            if str.len == 0:
+                # empty string, don't crash!
+                continue
             buf[i * longest].addr.copyMem(addr str[0], str.len * sizeof(Rune))
 
         let res = T(shape: @[strCount], buf: buf, size: longest, kind: T.pageKind)
