@@ -105,7 +105,13 @@ when isMainModule and appType != "lib":
     # let columns = pymodules.builtins().dict({"A ": @[1, 22, 333]}.toTable)
     # let columns = pymodules.builtins().dict({"A ": @["1", "22", "333", "", "abc"]}.toTable)
     # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy("1"), nimValueToPy("222"), nimValueToPy("333"), nimValueToPy(nil), nimValueToPy("abc")]}.toTable)
-    let columns = pymodules.builtins().dict({"A": @[nimValueToPy("0"), nimValueToPy(nil), nimValueToPy("2")], "B": @[nimValueToPy("3"), nimValueToPy(nil), nimValueToPy("4")]}.toTable)
+    # let columns = pymodules.builtins().dict({"A": @[nimValueToPy("0"), nimValueToPy(nil), nimValueToPy("2")], "B": @[nimValueToPy("3"), nimValueToPy(nil), nimValueToPy("4")]}.toTable)
+    # let columns = pymodules.builtins().dict({"str": @["1", "0"]})
+    # let columns = pymodules.builtins().dict({"float": @[1.0, 0.0]})
+    let columns = pymodules.builtins().dict({"date": @[
+        datetime().date(2000, 1, 1),
+        datetime().date(2000, 1, 2),
+    ]})
     let table = pymodules.tablite().Table(columns = columns)
 
     discard table.show(dtype = true)
@@ -118,8 +124,29 @@ when isMainModule and appType != "lib":
                 # newColumnSelectorInfo("A ", "date", false, opt.none[string]()),
                 # newColumnSelectorInfo("A ", "datetime", false, opt.none[string]()),
                 # newColumnSelectorInfo("A ", "time", false, opt.none[string]()),
-        newColumnSelectorInfo("A", "int", true, opt.none[string]()),
-        newColumnSelectorInfo("B", "str", true, opt.none[string]()),
+        # newColumnSelectorInfo("A", "int", true, opt.none[string]()),
+        # newColumnSelectorInfo("B", "str", true, opt.none[string]()),
+
+        # newColumnSelectorInfo("str", "bool", false, opt.some("bool")),
+        # newColumnSelectorInfo("str", "int", false, opt.some("int")),
+        # newColumnSelectorInfo("str", "float", false, opt.some("float")),
+        # newColumnSelectorInfo("str", "str", false, opt.some("str")),
+
+        # newColumnSelectorInfo("float", "bool", false, opt.some("bool")),
+        # newColumnSelectorInfo("float", "int", false, opt.some("int")),
+        # newColumnSelectorInfo("float", "float", false, opt.some("float")),
+        # newColumnSelectorInfo("float", "str", false, opt.some("str")),
+        # newColumnSelectorInfo("float", "date", false, opt.some("date")),
+        # newColumnSelectorInfo("float", "time", false, opt.some("time")),
+        # newColumnSelectorInfo("float", "datetime", false, opt.some("datetime")),
+
+        # newColumnSelectorInfo("date", "bool", false, opt.some("bool")),
+        # newColumnSelectorInfo("date", "int", false, opt.some("int")),
+        # newColumnSelectorInfo("date", "float", false, opt.some("float")),
+        # newColumnSelectorInfo("date", "str", false, opt.some("str")),
+        # newColumnSelectorInfo("date", "date", false, opt.some("date")),
+        newColumnSelectorInfo("date", "time", false, opt.some("time")),
+        # newColumnSelectorInfo("date", "datetime", false, opt.some("datetime")),
     ])
 
     let (select_pass, select_fail) = table.columnSelect(

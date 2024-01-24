@@ -123,6 +123,6 @@ proc seconds2Duration*(seconds: float): Duration {.inline.} =
 
 proc duration2Seconds*(dur: Duration): float {.inline.} = dur.inMicroseconds / 1_000_000
 
-proc duration2Date*(dur: Duration): DateTime {.inline.} = DateTime() + dur
+proc duration2Date*(dur: Duration): DateTime {.inline.} = dateTime(1970, mJan, 1, zone=utc()) + dur
 proc seconds2Date*(seconds: float): DateTime {.inline.} = duration2Date(seconds2Duration(seconds))
-proc datetime2Date*(self: DateTime): DateTime {.inline.} = dateTime(self.year, self.month, self.monthday)
+proc datetime2Date*(self: DateTime): DateTime {.inline.} = dateTime(self.year, self.month, self.monthday, zone=utc())

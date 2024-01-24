@@ -12,6 +12,8 @@ type
     FromDateTime* = object
     ToTime* = object
 
+template uncastable() = raise newException(ValueError, "uncastable")
+
 proc newMkCaster(caster: NimNode, isPyCaster: bool): NimNode =
     expectKind(caster, nnkLambda)
     expectLen(caster.params, 2)
@@ -51,12 +53,22 @@ proc newMkCaster(caster: NimNode, isPyCaster: bool): NimNode =
     descR.add(newIdentNode("typedesc"))
     descR.add(castR)
 
+    let baseFnName = trueCastT[1].strVal & "2" & trueCastR.strVal
+
     if isPyCaster:
-        let subProc = newProc(params = [newIdentNode(PY_ObjectND.name), trueCastT], body = caster.body, procType = nnkLambda)
-        return newProc(postfix(newIdentNode("fnPyCast"), "*"), params = [newNimNode(nnkProcTy), paramsT, paramsR], body = subProc)
+        let nFnName = newIdentNode(baseFnName & "Py")
+        let nCasterFn = newProc(nFnName, params = [newIdentNode(PY_ObjectND.name), trueCastT], body = caster.body)
+        let nResultStmts = newNimNode(nnkStmtList).add(nCasterFn, nFnName)
+        let nResult = newProc(postfix(newIdentNode("fnPyCast"), "*"), params = [newNimNode(nnkProcTy), paramsT, paramsR], body = nResultStmts)
+
+        return nResult
     else:
-        let subProc = newProc(params = [trueCastR, trueCastT], body = caster.body, procType = nnkLambda)
-        return newProc(postfix(newIdentNode("fnCast"), "*"), params = [newNimNode(nnkProcTy), paramsT, paramsR], body = subProc)
+        let nFnName = newIdentNode(baseFnName)
+        let nCasterFn = newProc(nFnName, params = [trueCastR, trueCastT], body = caster.body)
+        let nResultStmts = newNimNode(nnkStmtList).add(nCasterFn, nFnName)
+        let nResult = newProc(postfix(newIdentNode("fnCast"), "*"), params = [newNimNode(nnkProcTy), paramsT, paramsR], body = nResultStmts)
+
+        return nResult
 
 macro mkCasters(converters: untyped) =
     expectKind(converters, nnkStmtList)
@@ -68,7 +80,7 @@ macro mkCasters(converters: untyped) =
 
     expectKind(identity, nnkIdentDefs)
 
-    let nodes = newNimNode(nnkStmtList)
+    let nCasters = newNimNode(nnkStmtList)
 
     for cvtr in body:
         expectKind(cvtr, nnkAsgn)
@@ -78,7 +90,7 @@ macro mkCasters(converters: untyped) =
         let toBody = cvtr[1]
         let toFunc = newProc(params = [toType, identity], body = toBody, procType = nnkLambda)
 
-        nodes.add(newMkCaster(toFunc, false))
+        nCasters.add(newMkCaster(toFunc, false))
 
         case toType.strVal:
         of bool.name, int.name, float.name, string.name:
@@ -86,7 +98,7 @@ macro mkCasters(converters: untyped) =
             let toFuncPy = newProc(params = [toType, identity], body = tBodyPy, procType = nnkLambda)
             let nToPy = newMkCaster(toFuncPy, true)
 
-            nodes.add(nToPy)
+            nCasters.add(nToPy)
         of ToDate.name, ToDateTime.name, ToTime.name:
             var kind {.noinit.}: KindObjectND
 
@@ -99,11 +111,11 @@ macro mkCasters(converters: untyped) =
             let toFuncPy = newProc(params = [toType, identity], body = tBodyPy, procType = nnkLambda)
             let nToPy = newMkCaster(toFuncPy, true)
 
-            nodes.add(nToPy)
+            nCasters.add(nToPy)
         else:
             implement(toType.strVal)
 
-    return nodes
+    return nCasters
 
 mkCasters:
     proc (v: bool) =
@@ -143,16 +155,16 @@ mkCasters:
         string = v.format(fmtDate)
         ToDate = v
         ToDateTime = v
-        ToTime = v.newPY_Time
+        ToTime = uncastable()
 
 mkCasters:
     proc (v: PY_Time) =
         bool = v.value.inSeconds >= 1
         int = v.value.inSeconds
         float = v.value.duration2Seconds
-        string = $v.value.duration2Time
-        ToDate = v.value.duration2Date
-        ToDateTime = v.value.duration2Date
+        string = v.value.duration2Date.format(fmtTime)
+        ToDate = uncastable()
+        ToDateTime = uncastable()
         ToTime = v
 
 mkCasters:
@@ -184,7 +196,7 @@ template obj2prim(v: PY_ObjectND) =
     of K_DATE: FromDate.fnCast(R)(PY_Date(v).value)
     of K_TIME: PY_Time.fnCast(R)(PY_Time(v))
     of K_DATETIME: FromDateTime.fnCast(R)(PY_Date(v).value)
-    of K_NONETYPE: raise newException(ValueError, "cannot cast")
+    of K_NONETYPE: uncastable()
 
 mkCasters:
     proc(v: PY_ObjectND) =

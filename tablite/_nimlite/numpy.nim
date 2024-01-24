@@ -5,7 +5,6 @@ import dateutils, pytypes, unpickling, utils
 import pymodules as pymodules
 import nimpy as nimpy, nimpy/raw_buffers
 import pickling
-from nimpyext import `!`
 
 const NUMPY_MAGIC = "\x93NUMPY"
 const NUMPY_MAJOR = "\x01"
@@ -83,7 +82,7 @@ type UnicodeNDArray* = ref object of BaseNDArray
     buf*: seq[Rune]
     size*: int
 
-type ObjectNDArray* = ref object of BaseNDArray
+type ObjectNDArray* {.requiresInit.} = ref object of BaseNDArray
     buf*: seq[PyObjectND]
     dtypes*: Table[KindObjectND, int]
     dtype* = "|O8"
@@ -526,15 +525,20 @@ proc parseHeader(header: var string): (NDArrayDescriptor, bool, Shape) =
 
 
 template readPrimitiveBuffer[T: typed](fh: var File, shape: var Shape): seq[T] =
-    var elements = calcShapeElements(shape)
-    var buf {.noinit.} = newSeq[T](elements)
-    var size_T = sizeof(T)
-    var buffer_size = elements * size_T
+    let elements = calcShapeElements(shape)
 
-    if fh.readBuffer(addr buf[0], buffer_size) != buffer_size:
-        corrupted()
+    if elements == 0:
+        newSeq[T](elements)
+    else:
+        let size_T = sizeof(T)
 
-    buf
+        var buf {.noinit.} = newSeq[T](elements)
+        var buffer_size = elements * size_T
+
+        if fh.readBuffer(addr buf[0], buffer_size) != buffer_size:
+            corrupted()
+
+        buf
 
 proc newBooleanNDArray(fh: var File, shape: var Shape): BooleanNDArray =
     return BooleanNDArray(
