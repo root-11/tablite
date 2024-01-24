@@ -14,9 +14,11 @@ class Config(object):
     Config.workdir = pathlib.Path(os.environ.get("TABLITE_TMPDIR", f"{tempfile.gettempdir()}/tablite-tmp"))
 
     to overwrite, first import the config class, then set the new workdir.
+    ```
     >>> from tablite import config
     >>> from pathlib import Path
     >>> config.workdir = Path("/this/new/location")
+    ```
     for every new table or record this path will be used.
 
     PAGE_SIZE = 1_000_000 sets the page size limit.
