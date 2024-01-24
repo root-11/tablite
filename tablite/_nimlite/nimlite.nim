@@ -12,8 +12,7 @@ template isLib(): bool = isMainModule and appType == "lib"
 
 when isLib:
     import nimpy
-    import std/[paths]
-    import std/[os, options, tables]
+    import std/[os, options, tables, paths, segfaults]
     import pymodules
 
     # -------- COLUMN SELECTOR --------
