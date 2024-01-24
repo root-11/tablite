@@ -39,44 +39,56 @@ type KindNDArray* = enum
     K_OBJECT
 
 template gendtype[T](dt: typedesc[T], name: char): string = endiannessMark & $name & $sizeof(T)
+template gendtypeStr(len: int): string = endiannessMark & "U" & $len
 
 type NDArrayDescriptor = (Endianness, NDArrayTypeDescriptor, int)
 type BaseNDArray* {.requiresInit.} = ref object of RootObj
     shape*: Shape
     kind*: KindNDArray
 
+const HeaderBooleanNDArray* = "|b1"
+const HeaderInt8NDArray* = gendtype(int8, 'i')
+const HeaderInt16NDArray* = gendtype(int16, 'i')
+const HeaderInt32NDArray* = gendtype(int32, 'i')
+const HeaderInt64NDArray* = gendtype(int64, 'i')
+const HeaderFloat32NDArray* = gendtype(float32, 'f')
+const HeaderFloat64NDArray* = gendtype(float64, 'f')
+const HeaderDateNDArray* = endiannessMark & "M8[D]"
+const HeaderDateTimeNDArray* = endiannessMark & "M8[us]"
+const HeaderObjectNDArray* = "|O8"
+
 type BooleanNDArray* = ref object of BaseNDArray
     buf*: seq[bool]
-    dtype* = "|b1"
+    dtype* = HeaderBooleanNDArray
 
 type Int8NDArray* = ref object of BaseNDArray
     buf*: seq[int8]
-    dtype* = gendtype(int8, 'i')
+    dtype* = HeaderInt8NDArray
 type Int16NDArray* = ref object of BaseNDArray
     buf*: seq[int16]
-    dtype* = gendtype(int16, 'i')
+    dtype* = HeaderInt16NDArray
 type Int32NDArray* = ref object of BaseNDArray
     buf*: seq[int32]
-    dtype* = gendtype(int32, 'i')
+    dtype* = HeaderInt32NDArray
 type Int64NDArray* = ref object of BaseNDArray
     buf*: seq[int64]
-    dtype* = gendtype(int64, 'i')
+    dtype* = HeaderInt64NDArray
 
 type Float32NDArray* = ref object of BaseNDArray
     buf*: seq[float32]
-    dtype* = gendtype(float32, 'f')
+    dtype* = HeaderFloat32NDArray
 
 type Float64NDArray* = ref object of BaseNDArray
     buf*: seq[float64]
-    dtype* = gendtype(float64, 'f')
+    dtype* = HeaderFloat64NDArray
 
 type DateNDArray* = ref object of BaseNDArray
     buf*: seq[DateTime]
-    dtype* = endiannessMark & "M8[D]"
+    dtype* = HeaderDateNDArray
 
 type DateTimeNDArray* = ref object of BaseNDArray
     buf*: seq[DateTime]
-    dtype* = endiannessMark & "M8[us]"
+    dtype* = HeaderDateTimeNDArray
 
 type UnicodeNDArray* = ref object of BaseNDArray
     buf*: seq[Rune]
@@ -85,7 +97,7 @@ type UnicodeNDArray* = ref object of BaseNDArray
 type ObjectNDArray* {.requiresInit.} = ref object of BaseNDArray
     buf*: seq[PyObjectND]
     dtypes*: Table[KindObjectND, int]
-    dtype* = "|O8"
+    dtype* = HeaderObjectNDArray
 
 template pageKind*(_: typedesc[BooleanNDArray]): KindNDArray = KindNDArray.K_BOOLEAN
 template pageKind*(_: typedesc[Int8NDArray]): KindNDArray = KindNDArray.K_INT8
@@ -98,6 +110,21 @@ template pageKind*(_: typedesc[DateNDArray]): KindNDArray = KindNDArray.K_DATE
 template pageKind*(_: typedesc[DateTimeNDArray]): KindNDArray = KindNDArray.K_DATETIME
 template pageKind*(_: typedesc[UnicodeNDArray]): KindNDArray = KindNDArray.K_STRING
 template pageKind*(_: typedesc[ObjectNDArray]): KindNDArray = KindNDArray.K_OBJECT
+
+template headerType*(T: typedesc[BaseNDArray]): string =
+    case T.pageKind:
+    of K_BOOLEAN: HeaderBooleanNDArray
+    of K_INT8: HeaderInt8NDArray
+    of K_INT16: HeaderInt16NDArray
+    of K_INT32: HeaderInt32NDArray
+    of K_INT64: HeaderInt64NDArray
+    of K_FLOAT32: HeaderFloat32NDArray
+    of K_FLOAT64: HeaderFloat64NDArray
+    of K_DATE: HeaderDateNDArray
+    of K_DATETIME: HeaderDateTimeNDArray
+    of K_OBJECT: HeaderObjectNDArray
+    of K_STRING: corrupted(IndexDefect)
+
 
 iterator pgIter*(self: BooleanNDArray): bool =
     for el in self.buf:
@@ -221,7 +248,7 @@ proc `[]`*[T: BaseNDArray](self: T, slice: seq[int] | openArray[int]): T =
     of K_STRING: return UnicodeNDArray(self)[slice]
     of K_OBJECT: return ObjectNDArray(self)[slice]
 
-proc dtype*(self: UnicodeNDArray): string = endiannessMark & "U" & $self.size
+proc dtype*(self: UnicodeNDArray): string = gendtypeStr(self.size)
 
 macro baseType*(self: typedesc[BooleanNDArray]): typedesc[bool] = bindSym(bool.name)
 macro baseType*(self: typedesc[Int8NDArray]): typedesc[int8] = bindSym(int8.name)
@@ -285,6 +312,8 @@ proc writeNumpyFloat*(fh: var File, value: float): void {.inline.} =
 proc writeNumpyBool*(fh: var File, str: var string): void {.inline.} =
     fh.write((if str.toLower() == "true": '\x01' else: '\x00'))
 
+proc writeNumpyBool*(fh: var File, value: var bool): void {.inline.} =
+    fh.write(if value: '\x01' else: '\x00')
 
 proc repr(self: ObjectNDArray): string =
     let elems = collect: (for e in self.buf: $e)
@@ -697,21 +726,21 @@ proc toPython(self: Int64NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[
 proc toPython(self: Float32NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[float32](self.shape, addr self.buf[0])
 proc toPython(self: Float64NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[float64](self.shape, addr self.buf[0])
 
-proc toPython(self: UnicodeNDArray): nimpy.PyObject = toNumpyPrimitive("U" & $self.size, self.shape, self.size * sizeof(Rune), addr self.buf[0])
+proc toPython(self: UnicodeNDArray): nimpy.PyObject = toNumpyPrimitive(gendtypeStr(self.size), self.shape, self.size * sizeof(Rune), addr self.buf[0])
 
 proc toPython(self: DateNDArray): nimpy.PyObject =
     var buf = collect:
         for el in self.buf:
             el.toTime.time2Duration.inDays
 
-    return toNumpyPrimitive("M8[D]", self.shape, sizeof(int64), addr buf[0])
+    return toNumpyPrimitive(self.dtype, self.shape, sizeof(int64), addr buf[0])
 
 proc toPython(self: DateTimeNDArray): nimpy.PyObject =
     var buf = collect:
         for el in self.buf:
             el.toTime.time2Duration.inMicroseconds
 
-    return toNumpyPrimitive("M8[us]", self.shape, sizeof(int64), addr buf[0])
+    return toNumpyPrimitive(self.dtype, self.shape, sizeof(int64), addr buf[0])
 
 proc toNimpy(self: PY_NoneType): nimpy.PyObject = pymodules.builtins().None
 proc toNimpy(self: PY_Boolean): nimpy.PyObject = pymodules.builtins().bool(self.value)
@@ -856,7 +885,66 @@ proc save[T: DateNDArray | DateTimeNDArray](self: T, path: string): void =
 
     fh.close()
 
+template saveAsPrimitive(self: ObjectNDArray, path: string, headerType: string, dump: proc): void =
+    let elements = uint calcShapeElements(self.shape)
+    var fh = open(path, fmWrite)
+
+    fh.writeNumpyHeader(headerType, elements)
+
+    for v in self.pgIter:
+        fh.dump(v)
+
+    fh.close()
+
+proc writeBool(fh: var File, v: PY_ObjectND): void {.inline.} = fh.writeNumpyBool(PY_Boolean(v).value)
+proc writeInt(fh: var File, v: PY_ObjectND): void {.inline.} = fh.writeNumpyInt(PY_Int(v).value)
+proc writeFloat(fh: var File, v: PY_ObjectND): void {.inline.} = fh.writeNumpyFloat(PY_Float(v).value)
+proc writeDate(fh: var File, v: PY_ObjectND): void {.inline.} = fh.writeNumpyInt(PY_Date(v).value.toTime().time2Duration.inDays)
+proc writeDateTime(fh: var File, v: PY_ObjectND): void {.inline.} = fh.writeNumpyInt(PY_DateTime(v).value.toTime().time2Duration.inMicroseconds)
+
+proc saveAsUnicode(self: ObjectNDArray, path: string): void =
+    var longest = 1
+
+    for v in self.pgIter:
+        longest = max(longest, PY_String(v).value.len)
+
+    let elements = uint calcShapeElements(self.shape)
+    var fh = open(path, fmWrite)
+    
+    fh.writeNumpyHeader(gendtypeStr(longest), elements)
+
+    for v in self.pgIter:
+        fh.writeNumpyUnicode(PY_String(v).value, uint longest)
+
+    fh.close()
+
 proc save(self: ObjectNDArray, path: string): void =
+    var hasNones = K_NONETYPE in self.dtypes
+    
+    if not hasNones or self.dtypes[K_NONETYPE] == 0:
+        # we have no nones, we may be able to save as primitive
+        var colDtypes = toSeq(self.dtypes.keys)
+
+        if hasNones:
+            # cleanup
+            colDtypes.delete(colDtypes.find(K_NONETYPE))
+
+        if colDtypes.len == 1:
+            # we only have left-over type
+            let activeType = colDtypes[0]
+
+            if self.dtypes[activeType] > 0:
+                # save as primitive if possible
+                case activeType:
+                of K_BOOLEAN: self.saveAsPrimitive(path, BooleanNDArray.headerType, writeBool); return
+                of K_INT: self.saveAsPrimitive(path, Int64NDArray.headerType, writeInt); return
+                of K_FLOAT: self.saveAsPrimitive(path, Float64NDArray.headerType, writeFloat); return
+                of K_STRING: self.saveAsUnicode(path); return
+                of K_DATE: self.saveAsPrimitive(path, DateNDArray.headerType, writeDate); return
+                of K_DATETIME: self.saveAsPrimitive(path, DateTimeNDArray.headerType, writeDateTime); return
+                of K_NONETYPE: discard  # can't happen
+                of K_TIME: discard      # time is always an object
+
     let dtype = self.dtype
     let elements = uint calcShapeElements(self.shape)
     var fh = open(path, fmWrite)
