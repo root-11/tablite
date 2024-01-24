@@ -104,6 +104,7 @@ when isMainModule and appType != "lib":
     # let columns = pymodules.builtins().dict({"A ": @[1, 22, 333]}.toTable)
     # let columns = pymodules.builtins().dict({"A ": @["1", "22", "333", "", "abc"]}.toTable)
     # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy("1"), nimValueToPy("222"), nimValueToPy("333"), nimValueToPy(nil), nimValueToPy("abc")]}.toTable)
+    let columns = pymodules.builtins().dict({"A ": @[nimValueToPy(1), nimValueToPy(2.0), nimValueToPy("333"), nimValueToPy("abc")]}.toTable)
     # let columns = pymodules.builtins().dict({"A": @[nimValueToPy("0"), nimValueToPy(nil), nimValueToPy("2")], "B": @[nimValueToPy("3"), nimValueToPy(nil), nimValueToPy("4")]}.toTable)
     # let columns = pymodules.builtins().dict({"str": @["1", "0"]})
     # let columns = pymodules.builtins().dict({"float": @[1.0, 0.0]})
@@ -111,13 +112,14 @@ when isMainModule and appType != "lib":
     #     datetime().date(2000, 1, 1),
     #     datetime().date(2000, 1, 2),
     # ]})
-    let columns = pymodules.builtins().dict({"str": @[nimValueToPy("abc"), nimValueToPy("efg"), nimValueToPy(nil)]}.toTable)
+    # let columns = pymodules.builtins().dict({"str": @[nimValueToPy("abc"), nimValueToPy("efg"), nimValueToPy(nil)]}.toTable)
     let table = pymodules.tablite().Table(columns = columns)
 
     discard table.show(dtype = true)
 
     let select_cols = builtins().list(@[
         # newColumnSelectorInfo("A ", "int", true, opt.none[string]()),
+        newColumnSelectorInfo("A ", "float", true, opt.none[string]()),
             # newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
                 # newColumnSelectorInfo("A ", "bool", false, opt.none[string]()),
                 # newColumnSelectorInfo("A ", "str", false, opt.none[string]()),
@@ -148,7 +150,7 @@ when isMainModule and appType != "lib":
         # newColumnSelectorInfo("date", "time", false, opt.some("time")),
         # newColumnSelectorInfo("date", "datetime", false, opt.some("datetime")),
 
-        newColumnSelectorInfo("str", "str", true, opt.some("str")),
+        # newColumnSelectorInfo("str", "str", true, opt.some("str")),
     ])
 
     let (select_pass, select_fail) = table.columnSelect(
