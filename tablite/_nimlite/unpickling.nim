@@ -4,7 +4,7 @@ import pytypes, pickleproto, utils
 type IterPickle = iterator(): uint8
 type Stack = seq[PY_Object]
 type MetaStack = seq[Stack]
-type Memo = Table[int, PY_Object]
+type Memo = Table[uint, PY_Object]
 type ObjectPage = (Shape, seq[PY_ObjectND], Table[KindObjectND, int])
 
 type ProtoPickle = ref object of PY_Object
@@ -13,7 +13,7 @@ type GlobalPickle = ref object of PY_Object
     module: string
     name: string
 type BinPutPickle = ref object of PY_Object
-    index: int
+    index: uint
 
 type TuplePickle = ref object of Py_Tuple
 type BinBytesPickle = ref object of PY_Bytes
@@ -161,6 +161,23 @@ proc toString(self: PY_Object, depth: int = 0): string =
 
     return "^PY_Object"
 
+template readOfSize(iter: IterPickle, sz: int): openArray[uint8] =
+    var arr: array[sz, uint8]
+
+    for i in 0..(sz - 1):
+        arr[i] = iter()
+
+    arr
+
+template readIntOfSize(iter: IterPickle, sz: int): int =
+    if sz == 4:
+        int cast[int32](iter.readOfSize(sz))
+    elif sz == 2:
+        int int cast[int16](iter.readOfSize(sz))
+    elif sz == 1:
+        int cast[int8](iter.readOfSize(sz))
+    else:
+        corrupted()
 
 proc loadProto(iter: IterPickle): ProtoPickle {.inline.} =
     let v = iter()
@@ -183,7 +200,7 @@ proc loadGlobal(iter: IterPickle, stack: var Stack): GlobalPickle {.inline.} =
 
 
 proc loadBinput(iter: IterPickle, stack: var Stack, memo: var Memo): BinPutPickle {.inline.} =
-    let i = int iter()
+    let i = uint iter()
 
     if i < 0:
         corrupted()
@@ -192,26 +209,18 @@ proc loadBinput(iter: IterPickle, stack: var Stack, memo: var Memo): BinPutPickl
 
     return BinPutPickle(index: i)
 
-template readOfSize(iter: IterPickle, sz: int): openArray[uint8] =
-    var arr: array[sz, uint8]
+proc loadLongBinput(iter: IterPickle, stack: var Stack, memo: var Memo): BinPutPickle {.inline.} =
+    let i = uint iter.readIntOfSize(4)
 
-    for i in 0..(sz - 1):
-        arr[i] = iter()
-
-    arr
-
-template readIntOfSize(iter: IterPickle, sz: int): int =
-    if sz == 4:
-        int cast[int32](iter.readOfSize(sz))
-    elif sz == 2:
-        int int cast[int16](iter.readOfSize(sz))
-    elif sz == 1:
-        int cast[int8](iter.readOfSize(sz))
-    else:
+    if i < 0:
         corrupted()
 
+    memo[i] = stack[^1] # last element
+
+    return BinPutPickle(index: i)
+
 proc loadBinGet(iter: IterPickle, stack: var Stack, memo: var Memo): PY_Object {.inline.} =
-    let idx = int iter()
+    let idx = uint iter()
     let obj = memo[idx]
 
     stack.add(obj)
@@ -480,6 +489,7 @@ proc unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack: var
         of PKL_PROTO: iter.loadProto()
         of PKL_GLOBAL: iter.loadGlobal(stack)
         of PKL_BINPUT: iter.loadBinput(stack, memo)
+        of PKL_LONG_BINPUT: iter.loadLongBinput(stack, memo)
         of PKL_BININT: iter.loadBinInt(stack)
         of PKL_BININT1: iter.loadBinInt1(stack)
         of PKL_BININT2: iter.loadBinInt2(stack)
@@ -545,7 +555,7 @@ proc readPickledPage*(fh: var File, endianness: Endianness, shape: var Shape): O
     let iter = unpickleFile(fh, endianness)
     var stack: Stack = newSeq[PY_Object]()
     var metastack: MetaStack = newSeq[Stack]()
-    var memo: Memo = initTable[int, PY_Object]()
+    var memo: Memo = initTable[uint, PY_Object]()
 
     var stop: StopPickle
     var hasStop = false
