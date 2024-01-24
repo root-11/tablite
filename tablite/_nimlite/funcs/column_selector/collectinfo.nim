@@ -20,13 +20,13 @@ proc toPageType(name: string): KindObjectND =
     of "datetime": return KindObjectND.K_DATETIME
     else: raise newException(FieldDefect, "unsupported page type: '" & name & "'")
 
-proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dir_pid: string): (
+proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPid: string): (
     Table[string, seq[string]], int, Table[string, bool], OrderedTable[string, DesiredColumnInfo], seq[string], seq[string], seq[ColInfo], seq[ColInfo], seq[string], string
 ) =
-    var desired_column_map = initOrderedTable[string, DesiredColumnInfo]()
+    var desiredColumnMap = initOrderedTable[string, DesiredColumnInfo]()
     var collisions = initTable[string, int]()
 
-    let dirpage = Path(dir_pid) / Path("pages")
+    let dirpage = Path(dirPid) / Path("pages")
     createDir(string dirpage)
 
     ######################################################
@@ -34,32 +34,32 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dir_p
     ######################################################
     for c in cols: # now lets iterate over all given columns
         # this is our old name
-        let name_inp = c["column"].to(string)
+        let nameInp = c["column"].to(string)
         var rename = c.get("rename", builtins().None)
 
         if rename.isNone() or not builtins().isinstance(rename, builtins().str).to(bool) or builtins().len(rename).to(int) == 0:
             rename = builtins().None
         else:
-            let name_out_stripped = rename.strip()
-            if builtins().len(rename).to(int) > 0 and builtins().len(name_out_stripped).to(int) == 0:
-                raise newException(ValueError, "Validating 'column_select' failed, '" & name_inp & "' cannot be whitespace.")
+            let nameOutStripped = rename.strip()
+            if builtins().len(rename).to(int) > 0 and builtins().len(nameOutStripped).to(int) == 0:
+                raise newException(ValueError, "Validating 'column_select' failed, '" & nameInp & "' cannot be whitespace.")
 
-            rename = name_out_stripped
+            rename = nameOutStripped
 
-        var name_out = if rename.isNone(): name_inp else: rename.to(string)
+        var nameOut = if rename.isNone(): nameInp else: rename.to(string)
 
-        if name_out in collisions: # check if the new name has any collision, add suffix if necessary
-            collisions[name_out] = collisions[name_out] + 1
-            name_out = name_out & "_" & $(collisions[name_out] - 1)
+        if nameOut in collisions: # check if the new name has any collision, add suffix if necessary
+            collisions[nameOut] = collisions[nameOut] + 1
+            nameOut = nameOut & "_" & $(collisions[nameOut] - 1)
         else:
-            collisions[name_out] = 1
+            collisions[nameOut] = 1
 
-        let desired_type = c.get("type", builtins().None)
+        let desiredType = c.get("type", builtins().None)
 
-        desired_column_map[name_out] = DesiredColumnInfo( # collect the information about the column, fill in any defaults
-            original_name: name_inp,
-            `type`: if desired_type.isNone(): K_NONETYPE else: toPageType(desired_type.to(string)),
-            allow_empty: c.get("allow_empty", builtins().False).to(bool)
+        desiredColumnMap[nameOut] = DesiredColumnInfo( # collect the information about the column, fill in any defaults
+            originalName: nameInp,
+            `type`: if desiredType.isNone(): K_NONETYPE else: toPageType(desiredType.to(string)),
+            allowEmpty: c.get("allow_empty", builtins().False).to(bool)
         )
 
     ######################################################
@@ -75,7 +75,7 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dir_p
 
             {colName: pages}
 
-    let column_names = collect: (for k in columns.keys: k)
+    let columnNames = collect: (for k in columns.keys: k)
     var layout_set = newSeq[(int, int)]()
 
     for pages in columns.values():
@@ -91,73 +91,77 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dir_p
 
         layout_set.add(layout)
 
-    let page_count = layout_set[0][1]
+    let pageCount = layout_set[0][1]
 
     # Registry of data
-    var passed_column_data = newSeq[string]()
-    var failed_column_data = newSeq[string]()
+    var passedColumnData = newSeq[string]()
+    var failedColumnData = newSeq[string]()
 
     var cols = initTable[string, seq[string]]()
 
-    var res_cols_pass = newSeqOfCap[ColInfo](page_count-1)
-    var res_cols_fail = newSeqOfCap[ColInfo](page_count-1)
+    var resColsPass = newSeqOfCap[ColInfo](pageCount-1)
+    var resColsFail = newSeqOfCap[ColInfo](pageCount-1)
 
-    for _ in 0..<page_count:
-        res_cols_pass.add(initTable[string, ColSliceInfo]())
-        res_cols_fail.add(initTable[string, ColSliceInfo]())
+    for _ in 0..<pageCount:
+        resColsPass.add(initTable[string, ColSliceInfo]())
+        resColsFail.add(initTable[string, ColSliceInfo]())
 
-    var is_correct_type = initTable[string, bool]()
+    var isCorrectType = initTable[string, bool]()
 
     proc genpage(dirpid: string): ColSliceInfo {.inline.} = (dir_pid, tabliteBase().SimplePage.next_id(dir_pid).to(int))
 
-    for (desired_name_non_unique, desired_columns) in desired_column_map.pairs():
-        let keys = toSeq(passed_column_data)
-        let desired_name = uniqueName(desired_name_non_unique, keys)
-        let this_col = columns[desired_columns.original_name]
+    for (desiredNameNonUnique, colDesired) in desiredColumnMap.pairs():
+        let keys = toSeq(passedColumnData)
+        let desiredName = uniqueName(desiredNameNonUnique, keys)
+        let thisCol = columns[colDesired.originalName]
 
-        cols[desired_name] = this_col
+        cols[desiredName] = thisCol
 
-        passed_column_data.add(desired_name)
+        passedColumnData.add(desiredName)
 
-        var col_dtypes = toSeq(this_col.getColumnTypes().keys)
-        var needs_to_iterate = false
+        var colDtypes = toSeq(thisCol.getColumnTypes().keys)
+        var needsToIterate = false
 
-        if K_NONETYPE in col_dtypes:
-            if not desired_columns.allow_empty:
-                needs_to_iterate = true
+        if K_NONETYPE in colDtypes:
+            if not colDesired.allowEmpty:
+                needsToIterate = true
             else:
-                col_dtypes.delete(col_dtypes.find(K_NONETYPE))
+                if colDesired.`type` == K_STRING:
+                    # none strings are cast to empty string, therefore we need to iterate for consistency
+                    needsToIterate = true
+                else:
+                    colDtypes.delete(colDtypes.find(K_NONETYPE))
 
-        if not needs_to_iterate and col_dtypes.len > 0:
-            if col_dtypes.len > 1:
+        if not needsToIterate and colDtypes.len > 0:
+            if colDtypes.len > 1:
                 # multiple times always needs to cast
-                needs_to_iterate = true
+                needsToIterate = true
             else:
-                let active_type = col_dtypes[0]
+                let activeType = colDtypes[0]
 
-                if active_type != desired_columns.`type`:
+                if activeType != colDesired.`type`:
                     # not same type, need to cast
-                    needs_to_iterate = true
-                elif active_type == K_STRING and not desired_columns.allow_empty:
+                    needsToIterate = true
+                elif activeType == K_STRING and not colDesired.allowEmpty:
                     # we may have same type but we still need to filter empty strings
-                    needs_to_iterate = true
+                    needsToIterate = true
 
-        is_correct_type[desired_name] = not needs_to_iterate
+        isCorrectType[desiredName] = not needsToIterate
 
-        for i in 0..<page_count:
-            res_cols_pass[i][desired_name] = genpage(dir_pid)
+        for i in 0..<pageCount:
+            resColsPass[i][desiredName] = genpage(dir_pid)
 
-    for desired_name in columns.keys:
-        failed_column_data.add(desired_name)
+    for desiredName in columns.keys:
+        failedColumnData.add(desiredName)
 
-        for i in 0..<page_count:
-            res_cols_fail[i][desired_name] = genpage(dir_pid)
+        for i in 0..<pageCount:
+            resColsFail[i][desiredName] = genpage(dir_pid)
 
-    let reject_reason_name = uniqueName("reject_reason", column_names)
+    let rejectReasonName = uniqueName("reject_reason", columnNames)
 
-    for i in 0..<page_count:
-        res_cols_fail[i][reject_reason_name] = genpage(dir_pid)
+    for i in 0..<pageCount:
+        resColsFail[i][rejectReasonName] = genpage(dir_pid)
 
-    failed_column_data.add(reject_reason_name)
+    failedColumnData.add(rejectReasonName)
 
-    return (columns, page_count, is_correct_type, desired_column_map, passed_column_data, failed_column_data, res_cols_pass, res_cols_fail, column_names, reject_reason_name)
+    return (columns, pageCount, isCorrectType, desiredColumnMap, passedColumnData, failedColumnData, resColsPass, resColsFail, columnNames, rejectReasonName)

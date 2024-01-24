@@ -14,7 +14,6 @@ when isMainModule and appType != "lib":
     import std/[os, tables, sugar, sets, sequtils, paths, macros]
     import nimpy as nimpy
     from ../nimpyext import `!`
-    import ../utils
     import std/options as opt
     import ../pymodules as pymodules
     import ../numpy
@@ -108,10 +107,11 @@ when isMainModule and appType != "lib":
     # let columns = pymodules.builtins().dict({"A": @[nimValueToPy("0"), nimValueToPy(nil), nimValueToPy("2")], "B": @[nimValueToPy("3"), nimValueToPy(nil), nimValueToPy("4")]}.toTable)
     # let columns = pymodules.builtins().dict({"str": @["1", "0"]})
     # let columns = pymodules.builtins().dict({"float": @[1.0, 0.0]})
-    let columns = pymodules.builtins().dict({"date": @[
-        datetime().date(2000, 1, 1),
-        datetime().date(2000, 1, 2),
-    ]})
+    # let columns = pymodules.builtins().dict({"date": @[
+    #     datetime().date(2000, 1, 1),
+    #     datetime().date(2000, 1, 2),
+    # ]})
+    let columns = pymodules.builtins().dict({"str": @[nimValueToPy("abc"), nimValueToPy("efg"), nimValueToPy(nil)]}.toTable)
     let table = pymodules.tablite().Table(columns = columns)
 
     discard table.show(dtype = true)
@@ -145,8 +145,10 @@ when isMainModule and appType != "lib":
         # newColumnSelectorInfo("date", "float", false, opt.some("float")),
         # newColumnSelectorInfo("date", "str", false, opt.some("str")),
         # newColumnSelectorInfo("date", "date", false, opt.some("date")),
-        newColumnSelectorInfo("date", "time", false, opt.some("time")),
+        # newColumnSelectorInfo("date", "time", false, opt.some("time")),
         # newColumnSelectorInfo("date", "datetime", false, opt.some("datetime")),
+
+        newColumnSelectorInfo("str", "str", true, opt.some("str")),
     ])
 
     let (select_pass, select_fail) = table.columnSelect(
