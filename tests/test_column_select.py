@@ -796,6 +796,62 @@ def test_casting_date_1():
     for true, expect in zip((list(l) for l in select_1_pass.columns.values()), results):
         assert true == expect
 
+def test_casting_date_1_nones():
+    col_name = "date"
+    input_values = [date(1970, 1, 1), date(1970, 1, 2), None]
+
+    tbl = Table({col_name: input_values})
+
+    types = ["bool", "int", "float", "str", "date", "datetime"]
+    results = [
+        [False, True],
+        [0, 86400],
+        [0.0, 86400.0],
+        ["1970-01-01", "1970-01-02"],
+        [date(1970, 1, 1), date(1970, 1, 2)],
+        [datetime(1970, 1, 1), datetime(1970, 1, 2)],
+    ]
+
+    select_1_pass, select_1_fail = tbl.column_select(cols=[
+        {"column": col_name, "type": t, "allow_empty": False, "rename": t}
+        for t in types
+    ])
+
+    assert len(select_1_pass) == 2, select_1_pass.show()
+    assert len(select_1_fail) == 1, select_1_fail.show()
+    assert list(select_1_pass.columns.keys()) == types
+    
+    for true, expect in zip((list(l) for l in select_1_pass.columns.values()), results):
+        assert true == expect
+
+def test_casting_date_2_nones():
+    col_name = "date"
+    input_values = [date(1970, 1, 1), date(1970, 1, 2), None]
+
+    tbl = Table({col_name: input_values})
+
+    types = ["bool", "int", "float", "str", "date", "datetime"]
+    results = [
+        [False, True, None],
+        [0, 86400, None],
+        [0.0, 86400.0, None],
+        ["1970-01-01", "1970-01-02", ""],
+        [date(1970, 1, 1), date(1970, 1, 2), None],
+        [datetime(1970, 1, 1), datetime(1970, 1, 2), None],
+    ]
+
+    select_1_pass, select_1_fail = tbl.column_select(cols=[
+        {"column": col_name, "type": t, "allow_empty": True, "rename": t}
+        for t in types
+    ])
+
+    assert len(select_1_pass) == 3, select_1_pass.show()
+    assert len(select_1_fail) == 0, select_1_fail.show()
+    assert list(select_1_pass.columns.keys()) == types
+    
+    for true, expect in zip((list(l) for l in select_1_pass.columns.values()), results):
+        assert true == expect
+
 def test_casting_time_1():
     col_name = "time"
     input_values = [time(0, 0, 1), time(0, 0, 0)]
@@ -817,6 +873,60 @@ def test_casting_time_1():
     ])
 
     assert len(select_1_pass) == 2, select_1_pass.show()
+    assert len(select_1_fail) == 0, select_1_fail.show()
+    assert list(select_1_pass.columns.keys()) == types
+    
+    for true, expect in zip((list(l) for l in select_1_pass.columns.values()), results):
+        assert true == expect
+
+def test_casting_time_1_nones():
+    col_name = "time"
+    input_values = [time(0, 0, 1), time(0, 0, 0), None]
+
+    tbl = Table({col_name: input_values})
+
+    types = ["bool", "int", "float", "str", "time"]
+    results = [
+        [True, False],
+        [1, 0],
+        [1.0, 0.0],
+        ["00:00:01", "00:00:00"],
+        [time(0, 0, 1), time(0, 0, 0)]
+    ]
+
+    select_1_pass, select_1_fail = tbl.column_select(cols=[
+        {"column": col_name, "type": t, "allow_empty": False, "rename": t}
+        for t in types
+    ])
+
+    assert len(select_1_pass) == 2, select_1_pass.show()
+    assert len(select_1_fail) == 1, select_1_fail.show()
+    assert list(select_1_pass.columns.keys()) == types
+    
+    for true, expect in zip((list(l) for l in select_1_pass.columns.values()), results):
+        assert true == expect
+
+def test_casting_time_2_nones():
+    col_name = "time"
+    input_values = [time(0, 0, 1), time(0, 0, 0), None]
+
+    tbl = Table({col_name: input_values})
+
+    types = ["bool", "int", "float", "str", "time"]
+    results = [
+        [True, False, None],
+        [1, 0, None],
+        [1.0, 0.0, None],
+        ["00:00:01", "00:00:00", ""],
+        [time(0, 0, 1), time(0, 0, 0), None],
+    ]
+
+    select_1_pass, select_1_fail = tbl.column_select(cols=[
+        {"column": col_name, "type": t, "allow_empty": True, "rename": t}
+        for t in types
+    ])
+
+    assert len(select_1_pass) == 3, select_1_pass.show()
     assert len(select_1_fail) == 0, select_1_fail.show()
     assert list(select_1_pass.columns.keys()) == types
     
@@ -845,6 +955,62 @@ def test_casting_datetime_1():
     ])
 
     assert len(select_1_pass) == 2, select_1_pass.show()
+    assert len(select_1_fail) == 0, select_1_fail.show()
+    assert list(select_1_pass.columns.keys()) == types
+    
+    for true, expect in zip((list(l) for l in select_1_pass.columns.values()), results):
+        assert true == expect
+
+def test_casting_datetime_1_nones():
+    col_name = "datetime"
+    input_values = [datetime(1970, 1, 1), datetime(1970, 1, 2), None]
+
+    tbl = Table({col_name: input_values})
+
+    types = ["bool", "int", "float", "str", "date", "datetime"]
+    results = [
+        [False, True],
+        [0, 86400],
+        [0.0, 86400.0],
+        ["1970-01-01 00:00:00", "1970-01-02 00:00:00"],
+        [date(1970, 1, 1), date(1970, 1, 2)],
+        [datetime(1970, 1, 1), datetime(1970, 1, 2)],
+    ]
+
+    select_1_pass, select_1_fail = tbl.column_select(cols=[
+        {"column": col_name, "type": t, "allow_empty": False, "rename": t}
+        for t in types
+    ])
+
+    assert len(select_1_pass) == 2, select_1_pass.show()
+    assert len(select_1_fail) == 1, select_1_fail.show()
+    assert list(select_1_pass.columns.keys()) == types
+    
+    for true, expect in zip((list(l) for l in select_1_pass.columns.values()), results):
+        assert true == expect
+
+def test_casting_datetime_2_nones():
+    col_name = "datetime"
+    input_values = [datetime(1970, 1, 1), datetime(1970, 1, 2), None]
+
+    tbl = Table({col_name: input_values})
+
+    types = ["bool", "int", "float", "str", "date", "datetime"]
+    results = [
+        [False, True, None],
+        [0, 86400, None],
+        [0.0, 86400.0, None],
+        ["1970-01-01 00:00:00", "1970-01-02 00:00:00", ""],
+        [date(1970, 1, 1), date(1970, 1, 2), None],
+        [datetime(1970, 1, 1), datetime(1970, 1, 2), None],
+    ]
+
+    select_1_pass, select_1_fail = tbl.column_select(cols=[
+        {"column": col_name, "type": t, "allow_empty": True, "rename": t}
+        for t in types
+    ])
+
+    assert len(select_1_pass) == 3, select_1_pass.show()
     assert len(select_1_fail) == 0, select_1_fail.show()
     assert list(select_1_pass.columns.keys()) == types
     
