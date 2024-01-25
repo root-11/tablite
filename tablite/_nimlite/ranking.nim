@@ -25,7 +25,7 @@ iterator iter*(rank: var Rank): ptr (DataTypes, uint) {.closure.} =
     var x = 0
     let max = int(DataTypes.DT_MAX_ELEMENTS)
     while x < max:
-        yield rank[x].unsafeAddr
+        yield rank[x].addr
         inc x
     raise newException(ResourceExhaustedError, "stop iteration")
 

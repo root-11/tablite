@@ -207,7 +207,7 @@ template obj2prim(v: PY_ObjectND) =
     of K_STRING: string.fnCast(R)(PY_String(v).value)
     of K_DATE: FromDate.fnCast(R)(PY_Date(v).value)
     of K_TIME: PY_Time.fnCast(R)(PY_Time(v))
-    of K_DATETIME: FromDateTime.fnCast(R)(PY_Date(v).value)
+    of K_DATETIME: FromDateTime.fnCast(R)(PY_DateTime(v).value)
     of K_NONETYPE: uncastable()
 
 mkCasters:

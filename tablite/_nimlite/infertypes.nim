@@ -270,7 +270,7 @@ proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool)
 
     return (substrings, 8)
 
-proc guessDate(date_words: ptr array[3, string], is_american: bool): (int, int, int) {.inline.} =
+proc guessDate(date_words: ptr array[3, string], is_american: bool): (int, int, int) =
     var year, month, day: int
     var month_or_day: array[2, int]
 
@@ -321,7 +321,8 @@ proc guessDate(date_words: ptr array[3, string], is_american: bool): (int, int, 
     return (year, month, day)
 
 proc wordsToDate(date_words: ptr array[3, string], is_american: bool): PY_Date {.inline.} =
-    var (year, month, day) = guessDate(date_words, is_american)
+    let guessed = guessDate(date_words, is_american)
+    let (year, month, day) = guessed;
 
     if year < 0 or year > 9999:
         raise newException(ValueError, "year out of range")
@@ -333,6 +334,8 @@ proc wordsToDate(date_words: ptr array[3, string], is_american: bool): PY_Date {
         raise newException(ValueError, "day out of range")
 
     return newPyDate(uint16 year, uint8 month, uint8 day)
+    
+    # discard $year; # There is a bug in nims ARC/ORC GC, uncomment this if you want to use those
 
 proc inferDate*(str: ptr string, is_short: bool, is_american: bool): PY_Date {.inline.} =
     assert not (is_short and is_american), "Short format cannot be mixed with american format"
@@ -344,7 +347,7 @@ proc inferDate*(str: ptr string, is_short: bool, is_american: bool): PY_Date {.i
 
     let (date_words, _) = str.parseDateWords((if is_short: ParseShortDate.REQUIRED else: ParseShortDate.NEVER), false)
 
-    return wordsToDate(date_words.unsafeAddr, is_american)
+    return wordsToDate(date_words.addr, is_american)
 
 proc inferDate*(str: ptr string): PY_Date {.inline.} =
     try:
@@ -442,7 +445,7 @@ proc inferTime*(str: ptr string): PY_Time {.inline.} =
 
     var timestr = (if tz_pos == -1: sstr else: sstr.substr(0, tz_pos-1))
 
-    let (hour, minute, second, microsecond) = parse_hh_mm_ss_ff(timestr.unsafeAddr)
+    let (hour, minute, second, microsecond) = parse_hh_mm_ss_ff(timestr.addr)
 
     if tz_pos >= 0:
         let tzstr = sstr.substr(tz_pos + 1)
@@ -451,7 +454,7 @@ proc inferTime*(str: ptr string): PY_Time {.inline.} =
             raise newException(Exception, "invalid timezone")
 
         let tz_sign: int8 = (if str[tz_pos] == '-': -1 else: 1)
-        let (tz_hours_p, tz_minutes_p, tz_seconds_p, tz_microseconds_p) = parse_hh_mm_ss_ff(tzstr.unsafeAddr)
+        let (tz_hours_p, tz_minutes_p, tz_seconds_p, tz_microseconds_p) = parse_hh_mm_ss_ff(tzstr.addr)
         var (tz_days, tz_seconds, tz_microseconds) = toTimedelta(
             hours = tz_sign * int tz_hours_p,
             minutes = tz_sign * int tz_minutes_p,
@@ -486,8 +489,8 @@ proc inferDatetime*(str: ptr string, is_american: bool): PY_DateTime {.inline.} 
     else:
         raise newException(ValueError, "not a datetime")
 
-    let date = wordsToDate(date_words.unsafeAddr, is_american)
-    let time = inferTime(tstr.unsafeAddr)
+    let date = wordsToDate(date_words.addr, is_american)
+    let time = inferTime(tstr.addr)
 
     return newPyDateTime(date, time)
 

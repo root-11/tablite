@@ -99,8 +99,8 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
 
     var cols = initTable[string, seq[string]]()
 
-    var resColsPass = newSeqOfCap[ColInfo](pageCount-1)
-    var resColsFail = newSeqOfCap[ColInfo](pageCount-1)
+    var resColsPass = newSeqOfCap[ColInfo](max(pageCount - 1, 0))
+    var resColsFail = newSeqOfCap[ColInfo](max(pageCount - 1, 0))
 
     for _ in 0..<pageCount:
         resColsPass.add(initTable[string, ColSliceInfo]())

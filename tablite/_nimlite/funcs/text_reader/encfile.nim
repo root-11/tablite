@@ -85,7 +85,7 @@ proc readLine(f: FileUTF16, str: var string): bool =
     var wstr = newWideCString(wchar_seq.len)
 
     if wchar_seq.len > 0:
-        copyMem(wstr[0].unsafeAddr, wchar_seq[0].unsafeAddr, wchar_seq.len * 2)
+        copyMem(wstr[0].addr, wchar_seq[0].addr, wchar_seq.len * 2)
     else:
         return false
 

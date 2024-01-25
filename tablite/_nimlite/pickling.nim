@@ -4,12 +4,12 @@ import pickleproto, pytypes
 proc writePickleBinput(fh: var File, binput: var uint32): void {.inline.} =
     if binput <= 0xff:
         fh.write(PKL_BINPUT)
-        discard fh.writeBuffer(binput.unsafeAddr, 1)
+        discard fh.writeBuffer(binput.addr, 1)
         inc binput
         return
 
     fh.write(PKL_LONG_BINPUT)
-    discard fh.writeBuffer(binput.unsafeAddr, 4)
+    discard fh.writeBuffer(binput.addr, 4)
     inc binput
 
 proc writePickleGlobal(fh: var File, module_name: string, import_name: string): void {.inline.} =
@@ -28,22 +28,22 @@ proc writePickleProto(fh: var File): void =
 proc writePickleBinintGeneric[T: uint8|uint16|uint32](fh: var File, value: T): void {.inline.} =
     when T is uint8:
         fh.write(PKL_BININT1)
-        discard fh.writeBuffer(value.unsafeAddr, 1)
+        discard fh.writeBuffer(value.addr, 1)
     elif T is uint16:
         fh.write(PKL_BININT2)
-        discard fh.writeBuffer(value.unsafeAddr, 2)
+        discard fh.writeBuffer(value.addr, 2)
     elif T is uint32:
         fh.write(PKL_BININT)
-        discard fh.writeBuffer(value.unsafeAddr, 4)
+        discard fh.writeBuffer(value.addr, 4)
 
 proc writePickleBinfloat(fh: var File, value: float): void =
     # pickle stores floats big-endian
     var f: float
 
-    f.unsafeAddr.bigEndian64(value.unsafeAddr)
+    f.addr.bigEndian64(value.addr)
 
     fh.write(PKL_BINFLOAT)
-    discard fh.writeBuffer(f.unsafeAddr, 8)
+    discard fh.writeBuffer(f.addr, 8)
 
 proc writePickleBinint[T: int|uint|int32|uint32](fh: var File, value: T): void {.inline.} =
     when T is int or T is int32:
@@ -66,14 +66,14 @@ proc writePickleShortbinbytes(fh: var File, value: string): void {.inline.} =
 
     let len = value.len()
 
-    discard fh.writeBuffer(len.unsafeAddr, 1)
-    discard fh.writeBuffer(value[0].unsafeAddr, value.len)
+    discard fh.writeBuffer(len.addr, 1)
+    discard fh.writeBuffer(value[0].addr, value.len)
 
 proc writePickleBinunicode(fh: var File, value: string): void {.inline.} =
     let len = uint32 value.len
 
     fh.write(PKL_BINUNICODE)
-    discard fh.writeBuffer(len.unsafeAddr, 4)
+    discard fh.writeBuffer(len.addr, 4)
     fh.write(value)
 
 proc writePickleBoolean(fh: var File, value: bool): void {.inline.} =
@@ -99,7 +99,7 @@ proc writePickleDate(fh: var File, value: PY_Date, binput: var uint32): void {.i
     fh.write(PKL_SHORT_BINBYTES)
     fh.write('\4') # date has 4 bytes 2(y)-1(m)-1(d)
 
-    fh.writePickleDateBody(value.unsafeAddr, binput)
+    fh.writePickleDateBody(value.addr, binput)
 
     fh.writePickleBinput(binput)
     fh.write(PKL_TUPLE1)
