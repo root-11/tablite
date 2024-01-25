@@ -29,10 +29,10 @@ proc writePickleBinintGeneric[T: uint8|uint16|uint32](fh: var File, value: T): v
     when T is uint8:
         fh.write(PKL_BININT1)
         discard fh.writeBuffer(value.unsafeAddr, 1)
-    when T is uint16:
+    elif T is uint16:
         fh.write(PKL_BININT2)
         discard fh.writeBuffer(value.unsafeAddr, 2)
-    when T is uint32:
+    elif T is uint32:
         fh.write(PKL_BININT)
         discard fh.writeBuffer(value.unsafeAddr, 4)
 

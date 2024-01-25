@@ -710,11 +710,10 @@ proc toNumpyPrimitive[T: bool | int8 | int16 | int32 | int64 | float32 | float64
 
         when T is int8 or T is int16 or T is int32 or T is int64:
             return toNumpyPrimitive("i" & $sz, shape, sz, buf)
+        elif T is float32 or T is float64:
+            return toNumpyPrimitive("f" & $sz, shape, sz, buf)
         else:
-            when T is float32 or T is float64:
-                return toNumpyPrimitive("f" & $sz, shape, sz, buf)
-            else:
-                corrupted()
+            corrupted()
 
 proc toPython(self: BooleanNDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[bool](self.shape, addr self.buf[0])
 
@@ -851,6 +850,7 @@ proc getPageTypes*(path: string): Table[KindObjectND, int] =
     fh.close()
 
     return dtypes
+
 proc getColumnTypes*(pages: openArray[string] | seq[string]): Table[KindObjectND, int] =
     var dtypes = initTable[KindObjectND, int]()
 
@@ -893,11 +893,10 @@ proc save[T: DateNDArray | DateTimeNDArray](self: T, path: string): void =
     for el in self.buf:
         when T is DateNDArray:
             value = el.toTime().time2Duration.inDays
+        elif T is DateTimeNDArray:
+            value = el.toTime().time2Duration.inMicroseconds
         else:
-            when T is DateTimeNDArray:
-                value = el.toTime().time2Duration.inMicroseconds
-            else:
-                corrupted(ObjectConversionDefect)
+            corrupted(ObjectConversionDefect)
 
         discard fh.writeBuffer(addr value, size)
 
