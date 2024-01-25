@@ -21,7 +21,7 @@ proc newDesiredColumnInfo*(name: string, `type`: KindObjectND, allowEmpty: bool)
 proc toPyObj*(infos: var OrderedTable[string, DesiredColumnInfo]): nimpy.PyObject =
     let elems = collect:
         for (name, info) in infos.pairs:
-            (name, (info.original_name, $info.`type`, info.allow_empty))
+            (name, (info.originalName, $info.`type`, info.allowEmpty))
 
     let res = builtins().dict(elems)
 

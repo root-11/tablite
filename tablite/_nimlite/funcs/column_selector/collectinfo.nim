@@ -1,4 +1,4 @@
-import std/[tables, paths, sequtils, times]
+import std/[tables, paths, sequtils]
 from std/sugar import collect
 from std/os import createDir
 from std/strutils import toLower
@@ -23,15 +23,11 @@ proc toPageType(name: string): KindObjectND =
 proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPid: string): (
     Table[string, seq[string]], int, Table[string, bool], OrderedTable[string, DesiredColumnInfo], seq[string], seq[string], seq[ColInfo], seq[ColInfo], seq[string], string
 ) =
-    let startTime = cpuTime()
-
     var desiredColumnMap = initOrderedTable[string, DesiredColumnInfo]()
     var collisions = initTable[string, int]()
 
     let dirpage = Path(dirPid) / Path("pages")
     createDir(string dirpage)
-
-    let phase1Time = cpuTime()
 
     ######################################################
     # 1. Figure out what user needs (types, column names)
@@ -66,8 +62,6 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
             allowEmpty: c.get("allow_empty", builtins().False).to(bool)
         )
 
-    let phase2Time = cpuTime()
-
     ######################################################
     # 2. Converting types to user specified
     ######################################################
@@ -81,27 +75,23 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
 
             {colName: pages}
 
-    let phase3Time = cpuTime()
-
     let columnNames = collect: (for k in columns.keys: k)
-    var layout_set = newSeq[(int, int)]()
+    var layoutSet = newSeq[(int, int)]()
 
     for pages in columns.values():
         let pgCount = pages.len
         let elCount = getColumnLen(pages)
         let layout = (elCount, pgCount)
 
-        if layout in layout_set:
+        if layout in layoutSet:
             continue
 
-        if layout_set.len != 0:
+        if layoutSet.len != 0:
             raise newException(RangeDefect, "Data layout mismatch, pages must be consistent")
 
-        layout_set.add(layout)
+        layoutSet.add(layout)
 
-    let phase4Time = cpuTime()
-
-    let pageCount = layout_set[0][1]
+    let pageCount = layoutSet[0][1]
 
     # Registry of data
     var passedColumnData = newSeq[string]()
@@ -117,8 +107,6 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
         resColsFail.add(initTable[string, ColSliceInfo]())
 
     var isCorrectType = initTable[string, bool]()
-
-    let phase5Time = cpuTime()
 
     proc genpage(dirpid: string): ColSliceInfo {.inline.} = (dir_pid, tabliteBase().SimplePage.next_id(dir_pid).to(int))
 
@@ -163,8 +151,6 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
         for i in 0..<pageCount:
             resColsPass[i][desiredName] = genpage(dir_pid)
 
-    let phase6Time = cpuTime()
-
     for desiredName in columns.keys:
         failedColumnData.add(desiredName)
 
@@ -177,16 +163,5 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
         resColsFail[i][rejectReasonName] = genpage(dir_pid)
 
     failedColumnData.add(rejectReasonName)
-
-    let finalTime = cpuTime()
-
-    echo ">>>totalTime: " & $(finalTime - startTime)
-    echo ">>>init: " & $(phase1Time - startTime)
-    echo ">>>phase1: " & $(phase2Time - phase1Time)
-    echo ">>>phase2: " & $(phase3Time - phase2Time)
-    echo ">>>phase3: " & $(phase4Time - phase3Time)
-    echo ">>>phase4: " & $(phase5Time - phase4Time)
-    echo ">>>phase5: " & $(phase6Time - phase5Time)
-    echo ">>>phase6: " & $(finalTime - phase6Time)
 
     return (columns, pageCount, isCorrectType, desiredColumnMap, passedColumnData, failedColumnData, resColsPass, resColsFail, columnNames, rejectReasonName)
