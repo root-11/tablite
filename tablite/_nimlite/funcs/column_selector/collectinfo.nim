@@ -62,9 +62,13 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
             allowEmpty: c.get("allow_empty", builtins().False).to(bool)
         )
 
+
     ######################################################
     # 2. Converting types to user specified
     ######################################################
+    # Registry of data
+    var passedColumnData = newSeq[string]()
+    var failedColumnData = newSeq[string]()
     let columns = collect(initTable()):
         for pyColName in table.columns:
             let colName = pyColName.to(string)
@@ -72,6 +76,8 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
             let pages = collect:
                 for pyPage in pyColPages:
                     builtins().str(pyPage.path.absolute()).to(string)
+
+            failedColumnData.add(colName)
 
             {colName: pages}
 
@@ -92,10 +98,6 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
         layoutSet.add(layout)
 
     let pageCount = layoutSet[0][1]
-
-    # Registry of data
-    var passedColumnData = newSeq[string]()
-    var failedColumnData = newSeq[string]()
 
     var cols = initTable[string, seq[string]]()
 
@@ -152,8 +154,6 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
             resColsPass[i][desiredName] = genpage(dir_pid)
 
     for desiredName in columns.keys:
-        failedColumnData.add(desiredName)
-
         for i in 0..<pageCount:
             resColsFail[i][desiredName] = genpage(dir_pid)
 
