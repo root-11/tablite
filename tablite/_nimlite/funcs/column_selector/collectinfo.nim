@@ -20,7 +20,7 @@ proc toPageType(name: string): KindObjectND =
     of "datetime": return KindObjectND.K_DATETIME
     else: raise newException(FieldDefect, "unsupported page type: '" & name & "'")
 
-proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPid: string): (
+proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPid: string, pbar: nimpy.PyObject): (
     Table[string, seq[string]], int, Table[string, bool], OrderedTable[string, DesiredColumnInfo], seq[string], seq[string], seq[ColInfo], seq[ColInfo], seq[string], string
 ) =
     var desiredColumnMap = initOrderedTable[string, DesiredColumnInfo]()
@@ -62,6 +62,8 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
             allowEmpty: c.get("allow_empty", builtins().False).to(bool)
         )
 
+    discard pbar.update(3)
+    discard pbar.display()
 
     ######################################################
     # 2. Converting types to user specified
@@ -112,6 +114,11 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
 
     proc genpage(dirpid: string): ColSliceInfo {.inline.} = (dir_pid, tabliteBase().SimplePage.next_id(dir_pid).to(int))
 
+    discard pbar.update(5)
+    discard pbar.display()
+
+    let colStepSize = (40 / desiredColumnMap.len - 1)
+
     for (desiredNameNonUnique, colDesired) in desiredColumnMap.pairs():
         let keys = toSeq(passedColumnData)
         let desiredName = uniqueName(desiredNameNonUnique, keys)
@@ -153,6 +160,9 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
         for i in 0..<pageCount:
             resColsPass[i][desiredName] = genpage(dir_pid)
 
+        discard pbar.update(colStepSize)
+        discard pbar.display()
+
     for desiredName in columns.keys:
         for i in 0..<pageCount:
             resColsFail[i][desiredName] = genpage(dir_pid)
@@ -163,5 +173,8 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
         resColsFail[i][rejectReasonName] = genpage(dir_pid)
 
     failedColumnData.add(rejectReasonName)
+
+    discard pbar.update(2)
+    discard pbar.display()
 
     return (columns, pageCount, isCorrectType, desiredColumnMap, passedColumnData, failedColumnData, resColsPass, resColsFail, columnNames, rejectReasonName)
