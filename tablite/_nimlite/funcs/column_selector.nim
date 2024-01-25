@@ -1,4 +1,3 @@
-
 import column_selector/sliceconv
 import column_selector/infos
 import column_selector/collectinfo
@@ -75,7 +74,7 @@ when isMainModule and appType != "lib":
             tbl_fail.extendTable(pg_fail)
 
         return (tbl_pass, tbl_fail)
-    
+
     proc newColumnSelectorInfo(column: string, `type`: string, allow_empty: bool, rename: opt.Option[string]): nimpy.PyObject =
         let pyDict = builtins().dict(
             column = column,
@@ -126,31 +125,31 @@ when isMainModule and appType != "lib":
                 # newColumnSelectorInfo("A ", "date", false, opt.none[string]()),
                 # newColumnSelectorInfo("A ", "datetime", false, opt.none[string]()),
                 # newColumnSelectorInfo("A ", "time", false, opt.none[string]()),
-        # newColumnSelectorInfo("A", "int", true, opt.none[string]()),
-        # newColumnSelectorInfo("B", "str", true, opt.none[string]()),
+            # newColumnSelectorInfo("A", "int", true, opt.none[string]()),
+            # newColumnSelectorInfo("B", "str", true, opt.none[string]()),
 
-        # newColumnSelectorInfo("str", "bool", false, opt.some("bool")),
-        # newColumnSelectorInfo("str", "int", false, opt.some("int")),
-        # newColumnSelectorInfo("str", "float", false, opt.some("float")),
-        # newColumnSelectorInfo("str", "str", false, opt.some("str")),
+            # newColumnSelectorInfo("str", "bool", false, opt.some("bool")),
+            # newColumnSelectorInfo("str", "int", false, opt.some("int")),
+            # newColumnSelectorInfo("str", "float", false, opt.some("float")),
+            # newColumnSelectorInfo("str", "str", false, opt.some("str")),
 
-        # newColumnSelectorInfo("float", "bool", false, opt.some("bool")),
-        # newColumnSelectorInfo("float", "int", false, opt.some("int")),
-        # newColumnSelectorInfo("float", "float", false, opt.some("float")),
-        # newColumnSelectorInfo("float", "str", false, opt.some("str")),
-        # newColumnSelectorInfo("float", "date", false, opt.some("date")),
-        # newColumnSelectorInfo("float", "time", false, opt.some("time")),
-        # newColumnSelectorInfo("float", "datetime", false, opt.some("datetime")),
+            # newColumnSelectorInfo("float", "bool", false, opt.some("bool")),
+            # newColumnSelectorInfo("float", "int", false, opt.some("int")),
+            # newColumnSelectorInfo("float", "float", false, opt.some("float")),
+            # newColumnSelectorInfo("float", "str", false, opt.some("str")),
+            # newColumnSelectorInfo("float", "date", false, opt.some("date")),
+            # newColumnSelectorInfo("float", "time", false, opt.some("time")),
+            # newColumnSelectorInfo("float", "datetime", false, opt.some("datetime")),
 
-        # newColumnSelectorInfo("date", "bool", false, opt.some("bool")),
-        # newColumnSelectorInfo("date", "int", false, opt.some("int")),
-        # newColumnSelectorInfo("date", "float", false, opt.some("float")),
-        # newColumnSelectorInfo("date", "str", false, opt.some("str")),
-        # newColumnSelectorInfo("date", "date", false, opt.some("date")),
-        # newColumnSelectorInfo("date", "time", false, opt.some("time")),
-        # newColumnSelectorInfo("date", "datetime", false, opt.some("datetime")),
+            # newColumnSelectorInfo("date", "bool", false, opt.some("bool")),
+            # newColumnSelectorInfo("date", "int", false, opt.some("int")),
+            # newColumnSelectorInfo("date", "float", false, opt.some("float")),
+            # newColumnSelectorInfo("date", "str", false, opt.some("str")),
+            # newColumnSelectorInfo("date", "date", false, opt.some("date")),
+            # newColumnSelectorInfo("date", "time", false, opt.some("time")),
+            # newColumnSelectorInfo("date", "datetime", false, opt.some("datetime")),
 
-        # newColumnSelectorInfo("str", "str", true, opt.some("str")),
+            # newColumnSelectorInfo("str", "str", true, opt.some("str")),
     ])
 
     let (select_pass, select_fail) = table.columnSelect(

@@ -45,17 +45,17 @@ proc toString(self: PY_Object, depth: int = 0): string {.inline.};
 proc `$`*(self: PY_Object): string {.inline.} = return self.toString()
 
 proc unpickleFile*(fh: File, endianness: Endianness): IterPickle =
-    const READ_BUF_SIZE = 2048
+    const READ_BUF_SIZE = 1_000_000 # 1MB chunks
     var buf {.noinit.}: array[READ_BUF_SIZE, uint8]
 
     return iterator(): uint8 =
         while not unlikely(fh.endOfFile):
-            let bytes_read = fh.readBuffer(addr buf, READ_BUF_SIZE)
+            let bytesRead = fh.readBuffer(addr buf, READ_BUF_SIZE)
 
-            for i in 0..(bytes_read-1):
+            for i in 0..<bytesRead:
                 yield buf[i]
 
-proc readLine(iter: IterPickle): string =
+proc readLine(iter: var IterPickle): string =
     var res = ""
 
     while not iter.finished:
@@ -161,16 +161,16 @@ proc toString(self: PY_Object, depth: int = 0): string =
 
     return "^PY_Object"
 
-template readOfSize(iter: IterPickle, sz: int): openArray[uint8] =
+template readOfSize(iter: var IterPickle, sz: int): openArray[uint8] =
     var arr: array[sz, uint8]
 
-    for i in 0..(sz - 1):
+    for i in 0..<sz:
         arr[i] = iter()
 
     arr
 
-template readIntOfSize(iter: IterPickle, sz: int): int =
-    if sz == 4:
+template readIntOfSize(iter: var IterPickle, sz: int): int =
+    when sz == 4:
         int cast[int32](iter.readOfSize(sz))
     elif sz == 2:
         int int cast[int16](iter.readOfSize(sz))
@@ -179,7 +179,7 @@ template readIntOfSize(iter: IterPickle, sz: int): int =
     else:
         corrupted()
 
-proc loadProto(iter: IterPickle): ProtoPickle {.inline.} =
+proc loadProto(iter: var IterPickle): ProtoPickle {.inline.} =
     let v = iter()
 
     if v != uint8 PKL_PROTO_VERSION:
@@ -188,7 +188,7 @@ proc loadProto(iter: IterPickle): ProtoPickle {.inline.} =
     return ProtoPickle(value: int v)
 
 
-proc loadGlobal(iter: IterPickle, stack: var Stack): GlobalPickle {.inline.} =
+proc loadGlobal(iter: var IterPickle, stack: var Stack): GlobalPickle {.inline.} =
     let module = iter.readLine()
     let name = iter.readLine()
 
@@ -199,7 +199,7 @@ proc loadGlobal(iter: IterPickle, stack: var Stack): GlobalPickle {.inline.} =
     return value
 
 
-proc loadBinput(iter: IterPickle, stack: var Stack, memo: var Memo): BinPutPickle {.inline.} =
+proc loadBinput(iter: var IterPickle, stack: var Stack, memo: var Memo): BinPutPickle {.inline.} =
     let i = uint iter()
 
     if i < 0:
@@ -209,7 +209,7 @@ proc loadBinput(iter: IterPickle, stack: var Stack, memo: var Memo): BinPutPickl
 
     return BinPutPickle(index: i)
 
-proc loadLongBinput(iter: IterPickle, stack: var Stack, memo: var Memo): BinPutPickle {.inline.} =
+proc loadLongBinput(iter: var IterPickle, stack: var Stack, memo: var Memo): BinPutPickle {.inline.} =
     let i = uint iter.readIntOfSize(4)
 
     if i < 0:
@@ -219,7 +219,7 @@ proc loadLongBinput(iter: IterPickle, stack: var Stack, memo: var Memo): BinPutP
 
     return BinPutPickle(index: i)
 
-proc loadBinGet(iter: IterPickle, stack: var Stack, memo: var Memo): PY_Object {.inline.} =
+proc loadBinGet(iter: var IterPickle, stack: var Stack, memo: var Memo): PY_Object {.inline.} =
     let idx = uint iter()
     let obj = memo[idx]
 
@@ -227,7 +227,7 @@ proc loadBinGet(iter: IterPickle, stack: var Stack, memo: var Memo): PY_Object {
 
     return obj
 
-proc loadBinFloat(iter: IterPickle, stack: var Stack): BinFloatPickle {.inline.} =
+proc loadBinFloat(iter: var IterPickle, stack: var Stack): BinFloatPickle {.inline.} =
     var arr: array[8, uint8]
 
     for i in countdown(7, 0):
@@ -240,22 +240,22 @@ proc loadBinFloat(iter: IterPickle, stack: var Stack): BinFloatPickle {.inline.}
 
     return value
 
-proc loadBinInt(iter: IterPickle, stack: var Stack): BinIntPickle {.inline.} =
+proc loadBinInt(iter: var IterPickle, stack: var Stack): BinIntPickle {.inline.} =
     let value = BinIntPickle(value: int iter.readIntOfSize(4), kind: K_INT)
     stack.add(value)
     return value
 
-proc loadBinInt1(iter: IterPickle, stack: var Stack): BinIntPickle {.inline.} =
+proc loadBinInt1(iter: var IterPickle, stack: var Stack): BinIntPickle {.inline.} =
     let value = BinIntPickle(value: int int iter(), kind: K_INT)
     stack.add(value)
     return value
 
-proc loadBinInt2(iter: IterPickle, stack: var Stack): BinIntPickle {.inline.} =
+proc loadBinInt2(iter: var IterPickle, stack: var Stack): BinIntPickle {.inline.} =
     let value = BinIntPickle(value: int iter.readIntOfSize(2), kind: K_INT)
     stack.add(value)
     return value
 
-proc loadTuple1(iter: IterPickle, stack: var Stack): TuplePickle {.inline.} =
+proc loadTuple1(iter: var IterPickle, stack: var Stack): TuplePickle {.inline.} =
     let elems = @[stack[^1]]
     let tpl = TuplePickle(elems: elems)
 
@@ -264,7 +264,7 @@ proc loadTuple1(iter: IterPickle, stack: var Stack): TuplePickle {.inline.} =
 
     return tpl
 
-proc loadTuple2(iter: IterPickle, stack: var Stack): TuplePickle {.inline.} =
+proc loadTuple2(iter: var IterPickle, stack: var Stack): TuplePickle {.inline.} =
     let elems = @[stack[^2], stack[^1]]
     let tpl = TuplePickle(elems: elems)
 
@@ -274,7 +274,7 @@ proc loadTuple2(iter: IterPickle, stack: var Stack): TuplePickle {.inline.} =
 
     return tpl
 
-proc loadTuple3(iter: IterPickle, stack: var Stack): TuplePickle {.inline.} =
+proc loadTuple3(iter: var IterPickle, stack: var Stack): TuplePickle {.inline.} =
     let elems = @[stack[^3], stack[^2], stack[^1]]
     let tpl = TuplePickle(elems: elems)
 
@@ -289,16 +289,16 @@ proc popMark(stack: var Stack, metastack: var MetaStack): Stack {.inline.} =
     stack = metastack.pop()
     return items
 
-proc loadTuple(iter: IterPickle, stack: var Stack, metastack: var MetaStack): TuplePickle {.inline.} =
+proc loadTuple(iter: var IterPickle, stack: var Stack, metastack: var MetaStack): TuplePickle {.inline.} =
     let value = TuplePickle(elems: popMark(stack, metastack))
     stack.add(value)
     return value
 
-proc loadShortBinBytes(iter: IterPickle, stack: var Stack): BinBytesPickle {.inline.} =
+proc loadShortBinBytes(iter: var IterPickle, stack: var Stack): BinBytesPickle {.inline.} =
     let sz = int iter()
     var res = newSeqOfCap[char](sz)
 
-    for _ in 0..(sz - 1):
+    for _ in 0..<sz:
         res.add(char iter())
 
     let value = BinBytesPickle(value: res)
@@ -307,11 +307,11 @@ proc loadShortBinBytes(iter: IterPickle, stack: var Stack): BinBytesPickle {.inl
 
     return value
 
-proc loadBinUnicode(iter: IterPickle, stack: var Stack): BinUnicodePickle {.inline.} =
+proc loadBinUnicode(iter: var IterPickle, stack: var Stack): BinUnicodePickle {.inline.} =
     let sz = iter.readIntOfSize(4)
     var res = ""
 
-    for _ in 0..(sz - 1):
+    for _ in 0..<sz:
         res = res & char iter()
 
     let value = BinUnicodePickle(value: res, kind: K_STRING)
@@ -321,7 +321,7 @@ proc loadBinUnicode(iter: IterPickle, stack: var Stack): BinUnicodePickle {.inli
     return value
 
 
-proc newReducePickle(fn: GlobalPickle, args: TuplePickle): PY_Object =
+proc newReducePickle(fn: var GlobalPickle, args: var TuplePickle): PY_Object =
     if fn.module == "numpy.core.multiarray" and fn.name == "_reconstruct":
         if args.elems.len != 3:
             corrupted()
@@ -388,25 +388,23 @@ proc newReducePickle(fn: GlobalPickle, args: TuplePickle): PY_Object =
     else:
         implement("REDUCE[" & fn.module & " " & fn.name & "]: " & args.toString)
 
-proc loadReduce(iter: IterPickle, stack: var Stack): PY_Object {.inline.} =
-    let args = stack.pop()
-    let fn = stack[^1]
+proc loadReduce(iter: var IterPickle, stack: var Stack): PY_Object {.inline.} =
+    var args = stack.pop()
+    var fn = stack[^1]
     let reduce = newReducePickle(GlobalPickle fn, TuplePickle args)
 
     stack[^1] = reduce
 
     return reduce
 
-proc loadMark(iter: IterPickle, stack: var Stack, metastack: var MetaStack): MarkPickle {.inline.} =
+proc loadMark(iter: var IterPickle, stack: var Stack, metastack: var MetaStack): MarkPickle {.inline.} =
     metastack.add(stack)
     stack = newSeq[PY_Object]()
 
     return MarkPickle()
 
-proc setState(self: PY_NpDType, state: TuplePickle): void {.inline.} =
-    self.elems.add(state.elems)
-    
-proc setState(self: PY_NpMultiArray, state: TuplePickle): void {.inline.} =
+proc setState(self: var PY_NpDType, state: var TuplePickle): void {.inline.} = self.elems.add(state.elems)
+proc setState(self: var PY_NpMultiArray, state: var TuplePickle): void {.inline.} =
     # https://numpy.org/doc/stable/reference/generated/numpy.ndarray.__setstate__.html
     const STATE_VER = 0
     const STATE_SHAPE = 1
@@ -428,15 +426,12 @@ proc setState(self: PY_NpMultiArray, state: TuplePickle): void {.inline.} =
     self.shape = np_shape
 
 proc loadBuild(stack: var Stack): PY_Object {.inline.} =
-    let state = TuplePickle stack.pop()
-    let inst = stack[^1]
+    var state = TuplePickle stack.pop()
+    var inst = stack[^1]
 
-    if (inst of PY_NpDType):
-        setState(PY_NpDType inst, state)
-    elif (inst of PY_NpMultiArray):
-        setState(PY_NpMultiArray inst, state)
-    else:
-        corrupted()
+    if (inst of PY_NpDType): setState(PY_NpDType inst, state)
+    elif (inst of PY_NpMultiArray): setState(PY_NpMultiArray inst, state)
+    else: corrupted()
 
     return inst
 
@@ -480,39 +475,39 @@ proc loadEmptyContainer[T: Py_Iterable | Py_Dict](stack: var Stack): T {.inline.
 
     return value
 
-proc unpickle(iter: IterPickle, stack: var Stack, memo: var Memo, metastack: var MetaStack): PY_Object {.inline.} =
+proc unpickle(iter: var IterPickle, stack: var Stack, memo: var Memo, metastack: var MetaStack): PY_Object {.inline.} =
     let opcode = char iter()
 
     case opcode:
-        of PKL_PROTO: iter.loadProto()
-        of PKL_GLOBAL: iter.loadGlobal(stack)
-        of PKL_BINPUT: iter.loadBinput(stack, memo)
-        of PKL_LONG_BINPUT: iter.loadLongBinput(stack, memo)
-        of PKL_BININT: iter.loadBinInt(stack)
-        of PKL_BININT1: iter.loadBinInt1(stack)
-        of PKL_BININT2: iter.loadBinInt2(stack)
-        of PKL_BINFLOAT: iter.loadBinFloat(stack)
-        of PKL_TUPLE1: iter.loadTuple1(stack)
-        of PKL_TUPLE2: iter.loadTuple2(stack)
-        of PKL_TUPLE3: iter.loadTuple3(stack)
-        of PKL_SHORT_BINBYTES: iter.loadShortBinBytes(stack)
-        of PKL_REDUCE: iter.loadReduce(stack)
-        of PKL_MARK: iter.loadMark(stack, metastack)
-        of PKL_BINUNICODE: iter.loadBinUnicode(stack)
-        of PKL_NEWTRUE: loadBoolean(true, stack)
-        of PKL_NEWFALSE: loadBoolean(false, stack)
-        of PKL_NONE: loadNone(stack)
-        of PKL_TUPLE: iter.loadTuple(stack, metastack)
-        of PKL_BUILD: loadBuild(stack)
-        of PKL_EMPTY_LIST: loadEmptyContainer[Py_List](stack)
-        of PKL_EMPTY_DICT: loadEmptyContainer[Py_Dict](stack)
-        of PKL_EMPTY_SET: loadEmptyContainer[Py_Set](stack)
-        of PKL_EMPTY_TUPLE: loadEmptyContainer[Py_Tuple](stack)
-        of PKL_APPEND: loadAppend(stack)
-        of PKL_APPENDS: loadAppends(stack, metastack)
-        of PKL_STOP: loadStop(stack)
-        of PKL_BINGET: iter.loadBinGet(stack, memo)
-        else: raise newException(Exception, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
+    of PKL_PROTO: iter.loadProto()
+    of PKL_GLOBAL: iter.loadGlobal(stack)
+    of PKL_BINPUT: iter.loadBinput(stack, memo)
+    of PKL_LONG_BINPUT: iter.loadLongBinput(stack, memo)
+    of PKL_BININT: iter.loadBinInt(stack)
+    of PKL_BININT1: iter.loadBinInt1(stack)
+    of PKL_BININT2: iter.loadBinInt2(stack)
+    of PKL_BINFLOAT: iter.loadBinFloat(stack)
+    of PKL_TUPLE1: iter.loadTuple1(stack)
+    of PKL_TUPLE2: iter.loadTuple2(stack)
+    of PKL_TUPLE3: iter.loadTuple3(stack)
+    of PKL_SHORT_BINBYTES: iter.loadShortBinBytes(stack)
+    of PKL_REDUCE: iter.loadReduce(stack)
+    of PKL_MARK: iter.loadMark(stack, metastack)
+    of PKL_BINUNICODE: iter.loadBinUnicode(stack)
+    of PKL_NEWTRUE: loadBoolean(true, stack)
+    of PKL_NEWFALSE: loadBoolean(false, stack)
+    of PKL_NONE: loadNone(stack)
+    of PKL_TUPLE: iter.loadTuple(stack, metastack)
+    of PKL_BUILD: loadBuild(stack)
+    of PKL_EMPTY_LIST: loadEmptyContainer[Py_List](stack)
+    of PKL_EMPTY_DICT: loadEmptyContainer[Py_Dict](stack)
+    of PKL_EMPTY_SET: loadEmptyContainer[Py_Set](stack)
+    of PKL_EMPTY_TUPLE: loadEmptyContainer[Py_Tuple](stack)
+    of PKL_APPEND: loadAppend(stack)
+    of PKL_APPENDS: loadAppends(stack, metastack)
+    of PKL_STOP: loadStop(stack)
+    of PKL_BINGET: iter.loadBinGet(stack, memo)
+    else: raise newException(Exception, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
 
 proc getType(self: PY_ObjectND): KindObjectND =
     case self.kind:
@@ -525,7 +520,7 @@ proc getType(self: PY_ObjectND): KindObjectND =
     of K_TIME: return K_TIME
     of K_DATETIME: return K_DATETIME
 
-proc toPage(arr: PY_NpMultiArray): ObjectPage =
+proc toPage(arr: var PY_NpMultiArray): ObjectPage =
     var buf = newSeqOfCap[PY_ObjectND](arr.elems.len)
     var dtypes = initTable[KindObjectND, int]()
 
@@ -542,14 +537,14 @@ proc toPage(arr: PY_NpMultiArray): ObjectPage =
 
     return (arr.shape, buf, dtypes)
 
-proc construct(self: StopPickle): ObjectPage {.inline.} =
+proc construct(self: var StopPickle): ObjectPage {.inline.} =
     if not (self.value of PY_NpMultiArray):
         corrupted()
     
     return PY_NpMultiArray(self.value).toPage()
 
 proc readPickledPage*(fh: var File, endianness: Endianness, shape: var Shape): ObjectPage = 
-    let iter = unpickleFile(fh, endianness)
+    var iter = unpickleFile(fh, endianness)
     var stack: Stack = newSeq[PY_Object]()
     var metastack: MetaStack = newSeq[Stack]()
     var memo: Memo = initTable[uint, PY_Object]()
@@ -559,8 +554,6 @@ proc readPickledPage*(fh: var File, endianness: Endianness, shape: var Shape): O
 
     while unlikely(not iter.finished):
         let opcode = iter.unpickle(stack, memo, metastack)
-
-        # echo opcode.toString
 
         if opcode of StopPickle:
             hasStop = true
