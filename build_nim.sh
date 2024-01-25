@@ -20,6 +20,8 @@ fi
 if [ $is_release = true ]
 then
     nim c --app:lib -d:release -d:danger --out:tablite/_nimlite/nimlite.so tablite/_nimlite/nimlite.nim
+    echo "Built release."
 else
     nim c --app:lib -d:debug --out:tablite/_nimlite/nimlite.so tablite/_nimlite/nimlite.nim
+    echo "Built debug."
 fi

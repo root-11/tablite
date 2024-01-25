@@ -7,12 +7,12 @@ import shutil
 import logging
 import warnings
 import zipfile
-from tablite.utils import load_numpy, update_access_time
 import numpy as np
-from tqdm import tqdm as _tqdm
 from pathlib import Path
-from itertools import count, chain, product, repeat
+from tqdm import tqdm as _tqdm
 from collections import defaultdict, Counter
+from itertools import count, chain, product, repeat
+from tablite.utils import load_numpy, update_access_time
 
 from tablite.datatypes import (
     DataTypes,
@@ -70,7 +70,7 @@ class SimplePage(object):
 
     def __init__(self, id, path, len, py_dtype) -> None:
         self.id = id
-        self.path = path / "pages" / f"{id}.npy"
+        self.path = Path(path) / "pages" / f"{id}.npy"
         self.len = len
         self.dtype = py_dtype
 
@@ -93,9 +93,10 @@ class SimplePage(object):
 
     @classmethod
     def next_id(cls, path):
+        path = Path(path)
+
         while True:
             _id = next(cls.ids)
-            type_check(path, Path)
             _path = path / "pages" / f"{_id}.npy"
 
             if not _path.exists():
@@ -107,7 +108,12 @@ class SimplePage(object):
         return self.len
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.path}, {self.get()})"
+        try:
+            return f"{self.__class__.__name__}({self.path}, {self.get()})"
+        except FileNotFoundError as e:
+            return f"{self.__class__.__name__}({self.path}, <{type(e).__name__}>)"
+        except Exception as e:
+            return f"{self.__class__.__name__}({self.path}, <{e}>)"
 
     def __hash__(self) -> int:
         return hash(self.id)
