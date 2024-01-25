@@ -3,10 +3,9 @@ import psutil
 import platform
 from pathlib import Path
 from tqdm import tqdm as _tqdm
+from tablite.base import Column
 from tablite.config import Config
 from mplite import Task, TaskManager
-from tablite.utils import load_numpy
-from tablite.base import SimplePage, Column, pytype_from_iterable
 
 if True:
     paths = sys.argv[:]
@@ -245,3 +244,6 @@ def column_select(table, cols, tqdm=_tqdm, TaskManager=TaskManager):
         extend_table(tbl_fail, pg_fail)
 
     return tbl_pass, tbl_fail
+
+def read_page(path):
+    return nl.read_page(path)

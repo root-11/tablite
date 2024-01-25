@@ -23,14 +23,14 @@ proc collectPageInfo*(
     ): (uint, seq[uint], seq[Rank]) =
     var ranks: seq[Rank]
     var longest_str = collect(newSeqOfCap(n_pages)):
-        for _ in 0..n_pages-1:
+        for _ in 0..<n_pages:
             1u
     
     var n_rows: uint = 0
 
     if guess_dtypes:
         ranks = collect(newSeqOfCap(n_pages)):
-            for _ in 0..n_pages-1:
+            for _ in 0..<n_pages:
                 newRank()
     else:
         ranks = newSeq[Rank](0)
@@ -43,7 +43,7 @@ proc collectPageInfo*(
 
         var fidx = -1
 
-        for idx in 0..field_count-1:
+        for idx in 0..<field_count:
             if not ((uint idx) in import_fields):
                 continue
 
@@ -64,7 +64,7 @@ proc collectPageInfo*(
                 if dt == DataTypes.DT_STRING:
                     longest_str[fidx] = max(uint field.runeLen, longest_str[fidx])
 
-        for idx in (fidx+1)..n_pages-1:
+        for idx in (fidx+1)..<n_pages:
             # fill missing fields with nones
             longest_str[idx] = max(uint none_str.len, longest_str[idx])
 
@@ -104,7 +104,7 @@ proc dumpPageHeader*(
             column_dtypes[idx] = PageType.PG_UNICODE
             fh.writeNumpyHeader(endiannessMark & "U" & $i, n_rows)
     else:
-        for i in 0..n_pages-1:
+        for i in 0..<n_pages:
             let fh = page_file_handlers[i]
             let rank = addr ranks[i]
             var dtype = column_dtypes[i]
@@ -175,7 +175,7 @@ proc dumpPageHeader*(
 
             column_dtypes[i] = dtype
 
-        for idx in 0..n_pages-1:
+        for idx in 0..<n_pages:
             var fh = page_file_handlers[idx]
             let dt = column_dtypes[idx]
             if dt == PageType.PG_OBJECT:
@@ -325,7 +325,7 @@ proc dumpPageBody*(
                             break
                     else: raise newException(Exception, "invalid: " & $dt)
 
-        for idx in (fidx+1)..n_pages-1:
+        for idx in (fidx+1)..<n_pages:
             var fh = page_file_handlers[idx]
             var dtypes = addr typeCounts[idx]
 
@@ -352,7 +352,7 @@ proc dumpPageFooter*(
     column_dtypes: var seq[PageType],
     binput: var uint32
 ): void =
-    for idx in 0..n_pages-1:
+    for idx in 0..<n_pages:
         var fh = page_file_handlers[idx]
         let dt = column_dtypes[idx]
         if dt == PageType.PG_OBJECT:

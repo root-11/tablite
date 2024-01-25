@@ -54,19 +54,20 @@ proc newMkCaster(caster: NimNode, isPyCaster: bool): NimNode =
     descR.add(castR)
 
     let baseFnName = trueCastT[1].strVal & "2" & trueCastR.strVal
+    let pragmas = newNimNode(nnkPragma).add(newIdentNode("inline"))
 
     if isPyCaster:
         let nFnName = newIdentNode(baseFnName & "Py")
-        let nCasterFn = newProc(nFnName, params = [newIdentNode(PY_ObjectND.name), trueCastT], body = caster.body)
+        let nCasterFn = newProc(nFnName, params = [newIdentNode(PY_ObjectND.name), trueCastT], body = caster.body, pragmas=pragmas)
         let nResultStmts = newNimNode(nnkStmtList).add(nCasterFn, nFnName)
-        let nResult = newProc(postfix(newIdentNode("fnPyCast"), "*"), params = [newNimNode(nnkProcTy), paramsT, paramsR], body = nResultStmts)
+        let nResult = newProc(postfix(newIdentNode("fnPyCast"), "*"), params = [newNimNode(nnkProcTy), paramsT, paramsR], body = nResultStmts, pragmas=pragmas)
 
         return nResult
     else:
         let nFnName = newIdentNode(baseFnName)
-        let nCasterFn = newProc(nFnName, params = [trueCastR, trueCastT], body = caster.body)
+        let nCasterFn = newProc(nFnName, params = [trueCastR, trueCastT], body = caster.body, pragmas=pragmas)
         let nResultStmts = newNimNode(nnkStmtList).add(nCasterFn, nFnName)
-        let nResult = newProc(postfix(newIdentNode("fnCast"), "*"), params = [newNimNode(nnkProcTy), paramsT, paramsR], body = nResultStmts)
+        let nResult = newProc(postfix(newIdentNode("fnCast"), "*"), params = [newNimNode(nnkProcTy), paramsT, paramsR], body = nResultStmts, pragmas=pragmas)
 
         return nResult
 
@@ -81,6 +82,7 @@ macro mkCasters(converters: untyped) =
     expectKind(identity, nnkIdentDefs)
 
     let nCasters = newNimNode(nnkStmtList)
+    let pragmas = newNimNode(nnkPragma).add(newIdentNode("inline"))
 
     for cvtr in body:
         expectKind(cvtr, nnkAsgn)
@@ -88,14 +90,14 @@ macro mkCasters(converters: untyped) =
 
         let toType = cvtr[0]
         let toBody = cvtr[1]
-        let toFunc = newProc(params = [toType, identity], body = toBody, procType = nnkLambda)
+        let toFunc = newProc(params = [toType, identity], body = toBody, procType = nnkLambda, pragmas=pragmas)
 
         nCasters.add(newMkCaster(toFunc, false))
 
         case toType.strVal:
         of bool.name, int.name, float.name, string.name:
             let tBodyPy = newCall(newIdentNode("newPY_Object"), toBody)
-            let toFuncPy = newProc(params = [toType, identity], body = tBodyPy, procType = nnkLambda)
+            let toFuncPy = newProc(params = [toType, identity], body = tBodyPy, procType = nnkLambda, pragmas=pragmas)
             let nToPy = newMkCaster(toFuncPy, true)
 
             nCasters.add(nToPy)
@@ -108,7 +110,7 @@ macro mkCasters(converters: untyped) =
             of ToTime.name: kind = KindObjectND.K_TIME
 
             let tBodyPy = newCall(newIdentNode("newPY_Object"), toBody, newIdentNode($kind))
-            let toFuncPy = newProc(params = [toType, identity], body = tBodyPy, procType = nnkLambda)
+            let toFuncPy = newProc(params = [toType, identity], body = tBodyPy, procType = nnkLambda, pragmas=pragmas)
             let nToPy = newMkCaster(toFuncPy, true)
 
             nCasters.add(nToPy)

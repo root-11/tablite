@@ -107,7 +107,7 @@ proc importTextFile*(
             fields = first_line
         else:
             fields = collect(newSeqOfCap(first_line.len)):
-                for i in 0..first_line.len-1:
+                for i in 0..<first_line.len:
                     $i
 
         var imp_columns = newSeq[string](0)
