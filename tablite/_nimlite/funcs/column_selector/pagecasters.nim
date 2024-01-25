@@ -42,12 +42,12 @@ macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
 
     let nReasonListSeq = newNimNode(nnkBracketExpr).add(bindSym("seq"), bindSym(string.name))
     let nReasonListVarTy = newNimNode(nnkVarTy).add(nReasonListSeq)
-    let nReasonListDef = newIdentDefs(newIdentNode("reason_lst"), nReasonListVarTy)
+    let nReasonListDef = newIdentDefs(newIdentNode("reasonLst"), nReasonListVarTy)
 
-    let nAllowEmpty = newIdentDefs(newIdentNode("allow_empty"), bindSym(bool.name))
-    let nOriginaName = newIdentDefs(newIdentNode("original_name"), bindSym(string.name))
-    let nDesiredName = newIdentDefs(newIdentNode("desired_name"), bindSym(string.name))
-    let nDesiredType = newIdentDefs(newIdentNode("desired_type"), bindSym(KindObjectND.name))
+    let nAllowEmpty = newIdentDefs(newIdentNode("allowEmpty"), bindSym(bool.name))
+    let nOriginaName = newIdentDefs(newIdentNode("originalName"), bindSym(string.name))
+    let nDesiredName = newIdentDefs(newIdentNode("desiredName"), bindSym(string.name))
+    let nDesiredType = newIdentDefs(newIdentNode("desiredType"), bindSym(KindObjectND.name))
 
     let nProcNodes = newNimNode(nnkStmtList)
 
@@ -97,7 +97,7 @@ macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
                 let nCallCaster = newCall(nCallCasterFn, newIdentNode("R"))
 
                 let nCallMkPageFn = newDotExpr(nPageReturnType, newIdentNode("makePage"))
-                let nCallArgs = [newIdentNode("page"), newIdentNode("mask"), newIdentNode("reason_lst"), nCallCaster, newIdentNode("allow_empty"), newIdentNode("original_name"), newIdentNode("desired_name"), newIdentNode("desired_type")]
+                let nCallArgs = [newIdentNode("page"), newIdentNode("mask"), newIdentNode("reasonLst"), nCallCaster, newIdentNode("allowEmpty"), newIdentNode("originalName"), newIdentNode("desiredName"), newIdentNode("desiredType")]
                 let nCallMkPage = newCall(nCallMkPageFn, nCallArgs)
 
                 nCallMkPage
@@ -124,12 +124,12 @@ macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
 mkPageCaster(string):
     if not allowEmpty:
         # if we're casting to string and we don't allow empties, process per row
-        UnicodeNDArray.makePage(page, mask, reason_lst, string.fnCast(R), allow_empty, original_name, desired_name, desired_type)
+        UnicodeNDArray.makePage(page, mask, reasonLst, string.fnCast(R), allowEmpty, originalName, desiredName, desiredType)
     else:
         when page is ObjectNDArray:
             if page.canBeNone:
                 # if input page can be nones, cast per row
-                UnicodeNDArray.makePage(page, mask, reason_lst, string.fnCast(R), allow_empty, original_name, desired_name, desired_type)
+                UnicodeNDArray.makePage(page, mask, reasonLst, string.fnCast(R), allowEmpty, originalName, desiredName, desiredType)
             else:
                 # if input page can't have nones, return as is
                 page
@@ -142,15 +142,15 @@ mkPageCaster(int): page
 mkPageCaster(float): page
 mkPageCaster(FromDate): page
 mkPageCaster(FromDateTime): page
-mkPageCaster(PY_ObjectND): ObjectNDArray.makePage(page, mask, reason_lst, PY_ObjectND.fnCast(R), allow_empty, original_name, desired_name, desired_type)
+mkPageCaster(PY_ObjectND): ObjectNDArray.makePage(page, mask, reasonLst, PY_ObjectND.fnCast(R), allowEmpty, originalName, desiredName, desiredType)
 
-template convertBasicPage*[T](page: T, desired_type: KindObjectND, mask: var seq[Mask], reason_lst: var seq[string], allow_empty: bool, original_name: string, desired_name: string): BaseNDArray =
-    case desired_type:
-    of K_BOOLEAN: bool.castType(page, mask, reason_lst, allow_empty, original_name, desired_name, desired_type)
-    of K_INT: int.castType(page, mask, reason_lst, allow_empty, original_name, desired_name, desired_type)
-    of K_FLOAT: float.castType(page, mask, reason_lst, allow_empty, original_name, desired_name, desired_type)
-    of K_STRING: string.castType(page, mask, reason_lst, allow_empty, original_name, desired_name, desired_type)
-    of K_DATE: ToDate.castType(page, mask, reason_lst, allow_empty, original_name, desired_name, desired_type)
-    of K_TIME: ToTime.castType(page, mask, reason_lst, allow_empty, original_name, desired_name, desired_type)
-    of K_DATETIME: ToDateTime.castType(page, mask, reason_lst, allow_empty, original_name, desired_name, desired_type)
+template convertBasicPage*[T](page: T, desiredType: KindObjectND, mask: var seq[Mask], reasonLst: var seq[string], allowEmpty: bool, originalName: string, desiredName: string): BaseNDArray =
+    case desiredType:
+    of K_BOOLEAN: bool.castType(page, mask, reasonLst, allowEmpty, originalName, desiredName, desiredType)
+    of K_INT: int.castType(page, mask, reasonLst, allowEmpty, originalName, desiredName, desiredType)
+    of K_FLOAT: float.castType(page, mask, reasonLst, allowEmpty, originalName, desiredName, desiredType)
+    of K_STRING: string.castType(page, mask, reasonLst, allowEmpty, originalName, desiredName, desiredType)
+    of K_DATE: ToDate.castType(page, mask, reasonLst, allowEmpty, originalName, desiredName, desiredType)
+    of K_TIME: ToTime.castType(page, mask, reasonLst, allowEmpty, originalName, desiredName, desiredType)
+    of K_DATETIME: ToDateTime.castType(page, mask, reasonLst, allowEmpty, originalName, desiredName, desiredType)
     else: corrupted()

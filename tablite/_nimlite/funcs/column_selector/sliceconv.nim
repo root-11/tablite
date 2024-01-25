@@ -5,7 +5,7 @@ import nimpy as nimpy
 import ../../numpy
 import ../../pytypes
 import mask
-from ../../utils import generate_random_string
+from ../../utils import generateRandomString
 from pagecasters import convertBasicPage
 import infos
 
@@ -16,22 +16,22 @@ proc putPage(page: BaseNDArray, infos: var Table[string, nimpy.PyObject], colNam
 
     infos[colName] = newPyPage(pid, dir, page.len, page.getPageTypes())
 
-proc finalizeSlice(indices: var seq[int], column_names: seq[string], infos: var Table[string, nimpy.PyObject], cast_paths: var Table[string, (Path, Path, bool)], pages: var seq[(string, nimpy.PyObject)], result_info: ColInfo): void =
+proc finalizeSlice(indices: var seq[int], columnNames: seq[string], infos: var Table[string, nimpy.PyObject], castPaths: var Table[string, (Path, Path, bool)], pages: var seq[(string, nimpy.PyObject)], resultInfo: ColInfo): void =
     if indices.len == 0:
         return
 
-    for col_name in column_names:
-        let (src_path, dst_path, is_tmp) = cast_paths[col_name]
-        var cast_data = readNumpy(string src_path)
+    for colName in columnNames:
+        let (srcPath, dstPath, isTmp) = castPaths[colName]
+        var castData = readNumpy(string srcPath)
 
-        if cast_data.len != indices.len:
-            cast_data = cast_data[indices]
-            cast_data.putPage(infos, col_name, result_info[col_name])
-            cast_data.save(string dst_path)
-        elif src_path != dst_path and is_tmp:
-            moveFile(string src_path, string dst_path)
+        if castData.len != indices.len:
+            castData = castData[indices]
+            castData.putPage(infos, colName, resultInfo[colName])
+            castData.save(string dstPath)
+        elif srcPath != dstPath and isTmp:
+            moveFile(string srcPath, string dstPath)
 
-        pages.add((col_name, infos[col_name]))
+        pages.add((colName, infos[colName]))
 
 proc toColSliceInfo(path: Path): ColSliceInfo =
     let workdir = string path.parentDir.parentDir
@@ -39,130 +39,130 @@ proc toColSliceInfo(path: Path): ColSliceInfo =
 
     return (workdir, pid)
 
-proc doSliceConvert*(dir_pid: Path, page_size: int, columns: Table[string, string], reject_reason_name: string, res_pass: ColInfo, res_fail: ColInfo, desired_column_map: OrderedTable[string, DesiredColumnInfo], column_names: seq[string], is_correct_type: Table[string, bool]): (seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)]) =
-    var cast_paths_pass = initTable[string, (Path, Path, bool)]()
-    var cast_paths_fail = initTable[string, (Path, Path, bool)]()
-    var page_infos_pass = initTable[string, nimpy.PyObject]()
-    var page_infos_fail = initTable[string, nimpy.PyObject]()
-    var pages_pass = newSeq[(string, nimpy.PyObject)]()
-    var pages_fail = newSeq[(string, nimpy.PyObject)]()
+proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string], rejectReasonName: string, resPass: ColInfo, resFail: ColInfo, desiredColumnMap: OrderedTable[string, DesiredColumnInfo], columnNames: seq[string], isCorrectType: Table[string, bool]): (seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)]) =
+    var castPathsPass = initTable[string, (Path, Path, bool)]()
+    var castPathsFail = initTable[string, (Path, Path, bool)]()
+    var pageInfosPass = initTable[string, nimpy.PyObject]()
+    var pageInfosFail = initTable[string, nimpy.PyObject]()
+    var pagesPass = newSeq[(string, nimpy.PyObject)]()
+    var pagesFail = newSeq[(string, nimpy.PyObject)]()
 
     try:
-        let page_paths = collect(initTable()):
+        let pagePaths = collect(initTable()):
             for (key, path) in columns.pairs:
                 {key: path}
 
-        let workdir = dir_pid / Path("processing")
+        let workdir = dirPid / Path("processing")
 
         createDir(string workdir)
 
-        var valid_mask = newSeq[Mask](page_size)
-        var reason_lst = newSeq[string](page_size)
+        var validMask = newSeq[Mask](pageSize)
+        var reasonLst = newSeq[string](pageSize)
 
-        for (k, v) in page_paths.pairs:
-            let (wd, pid) = res_fail[k]
-            cast_paths_fail[k] = (Path v, Path(wd) / Path("pages") / Path($pid & ".npy"), false)
+        for (k, v) in pagePaths.pairs:
+            let (wd, pid) = resFail[k]
+            castPathsFail[k] = (Path v, Path(wd) / Path("pages") / Path($pid & ".npy"), false)
 
-        let (rj_wd, rj_pid) = res_fail[reject_reason_name]
-        let reject_reason_path = Path(rj_wd) / Path("pages") / Path($rj_pid & ".npy")
-        cast_paths_fail[reject_reason_name] = (reject_reason_path, reject_reason_path, false)
+        let (rjwd, rjpid) = resFail[rejectReasonName]
+        let rejectReasonPath = Path(rjwd) / Path("pages") / Path($rjpid & ".npy")
+        castPathsFail[rejectReasonName] = (rejectReasonPath, rejectReasonPath, false)
 
-        for (desired_name, desired_info) in desired_column_map.pairs:
-            let original_name = desired_info.original_name
-            let original_path = Path page_paths[original_name]
-            let sz_data = getPageLen(string original_path)
-            let original_data = readNumpy(string original_path)
+        for (desiredName, desiredInfo) in desiredColumnMap.pairs:
+            let originalName = desiredInfo.originalName
+            let originalPath = Path pagePaths[originalName]
+            let szData = getPageLen(string originalPath)
+            let originalData = readNumpy(string originalPath)
 
-            assert valid_mask.len >= sz_data, "Invalid mask size"
+            assert validMask.len >= szData, "Invalid mask size"
 
-            let already_cast = is_correct_type[desired_name]
+            let alreadyCast = isCorrectType[desiredName]
 
-            original_data.putPage(page_infos_fail, original_name, original_path.toColSliceInfo)
+            originalData.putPage(pageInfosFail, originalName, originalPath.toColSliceInfo)
 
-            if already_cast:
+            if alreadyCast:
                 # we already know the type, just set the mask
-                for i in 0..<sz_data:
-                    if valid_mask[i] == INVALID:
+                for i in 0..<szData:
+                    if validMask[i] == INVALID:
                         continue
 
-                    valid_mask[i] = VALID
+                    validMask[i] = VALID
 
-                cast_paths_pass[desired_name] = (original_path, original_path, false)
-                original_data.putPage(page_infos_pass, desired_name, original_path.toColSliceInfo)
+                castPathsPass[desiredName] = (originalPath, originalPath, false)
+                originalData.putPage(pageInfosPass, desiredName, originalPath.toColSliceInfo)
                 continue
 
-            var cast_path: Path
-            var path_exists = true
+            var castPath: Path
+            var pathExists = true
 
-            while path_exists:
-                cast_path = workdir / Path(generate_random_string(5) & ".npy")
-                path_exists = fileExists(string cast_path)
+            while pathExists:
+                castPath = workdir / Path(generateRandomString(5) & ".npy")
+                pathExists = fileExists(string castPath)
 
-            let (workdir, pid) = res_pass[desired_name]
+            let (workdir, pid) = resPass[desiredName]
             let pagedir = Path(workdir) / Path("pages")
-            let dst_path = pagedir / Path($pid & ".npy")
+            let dstPath = pagedir / Path($pid & ".npy")
 
-            cast_paths_pass[desired_name] = (cast_path, dst_path, true)
+            castPathsPass[desiredName] = (castPath, dstPath, true)
 
-            let desired_type = desired_info.`type`
-            let allow_empty = desired_info.allow_empty
+            let desiredType = desiredInfo.`type`
+            let allowEmpty = desiredInfo.allowEmpty
 
-            var converted_page: BaseNDArray
+            var convertedPage: BaseNDArray
 
-            template castPage(T: typedesc) = T(original_data).convertBasicPage(
-                desired_type, valid_mask, reason_lst, allow_empty,
-                original_name, desired_name
+            template castPage(T: typedesc) = T(originalData).convertBasicPage(
+                desiredType, validMask, reasonLst, allowEmpty,
+                originalName, desiredName
             )
 
-            case original_data.kind:
-            of K_BOOLEAN: converted_page = BooleanNDArray.castPage
-            of K_INT8: converted_page = Int8NDArray.castPage
-            of K_INT16: converted_page = Int16NDArray.castPage
-            of K_INT32: converted_page = Int32NDArray.castPage
-            of K_INT64: converted_page = Int64NDArray.castPage
-            of K_FLOAT32: converted_page = Float32NDArray.castPage
-            of K_FLOAT64: converted_page = Float64NDArray.castPage
-            of K_STRING: converted_page = UnicodeNDArray.castPage
-            of K_DATE: converted_page = DateNDArray.castPage
-            of K_DATETIME: converted_page = DateTimeNDArray.castPage
-            of K_OBJECT: converted_page = ObjectNDArray.castPage
+            case originalData.kind:
+            of K_BOOLEAN: convertedPage = BooleanNDArray.castPage
+            of K_INT8: convertedPage = Int8NDArray.castPage
+            of K_INT16: convertedPage = Int16NDArray.castPage
+            of K_INT32: convertedPage = Int32NDArray.castPage
+            of K_INT64: convertedPage = Int64NDArray.castPage
+            of K_FLOAT32: convertedPage = Float32NDArray.castPage
+            of K_FLOAT64: convertedPage = Float64NDArray.castPage
+            of K_STRING: convertedPage = UnicodeNDArray.castPage
+            of K_DATE: convertedPage = DateNDArray.castPage
+            of K_DATETIME: convertedPage = DateTimeNDArray.castPage
+            of K_OBJECT: convertedPage = ObjectNDArray.castPage
 
-            converted_page.putPage(page_infos_pass, desired_name, res_pass[desired_name])
-            converted_page.save(string cast_path)
+            convertedPage.putPage(pageInfosPass, desiredName, resPass[desiredName])
+            convertedPage.save(string castPath)
 
-        var mask_slice = 0..<unusedMaskSearch(valid_mask)
+        var maskSlice = 0..<unusedMaskSearch(validMask)
 
-        valid_mask = valid_mask[mask_slice]
+        validMask = validMask[maskSlice]
 
-        var invalid_indices = newSeqOfCap[int](valid_mask.len shr 2) # quarter seems okay
-        var valid_indices = newSeqOfCap[int](valid_mask.len - (valid_mask.len shr 2))
+        var invalidIndices = newSeqOfCap[int](validMask.len shr 2) # quarter seems okay
+        var validIndices = newSeqOfCap[int](validMask.len - (validMask.len shr 2))
 
-        reason_lst = collect:
-            for (i, m) in enumerate(valid_mask):
+        reasonLst = collect:
+            for (i, m) in enumerate(validMask):
                 if m != Mask.INVALID:
-                    valid_indices.add(i)
+                    validIndices.add(i)
                     continue
 
-                invalid_indices.add(i)
-                reason_lst[i]
+                invalidIndices.add(i)
+                reasonLst[i]
 
-        valid_indices.finalizeSlice(toSeq(desired_column_map.keys), page_infos_pass, cast_paths_pass, pages_pass, res_pass)
-        invalid_indices.finalizeSlice(toSeq(columns.keys), page_infos_fail, cast_paths_fail, pages_fail, res_fail)
+        validIndices.finalizeSlice(toSeq(desiredColumnMap.keys), pageInfosPass, castPathsPass, pagesPass, resPass)
+        invalidIndices.finalizeSlice(toSeq(columns.keys), pageInfosFail, castPathsFail, pagesFail, resFail)
 
-        if reason_lst.len > 0:
-            let (dirpid, pid) = res_fail[reject_reason_name]
+        if reasonLst.len > 0:
+            let (dirpid, pid) = resFail[rejectReasonName]
             let pathpid = string (Path(dirpid) / Path("pages") / Path($pid & ".npy"))
-            let page = newNDArray(reason_lst)
+            let page = newNDArray(reasonLst)
 
             page.save(pathpid)
-            page.putPage(page_infos_fail, reject_reason_name, res_fail[reject_reason_name])
+            page.putPage(pageInfosFail, rejectReasonName, resFail[rejectReasonName])
 
-            pages_fail.add((reject_reason_name, page_infos_fail[reject_reason_name]))
+            pagesFail.add((rejectReasonName, pageInfosFail[rejectReasonName]))
 
     finally:
-        for (cast_path, _, is_tmp) in cast_paths_pass.values:
-            if not is_tmp:
+        for (castPath, _, isTmp) in castPathsPass.values:
+            if not isTmp:
                 continue
-            discard tryRemoveFile(string cast_path)
+            discard tryRemoveFile(string castPath)
 
-    return (pages_pass, pages_fail)
+    return (pagesPass, pagesFail)
