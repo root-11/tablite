@@ -489,12 +489,8 @@ proc consumeDescr(header: var string, header_len: int, offset: var int): NDArray
                 of 'b':
                     if size != 1: corrupted()
                     descriptor = NDArrayTypeDescriptor.D_BOOLEAN
-                of 'i':
-                    if size != 8: implement("int size != 8")
-                    descriptor = NDArrayTypeDescriptor.D_INT
-                of 'f':
-                    if size != 8: implement("float size != 8")
-                    descriptor = NDArrayTypeDescriptor.D_FLOAT
+                of 'i': descriptor = NDArrayTypeDescriptor.D_INT
+                of 'f': descriptor = NDArrayTypeDescriptor.D_FLOAT
                 of 'U':
                     if size <= 0: corrupted()
                     descriptor = NDArrayTypeDescriptor.D_UNICODE
