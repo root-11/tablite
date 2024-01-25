@@ -164,86 +164,93 @@ def collect_cs_info(i: int, columns: dict, res_cols_pass: list, res_cols_fail: l
 
 
 def column_select(table, cols, tqdm=_tqdm, TaskManager=TaskManager):
-    T = type(table)
-    dir_pid = Config.workdir / Config.pid
+    with tqdm(total=100, desc="column select", bar_format='{desc}: {percentage:3.0f}%|{bar}{r_bar}') as pbar:
+        T = type(table)
+        dir_pid = Config.workdir / Config.pid
 
-    columns, page_count, is_correct_type, desired_column_map, passed_column_data, failed_column_data, res_cols_pass, res_cols_fail, column_names, reject_reason_name = nl.collect_column_select_info(table, cols, str(dir_pid))
+        columns, page_count, is_correct_type, desired_column_map, passed_column_data, failed_column_data, res_cols_pass, res_cols_fail, column_names, reject_reason_name = nl.collect_column_select_info(table, cols, str(dir_pid), pbar)
 
-    if all(is_correct_type.values()):
-        tbl_pass_columns = {
-            desired_name: table[desired_info[0]]
-            for desired_name, desired_info in desired_column_map.items()
-        }
+        if all(is_correct_type.values()):
+            tbl_pass_columns = {
+                desired_name: table[desired_info[0]]
+                for desired_name, desired_info in desired_column_map.items()
+            }
 
-        tbl_fail_columns = {
-            desired_name: []
-            for desired_name in failed_column_data
-        }
+            tbl_fail_columns = {
+                desired_name: []
+                for desired_name in failed_column_data
+            }
 
-        tbl_pass = T(columns=tbl_pass_columns)
-        tbl_fail = T(columns=tbl_fail_columns)
+            tbl_pass = T(columns=tbl_pass_columns)
+            tbl_fail = T(columns=tbl_fail_columns)
 
-        return (tbl_pass, tbl_fail)
+            return (tbl_pass, tbl_fail)
 
-    task_list_inp = (
-        collect_cs_info(i, columns, res_cols_pass, res_cols_fail)
-        for i in range(page_count)
-    )
-
-    page_size = Config.PAGE_SIZE
-
-    tasks = (
-        Task(
-            nl.do_slice_convert, str(dir_pid), page_size, columns, reject_reason_name, res_pass, res_fail, desired_column_map, column_names, is_correct_type
+        task_list_inp = (
+            collect_cs_info(i, columns, res_cols_pass, res_cols_fail)
+            for i in range(page_count)
         )
-        for columns, res_pass, res_fail in task_list_inp
-    )
 
-    cpu_count = max(psutil.cpu_count(), 1)
+        page_size = Config.PAGE_SIZE
 
-    if Config.MULTIPROCESSING_MODE == Config.FORCE:
-        is_mp = True
-    elif Config.MULTIPROCESSING_MODE == Config.FALSE:
-        is_mp = False
-    elif Config.MULTIPROCESSING_MODE == Config.AUTO:
-        is_multithreaded = cpu_count > 1
-        is_multipage = page_count > 1
+        tasks = (
+            Task(
+                nl.do_slice_convert, str(dir_pid), page_size, columns, reject_reason_name, res_pass, res_fail, desired_column_map, column_names, is_correct_type
+            )
+            for columns, res_pass, res_fail in task_list_inp
+        )
 
-        is_mp = is_multithreaded and is_multipage
+        cpu_count = max(psutil.cpu_count(), 1)
 
-    tbl_pass = T({k: [] for k in passed_column_data})
-    tbl_fail = T({k: [] for k in failed_column_data})
+        if Config.MULTIPROCESSING_MODE == Config.FORCE:
+            is_mp = True
+        elif Config.MULTIPROCESSING_MODE == Config.FALSE:
+            is_mp = False
+        elif Config.MULTIPROCESSING_MODE == Config.AUTO:
+            is_multithreaded = cpu_count > 1
+            is_multipage = page_count > 1
 
-    converted = []
-    pbar = tqdm(total=page_count, desc="column select")
+            is_mp = is_multithreaded and is_multipage
 
-    if is_mp:
-        with TaskManager(cpu_count=cpu_count) as tm:
-            res = tm.execute(list(tasks), pbar=pbar)
+        tbl_pass = T({k: [] for k in passed_column_data})
+        tbl_fail = T({k: [] for k in failed_column_data})
 
-            if any(isinstance(r, str) for r in res):
-                raise Exception("tasks failed")
+        converted = []
+        step_size = 45 / max(page_count - 1, 1)
 
-            converted.extend(res)
-    else:
-        for task in tasks:
-            res = task.execute()
+        class WrapUpdate:
+            def update(self, n):
+                pbar.update(n * step_size)
 
-            if isinstance(res, str):
-                raise Exception(res)
+        if is_mp:
+            with TaskManager(cpu_count=cpu_count) as tm:
+                res = tm.execute(list(tasks), pbar=WrapUpdate())
 
-            converted.append(res)
-            pbar.update(1)
+                if any(isinstance(r, str) for r in res):
+                    raise Exception("tasks failed")
 
-    def extend_table(table, columns):
-        for (col_name, pg) in columns:
-            table[col_name].pages.append(pg)
+                converted.extend(res)
+        else:
+            for task in tasks:
+                res = task.execute()
 
-    for pg_pass, pg_fail in converted:
-        extend_table(tbl_pass, pg_pass)
-        extend_table(tbl_fail, pg_fail)
+                if isinstance(res, str):
+                    raise Exception(res)
 
-    return tbl_pass, tbl_fail
+                converted.append(res)
+                pbar.update(1)
+
+        def extend_table(table, columns):
+            for (col_name, pg) in columns:
+                table[col_name].pages.append(pg)
+
+        for pg_pass, pg_fail in converted:
+            extend_table(tbl_pass, pg_pass)
+            extend_table(tbl_fail, pg_fail)
+
+        pbar.update(pbar.total - pbar.n)
+
+        return tbl_pass, tbl_fail
 
 def read_page(path):
     return nl.read_page(path)
