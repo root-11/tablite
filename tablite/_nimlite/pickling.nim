@@ -1,110 +1,49 @@
 from std/endians import bigEndian16, bigEndian32, bigEndian64
+import pickleproto, pytypes
 
-const PKL_BINPUT = 'q'
-const PKL_LONG_BINPUT = 'r'
-const PKL_TUPLE1 = '\x85'
-const PKL_TUPLE2 = '\x86'
-const PKL_TUPLE3 = '\x87'
-const PKL_TUPLE = 't'
-const PKL_PROTO = '\x80'
-const PKL_GLOBAL = 'c'
-const PKL_BININT1 = 'K'
-const PKL_BININT2 = 'M'
-const PKL_BININT = 'J'
-const PKL_SHORT_BINBYTES = 'C'
-const PKL_REDUCE = 'R'
-const PKL_MARK = '('
-const PKL_BINUNICODE = 'X'
-const PKL_NEWFALSE = '\x89'
-const PKL_NEWTRUE = '\x88'
-const PKL_NONE = 'N'
-const PKL_BUILD = 'b'
-const PKL_EMPTY_LIST = ']'
-const PKL_STOP = '.'
-const PKL_APPENDS = 'e'
-const PKL_BINFLOAT = 'G'
-
-type PY_NoneType* = object
-let PY_None* = PY_NoneType()
-# proc  PY_None*: PY_NoneType = PY_NoneType()
-
-type PY_Date* = object
-    year: uint16
-    month, day: uint8
-
-
-type PY_Time* = object
-    hour, minute, second: uint8
-    microsecond: uint32
-    has_tz: bool
-    tz_days, tz_seconds, tz_microseconds: int32
-
-type PY_DateTime* = object
-    date: PY_Date
-    time: PY_Time
-
-proc newPyDate*(year: uint16, month, day: uint8): PY_Date =
-    PY_Date(year: year, month: month, day: day)
-
-proc newPyTime*(hour: uint8, minute: uint8, second: uint8, microsecond: uint32): PY_Time =
-    return PY_Time(hour: hour, minute: minute, second: second, microsecond: microsecond)
-
-proc newPyTime*(hour: uint8, minute: uint8, second: uint8, microsecond: uint32, tz_days: int32, tz_seconds: int32, tz_microseconds: int32): PY_Time =
-    if tz_days == 0 and tz_seconds == 0:
-        return newPyTime(hour, minute, second, microsecond)
-
-    return PY_Time(
-            hour: hour, minute: minute, second: second, microsecond: microsecond,
-            has_tz: true,
-            tz_days: tz_days, tz_seconds: tz_seconds, tz_microseconds: tz_microseconds
-        )
-
-proc newPyDateTime*(date: PY_Date, time: PY_Time): PY_DateTime =
-    PY_DateTime(date: date, time: time)
-
-proc writePickleBinput(fh: var File, binput: var uint32): void  {.inline.}=
+proc writePickleBinput(fh: var File, binput: var uint32): void {.inline.} =
     if binput <= 0xff:
         fh.write(PKL_BINPUT)
-        discard fh.writeBuffer(binput.unsafeAddr, 1)
+        discard fh.writeBuffer(binput.addr, 1)
         inc binput
         return
 
     fh.write(PKL_LONG_BINPUT)
-    discard fh.writeBuffer(binput.unsafeAddr, 4)
+    discard fh.writeBuffer(binput.addr, 4)
     inc binput
 
-proc writePickleGlobal(fh: var File, module_name: string, import_name: string): void  {.inline.}=
+proc writePickleGlobal(fh: var File, module_name: string, import_name: string): void {.inline.} =
     fh.write(PKL_GLOBAL)
 
     fh.write(module_name)
-    fh.write('\x0A')
+    fh.write(PKL_STRING_TERM)
 
     fh.write(import_name)
-    fh.write('\x0A')
+    fh.write(PKL_STRING_TERM)
 
 proc writePickleProto(fh: var File): void =
     fh.write(PKL_PROTO)
-    fh.write("\3")
+    fh.write(PKL_PROTO_VERSION)
 
 proc writePickleBinintGeneric[T: uint8|uint16|uint32](fh: var File, value: T): void {.inline.} =
     when T is uint8:
         fh.write(PKL_BININT1)
-        discard fh.writeBuffer(value.unsafeAddr, 1)
-    when T is uint16:
+        discard fh.writeBuffer(value.addr, 1)
+    elif T is uint16:
         fh.write(PKL_BININT2)
-        discard fh.writeBuffer(value.unsafeAddr, 2)
-    when T is uint32:
+        discard fh.writeBuffer(value.addr, 2)
+    elif T is uint32:
         fh.write(PKL_BININT)
-        discard fh.writeBuffer(value.unsafeAddr, 4)
+        discard fh.writeBuffer(value.addr, 4)
 
 proc writePickleBinfloat(fh: var File, value: float): void =
     # pickle stores floats big-endian
     var f: float
 
-    f.unsafeAddr.bigEndian64(value.unsafeAddr)
+    f.addr.bigEndian64(value.addr)
 
     fh.write(PKL_BINFLOAT)
-    discard fh.writeBuffer(f.unsafeAddr, 8)
+    discard fh.writeBuffer(f.addr, 8)
 
 proc writePickleBinint[T: int|uint|int32|uint32](fh: var File, value: T): void {.inline.} =
     when T is int or T is int32:
@@ -127,19 +66,15 @@ proc writePickleShortbinbytes(fh: var File, value: string): void {.inline.} =
 
     let len = value.len()
 
-    discard fh.writeBuffer(len.unsafeAddr, 1)
-    discard fh.writeBuffer(value[0].unsafeAddr, value.len)
+    discard fh.writeBuffer(len.addr, 1)
+    discard fh.writeBuffer(value[0].addr, value.len)
 
 proc writePickleBinunicode(fh: var File, value: string): void {.inline.} =
     let len = uint32 value.len
-    # try:
 
     fh.write(PKL_BINUNICODE)
-    discard fh.writeBuffer(len.unsafeAddr, 4)
+    discard fh.writeBuffer(len.addr, 4)
     fh.write(value)
-    # discard fh.writeBuffer(value[0].unsafeAddr, len)
-    # finally:
-    #     echo "failed to dump: '" & value & "' of size " & $len
 
 proc writePickleBoolean(fh: var File, value: bool): void {.inline.} =
     if value == true:
@@ -147,13 +82,16 @@ proc writePickleBoolean(fh: var File, value: bool): void {.inline.} =
     else:
         fh.write(PKL_NEWFALSE)
 
-proc writePickleDateBody(fh: var File, value: ptr PY_Date, binput: var uint32): void {.inline.} =
-    var year: uint16
-    year.unsafeAddr.bigEndian16(value.year.unsafeAddr)
+proc writePickleDateBody(fh: var File, value: ptr PY_Date | ptr PY_DateTime, binput: var uint32): void {.inline.} =
+    var year = value.getYear()
+    year.addr.bigEndian16(addr year)
 
-    discard fh.writeBuffer(year.unsafeAddr, 2)
-    discard fh.writeBuffer(value.month.unsafeAddr, 1)
-    discard fh.writeBuffer(value.day.unsafeAddr, 1)
+    var month = value.getMonth()
+    var day = value.getDay()
+
+    discard fh.writeBuffer(addr year, 2)
+    discard fh.writeBuffer(addr month, 1)
+    discard fh.writeBuffer(addr day, 1)
 
 proc writePickleDate(fh: var File, value: PY_Date, binput: var uint32): void {.inline.} =
     fh.writePickleGlobal("datetime", "date")
@@ -161,7 +99,7 @@ proc writePickleDate(fh: var File, value: PY_Date, binput: var uint32): void {.i
     fh.write(PKL_SHORT_BINBYTES)
     fh.write('\4') # date has 4 bytes 2(y)-1(m)-1(d)
 
-    fh.writePickleDateBody(value.unsafeAddr, binput)
+    fh.writePickleDateBody(value.addr, binput)
 
     fh.writePickleBinput(binput)
     fh.write(PKL_TUPLE1)
@@ -169,37 +107,25 @@ proc writePickleDate(fh: var File, value: PY_Date, binput: var uint32): void {.i
     fh.write(PKL_REDUCE)
     fh.writePickleBinput(binput)
 
-proc writePickleTimeBody(fh: var File, value: ptr PY_Time, binput: var uint32): void {.inline.} =
-    var microsecond: uint32
-    microsecond.unsafeAddr.bigEndian32(value.microsecond.unsafeAddr)
+import std/times
 
-    var ptr_microseconds = cast[pointer](cast[int](microsecond.unsafeAddr) + 1)
+proc writePickleTimeBody(fh: var File, value: ptr PY_DateTime | ptr PY_Time, binput: var uint32): void {.inline.} =
+    var microsecond = uint32 value.getMicrosecond()
+    microsecond.addr.bigEndian32(addr microsecond)
 
-    discard fh.writeBuffer(value.hour.unsafeAddr, 1)
-    discard fh.writeBuffer(value.minute.unsafeAddr, 1)
-    discard fh.writeBuffer(value.second.unsafeAddr, 1)
+    var second = uint8 value.getSecond()
+    var minute = uint8 value.getMinute()
+    var hour = uint8 value.getHour()
+
+    var ptr_microseconds = cast[pointer](cast[int](addr microsecond) + 1)
+
+    discard fh.writeBuffer(addr hour , 1)
+    discard fh.writeBuffer(addr minute , 1)
+    discard fh.writeBuffer(addr second , 1)
     discard fh.writeBuffer(ptr_microseconds, 3)
     fh.writePickleBinput(binput)
 
-    if not value.has_tz:
-        fh.write(PKL_TUPLE1)
-    else:
-        fh.writePickleGlobal("datetime", "timezone")
-        fh.writePickleBinput(binput)
-        fh.writePickleGlobal("datetime", "timedelta")
-        fh.writePickleBinput(binput)
-        fh.writePickleBinint(value.tz_days)
-        fh.writePickleBinint(value.tz_seconds)
-        fh.writePickleBinint(value.tz_microseconds)
-        fh.write(PKL_TUPLE3)
-        fh.writePickleBinput(binput)
-        fh.write(PKL_REDUCE)
-        fh.writePickleBinput(binput)
-        fh.write(PKL_TUPLE1)
-        fh.writePickleBinput(binput)
-        fh.write(PKL_REDUCE)
-        fh.writePickleBinput(binput)
-        fh.write(PKL_TUPLE2)
+    fh.write(PKL_TUPLE1)
 
     fh.writePickleBinput(binput)
     fh.write(PKL_REDUCE)
@@ -211,7 +137,7 @@ proc writePickleTime(fh: var File, value: PY_Time, binput: var uint32): void {.i
     fh.write(PKL_SHORT_BINBYTES)
     fh.write('\6')
 
-    fh.writePickleTimeBody(value.unsafeAddr, binput)
+    fh.writePickleTimeBody(addr value, binput)
 
 proc writePickleDatetime(fh: var File, value: PY_DateTime, binput: var uint32): void {.inline.} =
     fh.writePickleGlobal("datetime", "datetime")
@@ -219,17 +145,31 @@ proc writePickleDatetime(fh: var File, value: PY_DateTime, binput: var uint32): 
     fh.write(PKL_SHORT_BINBYTES)
     fh.write('\10')
 
-    fh.writePickleDateBody(value.date.unsafeAddr, binput)
-    fh.writePickleTimeBody(value.time.unsafeAddr, binput)
+    fh.writePickleDateBody(addr value, binput)
+    fh.writePickleTimeBody(addr value, binput)
 
 proc writePicklePyObj*(fh: var File, value: PY_NoneType, binput: var uint32): void {.inline.} = fh.write(PKL_NONE)
 proc writePicklePyObj*(fh: var File, value: int, binput: var uint32): void {.inline.} = fh.writePickleBinint(value)
 proc writePicklePyObj*(fh: var File, value: float, binput: var uint32): void {.inline.} = fh.writePickleBinfloat(value)
 proc writePicklePyObj*(fh: var File, value: string, binput: var uint32): void {.inline.} = fh.writePickleBinunicode(value)
 proc writePicklePyObj*(fh: var File, value: bool, binput: var uint32): void {.inline.} = fh.writePickleBoolean(value)
+proc writePicklePyObj*(fh: var File, value: PY_Int, binput: var uint32): void {.inline.} = fh.writePickleBinint(value.value)
+proc writePicklePyObj*(fh: var File, value: PY_Float, binput: var uint32): void {.inline.} = fh.writePickleBinfloat(value.value)
+proc writePicklePyObj*(fh: var File, value: PY_String, binput: var uint32): void {.inline.} = fh.writePickleBinunicode(value.value)
+proc writePicklePyObj*(fh: var File, value: PY_Boolean, binput: var uint32): void {.inline.} = fh.writePickleBoolean(value.value)
 proc writePicklePyObj*(fh: var File, value: PY_Date, binput: var uint32): void {.inline.} = fh.writePickleDate(value, binput)
 proc writePicklePyObj*(fh: var File, value: PY_Time, binput: var uint32): void {.inline.} = fh.writePickleTime(value, binput)
 proc writePicklePyObj*(fh: var File, value: PY_DateTime, binput: var uint32): void {.inline.} = fh.writePickleDatetime(value, binput)
+proc writePicklePyObj*(fh: var File, value: PY_ObjectND, binput: var uint32): void {.inline.} =
+    case value.kind:
+    of K_INT: fh.writePicklePyObj(PY_Int(value), binput)
+    of K_FLOAT: fh.writePicklePyObj(PY_Float(value), binput)
+    of K_STRING: fh.writePicklePyObj(PY_String(value), binput)
+    of K_BOOLEAN: fh.writePicklePyObj(PY_Boolean(value), binput)
+    of K_DATE: fh.writePicklePyObj(PY_Date(value), binput)
+    of K_TIME: fh.writePicklePyObj(PY_Time(value), binput)
+    of K_DATETIME: fh.writePicklePyObj(PY_DateTime(value), binput)
+    of K_NONETYPE: fh.writePicklePyObj(PY_NoneType(value), binput)
 
 proc writePickleStart*(fh: var File, binput: var uint32, elem_count: uint): void {.inline.} =
     binput = 0
@@ -289,8 +229,6 @@ proc writePickleStart*(fh: var File, binput: var uint32, elem_count: uint): void
 
         if elem_count > 0:
             fh.write(PKL_MARK)
-
-        # fh.write(PKL_APPENDS)
 
 proc writePickleFinish*(fh: var File, binput: var uint32, elem_count: uint): void {.inline.} =
     if elem_count > 0:

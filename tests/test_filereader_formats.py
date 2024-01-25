@@ -64,6 +64,9 @@ def test_get_headers():
     """this test does not look for content. It merely checks that the reader doesn't fail."""
     folder = Path(__file__).parent / "data"
     for fname in folder.iterdir():
+        if not fname.is_file():
+            continue
+
         d = get_headers(fname)
         assert isinstance(d, dict)
         assert d
