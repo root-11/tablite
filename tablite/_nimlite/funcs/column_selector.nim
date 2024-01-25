@@ -20,7 +20,8 @@ when isMainModule and appType != "lib":
 
     proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObject, dir_pid: Path, TaskManager: nimpy.PyObject): (nimpy.PyObject, nimpy.PyObject) =
         # this is nim-only implementation, the library build doesn't need it because we need TaskManager to be used for slices
-        var (columns, page_count, is_correct_type, desired_column_map, passed_column_data, failed_column_data, res_cols_pass, res_cols_fail, column_names, reject_reason_name) = collectColumnSelectInfo(table, cols, string dir_pid)
+        var pbar = tqdm!(total: 100, desc: "column select")
+        var (columns, page_count, is_correct_type, desired_column_map, passed_column_data, failed_column_data, res_cols_pass, res_cols_fail, column_names, reject_reason_name) = collectColumnSelectInfo(table, cols, string dir_pid, pbar)
 
         if toSeq(is_correct_type.values).all(proc (x: bool): bool = x):
             let tbl_pass_columns = collect(initTable()):
@@ -55,13 +56,13 @@ when isMainModule and appType != "lib":
                 (el, res_cols_pass[i], res_cols_fail[i])
 
         var page_size = tabliteConfig().Config.PAGE_SIZE.to(int)
-        var pbar = tqdm!(total: task_list_inp.len, desc: "column select")
         var converted = newSeqOfCap[(seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)])](task_list_inp.len)
+        var pbarStep = 45 / max(task_list_inp.len - 1, 1)
 
         for (columns, res_pass, res_fail) in task_list_inp:
             converted.add(doSliceConvert(dir_pid, page_size, columns, reject_reason_name, res_pass, res_fail, desired_column_map, column_names, is_correct_type))
 
-            discard pbar.update(1)
+            discard pbar.update(pbarStep)
 
         proc extendTable(table: var nimpy.PyObject, columns: seq[(string, nimpy.PyObject)]): void {.inline.} =
             for (col_name, pg) in columns:
@@ -72,6 +73,8 @@ when isMainModule and appType != "lib":
         for (pg_pass, pg_fail) in converted:
             tbl_pass.extendTable(pg_pass)
             tbl_fail.extendTable(pg_fail)
+
+        discard pbar.update(pbar.total.to(float) - pbar.n.to(float))
 
         return (tbl_pass, tbl_fail)
 

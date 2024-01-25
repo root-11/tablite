@@ -23,11 +23,11 @@ when isLib:
     # -------- COLUMN SELECTOR --------
     import funcs/column_selector as column_selector
 
-    proc collect_column_select_info*(table: PyObject, cols: PyObject, dir_pid: string): (
+    proc collect_column_select_info*(table: PyObject, cols: PyObject, dir_pid: string, pbar: PyObject): (
         Table[string, seq[string]], int, Table[string, bool], PyObject, seq[string], seq[string], seq[column_selector.ColInfo], seq[column_selector.ColInfo], seq[string], string
     ) {.exportpy.} =
         try:
-            var (columns, page_count, is_correct_type, desired_column_map, passed_column_data, failed_column_data, res_cols_pass, res_cols_fail, column_names, reject_reason_name) = column_selector.collectColumnSelectInfo(table, cols, dir_pid)
+            var (columns, page_count, is_correct_type, desired_column_map, passed_column_data, failed_column_data, res_cols_pass, res_cols_fail, column_names, reject_reason_name) = column_selector.collectColumnSelectInfo(table, cols, dir_pid, pbar)
 
             return (columns, page_count, is_correct_type, desired_column_map.toPyObj, passed_column_data, failed_column_data, res_cols_pass, res_cols_fail, column_names, reject_reason_name)
         except Exception as e:
