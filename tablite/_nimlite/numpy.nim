@@ -285,7 +285,7 @@ proc writeNumpyHeader*(fh: File, dtype: string, shape: uint): void =
     fh.write(NUMPY_MAJOR)
     fh.write(NUMPY_MINOR)
 
-    discard fh.writeBuffer(padding_header.unsafeAddr, 2)
+    discard fh.writeBuffer(padding_header.addr, 2)
 
     fh.write(header)
 
@@ -296,7 +296,7 @@ proc writeNumpyHeader*(fh: File, dtype: string, shape: uint): void =
 proc writeNumpyUnicode*(fh: var File, str: var string, unicode_len: uint): void {.inline.} =
     for rune in str.toRunes():
         var ch = uint32(rune)
-        discard fh.writeBuffer(ch.unsafeAddr, 4)
+        discard fh.writeBuffer(ch.addr, 4)
 
     let dt = unicode_len - (uint str.runeLen)
 
@@ -304,10 +304,10 @@ proc writeNumpyUnicode*(fh: var File, str: var string, unicode_len: uint): void 
         fh.write("\x00\x00\x00\x00")
 
 proc writeNumpyInt*(fh: var File, value: int): void {.inline.} =
-    discard fh.writeBuffer(value.unsafeAddr, 8)
+    discard fh.writeBuffer(value.addr, 8)
 
 proc writeNumpyFloat*(fh: var File, value: float): void {.inline.} =
-    discard fh.writeBuffer(value.unsafeAddr, 8)
+    discard fh.writeBuffer(value.addr, 8)
 
 proc writeNumpyBool*(fh: var File, str: var string): void {.inline.} =
     fh.write((if str.toLower() == "true": '\x01' else: '\x00'))
@@ -1022,9 +1022,11 @@ proc type2PyType(`type`: KindObjectND): nimpy.PyObject =
     of K_DATETIME: return pymodules.datetime().datetime
 
 proc newPyPage*(id: int, path: string, len: int, dtypes: Table[KindObjectND, int]): nimpy.PyObject =
-    let pyDtypes = collect(initTable()):
-        for (dt, n) in dtypes.pairs:
-            { dt.type2PyType: n }
+    let pyDtypes = pymodules.builtins().dict()
+    
+    for (dt, n) in dtypes.pairs:
+        let obj = dt.type2PyType()
+        pyDtypes[obj] = n
 
     let pg = pymodules.tabliteBase().SimplePage(id, path, len, pyDtypes)
 
