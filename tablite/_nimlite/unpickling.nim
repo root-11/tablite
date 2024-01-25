@@ -387,8 +387,6 @@ proc newReducePickle(fn: GlobalPickle, args: TuplePickle): PY_Object =
         return newPY_Time(hour, minute, second, microsecond)
     else:
         implement("REDUCE[" & fn.module & " " & fn.name & "]: " & args.toString)
-    
-    implement("newReducePickle")
 
 proc loadReduce(iter: IterPickle, stack: var Stack): PY_Object {.inline.} =
     let args = stack.pop()
@@ -550,8 +548,7 @@ proc construct(self: StopPickle): ObjectPage {.inline.} =
     
     return PY_NpMultiArray(self.value).toPage()
 
-proc readPickledPage*(fh: var File, endianness: Endianness, shape: var Shape): ObjectPage =
-    
+proc readPickledPage*(fh: var File, endianness: Endianness, shape: var Shape): ObjectPage = 
     let iter = unpickleFile(fh, endianness)
     var stack: Stack = newSeq[PY_Object]()
     var metastack: MetaStack = newSeq[Stack]()

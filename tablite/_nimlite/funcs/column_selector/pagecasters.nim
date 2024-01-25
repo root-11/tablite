@@ -66,6 +66,7 @@ macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
         nGenTypes = nPageGenerics[0]
 
     let nGenIdet = newIdentDefs(newIdentNode("T"), nGenTypes)
+    let pragmas = newNimNode(nnkPragma).add(newIdentNode("inline"))
 
     nGeneric.add(nGenIdet)
 
@@ -113,7 +114,7 @@ macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
                 nBody.add(statements(nPageReturnType, "fnCast"))
 
         let nArgs = [newIdentNode(BaseNDArray.name), nArgReturnType, nInPage, nMaskDef, nReasonListDef, nAllowEmpty, nOriginaName, nDesiredName, nDesiredType]
-        let nNewProc = newProc(postfix(newIdentNode("castType"), "*"), nArgs, nBody)
+        let nNewProc = newProc(postfix(newIdentNode("castType"), "*"), nArgs, nBody, pragmas=pragmas)
 
         nNewProc[2] = nGeneric
         nProcNodes.add(nNewProc)

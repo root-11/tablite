@@ -15,6 +15,11 @@ when isLib:
     import std/[os, options, tables, paths, segfaults]
     import pymodules
 
+    # --------      NUMPY      --------
+    import numpy
+    proc read_page(path: string): nimpy.PyObject = return readNumpy(path).toPython()
+    # --------      NUMPY      --------
+
     # -------- COLUMN SELECTOR --------
     import funcs/column_selector as column_selector
 

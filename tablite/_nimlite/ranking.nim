@@ -16,7 +16,7 @@ type Rank* = array[int(DataTypes.DT_MAX_ELEMENTS), (DataTypes, uint)]
 proc newRank*(): Rank =
     var rank: Rank
 
-    for i in 0..(int(DataTypes.DT_MAX_ELEMENTS)-1):
+    for i in 0..<int(DataTypes.DT_MAX_ELEMENTS):
         rank[i] = (DataTypes(i), uint 0)
 
     return rank

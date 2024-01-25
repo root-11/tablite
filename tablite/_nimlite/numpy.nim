@@ -335,7 +335,7 @@ proc validateHeader(fh: File, buf: var array[NUMPY_MAGIC_LEN, uint8], header: st
     if fh.readBytes(buf, 0, header_len) != header_len:
         corrupted()
 
-    for idx in 0..header_len-1:
+    for idx in 0..<header_len:
         if buf[idx] != uint8 header[idx]:
             corrupted()
 
@@ -664,20 +664,20 @@ proc readPageInfo(fh: var File): (NDArrayDescriptor, bool, Shape) =
     return (descr, order, shape)
 
 proc readNumpy(fh: var File): BaseNDArray =
-    var ((descr_endianness, descr_type, descr_size), _, shape) = readPageInfo(fh)
+    var ((descrEndianness, descrType, descrSize), _, shape) = readPageInfo(fh)
     var page: BaseNDArray
 
-    case descr_type:
+    case descrType:
         of D_BOOLEAN: page = newBooleanNDArray(fh, shape)
-        of D_INT: page = newIntNDArray(fh, descr_endianness, descr_size, shape)
-        of D_FLOAT: page = newFloatNDArray(fh, descr_endianness, descr_size, shape)
-        of D_UNICODE: page = newUnicodeNDArray(fh, descr_endianness, descr_size, shape)
-        of D_OBJECT: page = newObjectNDArray(fh, descr_endianness, shape)
-        of D_DATE_DAYS: page = newDateArray_Days(fh, descr_endianness, shape)
-        of D_DATETIME_SECONDS: page = newDateTimeArray_Seconds(fh, descr_endianness, shape)
-        of D_DATETIME_MILISECONDS: page = newDateTimeArray_Miliseconds(fh, descr_endianness, shape)
-        of D_DATETIME_MICROSECONDS: page = newDateTimeArray_Microseconds(fh, descr_endianness, shape)
-        else: implement($descr_type)
+        of D_INT: page = newIntNDArray(fh, descrEndianness, descrSize, shape)
+        of D_FLOAT: page = newFloatNDArray(fh, descrEndianness, descrSize, shape)
+        of D_UNICODE: page = newUnicodeNDArray(fh, descrEndianness, descrSize, shape)
+        of D_OBJECT: page = newObjectNDArray(fh, descrEndianness, shape)
+        of D_DATE_DAYS: page = newDateArray_Days(fh, descrEndianness, shape)
+        of D_DATETIME_SECONDS: page = newDateTimeArray_Seconds(fh, descrEndianness, shape)
+        of D_DATETIME_MILISECONDS: page = newDateTimeArray_Miliseconds(fh, descrEndianness, shape)
+        of D_DATETIME_MICROSECONDS: page = newDateTimeArray_Microseconds(fh, descrEndianness, shape)
+        else: implement($descrType)
 
     return page
 
@@ -776,8 +776,6 @@ proc toNimpy(self: PY_ObjectND): nimpy.PyObject =
     of K_TIME: return PY_Time(self).toNimpy()
     of K_DATETIME: return PY_DateTime(self).toNimpy()
 
-    implement(repr(self))
-
 proc toPython(self: ObjectNDArray): nimpy.PyObject =
     let buf = collect:
         for el in self.buf:
@@ -832,7 +830,27 @@ proc getPageTypes*(self: BaseNDArray): Table[KindObjectND, int] =
     of K_DATETIME: K_DATETIME.toType(self.shape)
     of K_OBJECT: ObjectNDArray(self).dtypes
 
-proc getPageTypes*(page: string): Table[KindObjectND, int] = readNumpy(page).getPageTypes()
+proc getPageTypes*(path: string): Table[KindObjectND, int] =
+    var fh = open(path, fmRead)
+    var ((descrEndianness, descrType, _), _, shape) = readPageInfo(fh)
+    var dtypes: Table[KindObjectND, int]
+    let elements = shape.calcShapeElements()
+
+    case descrType:
+    of D_BOOLEAN: dtypes = {KindObjectND.K_BOOLEAN: elements}.toTable
+    of D_INT: dtypes = {K_INT: elements}.toTable
+    of D_FLOAT: dtypes = {KindObjectND.K_FLOAT: elements}.toTable
+    of D_UNICODE: dtypes = {KindObjectND.K_STRING: elements}.toTable
+    of D_DATE_DAYS: dtypes = {KindObjectND.K_DATE: elements}.toTable
+    of D_DATETIME_SECONDS, D_DATETIME_MILISECONDS, D_DATETIME_MICROSECONDS: dtypes = {KindObjectND.K_DATETIME: elements}.toTable
+    of D_OBJECT:
+        # we only need to read the object page to know the dtypes
+        dtypes = newObjectNDArray(fh, descrEndianness, shape).dtypes
+    else: implement($descrType)
+
+    fh.close()
+
+    return dtypes
 proc getColumnTypes*(pages: openArray[string] | seq[string]): Table[KindObjectND, int] =
     var dtypes = initTable[KindObjectND, int]()
 
