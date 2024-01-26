@@ -16,18 +16,18 @@ proc putPage(page: BaseNDArray, infos: var Table[string, nimpy.PyObject], colNam
 
     infos[colName] = newPyPage(pid, dir, page.len, page.getPageTypes())
 
-proc finalizeSlice(indices: var seq[int], columnNames: seq[string], infos: var Table[string, nimpy.PyObject], castPaths: var Table[string, (Path, Path, bool)], pages: var seq[(string, nimpy.PyObject)], resultInfo: ColInfo): void =
+proc finalizeSlice(indices: var seq[int], columnNames: seq[string], infos: var Table[string, nimpy.PyObject], castPaths: var Table[string, (Path, Path, Path, bool)], pages: var seq[(string, nimpy.PyObject)], resultInfo: ColInfo): void =
     if indices.len == 0:
         return
 
     for colName in columnNames:
-        let (srcPath, dstPath, isTmp) = castPaths[colName]
+        var (srcPath, dstPath, dstSliced, isTmp) = castPaths[colName]
         var castData = readNumpy(string srcPath)
 
         if castData.len != indices.len:
             castData = castData[indices]
             castData.putPage(infos, colName, resultInfo[colName])
-            castData.save(string dstPath)
+            castData.save(string dstSliced)
         elif srcPath != dstPath and isTmp:
             moveFile(string srcPath, string dstPath)
 
@@ -40,8 +40,8 @@ proc toColSliceInfo(path: Path): ColSliceInfo =
     return (workdir, pid)
 
 proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string], rejectReasonName: string, resPass: ColInfo, resFail: ColInfo, desiredColumnMap: OrderedTable[string, DesiredColumnInfo], columnNames: seq[string], isCorrectType: Table[string, bool]): (seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)]) =
-    var castPathsPass = initTable[string, (Path, Path, bool)]()
-    var castPathsFail = initTable[string, (Path, Path, bool)]()
+    var castPathsPass = initTable[string, (Path, Path, Path, bool)]()
+    var castPathsFail = initTable[string, (Path, Path, Path, bool)]()
     var pageInfosPass = initTable[string, nimpy.PyObject]()
     var pageInfosFail = initTable[string, nimpy.PyObject]()
     var pagesPass = newSeq[(string, nimpy.PyObject)]()
@@ -61,11 +61,12 @@ proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string]
 
         for (k, v) in pagePaths.pairs:
             let (wd, pid) = resFail[k]
-            castPathsFail[k] = (Path v, Path(wd) / Path("pages") / Path($pid & ".npy"), false)
+            let dstPath = Path(wd) / Path("pages") / Path($pid & ".npy")
+            castPathsFail[k] = (Path v, dstPath, dstPath, false)
 
         let (rjwd, rjpid) = resFail[rejectReasonName]
         let rejectReasonPath = Path(rjwd) / Path("pages") / Path($rjpid & ".npy")
-        castPathsFail[rejectReasonName] = (rejectReasonPath, rejectReasonPath, false)
+        castPathsFail[rejectReasonName] = (rejectReasonPath, rejectReasonPath, rejectReasonPath, false)
 
         for (desiredName, desiredInfo) in desiredColumnMap.pairs:
             let originalName = desiredInfo.originalName
@@ -76,6 +77,9 @@ proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string]
             assert validMask.len >= szData, "Invalid mask size"
 
             let alreadyCast = isCorrectType[desiredName]
+            let (workdir, pid) = resPass[desiredName]
+            let pagedir = Path(workdir) / Path("pages")
+            let dstPath = pagedir / Path($pid & ".npy")
 
             originalData.putPage(pageInfosFail, originalName, originalPath.toColSliceInfo)
 
@@ -87,7 +91,7 @@ proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string]
 
                     validMask[i] = VALID
 
-                castPathsPass[desiredName] = (originalPath, originalPath, false)
+                castPathsPass[desiredName] = (originalPath, originalPath, dstPath, false)
                 originalData.putPage(pageInfosPass, desiredName, originalPath.toColSliceInfo)
                 continue
 
@@ -95,14 +99,10 @@ proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string]
             var pathExists = true
 
             while pathExists:
-                castPath = workdir / Path(generateRandomString(5) & ".npy")
+                castPath = Path(workdir) / Path(generateRandomString(5) & ".npy")
                 pathExists = fileExists(string castPath)
 
-            let (workdir, pid) = resPass[desiredName]
-            let pagedir = Path(workdir) / Path("pages")
-            let dstPath = pagedir / Path($pid & ".npy")
-
-            castPathsPass[desiredName] = (castPath, dstPath, true)
+            castPathsPass[desiredName] = (castPath, dstPath, dstPath, true)
 
             let desiredType = desiredInfo.`type`
             let allowEmpty = desiredInfo.allowEmpty
@@ -154,13 +154,13 @@ proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string]
             let pathpid = string (Path(dirpid) / Path("pages") / Path($pid & ".npy"))
             let page = newNDArray(reasonLst)
 
-            page.save(pathpid)
             page.putPage(pageInfosFail, rejectReasonName, resFail[rejectReasonName])
+            page.save(pathpid)
 
             pagesFail.add((rejectReasonName, pageInfosFail[rejectReasonName]))
 
     finally:
-        for (castPath, _, isTmp) in castPathsPass.values:
+        for (castPath, _, _, isTmp) in castPathsPass.values:
             if not isTmp:
                 continue
             discard tryRemoveFile(string castPath)
