@@ -1,6 +1,6 @@
 import std/times
+from utils import divmod
 from std/math import splitDecimal
-from utils import divmod, extractUnit
 
 const DAYS_PER_MONTH_TABLE* = [
     [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31], # not leap
@@ -51,6 +51,15 @@ proc toTimedelta*(
     d += v_days
 
     return (d, s, us)
+
+proc extractUnit(d: int, unit: int): (int, int) {.inline.} =
+    var (idiv, imod) = divmod(d, unit)
+
+    if (imod < 0):
+        imod += unit
+        idiv -= 1
+
+    return (idiv, imod)
 
 proc days2YearsDays(days: int): (int, int) =
     let days_per_400years = (400*365 + 100 - 4 + 1)
