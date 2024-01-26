@@ -52,9 +52,9 @@ proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string]
             for (key, path) in columns.pairs:
                 {key: path}
 
-        let workdir = dirPid / Path("processing")
+        let processingWorkdir = dirPid / Path("processing")
 
-        createDir(string workdir)
+        createDir(string processingWorkdir)
 
         var validMask = newSeq[Mask](pageSize)
         var reasonLst = newSeq[string](pageSize)
@@ -99,7 +99,7 @@ proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string]
             var pathExists = true
 
             while pathExists:
-                castPath = Path(workdir) / Path(generateRandomString(5) & ".npy")
+                castPath = processingWorkdir / Path(generateRandomString(5) & ".npy")
                 pathExists = fileExists(string castPath)
 
             castPathsPass[desiredName] = (castPath, dstPath, dstPath, true)
