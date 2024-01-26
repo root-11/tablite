@@ -699,6 +699,34 @@ class Table(BaseTable):
         return merge.where(self, criteria,left,right,new)
 
     def column_select(self, cols, tqdm=_tqdm, TaskManager=_TaskManager):
+        """
+        type-casts columns from a given table to specified type(s)
+
+        cols:
+            list of dicts: (example):
+
+                cols = [
+                    {'column':'A', 'type': 'bool'},
+                    {'column':'B', 'type': 'int', 'allow_empty': True},
+                    {'column':'B', 'type': 'float', 'allow_empty': False, 'rename': 'C'},
+                ]
+
+            'column'     : column name of the input table that we want to type-cast
+            'type'       : type that we want to type-cast the specified column to
+            'allow_empty': should we allow empty values (None, str('')) through (Default: False)
+            'rename'     : new name of the column, if None will keep the original name, in case of duplicates suffix will be added (Default: None)
+
+            supported types: 'bool', 'int', 'float', 'str', 'date', 'time', 'datetime'
+
+            if any of the columns is rejected, entire row is rejected
+
+        tqdm: progressbar constructor
+        TaskManager: TaskManager constructor
+
+        returns: (Table, Table)
+            first table contains the rows that were successfully cast to desired types
+            second table contains rows that failed to cast + rejection reason
+        """
         return _column_select(self, cols, tqdm, TaskManager)
 
     def join(self, other, left_keys, right_keys, left_columns, right_columns, kind="inner", merge_keys=False, tqdm=_tqdm, pbar=None):

@@ -543,7 +543,7 @@ proc construct(self: var StopPickle): ObjectPage {.inline.} =
     
     return PY_NpMultiArray(self.value).toPage()
 
-proc readPickledPage*(fh: var File, endianness: Endianness, shape: var Shape): ObjectPage = 
+proc readPickledPage*(fh: var File, endianness: Endianness, shape: var Shape): ObjectPage =
     var iter = unpickleFile(fh, endianness)
     var stack: Stack = newSeq[PY_Object]()
     var metastack: MetaStack = newSeq[Stack]()
