@@ -11,17 +11,19 @@ template implement*(name: string = ""): void = raise newException(Exception, if 
 const isLittleEndian* = system.cpuEndian == littleEndian
 const endiannessMark* = if isLittleEndian: "<" else: ">"
 
-proc uniqueName*(desired_name: string, name_list: openArray[string] | seq[string]): string {.inline.} =
-    var name = desired_name
+proc uniqueName*(desiredName: string, nameList: openArray[string] | seq[string]): string {.inline.} =
+    ## makes sure that desiredName is unique to the given list
+    var name = desiredName
     var idx = 1
 
-    while name in name_list:
-        name = desired_name & "_" & $idx
+    while name in nameList:
+        name = desiredName & "_" & $idx
         inc idx
 
     name
 
-proc unescapeSeq*(str: string): string {.inline.} = # nim has no true unescape
+proc unescapeSeq*(str: string): string {.inline.} =
+    ## removes escape sequences from string because nim doesn't have true unescape
     case str:
     of "\\n": return "\n"
     of "\\t": return "\t"
@@ -30,23 +32,16 @@ proc unescapeSeq*(str: string): string {.inline.} = # nim has no true unescape
     else: return str
 
 proc divmod*(x: int, y: int): (int, int) {.inline.} =
+    ## function returns a tuple containing the quotient and the remainder
     let z = int(floor(x / y))
 
     return (z, x - y * z)
 
 proc generateRandomString*(len: int): string {.inline.} =
+    ## generates a random string of len
     var str = newString(len)
 
     for i in 0..<len:
         str[i] = sample(rand_chars)
 
     return str
-
-proc extractUnit*(d: int, unit: int): (int, int) {.inline.} =
-    var (idiv, imod) = divmod(d, unit)
-
-    if (imod < 0):
-        imod += unit
-        idiv -= 1
-
-    return (idiv, imod)
