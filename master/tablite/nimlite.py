@@ -164,7 +164,7 @@ def collect_cs_info(i: int, columns: dict, res_cols_pass: list, res_cols_fail: l
 
 
 def column_select(table, cols, tqdm=_tqdm, TaskManager=TaskManager):
-    with tqdm(total=100, desc="column select", bar_format='{desc}: {percentage:3.0f}%|{bar}{r_bar}') as pbar:
+    with tqdm(total=100, desc="column select", bar_format='{desc}: {percentage:.1f}%|{bar}{r_bar}') as pbar:
         T = type(table)
         dir_pid = Config.workdir / Config.pid
 
