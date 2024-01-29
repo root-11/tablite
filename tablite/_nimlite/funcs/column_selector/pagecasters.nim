@@ -153,4 +153,4 @@ template convertBasicPage*[T](page: T, desiredType: KindObjectND, mask: var seq[
     of K_DATE: ToDate.castType(page, mask, reasonLst, allowEmpty, originalName, desiredName, desiredType)
     of K_TIME: ToTime.castType(page, mask, reasonLst, allowEmpty, originalName, desiredName, desiredType)
     of K_DATETIME: ToDateTime.castType(page, mask, reasonLst, allowEmpty, originalName, desiredName, desiredType)
-    else: corrupted()
+    else: raise newException(FieldDefect, "uncastable type: " & $desiredType)

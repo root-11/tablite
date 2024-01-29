@@ -177,13 +177,13 @@ template readIntOfSize(iter: var IterPickle, sz: int): int =
     elif sz == 1:
         int cast[int8](iter.readOfSize(sz))
     else:
-        corrupted()
+        raise newException(IOError, "invalid int size: " & $sz)
 
 proc loadProto(iter: var IterPickle): ProtoPickle {.inline.} =
     let v = iter()
 
     if v != uint8 PKL_PROTO_VERSION:
-        corrupted()
+        raise newException(IOError, "invalid protocol version: " & $v)
 
     return ProtoPickle(value: int v)
 
@@ -202,18 +202,12 @@ proc loadGlobal(iter: var IterPickle, stack: var Stack): GlobalPickle {.inline.}
 proc loadBinput(iter: var IterPickle, stack: var Stack, memo: var Memo): BinPutPickle {.inline.} =
     let i = uint iter()
 
-    if i < 0:
-        corrupted()
-
     memo[i] = stack[^1] # last element
 
     return BinPutPickle(index: i)
 
 proc loadLongBinput(iter: var IterPickle, stack: var Stack, memo: var Memo): BinPutPickle {.inline.} =
     let i = uint iter.readIntOfSize(4)
-
-    if i < 0:
-        corrupted()
 
     memo[i] = stack[^1] # last element
 
@@ -324,20 +318,18 @@ proc loadBinUnicode(iter: var IterPickle, stack: var Stack): BinUnicodePickle {.
 proc newReducePickle(fn: var GlobalPickle, args: var TuplePickle): PY_Object =
     if fn.module == "numpy.core.multiarray" and fn.name == "_reconstruct":
         if args.elems.len != 3:
-            corrupted()
+            raise newException(IOError, "invalid arguments for numpy.core.multiarray")
         return PY_NpMultiArray()
     elif fn.module == "numpy" and fn.name == "dtype":
-        if args.elems.len != 3:
-            corrupted()
-        if not (args.elems[0] of BinUnicodePickle):
-            corrupted()
+        if args.elems.len != 3 or not (args.elems[0] of BinUnicodePickle):
+            raise newException(IOError, "invalid arguments for numpy.dtype")
         let dtype = (BinUnicodePickle args.elems[0]).value
         if dtype != "O8":
-            corrupted()
+            raise newException(IOError, "numpy.dtype must be of O8, got: " & dtype)
         return PY_NpDType(dtype: dtype)
     elif fn.module == "datetime" and fn.name == "date":
         if args.elems.len != 1 or not (args.elems[0] of BinBytesPickle):
-            corrupted()
+            raise newException(IOError, "invalid arguments for datetime.date")
         let bytes = (BinBytesPickle args.elems[0]).value
         var year: uint16
         var month, day: uint8
@@ -349,7 +341,7 @@ proc newReducePickle(fn: var GlobalPickle, args: var TuplePickle): PY_Object =
         return newPY_Date(year, month, day)
     elif fn.module == "datetime" and fn.name == "datetime":
         if args.elems.len != 1 or not (args.elems[0] of BinBytesPickle):
-            corrupted()
+            raise newException(IOError, "invalid arguments for datetime.datetime")
 
         let bytes = (BinBytesPickle args.elems[0]).value
         var year: uint16
@@ -372,7 +364,7 @@ proc newReducePickle(fn: var GlobalPickle, args: var TuplePickle): PY_Object =
         )
     elif fn.module == "datetime" and fn.name == "time":
         if args.elems.len != 1 or not (args.elems[0] of BinBytesPickle):
-            corrupted()
+            raise newException(IOError, "invalid arguments for datetime.time")
 
         let bytes = (BinBytesPickle args.elems[0]).value
         var hour, minute, second: uint8
@@ -415,7 +407,7 @@ proc setState(self: var PY_NpMultiArray, state: var TuplePickle): void {.inline.
     let np_ver = (BinIntPickle state.elems[STATE_VER]).value
 
     if np_ver != 1:
-        corrupted()
+        raise newException(IOError, "unsupported numpy version: " & $np_ver)
 
     let np_shape = collect: (for e in (TuplePickle state.elems[STATE_SHAPE]).elems: (BinIntPickle e).value)
     let np_dtype = PY_NpDType state.elems[STATE_DTYPE]
@@ -431,7 +423,7 @@ proc loadBuild(stack: var Stack): PY_Object {.inline.} =
 
     if (inst of PY_NpDType): setState(PY_NpDType inst, state)
     elif (inst of PY_NpMultiArray): setState(PY_NpMultiArray inst, state)
-    else: corrupted()
+    else: raise newException(IOError, "unsupported build type: " & inst.toString)
 
     return inst
 
@@ -507,7 +499,7 @@ proc unpickle(iter: var IterPickle, stack: var Stack, memo: var Memo, metastack:
     of PKL_APPENDS: loadAppends(stack, metastack)
     of PKL_STOP: loadStop(stack)
     of PKL_BINGET: iter.loadBinGet(stack, memo)
-    else: raise newException(Exception, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
+    else: raise newException(IOError, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
 
 proc getType(self: PY_ObjectND): KindObjectND =
     case self.kind:
@@ -539,7 +531,7 @@ proc toPage(arr: var PY_NpMultiArray): ObjectPage =
 
 proc construct(self: var StopPickle): ObjectPage {.inline.} =
     if not (self.value of PY_NpMultiArray):
-        corrupted()
+        raise newException(IOError, "unsupported construct type: " & self.value.toString)
     
     return PY_NpMultiArray(self.value).toPage()
 
@@ -561,6 +553,6 @@ proc readPickledPage*(fh: var File, endianness: Endianness, shape: var Shape): O
             break
 
     if unlikely(not hasStop):
-        corrupted()
+        raise newException(IOError, "no stop instruction in pickle file")
 
     return stop.construct()
