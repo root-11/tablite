@@ -12,7 +12,7 @@ def test_column_select_naming_1():
     ])
 
     assert list(select_1_pass.columns.keys()) == ['A ']
-    assert list(select_1_fail.columns.keys()) == ['A ', 'reject_reason']
+    assert list(select_1_fail.columns.keys()) == ['reject_reason', 'A ']
 
     assert len(select_1_pass) == 3
     assert list(select_1_pass['A ']) == [0, 1, 2]
@@ -28,7 +28,7 @@ def test_column_select_naming_2():
     ])
 
     assert list(select_1_pass.columns.keys()) == ['A']
-    assert list(select_1_fail.columns.keys()) == ['A ', 'reject_reason']
+    assert list(select_1_fail.columns.keys()) == ['reject_reason', 'A ']
 
     assert len(select_1_pass) == 3
     assert list(select_1_pass['A']) == [0, 1, 2]
@@ -44,7 +44,7 @@ def test_column_select_naming_3():
     ])
 
     assert list(select_1_pass.columns.keys()) == ['A']
-    assert list(select_1_fail.columns.keys()) == ['A ', 'reject_reason']
+    assert list(select_1_fail.columns.keys()) == ['reject_reason', 'A ']
 
     assert len(select_1_pass) == 3
     assert list(select_1_pass['A']) == [0, 1, 2]
@@ -60,7 +60,7 @@ def test_column_select_naming_4():
     ])
 
     assert list(select_1_pass.columns.keys()) == ['A ']
-    assert list(select_1_fail.columns.keys()) == ['A ', 'reject_reason']
+    assert list(select_1_fail.columns.keys()) == ['reject_reason', 'A ']
 
     assert len(select_1_pass) == 3
     assert list(select_1_pass['A ']) == [0, 1, 2]
@@ -76,7 +76,7 @@ def test_column_select_naming_5():
     ])
 
     assert list(select_1_pass.columns.keys()) == ['A ']
-    assert list(select_1_fail.columns.keys()) == ['A ', 'reject_reason']
+    assert list(select_1_fail.columns.keys()) == ['reject_reason', 'A ']
 
     assert len(select_1_pass) == 3
     assert list(select_1_pass['A ']) == [0, 1, 2]
@@ -92,7 +92,7 @@ def test_column_select_naming_6():
     ])
 
     assert list(select_1_pass.columns.keys()) == ['A ']
-    assert list(select_1_fail.columns.keys()) == ['A ', 'reject_reason']
+    assert list(select_1_fail.columns.keys()) == ['reject_reason', 'A ']
 
     assert len(select_1_pass) == 3
     assert list(select_1_pass['A ']) == [0, 1, 2]
@@ -359,6 +359,26 @@ def test_casting_10():
 
     assert len(select_1_fail) == 0
     assert list(select_1_fail['A']) == []
+
+def test_casting_11():
+    """ python parser can't parse floating point as int """
+    tbl = Table(columns={
+        'A': [111111, 222222, 333333],
+        'B': [0, None, 2],
+    })
+
+    select_1_pass, select_1_fail = tbl.column_select(cols=[
+        {'column': 'A', 'type': 'str'},
+        {'column': 'B', 'type': 'int'},
+    ])
+
+    assert len(select_1_pass) == 2
+    assert list(select_1_pass['A']) == ['111111', '333333']
+    assert list(select_1_pass['B']) == [0, 2]
+
+    assert len(select_1_fail) == 1
+    assert list(select_1_fail['A']) == [222222]
+    assert list(select_1_fail['B']) == [None]
 
 
 def test_casting_bool_1():
@@ -1042,4 +1062,4 @@ def test_casting_datetime_2_nones():
         assert true == expect
 
 if __name__ == "__main__":
-    test_casting_str_5()
+    test_casting_11()

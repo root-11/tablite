@@ -178,7 +178,7 @@ proc `[]`(self: UnicodeNDArray, slice: seq[int] | openArray[int]): UnicodeNDArra
     let buf = newSeq[Rune](self.size * slice.len)
 
     for (i, j) in enumerate(slice):
-        buf[i * self.size].addr.copyMem(addr self.buf[j * self.size], self.size)
+        buf[i * self.size].addr.copyMem(addr self.buf[j * self.size], self.size * sizeof(Rune))
 
     return UnicodeNDArray(shape: @[slice.len], size: self.size, buf: buf, kind: K_STRING)
 
@@ -333,11 +333,11 @@ proc `$`*(self: BaseNDArray): string =
 
 proc validateHeader(fh: File, buf: var array[NUMPY_MAGIC_LEN, uint8], header: string, header_len: int): void {.inline.} =
     if fh.readBytes(buf, 0, header_len) != header_len:
-        corrupted()
+        raise newException(IOError, "malformed header size")
 
     for idx in 0..<header_len:
         if buf[idx] != uint8 header[idx]:
-            corrupted()
+            raise newException(IOError, "malformed header info")
 
 proc consumeHeaderString(header: var string, header_len: int, offset: var int): string =
     var start_index = -1
@@ -357,7 +357,7 @@ proc consumeHeaderString(header: var string, header_len: int, offset: var int): 
         offset = offset + 1
 
     if start_index == end_index or start_index < 0 or end_index < 0:
-        corrupted()
+        raise newException(IOError, "malformed header string")
 
     offset = offset + 1
 
@@ -384,9 +384,9 @@ proc consumeBool(header: var string, header_len: int, offset: var int): bool =
     var res: bool
 
     case res_str.toLower():
-        of "true": res = true
-        of "false": res = false
-        else: corrupted()
+    of "true": res = true
+    of "false": res = false
+    else: raise newException(IOError, "invalid boolean value" & res_str)
 
     offset = offset + 1
 
@@ -407,7 +407,7 @@ proc consumeShape(header: var string, header_len: int, offset: var int): Shape =
 
         offset = offset + 1
 
-    if start_index == end_index or start_index < 0 or end_index < 0: corrupted()
+    if start_index == end_index or start_index < 0 or end_index < 0: raise newException(IOError, "malformed shape indices")
 
     let shape_str_seq = header[start_index..end_index].split(',')
     let len_shape_str_seq = shape_str_seq.len
@@ -416,7 +416,7 @@ proc consumeShape(header: var string, header_len: int, offset: var int): Shape =
         let sh_str = shape_str_seq[i]
 
         if sh_str.len == 0:
-            if i + 1 != len_shape_str_seq: corrupted()
+            if i + 1 != len_shape_str_seq: raise newException(IOError, "corrupted page shape string")
             continue
 
         shape.add(parseInt(sh_str))
@@ -444,13 +444,13 @@ proc consumeDescr(header: var string, header_len: int, offset: var int): NDArray
         of '>':
             endianness = Endianness.bigEndian
         else:
-            if not (descr[0] in valid_types): corrupted()
+            if not (descr[0] in valid_types): raise newException(IOError, "unsupported endianless type: " & descr[0])
 
             type_offset = 0
 
     let type_string = descr[type_offset]
 
-    if not (type_string in valid_types): corrupted()
+    if not (type_string in valid_types): raise newException(IOError, "unsupported type: " & type_string)
 
     var size: int
     var descriptor: NDArrayTypeDescriptor
@@ -458,45 +458,45 @@ proc consumeDescr(header: var string, header_len: int, offset: var int): NDArray
 
     if type_string == 'm' or type_string == 'M':
         if descr[type_offset + 1] != '8' or descr[type_offset + 2] != '[' or descr[^1] != ']':
-            corrupted()
+            raise newException(IOError, "invalid datetime size")
 
         dt_descriptor = descr[(type_offset + 3)..^2]
     elif type_string == 'O':
         if (type_offset + 1) != descr.len:
             if descr[type_offset + 1] != '8' or (type_offset + 2) != descr.len:
-                corrupted()
+                raise newException(IOError, "invalid object size")
 
     case type_string:
-        of 'O':
-            size = -1
-            descriptor = NDArrayTypeDescriptor.D_OBJECT
-        of 'm':
-            case dt_descriptor:
-            else: implement(descr)
-        of 'M':
-            case dt_descriptor:
-            of "D":
-                size = 8
-                descriptor = NDArrayTypeDescriptor.D_DATE_DAYS
-            of "us":
-                size = 8
-                descriptor = NDArrayTypeDescriptor.D_DATETIME_MICROSECONDS
-            else: implement(descr)
-        else:
-            size = parseInt(descr[type_offset+1..descr.len-1])
+    of 'O':
+        size = -1
+        descriptor = NDArrayTypeDescriptor.D_OBJECT
+    of 'm':
+        case dt_descriptor:
+        else: implement(descr)
+    of 'M':
+        case dt_descriptor:
+        of "D":
+            size = 8
+            descriptor = NDArrayTypeDescriptor.D_DATE_DAYS
+        of "us":
+            size = 8
+            descriptor = NDArrayTypeDescriptor.D_DATETIME_MICROSECONDS
+        else: implement(descr)
+    else:
+        size = parseInt(descr[type_offset+1..descr.len-1])
 
-            case type_string:
-                of 'b':
-                    if size != 1: corrupted()
-                    descriptor = NDArrayTypeDescriptor.D_BOOLEAN
-                of 'i': descriptor = NDArrayTypeDescriptor.D_INT
-                of 'f': descriptor = NDArrayTypeDescriptor.D_FLOAT
-                of 'U':
-                    if size <= 0: corrupted()
-                    descriptor = NDArrayTypeDescriptor.D_UNICODE
-                else:
-                    # never happens
-                    corrupted()
+        case type_string:
+        of 'b':
+            if size != 1: raise newException(IOError, "invalid boolean size: " & $size)
+            descriptor = NDArrayTypeDescriptor.D_BOOLEAN
+        of 'i': descriptor = NDArrayTypeDescriptor.D_INT
+        of 'f': descriptor = NDArrayTypeDescriptor.D_FLOAT
+        of 'U':
+            if size <= 0: raise newException(IOError, "unicode size must be n > 0, got " & $size)
+            descriptor = NDArrayTypeDescriptor.D_UNICODE
+        else:
+            # never happens
+            raise newException(IOError, "unsupported numpy page type: " & type_string)
 
 
     return (endianness, descriptor, size)
@@ -515,7 +515,7 @@ proc parseHeader(header: var string): (NDArrayDescriptor, bool, Shape) =
         offset = offset + 1
 
     if not entry_consumed:
-        corrupted()
+        raise newException(IOError, "malformed numpy page entry")
 
     offset = offset + 1
 
@@ -530,20 +530,20 @@ proc parseHeader(header: var string): (NDArrayDescriptor, bool, Shape) =
         let name = consumeHeaderString(header, header_len, offset)
 
         case name:
-            of "descr":
-                descr = consumeDescr(header, header_len, offset)
-                has_descr = true
-            of "fortran_order":
-                order = consumeBool(header, header_len, offset)
-                has_order = true
-            of "shape":
-                shape = consumeShape(header, header_len, offset)
-                has_shape = true
-            else:
-                corrupted()
+        of "descr":
+            descr = consumeDescr(header, header_len, offset)
+            has_descr = true
+        of "fortran_order":
+            order = consumeBool(header, header_len, offset)
+            has_order = true
+        of "shape":
+            shape = consumeShape(header, header_len, offset)
+            has_shape = true
+        else:
+            raise newException(IOError, "unsupported numpy page instruction: " & name)
 
     if not has_descr or not has_order or not has_shape:
-        corrupted()
+        raise newException(IOError, "malformed numpy page format")
 
     return (descr, order, shape)
 
@@ -561,7 +561,7 @@ template readPrimitiveBuffer[T: typed](fh: var File, shape: var Shape): seq[T] =
         var buffer_size = elements * size_T
 
         if fh.readBuffer(addr buf[0], buffer_size) != buffer_size:
-            corrupted()
+            raise newException(IOError, "malformed primitive buffer")
 
         buf
 
@@ -574,11 +574,11 @@ proc newBooleanNDArray(fh: var File, shape: var Shape): BooleanNDArray =
 
 template newIntNDArray(fh: var File, endianness: Endianness, size: int, shape: var Shape) =
     case size:
-        of 1: Int8NDArray(buf: readPrimitiveBuffer[int8](fh, shape), shape: shape, kind: K_INT8)
-        of 2: Int16NDArray(buf: readPrimitiveBuffer[int16](fh, shape), shape: shape, kind: K_INT16)
-        of 4: Int32NDArray(buf: readPrimitiveBuffer[int32](fh, shape), shape: shape, kind: K_INT32)
-        of 8: Int64NDArray(buf: readPrimitiveBuffer[int64](fh, shape), shape: shape, kind: K_INT64)
-        else: corrupted()
+    of 1: Int8NDArray(buf: readPrimitiveBuffer[int8](fh, shape), shape: shape, kind: K_INT8)
+    of 2: Int16NDArray(buf: readPrimitiveBuffer[int16](fh, shape), shape: shape, kind: K_INT16)
+    of 4: Int32NDArray(buf: readPrimitiveBuffer[int32](fh, shape), shape: shape, kind: K_INT32)
+    of 8: Int64NDArray(buf: readPrimitiveBuffer[int64](fh, shape), shape: shape, kind: K_INT64)
+    else: raise newException(IOError, "unsupported int size: " & $size)
 
 proc newDateArray_Days(fh: var File, endianness: Endianness, shape: var Shape): DateNDArray {.inline.} =
     let buf = collect: (for v in readPrimitiveBuffer[int64](fh, shape): days2Date(v))
@@ -611,9 +611,9 @@ proc newDateTimeArray_Microseconds(fh: var File, endianness: Endianness, shape: 
 
 template newFloatNDArray(fh: var File, endianness: Endianness, size: int, shape: var Shape) =
     case size:
-        of 4: Float32NDArray(buf: readPrimitiveBuffer[float32](fh, shape), shape: shape, kind: K_FLOAT32)
-        of 8: Float64NDArray(buf: readPrimitiveBuffer[float64](fh, shape), shape: shape, kind: K_FLOAT64)
-        else: corrupted()
+    of 4: Float32NDArray(buf: readPrimitiveBuffer[float32](fh, shape), shape: shape, kind: K_FLOAT32)
+    of 8: Float64NDArray(buf: readPrimitiveBuffer[float64](fh, shape), shape: shape, kind: K_FLOAT64)
+    else: raise newException(IOError, "unsupported float size: " & $size)
 
 proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: var Shape): UnicodeNDArray =
     var elements = calcShapeElements(shape)
@@ -622,7 +622,7 @@ proc newUnicodeNDArray(fh: var File, endianness: Endianness, size: int, shape: v
     var buf {.noinit.} = newSeq[Rune](elem_size)
 
     if fh.readBuffer(addr buf[0], buf_size) != buf_size:
-        corrupted()
+        raise newException(IOError, "malformed unicode buffer")
 
     return UnicodeNDArray(buf: buf, shape: shape, size: size, kind: K_STRING)
 
@@ -631,7 +631,7 @@ proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var Shape): O
     var (shape, buf, dtypes) = readPickledPage(fh, endianness, shape)
 
     if calcShapeElements(shape) != elements:
-        corrupted()
+        raise newException(IOError, "invalid object array shape")
 
     return ObjectNDArray(shape: shape, buf: buf, dtypes: dtypes, kind: K_OBJECT)
 
@@ -645,12 +645,12 @@ proc readPageInfo(fh: var File): (NDArrayDescriptor, bool, Shape) =
     var header_size: uint16
 
     if fh.readBuffer(addr header_size, 2) != 2:
-        corrupted()
+        raise newException(IOError, "malformed header size")
 
     var header = newString(header_size)
 
     if fh.readBuffer(addr header[0], int header_size) != int header_size:
-        corrupted()
+        raise newException(IOError, "malformed header")
 
     var (descr, order, shape) = parseHeader(header)
 
@@ -709,7 +709,7 @@ proc toNumpyPrimitive[T: bool | int8 | int16 | int32 | int64 | float32 | float64
         elif T is float32 or T is float64:
             return toNumpyPrimitive("f" & $sz, shape, sz, buf)
         else:
-            corrupted()
+            raise newException(IOError, "invalid primitive type: " & T.name)
 
 proc toPython(self: BooleanNDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[bool](self.shape, addr self.buf[0])
 
