@@ -1,5 +1,8 @@
 import std/[sequtils, strutils, sugar, tables, endians, enumerate]
+from nimpy import `.()`, toPyObjectArgument, `$`, `.`, to
+from nimpy/raw_buffers import RawPyBuffer, PyBUF_WRITABLE, PyBUF_ND, getBuffer, release
 import pytypes, pickleproto, utils
+import pymodules as pymodules
 
 type IterPickle = iterator(): uint8
 type Stack = seq[PY_Object]
@@ -324,8 +327,8 @@ proc newReducePickle(fn: var GlobalPickle, args: var TuplePickle): PY_Object =
         if args.elems.len != 3 or not (args.elems[0] of BinUnicodePickle):
             raise newException(IOError, "invalid arguments for numpy.dtype")
         let dtype = (BinUnicodePickle args.elems[0]).value
-        if dtype != "O8":
-            raise newException(IOError, "numpy.dtype must be of O8, got: " & dtype)
+        # if dtype != "O8":
+        #     raise newException(IOError, "numpy.dtype must be of O8, got: " & dtype)
         return PY_NpDType(dtype: dtype)
     elif fn.module == "datetime" and fn.name == "date":
         if args.elems.len != 1 or not (args.elems[0] of BinBytesPickle):
@@ -377,6 +380,34 @@ proc newReducePickle(fn: var GlobalPickle, args: var TuplePickle): PY_Object =
         swapEndian32(addr microsecond, addr microsecond)
 
         return newPY_Time(hour, minute, second, microsecond)
+    elif fn.module == "numpy.core.multiarray" and fn.name == "scalar":
+        # mega slow but sometimes we get terrible pages
+        let dtypeName = PY_NpDType(args.elems[0]).dtype
+        let bytes = BinBytesPickle(args.elems[1]).value
+        let byteCount = bytes.len
+        let np = pymodules.numpy()
+        let dtypePy = np.dtype(dtypeName)
+
+        let bytesPy = np.empty(byteCount, dtype="bytes") # can't do it we builtins.bytes() because it creates readonly buffer
+        var buf: RawPyBuffer
+        
+        bytesPy.getBuffer(buf, PyBUF_WRITABLE or PyBUF_ND)
+
+        if byteCount > 0:
+            # copy memory
+            buf.buf.copyMem(addr bytes[0], byteCount)
+
+        buf.release()
+
+        let pyBytes = bytesPy.data.tobytes()
+        let valPy = np.core.multiarray.scalar(dtypePy, pyBytes).tolist()
+        let typeName = pymodules.builtins().getattr(pymodules.builtins().type(valPy), "__name__").to(string)
+
+        case typeName: # construct the nim native python object
+        of "float": return newPY_Object(valPy.to(float))
+        of "int": return newPY_Object(valPy.to(int))
+        of "bool": return newPY_Object(valPy.to(bool))
+        else: raise newException(IOError, "not supported type: " & typeName)
     else:
         implement("REDUCE[" & fn.module & " " & fn.name & "]: " & args.toString)
 
