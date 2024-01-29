@@ -2,6 +2,7 @@ from typing import Literal, Type, TypeVar, TypedDict, Union
 from tqdm import tqdm as _tqdm
 from tablite import Table
 import numpy as np
+from pathlib import Path
 from mplite import TaskManager as _TaskManager
 
 K = TypeVar("K")
@@ -32,5 +33,5 @@ def text_reader(
 def column_select(table: K, cols: list[ColumnSelectorDict], tqdm=_tqdm, TaskManager=_TaskManager) -> tuple[K, K]:
     pass
 
-def read_page(path: str) -> np.ndarray:
+def read_page(path: str | Path) -> np.ndarray:
     pass
