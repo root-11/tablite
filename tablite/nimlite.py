@@ -253,4 +253,4 @@ def column_select(table, cols, tqdm=_tqdm, TaskManager=TaskManager):
         return tbl_pass, tbl_fail
 
 def read_page(path):
-    return nl.read_page(path)
+    return nl.read_page(str(path))

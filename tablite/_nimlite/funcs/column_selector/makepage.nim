@@ -46,7 +46,7 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
 
         when page is ObjectNDArray:
             template createNoneErrorReason(): string =
-                "'" & originalName & "' cannot be empty in '" & desiredName & "[" & getTypeUserName(desiredType) & "]'."
+                "'" & desiredName & "[" & getTypeUserName(desiredType) & "]' cannot be empty."
 
     when page is ObjectNDArray:
         # this is an object page, check for strings and nones

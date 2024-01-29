@@ -17,7 +17,7 @@ when isLib:
 
     # --------      NUMPY      --------
     import numpy
-    proc read_page(path: string): nimpy.PyObject = return readNumpy(path).toPython()
+    proc read_page(path: string): nimpy.PyObject {.exportpy.} = return readNumpy(path).toPython()
     # --------      NUMPY      --------
 
     # -------- COLUMN SELECTOR --------
