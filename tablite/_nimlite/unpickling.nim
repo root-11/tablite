@@ -327,8 +327,7 @@ proc newReducePickle(fn: var GlobalPickle, args: var TuplePickle): PY_Object =
         if args.elems.len != 3 or not (args.elems[0] of BinUnicodePickle):
             raise newException(IOError, "invalid arguments for numpy.dtype")
         let dtype = (BinUnicodePickle args.elems[0]).value
-        # if dtype != "O8":
-        #     raise newException(IOError, "numpy.dtype must be of O8, got: " & dtype)
+
         return PY_NpDType(dtype: dtype)
     elif fn.module == "datetime" and fn.name == "date":
         if args.elems.len != 1 or not (args.elems[0] of BinBytesPickle):
