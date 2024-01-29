@@ -21,7 +21,7 @@ proc finalizeSlice(indices: var seq[int], columnNames: seq[string], infos: var T
         return
 
     for colName in columnNames:
-        var (srcPath, dstPath, dstSliced, isTmp) = castPaths[colName]
+        let (srcPath, dstPath, dstSliced, isTmp) = castPaths[colName]
         var castData = readNumpy(string srcPath)
 
         if castData.len != indices.len:
@@ -62,6 +62,7 @@ proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string]
         for (k, v) in pagePaths.pairs:
             let (wd, pid) = resFail[k]
             let dstPath = Path(wd) / Path("pages") / Path($pid & ".npy")
+
             castPathsFail[k] = (Path v, dstPath, dstPath, false)
 
         let (rjwd, rjpid) = resFail[rejectReasonName]
@@ -134,8 +135,8 @@ proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string]
 
         validMask = validMask[maskSlice]
 
-        var invalidIndices = newSeqOfCap[int](validMask.len shr 2) # quarter seems okay
         var validIndices = newSeqOfCap[int](validMask.len - (validMask.len shr 2))
+        var invalidIndices = newSeqOfCap[int](validMask.len shr 2) # quarter seems okay
 
         reasonLst = collect:
             for (i, m) in enumerate(validMask):

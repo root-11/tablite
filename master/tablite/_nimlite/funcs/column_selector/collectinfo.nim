@@ -172,7 +172,7 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
     for i in 0..<pageCount:
         resColsFail[i][rejectReasonName] = genpage(dir_pid)
 
-    failedColumnData.add(rejectReasonName)
+    failedColumnData.insert(rejectReasonName, 0)
 
     discard pbar.update(2)
     discard pbar.display()
