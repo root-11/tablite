@@ -22,7 +22,7 @@ from tablite import pivots
 from tablite import imputation
 from tablite import diff
 from tablite.config import Config
-from tablite.nimlite import column_select as _column_select
+from tablite.nimlite import column_select as _column_select, ColumnSelectorDict
 from mplite import TaskManager as _TaskManager
 
 logging.getLogger("lml").propagate = False
@@ -698,7 +698,7 @@ class Table(BaseTable):
         """
         return merge.where(self, criteria,left,right,new)
 
-    def column_select(self, cols, tqdm=_tqdm, TaskManager=_TaskManager):
+    def column_select(self, cols: list[ColumnSelectorDict], tqdm=_tqdm, TaskManager=_TaskManager):
         """
         type-casts columns from a given table to specified type(s)
 

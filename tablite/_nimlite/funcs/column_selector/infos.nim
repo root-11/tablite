@@ -4,7 +4,7 @@ from std/sugar import collect
 from ../../pymodules import builtins
 from ../../pytypes import KindObjectND, str2ObjKind
 
-type ColSliceInfo* = (string, int)
+type ColSliceInfo* = (string, string)
 type ColInfo* = Table[string, ColSliceInfo]
 type DesiredColumnInfo* = object
     originalName*: string
