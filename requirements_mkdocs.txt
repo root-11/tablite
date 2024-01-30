@@ -8,3 +8,4 @@ mkdocstrings
 mkdocstrings-python
 mkdocs-same-dir
 mkdocs-awesome-pages-plugin
+mkdocs-gen-files

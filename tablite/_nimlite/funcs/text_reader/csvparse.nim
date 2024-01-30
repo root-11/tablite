@@ -73,7 +73,7 @@ proc parseSaveField(self: var ReaderObj, dia: Dialect): bool =
     var field = newString(self.field_len)
 
     if likely(self.field_len > 0):
-        copyMem(field[0].unsafeAddr, self.field[0].unsafeAddr, self.field_len)
+        copyMem(field[0].addr, self.field[0].addr, self.field_len)
 
     if unlikely(self.field_count + 1 >= (uint self.field.high)):
         self.field.setLen(self.field.len() * 2)

@@ -1,9 +1,7 @@
-from std/math import floor, pow
+from std/math import pow
 from std/unicode import runeLen
 import std/strutils
-import pickling
-
-const DAYS_IN_MONTH = [-1, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+import pytypes, dateutils
 
 type ParseShortDate = enum
     DONT_CARE
@@ -48,10 +46,10 @@ proc inferInt*(str: ptr string, is_simple: bool, is_american: bool): int {.inlin
         if first_char == '+' or first_char == '-':
             sign = (if first_char == '+': 1 else: -1)
             first_char = sstr[1]
-            
+
             if not first_char.isDigit():
                 raise newException(ValueError, "NaN")
-            
+
             inc ch_offset
         else:
             raise newException(ValueError, "NaN")
@@ -83,6 +81,19 @@ proc inferInt*(str: ptr string, is_simple: bool, is_american: bool): int {.inlin
 
     return value * sign
 
+proc inferInt*(str: ptr string): int {.inline.} =
+    try:
+        return str.inferInt(true, false)
+    except ValueError:
+        discard
+
+    try:
+        return str.inferInt(false, false)
+    except ValueError:
+        discard
+
+    return str.inferInt(false, true)
+
 proc inferFloat*(str: ptr string, is_simple: bool, is_american: bool): float {.inline.} =
     var sstr = str[].multiReplace(
         ("\"", ""),
@@ -112,10 +123,10 @@ proc inferFloat*(str: ptr string, is_simple: bool, is_american: bool): float {.i
         if first_char == '+' or first_char == '-':
             sign = (if first_char == '+': 1.0 else: -1.0)
             first_char = sstr[1]
-            
+
             if not first_char.isDigit():
                 raise newException(ValueError, "NaN")
-            
+
             inc ch_offset
 
         if first_char == '.' and is_american or first_char == ',' and not is_american:
@@ -159,8 +170,21 @@ proc inferFloat*(str: ptr string, is_simple: bool, is_american: bool): float {.i
         raise newException(ValueError, "NaN")
 
     var exp: float = (if is_exponent: pow(10, (exponent * exponent_sign)) else: 1.0)
-    
+
     return (value * sign) * exp
+
+proc inferFloat*(str: ptr string): float {.inline.} =
+    try:
+        return str.inferFloat(true, false)
+    except ValueError:
+        discard
+
+    try:
+        return str.inferFloat(false, false)
+    except ValueError:
+        discard
+
+    return str.inferFloat(false, true)
 
 proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool): (array[3, string], int) {.inline.} =
     const accepted_tokens = [' ', '.', '-', '/']
@@ -246,13 +270,7 @@ proc parseDateWords(str: ptr string, is_short: ParseShortDate, allow_time: bool)
 
     return (substrings, 8)
 
-proc isLeapYear(year: int): bool {.inline.} = year mod 4 == 0 and (year mod 100 != 0 or year mod 400 == 0)
-proc getDaysInMonth(year, month: int): int {.inline.} =
-    if month == 2 and isLeapYear(year):
-        return 29
-    return DAYS_IN_MONTH[month]
-
-proc guessDate(date_words: ptr array[3, string], is_american: bool): (int, int, int) {.inline.} =
+proc guessDate(date_words: ptr array[3, string], is_american: bool): (int, int, int) =
     var year, month, day: int
     var month_or_day: array[2, int]
 
@@ -303,7 +321,8 @@ proc guessDate(date_words: ptr array[3, string], is_american: bool): (int, int, 
     return (year, month, day)
 
 proc wordsToDate(date_words: ptr array[3, string], is_american: bool): PY_Date {.inline.} =
-    var (year, month, day) = guessDate(date_words, is_american)
+    let guessed = guessDate(date_words, is_american)
+    let (year, month, day) = guessed;
 
     if year < 0 or year > 9999:
         raise newException(ValueError, "year out of range")
@@ -315,6 +334,8 @@ proc wordsToDate(date_words: ptr array[3, string], is_american: bool): PY_Date {
         raise newException(ValueError, "day out of range")
 
     return newPyDate(uint16 year, uint8 month, uint8 day)
+    
+    # discard $year; # There is a bug in nims ARC/ORC GC, uncomment this if you want to use those
 
 proc inferDate*(str: ptr string, is_short: bool, is_american: bool): PY_Date {.inline.} =
     assert not (is_short and is_american), "Short format cannot be mixed with american format"
@@ -326,51 +347,20 @@ proc inferDate*(str: ptr string, is_short: bool, is_american: bool): PY_Date {.i
 
     let (date_words, _) = str.parseDateWords((if is_short: ParseShortDate.REQUIRED else: ParseShortDate.NEVER), false)
 
-    return wordsToDate(date_words.unsafeAddr, is_american)
+    return wordsToDate(date_words.addr, is_american)
 
-proc divmod(x: int, y: int): (int, int) {.inline.} =
-    let z = int(floor(x / y))
+proc inferDate*(str: ptr string): PY_Date {.inline.} =
+    try:
+        return str.inferDate(false, false)
+    except:
+        discard
 
-    return (z, x - y * z)
+    try:
+        return str.inferDate(false, true)
+    except:
+        discard
 
-proc toTimedelta(
-    weeks = 0, days = 0, hours = 0, minutes = 0, seconds = 0, milliseconds = 0, microseconds: int = 0
-): (int, int, int) {.inline.} =
-    var d, s, us: int
-
-    var v_weeks = weeks
-    var v_days = days
-    var v_hours = hours
-    var v_minutes = minutes
-    var v_seconds = seconds
-    var v_milliseconds = milliseconds
-    var v_microseconds = microseconds
-
-    # Normalize everything to days, seconds, microseconds.
-    v_days += v_weeks*7
-    v_seconds += v_minutes*60 + v_hours*3600
-    v_microseconds += v_milliseconds*1000
-
-    d = v_days
-
-    (v_days, v_seconds) = divmod(v_seconds, 24*3600)
-
-    d += v_days
-    s += int(v_seconds) # can't overflow
-
-    v_microseconds = int(v_microseconds)
-    (v_seconds, v_microseconds) = divmod(v_microseconds, 1000000)
-    (v_days, v_seconds) = divmod(v_seconds, 24*3600)
-    d += v_days
-    s += v_seconds
-
-    # Just a little bit of carrying possible for microseconds and seconds.
-    (v_seconds, us) = divmod(v_microseconds, 1000000)
-    s += v_seconds
-    (v_days, s) = divmod(s, 24*3600)
-    d += v_days
-
-    return (d, s, us)
+    return str.inferDate(true, false)
 
 proc parse_hh_mm_ss_ff(tstr: ptr string): (uint8, uint8, uint8, uint32) {.inline.} =
     # Parses things of the form HH[:MM[:SS[.fff[fff]]]]
@@ -455,7 +445,7 @@ proc inferTime*(str: ptr string): PY_Time {.inline.} =
 
     var timestr = (if tz_pos == -1: sstr else: sstr.substr(0, tz_pos-1))
 
-    let (hour, minute, second, microsecond) = parse_hh_mm_ss_ff(timestr.unsafeAddr)
+    let (hour, minute, second, microsecond) = parse_hh_mm_ss_ff(timestr.addr)
 
     if tz_pos >= 0:
         let tzstr = sstr.substr(tz_pos + 1)
@@ -464,7 +454,7 @@ proc inferTime*(str: ptr string): PY_Time {.inline.} =
             raise newException(Exception, "invalid timezone")
 
         let tz_sign: int8 = (if str[tz_pos] == '-': -1 else: 1)
-        let (tz_hours_p, tz_minutes_p, tz_seconds_p, tz_microseconds_p) = parse_hh_mm_ss_ff(tzstr.unsafeAddr)
+        let (tz_hours_p, tz_minutes_p, tz_seconds_p, tz_microseconds_p) = parse_hh_mm_ss_ff(tzstr.addr)
         var (tz_days, tz_seconds, tz_microseconds) = toTimedelta(
             hours = tz_sign * int tz_hours_p,
             minutes = tz_sign * int tz_minutes_p,
@@ -499,7 +489,16 @@ proc inferDatetime*(str: ptr string, is_american: bool): PY_DateTime {.inline.} 
     else:
         raise newException(ValueError, "not a datetime")
 
-    let date = wordsToDate(date_words.unsafeAddr, is_american)
-    let time = inferTime(tstr.unsafeAddr)
+    let date = wordsToDate(date_words.addr, is_american)
+    let time = inferTime(tstr.addr)
 
     return newPyDateTime(date, time)
+
+
+proc inferDatetime*(str: ptr string): PY_DateTime {.inline.} =
+    try:
+        return str.inferDatetime(false)
+    except ValueError:
+        discard
+
+    return str.inferDatetime(true)

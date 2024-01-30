@@ -9,9 +9,14 @@
 *.pyc
 tests/new.zip
 __pycache__
-*/_nimlite/nimlite
-*/_nimlite/*.so
-*/_nimlite/*.pyd
+*/_nimlite/*
+!*/_nimlite/**.nim
+!*/_nimlite/funcs/
+!*/_nimlite/includes/
+!*/_nimlite/includes/**.nim
+!*/_nimlite/funcs/column_selector/**.nim
+!*/_nimlite/**.py
+!*/_nimlite/**.pyi
 
 # Notebook checkpoints
 .ipynb_checkpoints/
@@ -28,3 +33,4 @@ site/
 
 # local confidential data
 tests/ndata/*
+tests/data/pages/*.dis
