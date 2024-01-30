@@ -8,8 +8,8 @@ import logging
 import warnings
 import zipfile
 import numpy as np
-from typing import List
 from pathlib import Path
+from typing import List, Union
 from tqdm import tqdm as _tqdm
 from collections import defaultdict, Counter
 from itertools import count, chain, product, repeat
@@ -666,7 +666,7 @@ class Column(object):
         new_arrays = self._paginate(pruned)
         self.pages = head + [Page(self.path, arr) for arr in new_arrays] + tail
 
-    def get_by_indices(self, indices: List[int] | np.ndarray) -> np.ndarray:
+    def get_by_indices(self, indices: Union[List[int], np.ndarray]) -> np.ndarray:
         """retrieves values from column given a set of indices.
 
         Args:
