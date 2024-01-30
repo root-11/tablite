@@ -690,6 +690,10 @@ def _mp_join(
 
     with TaskManager(cpu_count=_vpus(tasks)) as tm:
         results = tm.execute(tasks, pbar=ProgressBar())
+        errors = [s for s in results if isinstance(s, str)]
+
+        if len(errors) > 0:
+            raise Exception(errors[0])
 
     # step 2: assemble mapping from tasks
     mapping = Table({"left": [], "right": []})
@@ -741,6 +745,10 @@ def _mp_join(
 
     with TaskManager(cpu_count=_vpus(tasks)) as tm:
         results = tm.execute(tasks, pbar=ProgressBar())
+        errors = [s for s in results if isinstance(s, str)]
+
+        if len(errors) > 0:
+            raise Exception(errors[0])
 
     # step 4: assemble the result
     for task, result, (new, old) in zip(tasks, results, names):
@@ -774,6 +782,10 @@ def _mp_join(
 
         with TaskManager(cpu_count=_vpus(tasks)) as tm:
             results = tm.execute(tasks, pbar=ProgressBar())
+            errors = [s for s in results if isinstance(s, str)]
+
+            if len(errors) > 0:
+                raise Exception(errors[0])
 
         for task, result in zip(tasks, results):
             col, start, end = _gets(task, "left", "start", "end")
