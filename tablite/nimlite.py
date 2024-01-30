@@ -1,11 +1,14 @@
 import sys
 import psutil
 import platform
+import numpy as np
 from pathlib import Path
+from tablite.base import Table
 from tqdm import tqdm as _tqdm
 from tablite.base import Column
 from tablite.config import Config
 from mplite import Task, TaskManager
+from typing import Literal, Type, TypeVar, TypedDict, Union, List, Tuple
 
 if True:
     paths = sys.argv[:]
@@ -18,7 +21,20 @@ if True:
     sys.argv.clear()
     sys.argv.extend(paths)  # importing nim module messes with pythons launch arguments!!!
 
-def text_reader_task(*, pid, path, encoding, dialect, task, import_fields, guess_dtypes):
+
+K = TypeVar("K", bound=Table)
+ValidEncoders = Union[Literal["ENC_UTF8"], Literal["ENC_UTF16"], Literal["ENC_WIN1250"]]
+ValidQuoting = Union[Literal["QUOTE_MINIMAL"], Literal["QUOTE_ALL"], Literal["QUOTE_NONNUMERIC"], Literal["QUOTE_NONE"], Literal["QUOTE_STRINGS"], Literal["QUOTE_NOTNULL"]]
+ColumnSelectorDict = TypedDict(
+    "ColumnSelectorDict", {
+        "column": str,
+        "type": Union[Literal["int"], Literal["float"], Literal["bool"], Literal["str"], Literal["date"], Literal["time"], Literal["datetime"]],
+        "allow_empty": Union[bool, None],
+        "rename": Union[str, None]
+    }
+)
+
+def _text_reader_task(*, path, encoding, dialect, task, import_fields, guess_dtypes):
     return nl.text_reader_task(
         path=path,
         encoding=encoding,
@@ -40,18 +56,18 @@ def text_reader_task(*, pid, path, encoding, dialect, task, import_fields, guess
 
 
 def text_reader(
-    T,
-    pid, path,
-    encoding="ENC_UTF8",
+    T: Type[K],
+    pid: str, path: Union[str, Path],
+    encoding: ValidEncoders ="ENC_UTF8",
     *,
-    first_row_has_headers=True, header_row_index=0,
-    columns=None,
-    start=None, limit=None,
-    guess_datatypes=False,
-    newline='\n', delimiter=',', text_qualifier='"',
-    quoting, strip_leading_and_tailing_whitespace=True,
+    first_row_has_headers: bool=True, header_row_index: int=0,
+    columns: List[Union[str, None]]=None,
+    start: Union[str, None] = None, limit: Union[str, None]=None,
+    guess_datatypes: bool =False,
+    newline: str='\n', delimiter: str=',', text_qualifier: str='"',
+    quoting: ValidQuoting, strip_leading_and_tailing_whitespace: bool=True,
     tqdm=_tqdm
-):
+) -> K:
     assert isinstance(path, Path)
     assert isinstance(pid, Path)
 
@@ -87,14 +103,13 @@ def text_reader(
 
     tasks = [
         Task(
-            text_reader_task,
+            _text_reader_task,
             path=ti_path,
             encoding=ti_encoding,
             dialect=ti_dialect,
             task=t,
             guess_dtypes=ti_guess_dtypes,
-            import_fields=ti_import_fields,
-            pid=pid
+            import_fields=ti_import_fields
         ) for t in ti_tasks
     ]
 
@@ -147,11 +162,11 @@ def text_reader(
     return table
 
 
-def wrap(str_):
+def wrap(str_: str) -> str:
     return '"' + str_.replace('"', '\\"').replace("'", "\\'").replace("\n", "\\n").replace("\t", "\\t") + '"'
 
 
-def collect_cs_info(i: int, columns: dict, res_cols_pass: list, res_cols_fail: list):
+def _collect_cs_info(i: int, columns: dict, res_cols_pass: list, res_cols_fail: list):
     el = {
         k: column[i]
         for k, column in columns.items()
@@ -163,7 +178,7 @@ def collect_cs_info(i: int, columns: dict, res_cols_pass: list, res_cols_fail: l
     return el, col_pass, col_fail
 
 
-def column_select(table, cols, tqdm=_tqdm, TaskManager=TaskManager):
+def column_select(table: K, cols: list[ColumnSelectorDict], tqdm=_tqdm, TaskManager=TaskManager) -> Tuple[K, K]:
     with tqdm(total=100, desc="column select", bar_format='{desc}: {percentage:.1f}%|{bar}{r_bar}') as pbar:
         T = type(table)
         dir_pid = Config.workdir / Config.pid
@@ -187,7 +202,7 @@ def column_select(table, cols, tqdm=_tqdm, TaskManager=TaskManager):
             return (tbl_pass, tbl_fail)
 
         task_list_inp = (
-            collect_cs_info(i, columns, res_cols_pass, res_cols_fail)
+            _collect_cs_info(i, columns, res_cols_pass, res_cols_fail)
             for i in range(page_count)
         )
 
@@ -252,5 +267,5 @@ def column_select(table, cols, tqdm=_tqdm, TaskManager=TaskManager):
 
         return tbl_pass, tbl_fail
 
-def read_page(path):
+def read_page(path: Union[str, Path]) -> np.ndarray:
     return nl.read_page(str(path))
