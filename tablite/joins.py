@@ -1,6 +1,6 @@
 import psutil
 import numpy as np
-from typing import List
+from typing import List, Union
 from itertools import product
 from pathlib import Path
 from tablite.config import Config
@@ -18,8 +18,8 @@ def join(
     other: Table,
     left_keys: List[str],
     right_keys: List[str],
-    left_columns: List[str] | None,
-    right_columns: List[str] | None,
+    left_columns: Union[List[str], None],
+    right_columns: Union[List[str], None],
     kind: str = "inner",
     merge_keys: bool = False,
     tqdm=_tqdm,
