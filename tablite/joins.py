@@ -381,11 +381,12 @@ def _mp_where(
 
     :returns: None
     """
+    Constr = type(T)
     criteria = mapping[field][start:end]
     left_values = T[left][start:end]
     right_values = T[right][start:end]
     new_values = np.where(criteria, left_values, right_values)
-    return Table({new: new_values}, _path=path)
+    return Constr({new: new_values}, _path=path)
 
 
 def _mp_left_mapping(
@@ -425,7 +426,8 @@ def _mp_left_mapping(
                 _left.append(left_ix)
                 _right.append(right_ix)
 
-    mapping = Table({"left": _left, "right": _right}, _path=path)
+    Constr = type(T)
+    mapping = Constr({"left": _left, "right": _right}, _path=path)
     return mapping
 
 def _mp_inner_mapping(
@@ -467,7 +469,8 @@ def _mp_inner_mapping(
                 _left.append(left_ix)
                 _right.append(right_ix)
 
-    mapping = Table({"left": _left, "right": _right}, _path=path)
+    Constr = type(T)
+    mapping = Constr({"left": _left, "right": _right}, _path=path)
     return mapping
 
 
@@ -514,7 +517,8 @@ def _mp_outer_mapping(
             _left.append(-1)
             _right.append(right_ix)
 
-    mapping = Table({"left": _left, "right": _right}, _path=path)
+    Constr = type(T)
+    mapping = Constr({"left": _left, "right": _right}, _path=path)
     return mapping
 
 
@@ -540,15 +544,16 @@ def _mp_cross_mapping(
 
     Returns:
         Table: table initiated in the main process' working directory
-    """   
+    """ 
+    Constr = type(T)
     rr = np.arange(right_slice.start, min(right_slice.stop, len(other)))
-    tmp = Table({"right": rr}, _path=path)
+    tmp = Constr({"right": rr}, _path=path)
     right = tmp["right"]
     rr_shape = rr.shape
     del rr
 
     lr = np.arange(left_slice.start, min(left_slice.stop, len(T)))
-    mapping = Table({"left": [], "right": []}, _path=path)
+    mapping = Constr({"left": [], "right": []}, _path=path)
     for a in lr:
         mapping["right"].extend(right)  
         # by using the right filepointer above, the page-id is 
@@ -593,7 +598,8 @@ def _mp_reindex_page(
         if np.any(mask):
             nones = np.full(ix_arr.shape, fill_value=None)
             array = np.where(mask, nones, array)
-    remapped_T = Table({column_name: array}, _path=path)
+    Constr = type(T)
+    remapped_T = Constr({column_name: array}, _path=path)
     return remapped_T
 
 
@@ -647,6 +653,8 @@ def _mp_join(
         TaskManager=None,
     ):
 
+    Constr = type(T)
+
     if pbar is None:
         _pbar_created_here = True
         pbar = tqdm(total=5, desc="join", disable=Config.TQDM_DISABLE)
@@ -696,7 +704,7 @@ def _mp_join(
             raise Exception(errors[0])
 
     # step 2: assemble mapping from tasks
-    mapping = Table({"left": [], "right": []})
+    mapping = Constr({"left": [], "right": []})
     for result in results:
         assert isinstance(result, Table)
         mapping += result
@@ -706,7 +714,7 @@ def _mp_join(
     # step 3: initiate reindexing tasks
     tasks = []
     names = []  # will store (old name, new name) for derefences during assemble.
-    new_table = Table()
+    new_table = Constr()
     n = len(mapping)
     for name in left_columns:
         new_table.add_column(name)
