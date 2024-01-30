@@ -1017,7 +1017,7 @@ proc type2PyType(`type`: KindObjectND): nimpy.PyObject =
     of K_TIME: return pymodules.datetime().time
     of K_DATETIME: return pymodules.datetime().datetime
 
-proc newPyPage*(id: int, path: string, len: int, dtypes: Table[KindObjectND, int]): nimpy.PyObject =
+proc newPyPage*(id: string, path: string, len: int, dtypes: Table[KindObjectND, int]): nimpy.PyObject =
     let pyDtypes = pymodules.builtins().dict()
     
     for (dt, n) in dtypes.pairs:

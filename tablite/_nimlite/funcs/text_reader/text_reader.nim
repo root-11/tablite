@@ -67,7 +67,7 @@ proc textReaderTask*(task: TaskArgs): seq[nimpy.PyObject] =
                 for i in 0..<n_pages:
                     let path = Path(destinations[i])
                     let workdir = string path.parentDir.parentDir
-                    let id = parseInt(string path.extractFilename.changeFileExt(""))
+                    let id = string path.extractFilename.changeFileExt("")
                     let dtypes = pgTypes[i]
                     let len = pgLens[i]
 
