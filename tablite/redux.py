@@ -30,7 +30,7 @@ def _filter_using_expression(T, expression):
     return np.array([bool(_f(*r)) for r in T[req_columns].rows], dtype=bool)
 
 
-def _filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
+def _filter_using_list_of_dicts(T, expressions, filter_type, pbar: _tqdm):
     """
     enables filtering across columns for multiple criteria.
 
@@ -87,6 +87,7 @@ def _filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
     # EVALUATION....
     # 1. setup a rectangular bitmap for evaluations
     bitmap = np.empty(shape=(len(expressions), len(T)), dtype=bool)
+    pbar_step = 10 / (len(expressions) * len(list(Config.page_steps(len(T)))) - 1)
     # 2. create tasks for evaluations
     for bit_index, expression in enumerate(expressions):
         assert isinstance(expression, dict)
@@ -141,6 +142,7 @@ def _filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
                 assert callable(f)
                 result = list_to_np_array([safe_test(f, a, b) for a, b in zip(dset_A, dset_B)])
             bitmap[bit_index, start:end] = result
+            pbar.update(pbar_step)
 
     f = np.all if filter_type == "all" else np.any
     mask = f(bitmap, axis=0)
@@ -259,11 +261,13 @@ def _compress_one(T, mask):
     return new
 
 
-def _compress_both(T, mask):
+def _compress_both(T, mask, pbar:_tqdm):
     # NOTE FOR DEVELOPERS:
     # np.compress is so fast that the overhead of multiprocessing doesn't pay off.
     cls = type(T)
     true, false = cls(), cls()
+
+    pbar_step = 10 / (len(T.columns) * len(list(Config.page_steps(len(T)))) - 1)
 
     for name in T.columns:
         true.add_column(name)
@@ -275,6 +279,7 @@ def _compress_both(T, mask):
             data = T[name][start:end]
             true_col.extend(np.compress(mask[start:end], data))
             false_col.extend(np.compress(np.invert(mask)[start:end], data))
+            pbar.update(pbar_step)
     return true, false
 
 
@@ -315,11 +320,16 @@ def filter(T, expressions, filter_type="all", tqdm=_tqdm):
     if len(T) == 0:
         return T.copy(), T.copy()
 
-    if isinstance(expressions, str):
-        mask = _filter_using_expression(T, expressions)
-    elif isinstance(expressions, list):
-        mask = _filter_using_list_of_dicts(T, expressions, filter_type, tqdm)
-    else:
-        raise TypeError
-    # create new tables
-    return _compress_both(T, mask)
+    with tqdm(desc="filter", total=20) as pbar:
+        if isinstance(expressions, str):
+            mask = _filter_using_expression(T, expressions)
+            pbar.update(10)
+        elif isinstance(expressions, list):
+            mask = _filter_using_list_of_dicts(T, expressions, filter_type, pbar)
+        else:
+            raise TypeError
+        # create new tables
+        res = _compress_both(T, mask, pbar=pbar)
+        pbar.update(pbar.total - pbar.n)
+
+        return res
