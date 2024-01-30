@@ -22,7 +22,8 @@ from tablite import pivots
 from tablite import imputation
 from tablite import diff
 from tablite.config import Config
-
+from tablite.nimlite import column_select as _column_select
+from mplite import TaskManager as _TaskManager
 
 logging.getLogger("lml").propagate = False
 logging.getLogger("pyexcel_io").propagate = False
@@ -219,6 +220,7 @@ class Table(BaseTable):
         Creates Table using pd.to_dict('list')
 
         similar to:
+        ```
         >>> import pandas as pd
         >>> df = pd.DataFrame({'a':[1,2,3], 'b':[4,5,6]})
         >>> df
@@ -228,7 +230,6 @@ class Table(BaseTable):
             2  3  6
         >>> df.to_dict('list')
         {'a': [1, 2, 3], 'b': [4, 5, 6]}
-
         >>> t = Table.from_dict(df.to_dict('list))
         >>> t.show()
             +===+===+===+
@@ -239,6 +240,7 @@ class Table(BaseTable):
             | 1 |  2|  5|
             | 2 |  3|  6|
             +===+===+===+
+        ```
         """
         return import_utils.from_pandas(cls, df)
 
@@ -529,74 +531,79 @@ class Table(BaseTable):
         returns: table
 
         Example:
-
+        ```
         t = Table()
         t.add_column('A', data=[1, 1, 2, 2, 3, 3] * 2)
         t.add_column('B', data=[1, 2, 3, 4, 5, 6] * 2)
         t.add_column('C', data=[6, 5, 4, 3, 2, 1] * 2)
 
         t.show()
-        # +=====+=====+=====+
-        # |  A  |  B  |  C  |
-        # | int | int | int |
-        # +-----+-----+-----+
-        # |    1|    1|    6|
-        # |    1|    2|    5|
-        # |    2|    3|    4|
-        # |    2|    4|    3|
-        # |    3|    5|    2|
-        # |    3|    6|    1|
-        # |    1|    1|    6|
-        # |    1|    2|    5|
-        # |    2|    3|    4|
-        # |    2|    4|    3|
-        # |    3|    5|    2|
-        # |    3|    6|    1|
-        # +=====+=====+=====+
+        +=====+=====+=====+
+        |  A  |  B  |  C  |
+        | int | int | int |
+        +-----+-----+-----+
+        |    1|    1|    6|
+        |    1|    2|    5|
+        |    2|    3|    4|
+        |    2|    4|    3|
+        |    3|    5|    2|
+        |    3|    6|    1|
+        |    1|    1|    6|
+        |    1|    2|    5|
+        |    2|    3|    4|
+        |    2|    4|    3|
+        |    3|    5|    2|
+        |    3|    6|    1|
+        +=====+=====+=====+
 
         g = t.groupby(keys=['A', 'C'], functions=[('B', gb.sum)])
         g.show()
-        # +===+===+===+======+
-        # | # | A | C |Sum(B)|
-        # |row|int|int| int  |
-        # +---+---+---+------+
-        # |0  |  1|  6|     2|
-        # |1  |  1|  5|     4|
-        # |2  |  2|  4|     6|
-        # |3  |  2|  3|     8|
-        # |4  |  3|  2|    10|
-        # |5  |  3|  1|    12|
-        # +===+===+===+======+
-
+        +===+===+===+======+
+        | # | A | C |Sum(B)|
+        |row|int|int| int  |
+        +---+---+---+------+
+        |0  |  1|  6|     2|
+        |1  |  1|  5|     4|
+        |2  |  2|  4|     6|
+        |3  |  2|  3|     8|
+        |4  |  3|  2|    10|
+        |5  |  3|  1|    12|
+        +===+===+===+======+
+        ```
         Cheat sheet:
 
-        # list of unique values
+        list of unique values
+        ```
         >>> g1 = t.groupby(keys=['A'], functions=[])
         >>> g1['A'][:]
         [1,2,3]
-
-        # alternatively:
+        ```
+        alternatively:
         >>> t['A'].unique()
         [1,2,3]
 
-        # list of unique values, grouped by longest combination.
+        list of unique values, grouped by longest combination.
+        ```
         >>> g2 = t.groupby(keys=['A', 'B'], functions=[])
         >>> g2['A'][:], g2['B'][:]
         ([1,1,2,2,3,3], [1,2,3,4,5,6])
-
-        # alternatively:
+        ```
+        alternatively:
+        ```
         >>> list(zip(*t.index('A', 'B').keys()))
         [(1,1,2,2,3,3) (1,2,3,4,5,6)]
-
-        # A key (unique values) and count hereof.
+        ```
+        A key (unique values) and count hereof.
+        ```
         >>> g3 = t.groupby(keys=['A'], functions=[('A', gb.count)])
         >>> g3['A'][:], g3['Count(A)'][:]
         ([1,2,3], [4,4,4])
-
-        # alternatively:
+        ```
+        alternatively:
+        ```
         >>> t['A'].histogram()
         ([1,2,3], [4,4,4])
-
+        ```
         for more exmaples see:
             https://github.com/root-11/tablite/blob/master/tests/test_groupby.py
 
@@ -610,40 +617,40 @@ class Table(BaseTable):
         param: functions: aggregation functions from the Groupby class as
 
         example:
-
+        ```
         t.show()
-        # +=====+=====+=====+
-        # |  A  |  B  |  C  |
-        # | int | int | int |
-        # +-----+-----+-----+
-        # |    1|    1|    6|
-        # |    1|    2|    5|
-        # |    2|    3|    4|
-        # |    2|    4|    3|
-        # |    3|    5|    2|
-        # |    3|    6|    1|
-        # |    1|    1|    6|
-        # |    1|    2|    5|
-        # |    2|    3|    4|
-        # |    2|    4|    3|
-        # |    3|    5|    2|
-        # |    3|    6|    1|
-        # +=====+=====+=====+
+        +=====+=====+=====+
+        |  A  |  B  |  C  |
+        | int | int | int |
+        +-----+-----+-----+
+        |    1|    1|    6|
+        |    1|    2|    5|
+        |    2|    3|    4|
+        |    2|    4|    3|
+        |    3|    5|    2|
+        |    3|    6|    1|
+        |    1|    1|    6|
+        |    1|    2|    5|
+        |    2|    3|    4|
+        |    2|    4|    3|
+        |    3|    5|    2|
+        |    3|    6|    1|
+        +=====+=====+=====+
 
         t2 = t.pivot(rows=['C'], columns=['A'], functions=[('B', gb.sum)])
         t2.show()
-        # +===+===+========+=====+=====+=====+
-        # | # | C |function|(A=1)|(A=2)|(A=3)|
-        # |row|int|  str   |mixed|mixed|mixed|
-        # +---+---+--------+-----+-----+-----+
-        # |0  |  6|Sum(B)  |    2|None |None |
-        # |1  |  5|Sum(B)  |    4|None |None |
-        # |2  |  4|Sum(B)  |None |    6|None |
-        # |3  |  3|Sum(B)  |None |    8|None |
-        # |4  |  2|Sum(B)  |None |None |   10|
-        # |5  |  1|Sum(B)  |None |None |   12|
-        # +===+===+========+=====+=====+=====+
-
+        +===+===+========+=====+=====+=====+
+        | # | C |function|(A=1)|(A=2)|(A=3)|
+        |row|int|  str   |mixed|mixed|mixed|
+        +---+---+--------+-----+-----+-----+
+        |0  |  6|Sum(B)  |    2|None |None |
+        |1  |  5|Sum(B)  |    4|None |None |
+        |2  |  4|Sum(B)  |None |    6|None |
+        |3  |  3|Sum(B)  |None |    8|None |
+        |4  |  2|Sum(B)  |None |None |   10|
+        |5  |  1|Sum(B)  |None |None |   12|
+        +===+===+========+=====+=====+=====+
+        ```
         """
         return pivots.pivot(self, rows, columns, functions, values_as_rows, tqdm=tqdm, pbar=pbar)
 
@@ -660,6 +667,7 @@ class Table(BaseTable):
         :returns: T
 
         Example:
+        ```
         >>> c.show()
         +==+====+====+====+====+
         | #| A  | B  | C  | D  |
@@ -686,9 +694,40 @@ class Table(BaseTable):
         | 5|None|  16|   6|
         | 6|None|  17|   7|
         +==+====+====+====+
-
+        ```
         """
         return merge.where(self, criteria,left,right,new)
+
+    def column_select(self, cols, tqdm=_tqdm, TaskManager=_TaskManager):
+        """
+        type-casts columns from a given table to specified type(s)
+
+        cols:
+            list of dicts: (example):
+
+                cols = [
+                    {'column':'A', 'type': 'bool'},
+                    {'column':'B', 'type': 'int', 'allow_empty': True},
+                    {'column':'B', 'type': 'float', 'allow_empty': False, 'rename': 'C'},
+                ]
+
+            'column'     : column name of the input table that we want to type-cast
+            'type'       : type that we want to type-cast the specified column to
+            'allow_empty': should we allow empty values (None, str('')) through (Default: False)
+            'rename'     : new name of the column, if None will keep the original name, in case of duplicates suffix will be added (Default: None)
+
+            supported types: 'bool', 'int', 'float', 'str', 'date', 'time', 'datetime'
+
+            if any of the columns is rejected, entire row is rejected
+
+        tqdm: progressbar constructor
+        TaskManager: TaskManager constructor
+
+        returns: (Table, Table)
+            first table contains the rows that were successfully cast to desired types
+            second table contains rows that failed to cast + rejection reason
+        """
+        return _column_select(self, cols, tqdm, TaskManager)
 
     def join(self, other, left_keys, right_keys, left_columns, right_columns, kind="inner", merge_keys=False, tqdm=_tqdm, pbar=None):
         """
@@ -715,10 +754,12 @@ class Table(BaseTable):
         :param right_columns: list of right columns to retain, if None, all are retained.
         :return: new Table
         Example:
+        ```
         SQL:   SELECT number, letter FROM numbers LEFT JOIN letters ON numbers.colour == letters.color
         Tablite: left_join = numbers.left_join(
             letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter']
         )
+        ```
         """
         return joins.left_join(self, other, left_keys, right_keys, left_columns, right_columns, merge_keys=merge_keys, tqdm=tqdm, pbar=pbar)
 
@@ -731,10 +772,12 @@ class Table(BaseTable):
         :param right_columns: list of right columns to retain, if None, all are retained.
         :return: new Table
         Example:
+        ```
         SQL:   SELECT number, letter FROM numbers JOIN letters ON numbers.colour == letters.color
         Tablite: inner_join = numbers.inner_join(
             letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter']
             )
+        ```
         """
         return joins.inner_join(self, other, left_keys, right_keys, left_columns, right_columns, merge_keys=merge_keys, tqdm=tqdm, pbar=pbar)
 
@@ -747,10 +790,12 @@ class Table(BaseTable):
         :param right_columns: list of right columns to retain, if None, all are retained.
         :return: new Table
         Example:
+        ```
         SQL:   SELECT number, letter FROM numbers OUTER JOIN letters ON numbers.colour == letters.color
         Tablite: outer_join = numbers.outer_join(
             letters, left_keys=['colour'], right_keys=['color'], left_columns=['number'], right_columns=['letter']
             )
+        ```
         """
         return joins.outer_join(self, other, left_keys, right_keys, left_columns, right_columns, merge_keys=merge_keys, tqdm=tqdm, pbar=pbar)
 
@@ -774,11 +819,12 @@ class Table(BaseTable):
         RIGHT must be a value that the OPERATOR can compare.
 
         Examples:
-              ('column A', "==", 'column B')  # comparison of two columns
-              ('Date', "<", DataTypes.date(24,12) )  # value from column 'Date' is before 24/12.
-              f = lambda L,R: all( ord(L) < ord(R) )  # uses custom function.
-              ('text 1', f, 'text 2')
-              value from column 'text 1' is compared with value from column 'text 2'
+        ```
+        ('column A', "==", 'column B')  # comparison of two columns
+        ('Date', "<", DataTypes.date(24,12) )  # value from column 'Date' is before 24/12.
+        f = lambda L,R: all( ord(L) < ord(R) )  # uses custom function.
+        ('text 1', f, 'text 2') value from column 'text 1' is compared with value from column 'text 2'
+        ```
         """
         return lookup.lookup(self, other, *criteria, all=all, tqdm=tqdm)
 
@@ -871,7 +917,7 @@ class Table(BaseTable):
             transpose columns 1,2 and 3 and transpose the remaining columns, except `sum`.
 
         Input:
-
+        ```
         | col1 | col2 | col3 | sun | mon | tue | ... | sat | sum  |
         |------|------|------|-----|-----|-----|-----|-----|------|
         | 1234 | 2345 | 3456 | 456 | 567 |     | ... |     | 1023 |
@@ -887,7 +933,7 @@ class Table(BaseTable):
         |1234| 2345| 3456| sun      |   456|
         |1234| 2345| 3456| mon      |   567|
         |1244| 2445| 4456| mon      |     7|
-
+        ```
         """
         return pivots.pivot_transpose(self, columns, keep, column_name, value_name, tqdm=tqdm)
 

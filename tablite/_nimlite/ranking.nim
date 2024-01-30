@@ -16,7 +16,7 @@ type Rank* = array[int(DataTypes.DT_MAX_ELEMENTS), (DataTypes, uint)]
 proc newRank*(): Rank =
     var rank: Rank
 
-    for i in 0..(int(DataTypes.DT_MAX_ELEMENTS)-1):
+    for i in 0..<int(DataTypes.DT_MAX_ELEMENTS):
         rank[i] = (DataTypes(i), uint 0)
 
     return rank
@@ -25,7 +25,7 @@ iterator iter*(rank: var Rank): ptr (DataTypes, uint) {.closure.} =
     var x = 0
     let max = int(DataTypes.DT_MAX_ELEMENTS)
     while x < max:
-        yield rank[x].unsafeAddr
+        yield rank[x].addr
         inc x
     raise newException(ResourceExhaustedError, "stop iteration")
 
