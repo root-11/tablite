@@ -35,7 +35,7 @@ proc finalizeSlice(indices: var seq[int], columnNames: seq[string], infos: var T
 
 proc toColSliceInfo(path: Path): ColSliceInfo =
     let workdir = string path.parentDir.parentDir
-    let pid = parseInt(string path.extractFilename.changeFileExt(""))
+    let pid = string path.extractFilename.changeFileExt("")
 
     return (workdir, pid)
 

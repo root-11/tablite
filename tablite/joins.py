@@ -598,8 +598,11 @@ def _mp_reindex_page(
         if np.any(mask):
             nones = np.full(ix_arr.shape, fill_value=None)
             array = np.where(mask, nones, array)
+
+
     Constr = type(T)
     remapped_T = Constr({column_name: array}, _path=path)
+
     return remapped_T
 
 

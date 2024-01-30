@@ -70,7 +70,6 @@ class SimplePage(object):
     autocleanup = True
 
     def __init__(self, id, path, len, py_dtype) -> None:
-        self.id = id
         self.path = Path(path) / "pages" / f"{id}.npy"
         self.len = len
         self.dtype = py_dtype
@@ -97,7 +96,7 @@ class SimplePage(object):
         path = Path(path)
 
         while True:
-            _id = next(cls.ids)
+            _id = f"{os.getpid()}-{next(cls.ids)}"
             _path = path / "pages" / f"{_id}.npy"
 
             if not _path.exists():
@@ -117,7 +116,7 @@ class SimplePage(object):
             return f"{self.__class__.__name__}({self.path}, <{e}>)"
 
     def __hash__(self) -> int:
-        return hash(self.id)
+        return hash(self.path)
 
     def owns(self):
         parts = self.path.parts
