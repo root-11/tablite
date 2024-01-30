@@ -9,6 +9,7 @@ import warnings
 import zipfile
 import numpy as np
 from pathlib import Path
+from typing import List, Union
 from tqdm import tqdm as _tqdm
 from collections import defaultdict, Counter
 from itertools import count, chain, product, repeat
@@ -69,7 +70,6 @@ class SimplePage(object):
     autocleanup = True
 
     def __init__(self, id, path, len, py_dtype) -> None:
-        self.id = id
         self.path = Path(path) / "pages" / f"{id}.npy"
         self.len = len
         self.dtype = py_dtype
@@ -96,7 +96,7 @@ class SimplePage(object):
         path = Path(path)
 
         while True:
-            _id = next(cls.ids)
+            _id = f"{os.getpid()}-{next(cls.ids)}"
             _path = path / "pages" / f"{_id}.npy"
 
             if not _path.exists():
@@ -116,7 +116,7 @@ class SimplePage(object):
             return f"{self.__class__.__name__}({self.path}, <{e}>)"
 
     def __hash__(self) -> int:
-        return hash(self.id)
+        return hash(self.path)
 
     def owns(self):
         parts = self.path.parts
@@ -201,7 +201,7 @@ class Column(object):
         """Create Column
 
         Args:
-            path (Path): path of table.yml
+            path (Path): path of table.yml (defaults: Config.pid_dir)
             value (Iterable, optional): Data to store. Defaults to None.
         """
         self.path = path
@@ -246,9 +246,8 @@ class Column(object):
     def repaginate(self):
         """resizes pages to Config.PAGE_SIZE"""
         new_pages = []
-        start, end = 0, 0
-        for _ in range(0, len(self) + 1, Config.PAGE_SIZE):
-            start, end = end, end + Config.PAGE_SIZE
+        for start in range(0, len(self) + 1, Config.PAGE_SIZE):
+            end = start + Config.PAGE_SIZE
             array = self[slice(start, end, 1)]
 
             np_dtype, py_dtype = pytype_from_iterable(array.tolist())
@@ -359,7 +358,7 @@ class Column(object):
         start, end = 0, 0
         for page in self.pages:
             start, end = end, end + page.len
-            yield start, end, page.get()
+            yield start, end, page
 
     def __getitem__(self, item):  # USER FUNCTION.
         """gets numpy array.
@@ -633,7 +632,7 @@ class Column(object):
                 new_page = Page(self.path, new_data)
                 self.pages[index] = new_page
 
-    def _del_by_slice(self, key):
+    def _del_by_slice(self, key:slice) -> None:
         """handles the following case:
         ```
         del column[m:n:o]
@@ -666,7 +665,7 @@ class Column(object):
         new_arrays = self._paginate(pruned)
         self.pages = head + [Page(self.path, arr) for arr in new_arrays] + tail
 
-    def get_by_indices(self, indices):
+    def get_by_indices(self, indices: Union[List[int], np.ndarray]) -> np.ndarray:
         """retrieves values from column given a set of indices.
 
         Args:
@@ -690,20 +689,21 @@ class Column(object):
             indices.shape, dtype=object
         )  # placeholder for the indexed values.
 
-        for start, end, data in self.iter_by_page():
-            range_match = np.asarray(
-                ((indices >= start) & (indices < end)) | (indices == -1)
-            ).nonzero()[0]
+        for start, end, page in self.iter_by_page():
+            range_match = np.asarray(((indices >= start) & (indices < end)) | (indices == -1)).nonzero()[0]
             if len(range_match):
+                # only fetch the data if there's a range match!
+                data = page.get() 
                 sub_index = np.take(indices, range_match)
-                sub_index2 = np.where(sub_index == -1, -1, sub_index - start)
-                # diss: the line above is required to cover for cases where len(data) > (-1 - start)
-                #       as sub_index2 otherwise will raise index error
-                arr = np.take(data, sub_index2)
+                # sub_index2 otherwise will raise index error where len(data) > (-1 - start)
+                # so the clause below is required:
+                if len(data) > (-1 - start):
+                    sub_index = np.where(sub_index == -1, -1, sub_index - start)
+                arr = np.take(data, sub_index)
                 dtypes.add(arr.dtype)
                 np.put(values, range_match, arr)
 
-        if len(dtypes) == 1:  # simplify the datatype.
+        if len(dtypes) == 1:  # simplify the datatype
             dtype = next(iter(dtypes))
             values = np.array(values, dtype=dtype)
         return values
@@ -1064,7 +1064,13 @@ class Table(object):
     _ids = count()
     _add_row_slow_warning = False
 
-    def __init__(self, columns=None, headers=None, rows=None, _path=None) -> None:
+    def __init__(
+        self,
+        columns: [dict, None] = None,
+        headers: [list, None] = None,
+        rows: [list, None] = None,
+        _path: [Path, None] = None,
+    ) -> None:
         """creates Table
 
         Args:
@@ -1075,6 +1081,8 @@ class Table(object):
                 headers (list of strings, optional): list of column names.
                 rows (list of tuples or lists, optional): values for columns
                 Example: t = Table(headers=["a", "b"], rows=[[1,3], [2,4]])
+
+            _path (pathlib.Path, optional): path to main process working directory.
         """
         if _path is None:
             if self._pid_dir is None:
@@ -1353,12 +1361,14 @@ class Table(object):
         ----------------------------------------
         ```
         """
+        if isinstance(path, str):
+            path = Path(path)
         type_check(path, Path)
         if path.is_dir():
             raise TypeError(f"filename needed: {path}")
         if path.suffix != ".tpz":
-            path += ".tpz"
-
+            path = path.parent / (path.parts[-1] + ".tpz")
+        
         # create yaml document
         _page_counter = 0
         d = {}

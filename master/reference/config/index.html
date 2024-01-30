@@ -727,6 +727,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#tablite.config.Config.vpus" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;vpus
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tablite.config.Config.AUTO" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;AUTO
@@ -1490,6 +1499,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#tablite.config.Config.vpus" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;vpus
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tablite.config.Config.AUTO" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;AUTO
@@ -1645,13 +1663,14 @@
   
       <p>Config class for Tablite Tables.</p>
 <p>The default location for the storage is loaded as</p>
-<p>Config.workdir = pathlib.Path(os.environ.get("TABLITE_TMPDIR", f"{tempfile.gettempdir()}/tablite-tmp"))</p>
+<pre><code>Config.workdir = pathlib.Path(os.environ.get(&quot;TABLITE_TMPDIR&quot;, f&quot;{tempfile.gettempdir()}/tablite-tmp&quot;))
+</code></pre>
 <p>to overwrite, first import the config class, then set the new workdir.</p>
 <pre><code>&gt;&gt;&gt; from tablite import config
 &gt;&gt;&gt; from pathlib import Path
 &gt;&gt;&gt; config.workdir = Path(&quot;/this/new/location&quot;)
 </code></pre>
-<p>for every new table or record this path will be used.</p>
+<p>the new path will now be used for every new table.</p>
 <p>PAGE_SIZE = 1_000_000 sets the page size limit.</p>
 <p>Multiprocessing is enabled in one of three modes:
 AUTO = "auto"
@@ -1829,6 +1848,9 @@ multiprocessing is used.</p>
 
 
   <div class="doc doc-contents ">
+  
+      <p>10e9 (10Gb) on 100 Gb disk means raise at 90 Gb disk usage.
+if DISK_LIMIT &lt;= 0, the check is turned off.</p>
   </div>
 
 </div>
@@ -1839,6 +1861,29 @@ multiprocessing is used.</p>
 
 <h6 id="tablite.config.Config.SINGLE_PROCESSING_LIMIT" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">SINGLE_PROCESSING_LIMIT</span> <span class="o">=</span> <span class="mi">1000000</span></code>
+  
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h6>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>when the number of fields (rows x columns)
+exceed this value, multiprocessing is used.</p>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h6 id="tablite.config.Config.vpus" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">vpus</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span></code>
   
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
@@ -1976,11 +2021,11 @@ multiprocessing is used.</p>
 
           <details class="quote">
             <summary>Source code in <code>tablite/config.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">75</span>
-<span class="normal">76</span>
-<span class="normal">77</span>
-<span class="normal">78</span>
-<span class="normal">79</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">72</span>
+<span class="normal">73</span>
+<span class="normal">74</span>
+<span class="normal">75</span>
+<span class="normal">76</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
 <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Resets the config class to original values.&quot;&quot;&quot;</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">_default_values</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -2035,7 +2080,10 @@ multiprocessing is used.</p>
 
           <details class="quote">
             <summary>Source code in <code>tablite/config.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">81</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">78</span>
+<span class="normal">79</span>
+<span class="normal">80</span>
+<span class="normal">81</span>
 <span class="normal">82</span>
 <span class="normal">83</span>
 <span class="normal">84</span>
@@ -2044,10 +2092,7 @@ multiprocessing is used.</p>
 <span class="normal">87</span>
 <span class="normal">88</span>
 <span class="normal">89</span>
-<span class="normal">90</span>
-<span class="normal">91</span>
-<span class="normal">92</span>
-<span class="normal">93</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
+<span class="normal">90</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
 <span class="k">def</span> <span class="nf">page_steps</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">length</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;an iterator that yield start and end in page sizes</span>
 
