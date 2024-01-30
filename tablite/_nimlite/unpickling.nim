@@ -224,6 +224,14 @@ proc loadBinGet(iter: var IterPickle, stack: var Stack, memo: var Memo): PY_Obje
 
     return obj
 
+proc loadLongBinGet(iter: var IterPickle, stack: var Stack, memo: var Memo): PY_Object {.inline.} =
+    let idx = uint iter.readIntOfSize(4)
+    let obj = memo[idx]
+
+    stack.add(obj)
+
+    return obj
+
 proc loadBinFloat(iter: var IterPickle, stack: var Stack): BinFloatPickle {.inline.} =
     var arr: array[8, uint8]
 
@@ -529,6 +537,7 @@ proc unpickle(iter: var IterPickle, stack: var Stack, memo: var Memo, metastack:
     of PKL_APPENDS: loadAppends(stack, metastack)
     of PKL_STOP: loadStop(stack)
     of PKL_BINGET: iter.loadBinGet(stack, memo)
+    of PKL_LONG_BINGET: iter.loadLongBinGet(stack, memo)
     else: raise newException(IOError, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
 
 proc getType(self: PY_ObjectND): KindObjectND =
