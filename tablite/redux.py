@@ -191,7 +191,8 @@ def filter_all(T, **kwargs):
     mask = np.full((len(T),), True)
     for k, v in kwargs.items():
         col = T[k]
-        for start, end, data in col.iter_by_page():
+        for start, end, page in col.iter_by_page():
+            data = page.get()
             if callable(v):
                 vf = np.frompyfunc(v, 1, 1)
                 mask[start:end] = mask[start:end] & np.apply_along_axis(vf, 0, data)
@@ -211,7 +212,8 @@ def drop(T, *args):
     mask = np.full((len(T),), False)
     for name in T.columns:
         col = T[name]
-        for start, end, data in col.iter_by_page():
+        for start, end, page in col.iter_by_page():
+            data = page.get()
             for arg in args:
                 mask[start:end] = mask[start:end] | (data == arg)
 
@@ -231,7 +233,8 @@ def filter_any(T, **kwargs):
     mask = np.full((len(T),), False)
     for k, v in kwargs.items():
         col = T[k]
-        for start, end, data in col.iter_by_page():
+        for start, end, page in col.iter_by_page():
+            data = page.get()
             if callable(v):
                 vf = np.frompyfunc(v, 1, 1)
                 mask[start:end] = mask[start:end] | np.apply_along_axis(vf, 0, data)
