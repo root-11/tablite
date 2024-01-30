@@ -9,7 +9,7 @@ from tablite.merge import where
 from tablite.base import Table, Column
 from tablite.utils import sub_cls_check, unique_name, type_check
 from tablite.mp_utils import select_processing_method
-from mplite import Task, TaskManager
+from mplite import Task, TaskManager as _TaskManager
 from tqdm import tqdm as _tqdm
 
 
@@ -107,7 +107,7 @@ def join(
     _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
 
     fields = len(T)*len(T.columns) + len(other)*len(other.columns)
-    m = select_processing_method(fields,sp=_sp_join,mp=_mp_join)
+    m = select_processing_method(fields, sp=_sp_join, mp=_mp_join)
 
     return m(kind, T,other,left_keys, right_keys, left_columns, right_columns, merge_keys=merge_keys,
              tqdm=tqdm, pbar=pbar)
@@ -644,7 +644,7 @@ def _mp_join(
         merge_keys: bool = False,
         tqdm=_tqdm,
         pbar=None,
-        task_manager=None,
+        TaskManager=None,
     ):
 
     if pbar is None:
@@ -659,8 +659,8 @@ def _mp_join(
             pbar.update(n / len(tasks))
 
     # create left and right index
-    if task_manager is None:
-        task_manager = TaskManager
+    if TaskManager is None:
+        TaskManager = _TaskManager
     
     tasks = []
 
@@ -688,7 +688,7 @@ def _mp_join(
             )
             tasks.append(task)
 
-    with task_manager(cpu_count=_vpus(tasks)) as tm:
+    with TaskManager(cpu_count=_vpus(tasks)) as tm:
         results = tm.execute(tasks, pbar=ProgressBar())
 
     # step 2: assemble mapping from tasks
@@ -706,7 +706,6 @@ def _mp_join(
     n = len(mapping)
     for name in left_columns:
         new_table.add_column(name)
-        
 
         for start in range(0, n + 1, step):
             names.append((name, name))
@@ -725,7 +724,6 @@ def _mp_join(
     for name in right_columns:
         new_name = unique_name(name, new_table.columns)
         new_table.add_column(new_name)
-        
 
         for start in range(0, n + 1, step):
             names.append((new_name, name))
@@ -741,7 +739,7 @@ def _mp_join(
             )
             tasks.append(task)
 
-    with task_manager(cpu_count=_vpus(tasks)) as tm:
+    with TaskManager(cpu_count=_vpus(tasks)) as tm:
         results = tm.execute(tasks, pbar=ProgressBar())
 
     # step 4: assemble the result
@@ -774,7 +772,7 @@ def _mp_join(
                 )
                 tasks.append(task)
 
-        with task_manager(cpu_count=_vpus(tasks)) as tm:
+        with TaskManager(cpu_count=_vpus(tasks)) as tm:
             results = tm.execute(tasks, pbar=ProgressBar())
 
         for task, result in zip(tasks, results):
