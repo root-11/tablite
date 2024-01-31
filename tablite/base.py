@@ -245,16 +245,9 @@ class Column(object):
 
     def repaginate(self):
         """resizes pages to Config.PAGE_SIZE"""
-        new_pages = []
-        for start in range(0, len(self) + 1, Config.PAGE_SIZE):
-            end = start + Config.PAGE_SIZE
-            array = self[slice(start, end, 1)]
+        from tablite.nimlite import repaginate as _repaginate
 
-            np_dtype, py_dtype = pytype_from_iterable(array.tolist())
-            new = MetaArray(array, dtype=np_dtype, py_dtype=py_dtype)
-
-            new_pages.append(Page(self.path, new))
-        self.pages = new_pages
+        _repaginate(self)
 
     def extend(self, value):  # USER FUNCTION.
         """extends the column.
