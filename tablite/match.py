@@ -1,5 +1,5 @@
 import numpy as np
-from tablite.base import Table
+from tablite.base import BaseTable
 from tablite.utils import unique_name, type_check, name_check
 
 
@@ -21,8 +21,8 @@ def match(T, other, *criteria, keep_left=None, keep_right=None):  # lookup and f
     :param: keep_left: list of columns to keep.
     :param: keep_right: list of right columns to keep.
     """
-    assert isinstance(T, Table)
-    assert isinstance(other, Table)
+    assert isinstance(T, BaseTable)
+    assert isinstance(other, BaseTable)
     if keep_left is None:
         keep_left = [n for n in T.columns]
     else:

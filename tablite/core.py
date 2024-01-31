@@ -5,7 +5,7 @@ from pathlib import Path
 
 from tqdm import tqdm as _tqdm
 
-from tablite.base import Table as BaseTable
+from tablite.base import BaseTable
 from tablite.base import Column  # noqa
 from tablite.utils import type_check
 from tablite import import_utils

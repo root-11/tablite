@@ -1,5 +1,5 @@
 import numpy as np
-from tablite.base import Table
+from tablite.base import BaseTable
 from tablite.config import Config
 from tablite.utils import unique_name, type_check
 
@@ -18,7 +18,7 @@ def where(T, criteria, left, right, new):
 
     :returns: T
     """
-    type_check(T, Table)
+    type_check(T, BaseTable)
     if isinstance(criteria, np.ndarray):
         if not criteria.dtype == "bool":
             raise TypeError

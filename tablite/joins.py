@@ -6,7 +6,7 @@ from pathlib import Path
 from tablite.config import Config
 from tablite.reindex import reindex
 from tablite.merge import where
-from tablite.base import Table, Column
+from tablite.base import BaseTable, Column
 from tablite.utils import sub_cls_check, unique_name, type_check
 from tablite.mp_utils import select_processing_method
 from mplite import Task, TaskManager as _TaskManager
@@ -14,8 +14,8 @@ from tqdm import tqdm as _tqdm
 
 
 def join(
-    T: Table,
-    other: Table,
+    T: BaseTable,
+    other: BaseTable,
     left_keys: List[str],
     right_keys: List[str],
     left_columns: Union[List[str], None],
@@ -113,22 +113,22 @@ def join(
              tqdm=tqdm, pbar=pbar)
 
 # fmt:off
-def inner_join(T: Table, other: Table, left_keys: List[str], right_keys: List[str], 
+def inner_join(T: BaseTable, other: BaseTable, left_keys: List[str], right_keys: List[str], 
               left_columns: Union[List[str], None], right_columns: Union[List[str], None],
               merge_keys: bool = False, tqdm=_tqdm, pbar=None):
     return join(T, other, left_keys, right_keys, left_columns, right_columns, kind="inner", merge_keys=merge_keys, tqdm=tqdm,pbar=pbar)
 
-def left_join(T: Table, other: Table, left_keys: List[str], right_keys: List[str], 
+def left_join(T: BaseTable, other: BaseTable, left_keys: List[str], right_keys: List[str], 
               left_columns: Union[List[str], None], right_columns: Union[List[str], None],
               merge_keys: bool = False, tqdm=_tqdm, pbar=None):
     return join(T, other, left_keys, right_keys, left_columns, right_columns, kind="left", merge_keys=merge_keys, tqdm=tqdm,pbar=pbar)
 
-def outer_join(T: Table, other: Table, left_keys: List[str], right_keys: List[str], 
+def outer_join(T: BaseTable, other: BaseTable, left_keys: List[str], right_keys: List[str], 
               left_columns: Union[List[str], None], right_columns: Union[List[str], None],
               merge_keys: bool = False, tqdm=_tqdm, pbar=None):
     return join(T, other, left_keys, right_keys, left_columns, right_columns, kind="outer", merge_keys=merge_keys, tqdm=tqdm,pbar=pbar)
 
-def cross_join(T: Table, other: Table, left_keys: List[str], right_keys: List[str], 
+def cross_join(T: BaseTable, other: BaseTable, left_keys: List[str], right_keys: List[str], 
               left_columns: Union[List[str], None], right_columns: Union[List[str], None],
               merge_keys: bool = False, tqdm=_tqdm, pbar=None):
     return join(T, other, left_keys, right_keys, left_columns, right_columns, kind="cross", merge_keys=merge_keys, tqdm=tqdm,pbar=pbar)
@@ -153,8 +153,8 @@ def _vpus(tasks):
 
 
 def _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns):
-    sub_cls_check(T, Table)
-    sub_cls_check(other, Table)
+    sub_cls_check(T, BaseTable)
+    sub_cls_check(other, BaseTable)
 
     if not isinstance(left_keys, list) and all(isinstance(k, str) for k in left_keys):
         raise TypeError(f"Expected keys as list of strings, not {type(left_keys)}")
@@ -355,8 +355,8 @@ def _merge_keys(kind, T, result, left, right, left_keys, right_keys):
 
 
 def _mp_where(
-    T: Table,
-    mapping: Table,
+    T: BaseTable,
+    mapping: BaseTable,
     field: str,
     left: str,
     right: str,
@@ -390,8 +390,8 @@ def _mp_where(
 
 
 def _mp_left_mapping(
-    T: Table,
-    other: Table,
+    T: BaseTable,
+    other: BaseTable,
     left_slice: slice,
     right_slice: slice,
     left_keys: List[str],
@@ -431,8 +431,8 @@ def _mp_left_mapping(
     return mapping
 
 def _mp_inner_mapping(
-    T: Table,
-    other: Table,
+    T: BaseTable,
+    other: BaseTable,
     left_slice: slice,
     right_slice: slice,
     left_keys: List[str],
@@ -475,8 +475,8 @@ def _mp_inner_mapping(
 
 
 def _mp_outer_mapping(
-    T: Table,
-    other: Table,
+    T: BaseTable,
+    other: BaseTable,
     left_slice: slice,
     right_slice: slice,
     left_keys: List[str],
@@ -523,8 +523,8 @@ def _mp_outer_mapping(
 
 
 def _mp_cross_mapping(
-    T: Table,
-    other: Table,
+    T: BaseTable,
+    other: BaseTable,
     left_slice: slice,
     right_slice: slice,
     left_keys: List[str],
@@ -563,9 +563,9 @@ def _mp_cross_mapping(
 
 
 def _mp_reindex_page(
-    T: Table,
+    T: BaseTable,
     column_name: str,
-    mapping: Table,
+    mapping: BaseTable,
     index: str,
     start: int,
     end: int,
@@ -644,8 +644,8 @@ _mp_mapping_methods = {
 
 def _mp_join(
         kind: str,
-        T: Table,
-        other: Table,
+        T: BaseTable,
+        other: BaseTable,
         left_keys: List[str],
         right_keys: List[str],
         left_columns: Union[List[str], None] = None,
@@ -709,7 +709,7 @@ def _mp_join(
     # step 2: assemble mapping from tasks
     mapping = Constr({"left": [], "right": []})
     for result in results:
-        assert isinstance(result, Table)
+        assert isinstance(result, BaseTable)
         mapping += result
 
     pbar.update(1)
