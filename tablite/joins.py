@@ -771,7 +771,7 @@ def _mp_join(
 
     # step 5: merge keys (if required)
     if merge_keys is True:
-        mapping["boolean map"] = np.array(mapping[right] == -1, dtype=bool)
+        mapping["boolean map"] = np.array([mapping[right] == -1], dtype=bool)
         step = 1 / len(left_keys)
         tasks = []
         for left_name, right_name in zip(left_keys, right_keys):
