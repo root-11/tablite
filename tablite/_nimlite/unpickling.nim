@@ -444,12 +444,9 @@ proc setState(self: var PY_NpMultiArray, state: var TuplePickle): void {.inline.
     if np_ver != 1:
         raise newException(IOError, "unsupported numpy version: " & $np_ver)
 
-    var np_shape = collect: (for e in (TuplePickle state.elems[STATE_SHAPE]).elems: (BinIntPickle e).value)
+    let np_shape = collect: (for e in (TuplePickle state.elems[STATE_SHAPE]).elems: (BinIntPickle e).value)
     let np_dtype = PY_NpDType state.elems[STATE_DTYPE]
     let np_rawdata = Py_List state.elems[STATE_RAWDATA]
-
-    # if calcShapeElements(np_shape) < 0:
-    #     raise newException(IOError, "invalid size: " & $state.elems[STATE_SHAPE])
 
     self.dtype = np_dtype.dtype
     self.elems = np_rawdata.elems
