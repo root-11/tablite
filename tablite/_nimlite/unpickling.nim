@@ -173,12 +173,9 @@ template readOfSize(iter: var IterPickle, sz: int): openArray[uint8] =
     arr
 
 template readIntOfSize(iter: var IterPickle, sz: int): int =
-    when sz == 4:
-        int cast[int32](iter.readOfSize(sz))
-    elif sz == 2:
-        int int cast[int16](iter.readOfSize(sz))
-    elif sz == 1:
-        int cast[int8](iter.readOfSize(sz))
+    when sz == 4: int cast[int32](iter.readOfSize(sz))
+    elif sz == 2: int cast[uint16](iter.readOfSize(sz))
+    elif sz == 1: int cast[uint8](iter.readOfSize(sz))
     else:
         raise newException(IOError, "invalid int size: " & $sz)
 
@@ -251,7 +248,7 @@ proc loadBinInt(iter: var IterPickle, stack: var Stack): BinIntPickle {.inline.}
     return value
 
 proc loadBinInt1(iter: var IterPickle, stack: var Stack): BinIntPickle {.inline.} =
-    let value = BinIntPickle(value: int int iter(), kind: K_INT)
+    let value = BinIntPickle(value: int iter(), kind: K_INT)
     stack.add(value)
     return value
 
@@ -447,9 +444,12 @@ proc setState(self: var PY_NpMultiArray, state: var TuplePickle): void {.inline.
     if np_ver != 1:
         raise newException(IOError, "unsupported numpy version: " & $np_ver)
 
-    let np_shape = collect: (for e in (TuplePickle state.elems[STATE_SHAPE]).elems: (BinIntPickle e).value)
+    var np_shape = collect: (for e in (TuplePickle state.elems[STATE_SHAPE]).elems: (BinIntPickle e).value)
     let np_dtype = PY_NpDType state.elems[STATE_DTYPE]
     let np_rawdata = Py_List state.elems[STATE_RAWDATA]
+
+    # if calcShapeElements(np_shape) < 0:
+    #     raise newException(IOError, "invalid size: " & $state.elems[STATE_SHAPE])
 
     self.dtype = np_dtype.dtype
     self.elems = np_rawdata.elems
