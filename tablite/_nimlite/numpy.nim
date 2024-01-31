@@ -646,7 +646,7 @@ proc newObjectNDArray(fh: var File, endianness: Endianness, shape: var Shape): O
     var (shape, buf, dtypes) = readPickledPage(fh, endianness, shape)
 
     if calcShapeElements(shape) != elements:
-        raise newException(IOError, "invalid object array shape")
+        raise newException(IOError, "invalid object array shape " & $shape & "(" & $calcShapeElements(shape) & ") != " & $elements)
 
     return ObjectNDArray(shape: shape, buf: buf, dtypes: dtypes, kind: K_OBJECT)
 

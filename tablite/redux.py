@@ -87,7 +87,8 @@ def _filter_using_list_of_dicts(T, expressions, filter_type, pbar: _tqdm):
     # EVALUATION....
     # 1. setup a rectangular bitmap for evaluations
     bitmap = np.empty(shape=(len(expressions), len(T)), dtype=bool)
-    pbar_step = 10 / (len(expressions) * len(list(Config.page_steps(len(T)))) - 1)
+    pbar_div = (len(expressions) * len(list(Config.page_steps(len(T)))) - 1)
+    pbar_step = (10 / pbar_div) if pbar_div != 0 else 0
     # 2. create tasks for evaluations
     for bit_index, expression in enumerate(expressions):
         assert isinstance(expression, dict)
@@ -147,6 +148,7 @@ def _filter_using_list_of_dicts(T, expressions, filter_type, pbar: _tqdm):
     f = np.all if filter_type == "all" else np.any
     mask = f(bitmap, axis=0)
     # 4. The mask is now created and is no longer needed.
+    pbar.update(10 - pbar.n)
     return mask
 
 
@@ -267,7 +269,8 @@ def _compress_both(T, mask, pbar:_tqdm):
     cls = type(T)
     true, false = cls(), cls()
 
-    pbar_step = 10 / (len(T.columns) * len(list(Config.page_steps(len(T)))) - 1)
+    pbar_div = (len(T.columns) * len(list(Config.page_steps(len(T)))) - 1)
+    pbar_step = (10 / pbar_div) if pbar_div != 0 else 0
 
     for name in T.columns:
         true.add_column(name)
