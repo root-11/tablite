@@ -1052,7 +1052,7 @@ class Column(object):
         return result
 
 
-class Table(object):
+class BaseTable(object):
     _pid_dir = None  # typically `Config.workdir / Config.pid`
     _ids = count()
     _add_row_slow_warning = False
@@ -1308,7 +1308,7 @@ class Table(object):
         """
         if isinstance(other, dict):
             return self.items() == other.items()
-        if not isinstance(other, Table):
+        if not isinstance(other, BaseTable):
             return False
         if id(self) == id(other):
             return True
@@ -1484,7 +1484,7 @@ class Table(object):
         Returns:
             None: self is updated.
         """
-        type_check(other, Table)
+        type_check(other, BaseTable)
         for name in self.columns.keys():
             if name not in other.columns:
                 raise ValueError(f"{name} not in other")
@@ -1511,7 +1511,7 @@ class Table(object):
         Returns:
             Table
         """
-        type_check(other, Table)
+        type_check(other, BaseTable)
         cp = self.copy()
         cp += other
         return cp
@@ -1545,11 +1545,11 @@ class Table(object):
         ```
 
         """
-        if not Table._add_row_slow_warning:
+        if not BaseTable._add_row_slow_warning:
             warnings.warn(
                 "add_rows is slow. Consider using add_columns and then assigning values to the columns directly."
             )
-            Table._add_row_slow_warning = True
+            BaseTable._add_row_slow_warning = True
 
         if args:
             if not all(isinstance(i, (list, tuple, dict)) for i in args):  # 1,4
@@ -1627,7 +1627,7 @@ class Table(object):
                                     | A| B| -| D|
         ```
         """
-        if not isinstance(other, Table):
+        if not isinstance(other, BaseTable):
             raise TypeError(f"stack only works for Table, not {type(other)}")
 
         cp = self.copy()

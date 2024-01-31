@@ -1,7 +1,7 @@
 import math
 import numpy as np
 from tablite.config import Config
-from tablite.base import Table, Column
+from tablite.base import BaseTable, Column
 from tablite.reindex import reindex as _reindex
 from tablite.utils import sub_cls_check, unique_name
 from tablite.mp_utils import lookup_ops, share_mem, map_task, select_processing_method
@@ -39,8 +39,8 @@ def lookup(T, other, *criteria, all=True, tqdm=_tqdm):
             ('text 1', f, 'text 2')
 
     """
-    sub_cls_check(T, Table)
-    sub_cls_check(other, Table)
+    sub_cls_check(T, BaseTable)
+    sub_cls_check(other, BaseTable)
 
     all = all
     any = not all
@@ -66,15 +66,16 @@ def lookup(T, other, *criteria, all=True, tqdm=_tqdm):
     result_index = np.empty(shape=(len(T)), dtype=np.int64)
     cache = {}
     left = T[left_columns]
+    Constr = type(T)
     if isinstance(left, Column):
-        tmp, left = left, Table()
+        tmp, left = left, Constr()
         left[left_columns[0]] = tmp
     right = other[right_columns]
     if isinstance(right, Column):
-        tmp, right = right, Table()
+        tmp, right = right, Constr()
         right[right_columns[0]] = tmp
-    assert isinstance(left, Table)
-    assert isinstance(right, Table)
+    assert isinstance(left, BaseTable)
+    assert isinstance(right, BaseTable)
 
     for ix, row1 in tqdm(enumerate(left.rows), total=len(T), disable=Config.TQDM_DISABLE):
         row1_tup = tuple(row1)

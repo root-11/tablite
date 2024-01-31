@@ -1,4 +1,4 @@
-from tablite.base import Table, Column, Page
+from tablite.base import BaseTable, Column, Page
 from mplite import TaskManager, Task
 from tablite.config import Config
 import numpy as np
@@ -24,7 +24,7 @@ def test_basics():
     C = [i * 10 for i in B]
     data = {"A": A, "B": B, "C": C}
 
-    t = Table(columns=data)
+    t = BaseTable(columns=data)
     assert t == data
     assert t.items() == data.items()
 
@@ -33,11 +33,11 @@ def test_basics():
     b = t[3]  # selects row 3 as a tuple.
     assert isinstance(b, tuple)
     c = t[:10]  # selects first 10 rows from all columns
-    assert isinstance(c, Table)
+    assert isinstance(c, BaseTable)
     assert len(c) == 10
     assert c.items() == {k: v[:10] for k, v in data.items()}.items()
     d = t["A", "B", slice(3, 20, 2)]  # selects a slice from columns 'a' and 'b'
-    assert isinstance(d, Table)
+    assert isinstance(d, BaseTable)
     assert len(d) == 9
     assert d.items() == {k: v[3:20:2] for k, v in data.items() if k in ("A", "B")}.items()
 
@@ -52,8 +52,8 @@ def test_basics():
 
 
 def test_empty_table():
-    t2 = Table()
-    assert isinstance(t2, Table)
+    t2 = BaseTable()
+    assert isinstance(t2, BaseTable)
     t2["A"] = []
     assert len(t2) == 0
     c = t2["A"]
@@ -72,7 +72,7 @@ def test_page_size():
     data = {"A": A, "B": B, "C": C}
 
     # during __setitem__ Column.paginate will use config.
-    t = Table(columns=data)
+    t = BaseTable(columns=data)
     assert t == data
     assert t.items() == data.items()
 
@@ -80,7 +80,7 @@ def test_page_size():
     assert isinstance(x, Column)
     assert len(x.pages) == math.ceil(len(A) / Config.PAGE_SIZE)
     Config.PAGE_SIZE = 7
-    t2 = Table(columns=data)
+    t2 = BaseTable(columns=data)
     assert t == t2
     assert not t != t2
     x2 = t2["A"]
@@ -97,8 +97,8 @@ def test_cleaup():
 
     data = {"A": A, "B": B}
 
-    t = Table(columns=data)
-    assert isinstance(t, Table)
+    t = BaseTable(columns=data)
+    assert isinstance(t, BaseTable)
     _folder = t._pid_dir
 
     del t
@@ -116,8 +116,8 @@ def save_and_load():
     C = [i * 10 for i in B]
     data = {"A": A, "B": B, "C": C}
 
-    t = Table(columns=data)
-    assert isinstance(t, Table)
+    t = BaseTable(columns=data)
+    assert isinstance(t, BaseTable)
     my_folder = Path(Config.workdir) / "data"
     my_folder.mkdir(exist_ok=True)
     my_file = my_folder / "my_first_file.tpz"
@@ -132,9 +132,9 @@ def save_and_load():
         pass
 
     assert my_file.exists()
-    t2 = Table.load(my_file)
+    t2 = BaseTable.load(my_file)
 
-    t3 = Table(columns=data)
+    t3 = BaseTable(columns=data)
     assert t2 == t3
     assert t2.path.parent == t3.path.parent, "t2 must be loaded into same PID dir as t3"
 
@@ -143,7 +143,7 @@ def save_and_load():
         pass
 
     assert my_file.exists(), "deleting t2 MUST not affect the file saved by the user."
-    t4 = Table.load(my_file)
+    t4 = BaseTable.load(my_file)
     assert t4 == t3
 
     os.remove(my_file)
@@ -156,8 +156,8 @@ def test_copy():
     C = [i * 10 for i in B]
     data = {"A": A, "B": B, "C": C}
 
-    t1 = Table(columns=data)
-    assert isinstance(t1, Table)
+    t1 = BaseTable(columns=data)
+    assert isinstance(t1, BaseTable)
 
     t2 = t1.copy()
     for name, t2column in t2.columns.items():
@@ -172,7 +172,7 @@ def test_speed():
     A = list(range(1, 10_000_000))
     B = [i * 10 for i in A]
     data = {"A": A, "B": B}
-    t = Table(columns=data)
+    t = BaseTable(columns=data)
     import time
     import random
 
@@ -207,14 +207,14 @@ def test_immutability_of_pages():
     B = [i * 10 for i in A]
     C = [i * 10 for i in B]
     data = {"A": A, "B": B, "C": C}
-    t = Table(columns=data)
+    t = BaseTable(columns=data)
     change = t["A"][7:3:-1]
     t["A"][3:7] = change
 
 
 def test_slice_functions():
     Config.PAGE_SIZE = 3
-    t = Table(columns={"A": np.array([1, 2, 3, 4])})
+    t = BaseTable(columns={"A": np.array([1, 2, 3, 4])})
     L = t["A"]
     assert list(L[:]) == [1, 2, 3, 4]  # slice(None,None,None)
     assert list(L[:0]) == []  # slice(None,0,None)
@@ -232,13 +232,13 @@ def test_slice_functions():
     # assert list(L[-3:-1:1]) == [2, 3]
 
     data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    t = Table(columns={"A": np.array(data)})
+    t = BaseTable(columns={"A": np.array(data)})
     L = t["A"]
     assert list(L[-1:0:-1]) == data[-1:0:-1]
     assert list(L[-1:0:1]) == data[-1:0:1]
 
     data = list(range(100))
-    t2 = Table(columns={"A": np.array(data)})
+    t2 = BaseTable(columns={"A": np.array(data)})
     L = t2["A"]
     assert list(L[51:40:-1]) == data[51:40:-1]
     Config.reset()
@@ -249,7 +249,7 @@ def test_various():
     B = [i * 10 for i in A]
     C = [i * 10 for i in B]
     data = {"A": A, "B": B, "C": C}
-    t = Table(columns=data)
+    t = BaseTable(columns=data)
     t *= 2
     assert len(t) == len(A) * 2
     x = t["A"]
@@ -266,7 +266,7 @@ def test_various():
 
     orphaned_column = t["A"].copy()
     orphaned_column_2 = orphaned_column * 2
-    t3 = Table()
+    t3 = BaseTable()
     t3["A"] = orphaned_column_2
 
     orphaned_column.replace(mapping={2: 20, 3: 30, 4: 40})
@@ -284,7 +284,7 @@ def test_types():
     B = [i * 10 for i in A]
     C = [i * 10 for i in B]
     data = {"A": A, "B": B, "C": C}
-    t = Table(columns=data)
+    t = BaseTable(columns=data)
 
     c = t["A"]
     assert c.types() == {int: len(A)}
@@ -295,12 +295,12 @@ def test_types():
     A = list(range(5))
     B = list("abcde")
     data = {"A": A, "B": B}
-    t = Table(columns=data)
+    t = BaseTable(columns=data)
     typ1 = t.types()
     expected = {"A": {int: 5}, "B": {str: 5}}
     assert typ1 == expected
     more = {"A": B, "B": A}
-    t += Table(columns=more)
+    t += BaseTable(columns=more)
     typ2 = t.types()
     expected2 = {"A": {int: 5, str: 5}, "B": {str: 5, int: 5}}
     assert typ2 == expected2
@@ -311,9 +311,9 @@ def test_table_row_functions():
     B = [i * 10 for i in A]
     C = [i * 10 for i in B]
     data = {"A": A, "B": B, "C": C}
-    t = Table(columns=data)
+    t = BaseTable(columns=data)
 
-    t2 = Table()
+    t2 = BaseTable()
     t2.add_column("A")
     t2.add_columns("B", "C")
     t2.add_rows(
@@ -326,7 +326,7 @@ def test_table_row_functions():
     t3 = t2.stack(t)
     assert len(t3) == len(t2) + len(t)
 
-    t4 = Table(columns={"B": [-1, -2], "D": [0, 1]})
+    t4 = BaseTable(columns={"B": [-1, -2], "D": [0, 1]})
     t5 = t2.stack(t4)
     assert len(t5) == len(t2) + len(t4)
     assert list(t5.columns) == ["A", "B", "C", "D"]
@@ -337,7 +337,7 @@ def test_remove_all():
     B = [i * 10 for i in A]
     C = [i * 10 for i in B]
     data = {"A": A, "B": B, "C": C}
-    t = Table(columns=data)
+    t = BaseTable(columns=data)
 
     c = t["A"]
     c.remove_all(3)
@@ -353,7 +353,7 @@ def test_replace():
     B = [i * 10 for i in A]
     C = [i * 10 for i in B]
     data = {"A": A, "B": B, "C": C}
-    t = Table(columns=data)
+    t = BaseTable(columns=data)
 
     c = t["A"]
     c.replace({3: 30, 4: 40})
@@ -365,7 +365,7 @@ def test_display_options():
     B = [i * 10 for i in A]
     C = [i * 10 for i in B]
     data = {"A": A, "B": B, "C": C}
-    t = Table(columns=data)
+    t = BaseTable(columns=data)
 
     d = t.display_dict()
     assert d == {
@@ -432,7 +432,7 @@ def test_display_options():
     B = [i * 10 for i in A]
     C = [i * 1000 for i in B]
     data = {"A": A, "B": B, "C": C}
-    t2 = Table(columns=data)
+    t2 = BaseTable(columns=data)
     d2 = t2.display_dict()
     assert d2 == {
         "#": [" 0", " 1", " 2", " 3", " 4", " 5", " 6", "...", "43", "44", "45", "46", "47", "48", "49"],
@@ -462,7 +462,7 @@ def test_index():
     A = [1, 1, 2, 2, 3, 3, 4]
     B = list("asdfghjkl"[: len(A)])
     data = {"A": A, "B": B}
-    t = Table(columns=data)
+    t = BaseTable(columns=data)
     t.index("A")
     t.index("A", "B")
 
@@ -473,62 +473,62 @@ def test_to_dict():
     B = [i * 10 for i in A]
     C = [i * 10 for i in B]
     data = {"A": A, "B": B, "C": C}
-    t = Table(columns=data)
+    t = BaseTable(columns=data)
     assert t.to_dict() == data
 
 
 def test_unique():
-    t = Table({"A": [1, 1, 1, 2, 2, 2, 3, 3, 4]})
+    t = BaseTable({"A": [1, 1, 1, 2, 2, 2, 3, 3, 4]})
     assert np.all(t["A"].unique() == np.array([1, 2, 3, 4]))
 
 
 def test_unique_multiple_dtypes():
-    t = Table({"A": [0, 1.0, True, None, False, "0", "1"] * 2})
+    t = BaseTable({"A": [0, 1.0, True, None, False, "0", "1"] * 2})
     u = list(t["A"].unique())
     assert all(i in u for i in [0, 1.0, True, None, False, "0", "1"])
     assert len(u) == 7
 
 
 def test_histogram():
-    t = Table({"A": [1, 2, 3, 4, 5] * 3})
+    t = BaseTable({"A": [1, 2, 3, 4, 5] * 3})
     u, c = t["A"].histogram()
     assert u == [1, 2, 3, 4, 5]
     assert c == [3] * len(u)
 
 
 def test_histogram_multiple_dtypes():
-    t = Table({"A": [0, 1, True, False, None, "0", "1"] * 2})
+    t = BaseTable({"A": [0, 1, True, False, None, "0", "1"] * 2})
     u, c = t["A"].histogram()
     assert u == [0, 1, True, False, None, "0", "1"]
     assert c == [2] * len(u)
 
 
 def test_count():
-    t = Table({"A": [1, 1, 1, 2, 2, 2, 3, 3, 4]})
+    t = BaseTable({"A": [1, 1, 1, 2, 2, 2, 3, 3, 4]})
     assert t["A"].count(2) == 3
 
 
 def test_count_multiple_dtypes():
-    t = Table({"A": [0, 1.0, True, False, None, "0"] * 2})
+    t = BaseTable({"A": [0, 1.0, True, False, None, "0"] * 2})
     for v in t["A"]:
         assert t["A"].count(v) == 2
 
 
 def test_contains():
-    t = Table({"A": [1, 1, 1, 2, 2, 2, 3, 3, 4]})
+    t = BaseTable({"A": [1, 1, 1, 2, 2, 2, 3, 3, 4]})
     assert 3 in t["A"]
     assert 7 not in t["A"]
 
 
 def test_contains_multiple_dtypes():
-    t = Table({"A": [0, 1.0, True, False, None, "0"] * 2})
+    t = BaseTable({"A": [0, 1.0, True, False, None, "0"] * 2})
     for v in t["A"]:
         assert v in t["A"]
 
 
 def test_get_by_indices_one_page():
     data = list("abcdefg")
-    t = Table({"A": data})
+    t = BaseTable({"A": data})
     col = t["A"]
     assert isinstance(col, Column)
     indices = np.array([6, 3, 4, 1, 2])
@@ -542,7 +542,7 @@ def test_get_by_indices_multiple_pages():
     Config.PAGE_SIZE = 5
 
     data = [i for i in range(23)]
-    t = Table({"A": data})
+    t = BaseTable({"A": data})
     col = t["A"]
     assert isinstance(col, Column)
     indices = np.array(data[3:22:4])
@@ -557,7 +557,7 @@ def test_get_by_indices():
     old_cfg = Config.PAGE_SIZE
     Config.PAGE_SIZE = 50
 
-    t = Table({"A": [str(i) for i in range(100)]})
+    t = BaseTable({"A": [str(i) for i in range(100)]})
     col = t["A"]
     assert isinstance(col, Column)
     indices = np.array([3, 4, 5, 6, 56, 57, 58, 3, 8, 9, 10, 59])
@@ -573,7 +573,7 @@ def fn_foo_table(tbl):
 
 
 def test_page_refcount():
-    table = Table({"A": [0, 1, 2, 3], "B": [4, 5, 6, 7]})
+    table = BaseTable({"A": [0, 1, 2, 3], "B": [4, 5, 6, 7]})
 
     assert all(Page.refcounts.get(p.path, 0) == 1 for p in table["A"].pages), "Refcount expected to be 1"
     assert all(Page.refcounts.get(p.path, 0) == 1 for p in table["B"].pages), "Refcount expected to be 1"

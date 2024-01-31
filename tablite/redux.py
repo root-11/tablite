@@ -1,4 +1,4 @@
-from tablite.base import Table
+from tablite.base import BaseTable
 import numpy as np
 from tablite.utils import sub_cls_check, type_check, expression_interpreter
 from tablite.mp_utils import filter_ops
@@ -18,7 +18,7 @@ def _filter_using_expression(T, expression):
         def _f(A,B,C,D):
             return all((A==B, C!=4, 200<D))
     """
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
     type_check(expression, str)
 
     try:
@@ -185,7 +185,7 @@ def filter_all(T, **kwargs):
 
 
     """
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
 
     if not isinstance(kwargs, dict):
         raise TypeError("did you forget to add the ** in front of your dict?")
@@ -212,7 +212,7 @@ def drop(T, *args):
     Args:
         T (Table):
     """
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
     mask = np.full((len(T),), False)
     for name in T.columns:
         col = T[name]
@@ -230,7 +230,7 @@ def filter_any(T, **kwargs):
     returns Table for rows where ANY kwargs match
     :param kwargs: dictionary with headers and values / boolean callable
     """
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
     if not isinstance(kwargs, dict):
         raise TypeError("did you forget to add the ** in front of your dict?")
 
@@ -319,7 +319,7 @@ def filter(T, expressions, filter_type="all", tqdm=_tqdm):
         2xTables: trues, falses
     """
     # determine method
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
     if len(T) == 0:
         return T.copy(), T.copy()
 
