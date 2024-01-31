@@ -1,6 +1,6 @@
 import numpy as np
 from tablite.config import Config
-from tablite.base import Table
+from tablite.base import BaseTable
 from tablite.utils import sub_cls_check, unique_name
 import difflib
 
@@ -16,8 +16,8 @@ def diff(T, other, columns=None):
     Returns:
         Table: diff of self and other with diff in columns 1st and 2nd.
     """
-    sub_cls_check(T, Table)
-    sub_cls_check(other, Table)
+    sub_cls_check(T, BaseTable)
+    sub_cls_check(other, BaseTable)
     if columns is None:
         columns = [name for name in T.columns if name in other.columns]
     elif isinstance(columns, list) and all(isinstance(i, str) for i in columns):
@@ -30,12 +30,12 @@ def diff(T, other, columns=None):
         raise TypeError("Expected list of column names")
 
     t1 = T[columns]
-    if issubclass(type(t1), Table):
+    if issubclass(type(t1), BaseTable):
         t1 = [tuple(r) for r in T.rows]
     else:
         t1 = list(T)
     t2 = other[columns]
-    if issubclass(type(t2), Table):
+    if issubclass(type(t2), BaseTable):
         t2 = [tuple(r) for r in other.rows]
     else:
         t2 = list(other)

@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from tablite.config import Config
-from tablite.base import Table, Column
+from tablite.base import BaseTable, Column
 from tablite.groupby_utils import GroupBy, GroupbyFunction
 from tablite.utils import unique_name
 
@@ -161,7 +161,7 @@ def groupby(
     # there's a table of values.
     data = T[L]
     if isinstance(data, Column):
-        tbl = Table()
+        tbl = BaseTable()
         tbl[L[0]] = data
     else:
         tbl = data

@@ -1,7 +1,7 @@
 from collections import defaultdict
 import numpy as np
 
-from tablite.base import Table
+from tablite.base import BaseTable
 from tablite.utils import unique_name, sub_cls_check
 from tablite.groupbys import groupby
 from tablite.config import Config
@@ -52,7 +52,7 @@ def pivot(T, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=Non
     ```
 
     """
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
 
     if isinstance(rows, str):
         rows = [rows]
@@ -85,10 +85,11 @@ def pivot(T, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=Non
         pbar = tqdm(total=total, desc="pivot")
 
     grpby = groupby(T, keys, functions, tqdm=tqdm, pbar=pbar)
+    Constr = type(T)
 
     if len(grpby) == 0:  # return empty table. This must be a test?
         pbar.update(extra_steps)
-        return Table()
+        return Constr()
 
     # split keys to determine grid dimensions
     row_key_index = {}
@@ -184,12 +185,12 @@ def pivot(T, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=Non
 
 def transpose(T, tqdm=_tqdm):
     """performs a CCW matrix rotation of the table."""
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
 
     if len(T.columns) == 0:
         return type(T)()
 
-    assert isinstance(T, Table)
+    assert isinstance(T, BaseTable)
     new = type(T)()
     L = list(T.columns)
     new[L[0]] = L[1:]
@@ -230,7 +231,7 @@ def pivot_transpose(T, columns, keep=None, column_name="transpose", value_name="
     ```
 
     """
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
 
     if not isinstance(columns, list):
         raise TypeError

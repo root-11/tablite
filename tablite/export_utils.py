@@ -1,5 +1,5 @@
 from tablite.utils import sub_cls_check, type_check
-from tablite.base import Table
+from tablite.base import BaseTable
 from tablite.config import Config
 from tablite.datatypes import DataTypes
 from pathlib import Path
@@ -15,7 +15,7 @@ def to_sql(table, name):
     args:
         name (str): name of SQL table.
     """
-    sub_cls_check(table, Table)
+    sub_cls_check(table, BaseTable)
     type_check(name, str)
 
     prefix = name
@@ -51,7 +51,7 @@ def to_pandas(table):
     """
     returns pandas.DataFrame
     """
-    sub_cls_check(table, Table)
+    sub_cls_check(table, BaseTable)
     try:
         return pd.DataFrame(table.to_dict())  # noqa
     except ImportError:
@@ -87,7 +87,7 @@ def to_hdf5(table, path):
     # fmt: in
     import h5py
 
-    sub_cls_check(table, Table)
+    sub_cls_check(table, BaseTable)
     type_check(path, Path)
 
     total = f"{len(table.columns) * len(table):,}"  # noqa
@@ -117,7 +117,7 @@ def excel_writer(table, path):
     """
     import pyexcel
 
-    sub_cls_check(table, Table)
+    sub_cls_check(table, BaseTable)
     type_check(path, Path)
 
     def gen(table):  # local helper
@@ -138,7 +138,7 @@ def excel_writer(table, path):
 def to_json(table, *args, **kwargs):
     import json
 
-    sub_cls_check(table, Table)
+    sub_cls_check(table, BaseTable)
     return json.dumps(table.as_json_serializable())
 
 
@@ -162,7 +162,7 @@ def text_writer(table, path, tqdm=_tqdm):
     that may contain the delimiter would lead to an assymmetric format,
     the safer guess is to text escape all strings.
     """
-    sub_cls_check(table, Table)
+    sub_cls_check(table, BaseTable)
     type_check(path, Path)
 
     def txt(value):  # helper for text writer
@@ -186,21 +186,21 @@ def text_writer(table, path, tqdm=_tqdm):
 
 
 def sql_writer(table, path):
-    type_check(table, Table)
+    type_check(table, BaseTable)
     type_check(path, Path)
     with path.open("w", encoding="utf-8") as fo:
         fo.write(to_sql(table))
 
 
 def json_writer(table, path):
-    type_check(table, Table)
+    type_check(table, BaseTable)
     type_check(path, Path)
     with path.open("w") as fo:
         fo.write(to_json(table))
 
 
 def to_html(table, path):
-    type_check(table, Table)
+    type_check(table, BaseTable)
     type_check(path, Path)
     with path.open("w", encoding="utf-8") as fo:
         fo.write(table._repr_html_(slice(0, len(table))))
