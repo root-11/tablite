@@ -1,4 +1,4 @@
-from tablite.base import Table
+from tablite.base import BaseTable
 import numpy as np
 from tablite.utils import sub_cls_check, type_check, expression_interpreter
 from tablite.mp_utils import filter_ops
@@ -18,7 +18,7 @@ def _filter_using_expression(T, expression):
         def _f(A,B,C,D):
             return all((A==B, C!=4, 200<D))
     """
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
     type_check(expression, str)
 
     try:
@@ -30,7 +30,7 @@ def _filter_using_expression(T, expression):
     return np.array([bool(_f(*r)) for r in T[req_columns].rows], dtype=bool)
 
 
-def _filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
+def _filter_using_list_of_dicts(T, expressions, filter_type, pbar: _tqdm):
     """
     enables filtering across columns for multiple criteria.
 
@@ -87,6 +87,8 @@ def _filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
     # EVALUATION....
     # 1. setup a rectangular bitmap for evaluations
     bitmap = np.empty(shape=(len(expressions), len(T)), dtype=bool)
+    pbar_div = (len(expressions) * len(list(Config.page_steps(len(T)))) - 1)
+    pbar_step = (10 / pbar_div) if pbar_div != 0 else 0
     # 2. create tasks for evaluations
     for bit_index, expression in enumerate(expressions):
         assert isinstance(expression, dict)
@@ -141,10 +143,12 @@ def _filter_using_list_of_dicts(T, expressions, filter_type, tqdm=_tqdm):
                 assert callable(f)
                 result = list_to_np_array([safe_test(f, a, b) for a, b in zip(dset_A, dset_B)])
             bitmap[bit_index, start:end] = result
+            pbar.update(pbar_step)
 
     f = np.all if filter_type == "all" else np.any
     mask = f(bitmap, axis=0)
     # 4. The mask is now created and is no longer needed.
+    pbar.update(10 - pbar.n)
     return mask
 
 
@@ -181,7 +185,7 @@ def filter_all(T, **kwargs):
 
 
     """
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
 
     if not isinstance(kwargs, dict):
         raise TypeError("did you forget to add the ** in front of your dict?")
@@ -208,7 +212,7 @@ def drop(T, *args):
     Args:
         T (Table):
     """
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
     mask = np.full((len(T),), False)
     for name in T.columns:
         col = T[name]
@@ -226,7 +230,7 @@ def filter_any(T, **kwargs):
     returns Table for rows where ANY kwargs match
     :param kwargs: dictionary with headers and values / boolean callable
     """
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
     if not isinstance(kwargs, dict):
         raise TypeError("did you forget to add the ** in front of your dict?")
 
@@ -259,11 +263,14 @@ def _compress_one(T, mask):
     return new
 
 
-def _compress_both(T, mask):
+def _compress_both(T, mask, pbar:_tqdm):
     # NOTE FOR DEVELOPERS:
     # np.compress is so fast that the overhead of multiprocessing doesn't pay off.
     cls = type(T)
     true, false = cls(), cls()
+
+    pbar_div = (len(T.columns) * len(list(Config.page_steps(len(T)))) - 1)
+    pbar_step = (10 / pbar_div) if pbar_div != 0 else 0
 
     for name in T.columns:
         true.add_column(name)
@@ -275,6 +282,7 @@ def _compress_both(T, mask):
             data = T[name][start:end]
             true_col.extend(np.compress(mask[start:end], data))
             false_col.extend(np.compress(np.invert(mask)[start:end], data))
+            pbar.update(pbar_step)
     return true, false
 
 
@@ -311,15 +319,20 @@ def filter(T, expressions, filter_type="all", tqdm=_tqdm):
         2xTables: trues, falses
     """
     # determine method
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
     if len(T) == 0:
         return T.copy(), T.copy()
 
-    if isinstance(expressions, str):
-        mask = _filter_using_expression(T, expressions)
-    elif isinstance(expressions, list):
-        mask = _filter_using_list_of_dicts(T, expressions, filter_type, tqdm)
-    else:
-        raise TypeError
-    # create new tables
-    return _compress_both(T, mask)
+    with tqdm(desc="filter", total=20) as pbar:
+        if isinstance(expressions, str):
+            mask = _filter_using_expression(T, expressions)
+            pbar.update(10)
+        elif isinstance(expressions, list):
+            mask = _filter_using_list_of_dicts(T, expressions, filter_type, pbar)
+        else:
+            raise TypeError
+        # create new tables
+        res = _compress_both(T, mask, pbar=pbar)
+        pbar.update(pbar.total - pbar.n)
+
+        return res
