@@ -1,11 +1,13 @@
-import std/[os, unicode, strutils, sugar, times, tables, enumerate, sequtils]
+import std/[os, unicode, strutils, sugar, times, tables, enumerate, sequtils, paths]
 from std/macros import bindSym
 from std/typetraits import name
+from std/math import ceil
 import dateutils, pytypes, unpickling, utils
 import pymodules as pymodules
 import nimpy as nimpy, nimpy/raw_buffers
 import pickling
 
+const EMPTY_RUNE = Rune('\x00')
 const NUMPY_MAGIC = "\x93NUMPY"
 const NUMPY_MAJOR = "\x01"
 const NUMPY_MINOR = "\x00"
@@ -150,7 +152,6 @@ iterator pgIter*(self: UnicodeNDArray): string =
     let sz = self.size
     let buf = self.buf
     let len = buf.len
-    let empty = Rune('\x00')
     var i = 0
 
     while i < len:
@@ -158,21 +159,35 @@ iterator pgIter*(self: UnicodeNDArray): string =
 
         var str: string
 
-        if buf[next - 1] != empty:
+        if buf[next - 1] != EMPTY_RUNE:
             # max string
             str = $buf[i..<next]
-        elif buf[i] == empty:
+        elif buf[i] == EMPTY_RUNE:
             # empty string
             str = ""
         else:
             # locate end of string
             for j in countdown(next - 1, i):
-                if buf[j] != empty:
+                if buf[j] != EMPTY_RUNE:
                     str = $buf[i..j]
                     break
 
         yield str
         i = next
+
+proc `[]`(self: UnicodeNDArray, index: int): string =
+    var chars = newSeqOfCap[Rune](self.size)
+    let offset = self.size * index
+
+    for i in offset..<(offset + self.size):
+        let ch = self.buf[i]
+
+        if ch == EMPTY_RUNE:
+            break
+
+        chars.add(ch)
+
+    return $chars
 
 proc `[]`(self: UnicodeNDArray, slice: seq[int] | openArray[int]): UnicodeNDArray =
     let buf = newSeq[Rune](self.size * slice.len)
@@ -806,6 +821,14 @@ proc getPageLen*(path: string): int =
 
     return len
 
+proc getPageInfo*(path: string): (NDArrayDescriptor, bool, Shape) =
+    var fh = open(path, fmRead)
+    var res = readPageInfo(fh)
+
+    fh.close()
+
+    return res
+
 proc getColumnLen*(pages: openArray[string]): int =
     var acc = 0
 
@@ -932,21 +955,22 @@ proc saveAsUnicode(self: ObjectNDArray, path: string): void =
     fh.close()
 
 proc save(self: ObjectNDArray, path: string): void =
-    var hasNones = K_NONETYPE in self.dtypes
+    let dtypes = collect(initTable()):
+        for (k, v) in self.dtypes.pairs:
+            if v == 0: continue
+            {k: v}
     
-    if not hasNones or self.dtypes[K_NONETYPE] == 0:
+    var hasNones = K_NONETYPE in dtypes
+    
+    if not hasNones:
         # we have no nones, we may be able to save as primitive
-        var colDtypes = toSeq(self.dtypes.keys)
-
-        if hasNones:
-            # cleanup
-            colDtypes.delete(colDtypes.find(K_NONETYPE))
+        var colDtypes = toSeq(dtypes.keys)
 
         if colDtypes.len == 1:
             # we only have left-over type
             let activeType = colDtypes[0]
 
-            if self.dtypes[activeType] > 0:
+            if dtypes[activeType] > 0:
                 # save as primitive if possible
                 case activeType:
                 of K_BOOLEAN: self.saveAsPrimitive(path, BooleanNDArray.headerType, writeBool); return
@@ -1028,11 +1052,136 @@ proc newPyPage*(id: string, path: string, len: int, dtypes: Table[KindObjectND, 
 
     return pg
 
+proc calcRepaginationSteps(shapes: seq[int] | var seq[int] | ptr seq[int], pageSize: int): (seq[seq[(int, int, int)]], int) =
+    var colLen = 0
+
+    when shapes is ptr seq[int]:
+        for v in shapes[]:
+            colLen = colLen + v
+    else:
+        for v in shapes:
+            colLen = colLen + v
+    
+    let resultPages = int ceil(colLen / pageSize)
+
+    var steps = collect: (for _ in 0..<resultPages: newSeq[(int, int, int)]())
+    var stepIndex = 0
+    var offset = 0
+    var pgIndex = 0
+    var consumed = 0
+    var pageConsumed = 0
+
+    while offset < colLen:
+        let findSteps = addr steps[stepIndex]
+        let pgSize = shapes[pgIndex]
+        let pageLeftover = max(pageSize - pageConsumed, 0)
+        let needsToConsume = min(colLen - offset, pageLeftover)
+        let consumableElems = min(needsToConsume, pgSize - consumed)
+
+        findSteps[].add((pgIndex, consumed, consumed + consumableElems))
+
+        consumed = consumed + consumableElems
+        offset = offset + consumableElems
+        pageConsumed = pageConsumed + consumableElems
+
+        if pageConsumed == pageSize:
+            stepIndex = stepIndex + 1
+            pageConsumed = 0
+
+        if consumed == pgSize:
+            pgIndex = pgIndex + 1
+            consumed = 0
+
+    return (steps, resultPages)
+
+proc repaginate*(pages: seq[string]): seq[nimpy.PyObject] =
+    if pages.len == 0: return @[]
+
+    template resetTypes(dtypes: Table[KindObjectND, int]) =
+        for k in KindObjectND:
+            dtypes[k] = 0
+
+    let pageSize = pymodules.tabliteConfig().Config.PAGE_SIZE.to(int)
+    let wpid = pymodules.tabliteConfig().Config.pid.to(string)
+    let workdir = Path(pymodules.builtins().str(pymodules.tabliteConfig().Config.workdir).to(string))
+    let dir = workdir / Path(wpid)
+    let shapes = collect: (for path in pages: getPageLen(path))
+    let (steps, resultPages) = calcRepaginationSteps(addr shapes, pageSize)
+
+    var buf = newSeq[PY_ObjectND](pageSize)
+    var dtypes = initTable[KindObjectND, int]()
+    var lastPageIdx = -1
+    var lastPage {.noinit.}: BaseNDArray
+    var resPages = newSeqOfCap[nimpy.PyObject](resultPages)
+
+    template toObjectPage(page: BaseNDArray, CastType: typedesc) =
+        let castPage = CastType lastPage
+
+        for i in startOffset..<endOffset:
+            when CastType is DateNDArray:
+                let obj = newPY_Object(castPage.buf[i], K_DATE)
+            elif CastType is DateTimeNDArray:
+                let obj = newPY_Object(castPage.buf[i], K_DATETIME)
+            elif CastType is ObjectNDArray:
+                let obj = castPage.buf[i]
+            elif CastType is UnicodeNDArray:
+                let obj = newPY_Object(castPage[i])
+            else:
+                let obj = newPY_Object(castPage.buf[i])
+
+
+            buf[usedBuffer] = obj
+
+            inc dtypes[obj.kind]
+            inc usedBuffer
+
+    for i in 0..<resultPages:
+        dtypes.resetTypes()
+
+        var usedBuffer = 0
+
+        for (pageIdx, startOffset, endOffset) in steps[i]:
+            if lastPageIdx != pageIdx:
+                lastPage = readNumpy(pages[pageIdx])
+
+            case lastPage.kind:
+            of K_OBJECT: lastPage.toObjectPage(ObjectNDArray)
+            of K_BOOLEAN: lastPage.toObjectPage(BooleanNDArray)
+            of K_INT8: lastPage.toObjectPage(Int8NDArray)
+            of K_INT16: lastPage.toObjectPage(Int16NDArray)
+            of K_INT32: lastPage.toObjectPage(Int32NDArray)
+            of K_INT64: lastPage.toObjectPage(Int64NDArray)
+            of K_FLOAT32: lastPage.toObjectPage(Float32NDArray)
+            of K_FLOAT64: lastPage.toObjectPage(Float64NDArray)
+            of K_DATE: lastPage.toObjectPage(DateNDArray)
+            of K_DATETIME: lastPage.toObjectPage(DateTimeNDArray)
+            of K_STRING: lastPage.toObjectPage(UnicodeNDArray)
+
+        let newPage = ObjectNDArray(buf: buf[0..<usedBuffer], dtypes: dtypes, shape: @[usedBuffer], kind: K_OBJECT)
+        let pid = pymodules.tabliteBase().SimplePage.next_id(string dir).to(string)
+        let resultPath = string (dir / Path("pages") / Path(pid & ".npy"))
+
+        newPage.save(resultPath)
+
+        resPages.add(newPyPage(pid, string dir, usedBuffer, dtypes))
+
+    return resPages
+
+
 when isMainModule and appType != "lib":
-    var arr = readNumpy("./tests/data/pages/mixed.npy")
+    let workdir = Path(pymodules.builtins().str(pymodules.tabliteConfig().Config.workdir).to(string))
+    let pid = "nim"
+    let pagedir = workdir / Path(pid) / Path("pages")
 
-    echo arr
+    createDir(string pagedir)
 
-    let pyObj = pymodules.builtins().repr(arr.toPython())
+    pymodules.tabliteConfig().Config.pid = pid
+    pymodules.tabliteConfig().Config.PAGE_SIZE = 2
 
-    echo $pyObj
+    let columns = pymodules.builtins().dict({"A": @[1, 22, 333, 4444, 55555, 666666, 7777777]}.toTable)
+    let table = pymodules.tablite().Table(columns = columns)
+    let pages = collect: (for p in table["A"].pages: pymodules.builtins().str(p.path).to(string))
+
+    let newPages = repaginate(pages)
+
+    echo newPages

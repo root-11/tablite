@@ -5,10 +5,11 @@ import numpy as np
 from pathlib import Path
 from tablite.base import Table
 from tqdm import tqdm as _tqdm
-from tablite.base import Column
 from tablite.config import Config
 from mplite import Task, TaskManager
-from typing import Literal, Type, TypeVar, TypedDict, Union, List, Tuple
+from tablite.base import Table, Column
+from typing import TYPE_CHECKING, Literal, Type, TypeVar, TypedDict, Union, List, Tuple
+
 
 if True:
     paths = sys.argv[:]
@@ -269,3 +270,6 @@ def column_select(table: K, cols: list[ColumnSelectorDict], tqdm=_tqdm, TaskMana
 
 def read_page(path: Union[str, Path]) -> np.ndarray:
     return nl.read_page(str(path))
+
+def repaginate(column: Column):
+    nl.repaginate(column)
