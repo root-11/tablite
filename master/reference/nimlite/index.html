@@ -1066,6 +1066,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tablite.nimlite.repaginate" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;repaginate
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1418,6 +1427,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tablite.nimlite.repaginate" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;repaginate
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1500,7 +1518,7 @@
 
 
 <h4 id="tablite.nimlite.K" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">nimlite</span><span class="o">.</span><span class="n">K</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s1">&#39;K&#39;</span><span class="p">,</span> <span class="n">bound</span><span class="o">=</span><span class="n">Table</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">nimlite</span><span class="o">.</span><span class="n">K</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s1">&#39;K&#39;</span><span class="p">,</span> <span class="n">bound</span><span class="o">=</span><span class="n">BaseTable</span><span class="p">)</span></code>
   
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
@@ -2041,6 +2059,30 @@
             <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">270</span>
 <span class="normal">271</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">read_page</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Path</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
     <span class="k">return</span> <span class="n">nl</span><span class="o">.</span><span class="n">read_page</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+</code></pre></div></td></tr></table></div>
+          </details>
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h4 id="tablite.nimlite.repaginate" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">nimlite</span><span class="o">.</span><span class="n">repaginate</span><span class="p">(</span><span class="n">column</span><span class="p">:</span> <span class="n">Column</span><span class="p">)</span></code>
+
+</h4>
+
+
+  <div class="doc doc-contents ">
+
+          <details class="quote">
+            <summary>Source code in <code>tablite/nimlite.py</code></summary>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">273</span>
+<span class="normal">274</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">repaginate</span><span class="p">(</span><span class="n">column</span><span class="p">:</span> <span class="n">Column</span><span class="p">):</span>
+    <span class="n">nl</span><span class="o">.</span><span class="n">repaginate</span><span class="p">(</span><span class="n">column</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
           </details>
   </div>

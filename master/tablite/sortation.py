@@ -8,7 +8,7 @@ from tablite.datatypes import multitype_set, numpy_to_python
 from tablite.reindex import reindex as _reindex
 from tablite.sort_utils import modes as sort_modes
 from tablite.sort_utils import rank as sort_rank
-from tablite.base import Table, Column, Page
+from tablite.base import BaseTable, Column, Page
 from tablite.utils import sub_cls_check, type_check
 
 from tqdm import tqdm as _tqdm
@@ -22,7 +22,7 @@ def sort_index(T, mapping, sort_mode="excel", tqdm=_tqdm, pbar=None):
     param: **kwargs: sort criteria. See Table.sort()
     """
 
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
 
     if not isinstance(mapping, dict) or not mapping:
         raise TypeError("Expected mapping (dict)?")
@@ -77,7 +77,7 @@ def reindex(T, index):
         result: ['a','c','e','g','b','d','f','h']
 
     """
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
     if isinstance(index, list):
         index = np.array(index, dtype=int)
     type_check(index, np.ndarray)
@@ -150,7 +150,7 @@ def sort(T, mapping, sort_mode="excel", tqdm=_tqdm, pbar: _tqdm = None):
     Table.sort('A'=True, 'B'=False) means sort 'A' in descending order, then (2nd priority)
     sort B in ascending order.
     """
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
 
     index = sort_index(T, mapping, sort_mode=sort_mode, tqdm=_tqdm, pbar=pbar)
     m = select_processing_method(len(T) * len(T.columns), _sp_reindex, _mp_reindex)

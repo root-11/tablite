@@ -1565,7 +1565,7 @@
 <span class="sd">    args:</span>
 <span class="sd">        name (str): name of SQL table.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
     <span class="n">type_check</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span>
 
     <span class="n">prefix</span> <span class="o">=</span> <span class="n">name</span>
@@ -1631,7 +1631,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    returns pandas.DataFrame</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">to_dict</span><span class="p">())</span>  <span class="c1"># noqa</span>
     <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
@@ -1755,7 +1755,7 @@ t2.show(dtype=True)
     <span class="c1"># fmt: in</span>
     <span class="kn">import</span> <span class="nn">h5py</span>
 
-    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
     <span class="n">type_check</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">Path</span><span class="p">)</span>
 
     <span class="n">total</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="n">table</span><span class="p">)</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2">&quot;</span>  <span class="c1"># noqa</span>
@@ -1839,7 +1839,7 @@ http://docs.pyexcel.org/</p>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="kn">import</span> <span class="nn">pyexcel</span>
 
-    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
     <span class="n">type_check</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">Path</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">gen</span><span class="p">(</span><span class="n">table</span><span class="p">):</span>  <span class="c1"># local helper</span>
@@ -1883,7 +1883,7 @@ http://docs.pyexcel.org/</p>
 <span class="normal">142</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">to_json</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="kn">import</span> <span class="nn">json</span>
 
-    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">as_json_serializable</span><span class="p">())</span>
 </code></pre></div></td></tr></table></div>
           </details>
@@ -1992,7 +1992,7 @@ the safer guess is to text escape all strings.</p>
 <span class="sd">    that may contain the delimiter would lead to an assymmetric format,</span>
 <span class="sd">    the safer guess is to text escape all strings.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
     <span class="n">type_check</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">Path</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">txt</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>  <span class="c1"># helper for text writer</span>
@@ -2039,7 +2039,7 @@ the safer guess is to text escape all strings.</p>
 <span class="normal">190</span>
 <span class="normal">191</span>
 <span class="normal">192</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">sql_writer</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
-    <span class="n">type_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">type_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
     <span class="n">type_check</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">Path</span><span class="p">)</span>
     <span class="k">with</span> <span class="n">path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
         <span class="n">fo</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">to_sql</span><span class="p">(</span><span class="n">table</span><span class="p">))</span>
@@ -2069,7 +2069,7 @@ the safer guess is to text escape all strings.</p>
 <span class="normal">197</span>
 <span class="normal">198</span>
 <span class="normal">199</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">json_writer</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
-    <span class="n">type_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">type_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
     <span class="n">type_check</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">Path</span><span class="p">)</span>
     <span class="k">with</span> <span class="n">path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
         <span class="n">fo</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">to_json</span><span class="p">(</span><span class="n">table</span><span class="p">))</span>
@@ -2099,7 +2099,7 @@ the safer guess is to text escape all strings.</p>
 <span class="normal">204</span>
 <span class="normal">205</span>
 <span class="normal">206</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">to_html</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
-    <span class="n">type_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">type_check</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
     <span class="n">type_check</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">Path</span><span class="p">)</span>
     <span class="k">with</span> <span class="n">path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
         <span class="n">fo</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">_repr_html_</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">table</span><span class="p">))))</span>

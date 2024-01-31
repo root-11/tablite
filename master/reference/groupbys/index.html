@@ -1714,7 +1714,7 @@ returns: table</p>
     <span class="c1"># there&#39;s a table of values.</span>
     <span class="n">data</span> <span class="o">=</span> <span class="n">T</span><span class="p">[</span><span class="n">L</span><span class="p">]</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">Column</span><span class="p">):</span>
-        <span class="n">tbl</span> <span class="o">=</span> <span class="n">Table</span><span class="p">()</span>
+        <span class="n">tbl</span> <span class="o">=</span> <span class="n">BaseTable</span><span class="p">()</span>
         <span class="n">tbl</span><span class="p">[</span><span class="n">L</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">data</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">tbl</span> <span class="o">=</span> <span class="n">data</span>

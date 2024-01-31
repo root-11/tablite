@@ -25,7 +25,7 @@ from tablite.datatypes import DataTypes, list_to_np_array
 from tablite.config import Config
 from tablite.file_reader_utils import TextEscape, get_encoding, get_delimiter, ENCODING_GUESS_BYTES
 from tablite.utils import type_check, unique_name, fixup_worksheet
-from tablite.base import Table, Page, Column
+from tablite.base import BaseTable, Page, Column
 
 from tqdm import tqdm as _tqdm
 
@@ -60,7 +60,7 @@ def from_pandas(T, df):
         | 2 |  3|  6|
         +===+===+===+
     """
-    if not issubclass(T, Table):
+    if not issubclass(T, BaseTable):
         raise TypeError("Expected subclass of Table")
 
     return T(columns=df.to_dict("list"))  # noqa
@@ -90,7 +90,7 @@ def from_hdf5(T, path, tqdm=_tqdm, pbar=None):
     | 1 |  1|    1|  1.1| 1000|    1| True|2023-06-09 09:12:06|2023-06-09 00:00:00|09:12:06|2 days, 0:06:40|嗨 | 100000000000000000000000| -inf|-11|
     +===+===+=====+=====+=====+=====+=====+===================+===================+========+===============+===+=========================+=====+===+
     """
-    if not issubclass(T, Table):
+    if not issubclass(T, BaseTable):
         raise TypeError("Expected subclass of Table")
     import h5py
 
@@ -110,7 +110,7 @@ def from_json(T, jsn):
     """
     Imports tables exported using .to_json
     """
-    if not issubclass(T, Table):
+    if not issubclass(T, BaseTable):
         raise TypeError("Expected subclass of Table")
     import json
 
@@ -120,7 +120,7 @@ def from_json(T, jsn):
 
 
 def from_html(T, path, tqdm=_tqdm, pbar=None):
-    if not issubclass(T, Table):
+    if not issubclass(T, BaseTable):
         raise TypeError("Expected subclass of Table")
     type_check(path, Path)
 
@@ -180,7 +180,7 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
 
     **kwargs are excess arguments that are ignored.
     """
-    if not issubclass(T, Table):
+    if not issubclass(T, BaseTable):
         raise TypeError("Expected subclass of Table")
 
     book = openpyxl.load_workbook(path, read_only=True, data_only=True)
@@ -347,7 +347,7 @@ def ods_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=No
     """
     returns Table from .ODS
     """
-    if not issubclass(T, Table):
+    if not issubclass(T, BaseTable):
         raise TypeError("Expected subclass of Table")
 
     sheets = pyexcel.get_book_dict(file_name=str(path))

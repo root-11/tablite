@@ -1393,7 +1393,7 @@
             <p>
                 <span class="doc-param-annotation">
                   <b>TYPE:</b>
-                    <code><a class="autorefs autorefs-internal" title="tablite.base.Table" href="../base/#tablite.base.Table">Table</a></code>
+                    <code><a class="autorefs autorefs-internal" title="tablite.core.Table" href="../core/#tablite.core.Table">Table</a></code>
                 </span>
             </p>
           </td>
@@ -1652,7 +1652,7 @@ if None or empty, all columns will be used.</p>
 <span class="sd">    Returns:</span>
 <span class="sd">        table: table with replaced values.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">targets</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">targets</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">T</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
         <span class="n">targets</span> <span class="o">=</span> <span class="p">[</span><span class="n">targets</span><span class="p">]</span>
@@ -1916,7 +1916,7 @@ if None or empty, all columns will be used.</p>
 
     <span class="n">new</span> <span class="o">=</span> <span class="n">T</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
     <span class="n">norm_index</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="n">normalised_values</span> <span class="o">=</span> <span class="n">Table</span><span class="p">()</span>
+    <span class="n">normalised_values</span> <span class="o">=</span> <span class="n">BaseTable</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">sources</span><span class="p">:</span>
         <span class="n">values</span> <span class="o">=</span> <span class="n">T</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
         <span class="n">values</span> <span class="o">=</span> <span class="n">sort_utils</span><span class="o">.</span><span class="n">unix_sort</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>

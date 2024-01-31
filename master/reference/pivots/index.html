@@ -1545,7 +1545,8 @@ param: functions: aggregation functions from the Groupby class as</p>
 <span class="normal">179</span>
 <span class="normal">180</span>
 <span class="normal">181</span>
-<span class="normal">182</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">pivot</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">functions</span><span class="p">,</span> <span class="n">values_as_rows</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">182</span>
+<span class="normal">183</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">pivot</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">functions</span><span class="p">,</span> <span class="n">values_as_rows</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    param: rows: column names to keep as rows</span>
 <span class="sd">    param: columns: column names to keep as columns</span>
@@ -1588,7 +1589,7 @@ param: functions: aggregation functions from the Groupby class as</p>
 <span class="sd">    ```</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
         <span class="n">rows</span> <span class="o">=</span> <span class="p">[</span><span class="n">rows</span><span class="p">]</span>
@@ -1621,10 +1622,11 @@ param: functions: aggregation functions from the Groupby class as</p>
         <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="n">total</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;pivot&quot;</span><span class="p">)</span>
 
     <span class="n">grpby</span> <span class="o">=</span> <span class="n">groupby</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">keys</span><span class="p">,</span> <span class="n">functions</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="n">pbar</span><span class="p">)</span>
+    <span class="n">Constr</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">T</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">grpby</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># return empty table. This must be a test?</span>
         <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_steps</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">Table</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">Constr</span><span class="p">()</span>
 
     <span class="c1"># split keys to determine grid dimensions</span>
     <span class="n">row_key_index</span> <span class="o">=</span> <span class="p">{}</span>
@@ -1739,8 +1741,7 @@ param: functions: aggregation functions from the Groupby class as</p>
 
           <details class="quote">
             <summary>Source code in <code>tablite/pivots.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">185</span>
-<span class="normal">186</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">186</span>
 <span class="normal">187</span>
 <span class="normal">188</span>
 <span class="normal">189</span>
@@ -1752,14 +1753,15 @@ param: functions: aggregation functions from the Groupby class as</p>
 <span class="normal">195</span>
 <span class="normal">196</span>
 <span class="normal">197</span>
-<span class="normal">198</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">transpose</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">):</span>
+<span class="normal">198</span>
+<span class="normal">199</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">transpose</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;performs a CCW matrix rotation of the table.&quot;&quot;&quot;</span>
-    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">T</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="n">T</span><span class="p">)()</span>
 
-    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
     <span class="n">new</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">T</span><span class="p">)()</span>
     <span class="n">L</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">T</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
     <span class="n">new</span><span class="p">[</span><span class="n">L</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">L</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
@@ -1877,8 +1879,7 @@ Output:
 
           <details class="quote">
             <summary>Source code in <code>tablite/pivots.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">201</span>
-<span class="normal">202</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">202</span>
 <span class="normal">203</span>
 <span class="normal">204</span>
 <span class="normal">205</span>
@@ -1962,7 +1963,8 @@ Output:
 <span class="normal">283</span>
 <span class="normal">284</span>
 <span class="normal">285</span>
-<span class="normal">286</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">pivot_transpose</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">keep</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">column_name</span><span class="o">=</span><span class="s2">&quot;transpose&quot;</span><span class="p">,</span> <span class="n">value_name</span><span class="o">=</span><span class="s2">&quot;value&quot;</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">):</span>
+<span class="normal">286</span>
+<span class="normal">287</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">pivot_transpose</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">keep</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">column_name</span><span class="o">=</span><span class="s2">&quot;transpose&quot;</span><span class="p">,</span> <span class="n">value_name</span><span class="o">=</span><span class="s2">&quot;value&quot;</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Transpose a selection of columns to rows.</span>
 
 <span class="sd">    Args:</span>
@@ -1994,7 +1996,7 @@ Output:
 <span class="sd">    ```</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">TypeError</span>

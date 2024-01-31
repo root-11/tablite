@@ -1426,8 +1426,8 @@ This syntax follows the lookup syntax. See Lookup for details.
 <span class="sd">    :param: keep_left: list of columns to keep.</span>
 <span class="sd">    :param: keep_right: list of right columns to keep.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
-    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">keep_left</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">keep_left</span> <span class="o">=</span> <span class="p">[</span><span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">T</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
     <span class="k">else</span><span class="p">:</span>

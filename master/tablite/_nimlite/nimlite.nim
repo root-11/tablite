@@ -12,12 +12,17 @@ template isLib(): bool = isMainModule and appType == "lib"
 
 when isLib:
     import nimpy
-    import std/[os, options, tables, paths, segfaults]
+    import std/[os, options, tables, paths, segfaults, sugar]
     import pymodules
 
     # --------      NUMPY      --------
     import numpy
     proc read_page(path: string): nimpy.PyObject {.exportpy.} = return readNumpy(path).toPython()
+    proc repaginate(column: nimpy.PyObject): void {.exportpy.} =
+        let pages = collect: (for p in column.pages: pymodules.builtins().str(p.path).to(string))
+        let newPages = repaginate(pages)
+
+        column.pages = newPages
     # --------      NUMPY      --------
 
     # -------- COLUMN SELECTOR --------

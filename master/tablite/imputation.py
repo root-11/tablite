@@ -1,6 +1,6 @@
 import math
 
-from tablite.base import Table, Column
+from tablite.base import BaseTable, Column
 from tablite.utils import sub_cls_check
 from tablite.config import Config
 from tablite import sort_utils
@@ -55,7 +55,7 @@ def imputation(T, targets, missing=None, method="carry forward", sources=None, t
     Returns:
         table: table with replaced values.
     """
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
 
     if isinstance(targets, str) and targets not in T.columns:
         targets = [targets]
@@ -152,7 +152,7 @@ def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm, pbar=None):
 
     new = T.copy()
     norm_index = {}
-    normalised_values = Table()
+    normalised_values = BaseTable()
     for name in sources:
         values = T[name].unique().tolist()
         values = sort_utils.unix_sort(values, reverse=False)

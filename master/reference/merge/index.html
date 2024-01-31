@@ -1369,7 +1369,7 @@ and creates a single new column.</p>
 
 <span class="sd">    :returns: T</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">type_check</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">type_check</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">criteria</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">criteria</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="s2">&quot;bool&quot;</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">TypeError</span>

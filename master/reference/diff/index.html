@@ -1320,7 +1320,7 @@
             <p>
                 <span class="doc-param-annotation">
                   <b>TYPE:</b>
-                    <code><a class="autorefs autorefs-internal" title="tablite.base.Table" href="../base/#tablite.base.Table">Table</a></code>
+                    <code><a class="autorefs autorefs-internal" title="tablite.core.Table" href="../core/#tablite.core.Table">Table</a></code>
                 </span>
             </p>
           </td>
@@ -1334,7 +1334,7 @@
             <p>
                 <span class="doc-param-annotation">
                   <b>TYPE:</b>
-                    <code><a class="autorefs autorefs-internal" title="tablite.base.Table" href="../base/#tablite.base.Table">Table</a></code>
+                    <code><a class="autorefs autorefs-internal" title="tablite.core.Table" href="../core/#tablite.core.Table">Table</a></code>
                 </span>
             </p>
           </td>
@@ -1476,8 +1476,8 @@
 <span class="sd">    Returns:</span>
 <span class="sd">        Table: diff of self and other with diff in columns 1st and 2nd.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
-    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
+    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">columns</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">T</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">other</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">):</span>
@@ -1490,12 +1490,12 @@
         <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Expected list of column names&quot;</span><span class="p">)</span>
 
     <span class="n">t1</span> <span class="o">=</span> <span class="n">T</span><span class="p">[</span><span class="n">columns</span><span class="p">]</span>
-    <span class="k">if</span> <span class="nb">issubclass</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">t1</span><span class="p">),</span> <span class="n">Table</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">issubclass</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">t1</span><span class="p">),</span> <span class="n">BaseTable</span><span class="p">):</span>
         <span class="n">t1</span> <span class="o">=</span> <span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">T</span><span class="o">.</span><span class="n">rows</span><span class="p">]</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">t1</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">T</span><span class="p">)</span>
     <span class="n">t2</span> <span class="o">=</span> <span class="n">other</span><span class="p">[</span><span class="n">columns</span><span class="p">]</span>
-    <span class="k">if</span> <span class="nb">issubclass</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">t2</span><span class="p">),</span> <span class="n">Table</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">issubclass</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">t2</span><span class="p">),</span> <span class="n">BaseTable</span><span class="p">):</span>
         <span class="n">t2</span> <span class="o">=</span> <span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">other</span><span class="o">.</span><span class="n">rows</span><span class="p">]</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">t2</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>

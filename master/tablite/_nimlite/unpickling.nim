@@ -173,12 +173,9 @@ template readOfSize(iter: var IterPickle, sz: int): openArray[uint8] =
     arr
 
 template readIntOfSize(iter: var IterPickle, sz: int): int =
-    when sz == 4:
-        int cast[int32](iter.readOfSize(sz))
-    elif sz == 2:
-        int int cast[int16](iter.readOfSize(sz))
-    elif sz == 1:
-        int cast[int8](iter.readOfSize(sz))
+    when sz == 4: int cast[int32](iter.readOfSize(sz))
+    elif sz == 2: int cast[uint16](iter.readOfSize(sz))
+    elif sz == 1: int cast[uint8](iter.readOfSize(sz))
     else:
         raise newException(IOError, "invalid int size: " & $sz)
 
@@ -224,6 +221,14 @@ proc loadBinGet(iter: var IterPickle, stack: var Stack, memo: var Memo): PY_Obje
 
     return obj
 
+proc loadLongBinGet(iter: var IterPickle, stack: var Stack, memo: var Memo): PY_Object {.inline.} =
+    let idx = uint iter.readIntOfSize(4)
+    let obj = memo[idx]
+
+    stack.add(obj)
+
+    return obj
+
 proc loadBinFloat(iter: var IterPickle, stack: var Stack): BinFloatPickle {.inline.} =
     var arr: array[8, uint8]
 
@@ -243,7 +248,7 @@ proc loadBinInt(iter: var IterPickle, stack: var Stack): BinIntPickle {.inline.}
     return value
 
 proc loadBinInt1(iter: var IterPickle, stack: var Stack): BinIntPickle {.inline.} =
-    let value = BinIntPickle(value: int int iter(), kind: K_INT)
+    let value = BinIntPickle(value: int iter(), kind: K_INT)
     stack.add(value)
     return value
 
@@ -529,6 +534,7 @@ proc unpickle(iter: var IterPickle, stack: var Stack, memo: var Memo, metastack:
     of PKL_APPENDS: loadAppends(stack, metastack)
     of PKL_STOP: loadStop(stack)
     of PKL_BINGET: iter.loadBinGet(stack, memo)
+    of PKL_LONG_BINGET: iter.loadLongBinGet(stack, memo)
     else: raise newException(IOError, "opcode not implemeted: '" & (if opcode in PrintableChars: $opcode else: "0x" & (uint8 opcode).toHex()) & "'")
 
 proc getType(self: PY_ObjectND): KindObjectND =

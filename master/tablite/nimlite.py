@@ -3,12 +3,12 @@ import psutil
 import platform
 import numpy as np
 from pathlib import Path
-from tablite.base import Table
 from tqdm import tqdm as _tqdm
-from tablite.base import Column
 from tablite.config import Config
 from mplite import Task, TaskManager
-from typing import Literal, Type, TypeVar, TypedDict, Union, List, Tuple
+from tablite.base import BaseTable, Column
+from typing import TYPE_CHECKING, Literal, Type, TypeVar, TypedDict, Union, List, Tuple
+
 
 if True:
     paths = sys.argv[:]
@@ -22,7 +22,7 @@ if True:
     sys.argv.extend(paths)  # importing nim module messes with pythons launch arguments!!!
 
 
-K = TypeVar("K", bound=Table)
+K = TypeVar("K", bound=BaseTable)
 ValidEncoders = Union[Literal["ENC_UTF8"], Literal["ENC_UTF16"], Literal["ENC_WIN1250"]]
 ValidQuoting = Union[Literal["QUOTE_MINIMAL"], Literal["QUOTE_ALL"], Literal["QUOTE_NONNUMERIC"], Literal["QUOTE_NONE"], Literal["QUOTE_STRINGS"], Literal["QUOTE_NOTNULL"]]
 ColumnSelectorDict = TypedDict(
@@ -269,3 +269,6 @@ def column_select(table: K, cols: list[ColumnSelectorDict], tqdm=_tqdm, TaskMana
 
 def read_page(path: Union[str, Path]) -> np.ndarray:
     return nl.read_page(str(path))
+
+def repaginate(column: Column):
+    nl.repaginate(column)

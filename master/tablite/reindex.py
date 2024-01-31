@@ -1,4 +1,4 @@
-from tablite.base import Table
+from tablite.base import BaseTable
 from tablite.config import Config
 from tablite.utils import sub_cls_check
 import numpy as np
@@ -27,7 +27,7 @@ def reindex(T, index, names=None, tqdm=_tqdm, pbar=None):
         total = len(names)
         pbar = tqdm(total=total, desc="join", disable=Config.TQDM_DISABLE)
 
-    sub_cls_check(T, Table)
+    sub_cls_check(T, BaseTable)
     cls = type(T)
     result = cls()
     for name in names:

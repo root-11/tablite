@@ -1321,7 +1321,7 @@
             <p>
                 <span class="doc-param-annotation">
                   <b>TYPE:</b>
-                    <code><a class="autorefs autorefs-internal" title="tablite.base.Table" href="../base/#tablite.base.Table">Table</a></code>
+                    <code><a class="autorefs autorefs-internal" title="tablite.core.Table" href="../core/#tablite.core.Table">Table</a></code>
                 </span>
             </p>
           </td>
@@ -1486,7 +1486,7 @@
         <span class="n">total</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">)</span>
         <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="n">total</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;join&quot;</span><span class="p">,</span> <span class="n">disable</span><span class="o">=</span><span class="n">Config</span><span class="o">.</span><span class="n">TQDM_DISABLE</span><span class="p">)</span>
 
-    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span>
+    <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
     <span class="bp">cls</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">T</span><span class="p">)</span>
     <span class="n">result</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
