@@ -462,7 +462,13 @@ def test_join_with_key_merge():
     e = a.join(b,left_keys=['A'], right_keys=['C'], left_columns=['A', 'B'], right_columns=['C','D'], kind="outer", merge_keys=True)
     assert list(e.columns.keys()) == list("ABD")
     assert e["A"] == [1,2,3,None,5,6,7]
-    
+
+def test_join_with_key_merge_mp():
+    try:
+        Config.MULTIPROCESSING_MODE = Config.FORCE
+        test_join_with_key_merge()
+    finally:
+        Config.MULTIPROCESSING_MODE = Config.reset()
 
 def test_left_join_with_key_merge():
     a = Table(columns={'SKU_ID':[1,2,4], "A": [10,20,30], "B": [40,50,60]})
@@ -509,6 +515,12 @@ def test_left_join_with_key_merge():
     
     assert c4a["A"] == c4b["A"]
 
+def test_left_join_with_key_merge_mp():
+    try:
+        Config.MULTIPROCESSING_MODE = Config.FORCE
+        test_left_join_with_key_merge()
+    finally:
+        Config.MULTIPROCESSING_MODE = Config.reset()
 
 def test_small_page_size():
     original_page_size = Config.PAGE_SIZE
