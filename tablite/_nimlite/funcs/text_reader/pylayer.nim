@@ -1,4 +1,3 @@
-import nimpy
 import std/options
 import encfile, table, csvparse, text_reader
 
