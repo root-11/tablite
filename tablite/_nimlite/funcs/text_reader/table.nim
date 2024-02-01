@@ -1,4 +1,6 @@
-import std/[json]
+import nimpy
+from pymodules import builtins
+import std/[json, sugar]
 import csvparse
 
 type TabliteColumn* = object

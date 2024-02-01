@@ -8,63 +8,63 @@ proc textReaderTask*(task: TaskArgs): seq[nimpy.PyObject] =
     var encoding = task.encoding
     var destinations = task.destinations
     var path = task.path
-    var guess_dtypes = task.guess_dtypes
-    var row_count = task.row_count
-    var row_offset = task.row_offset
-    var import_fields = task.import_fields
+    var guessDtypes = task.guessDtypes
+    var rowCount = task.rowCount
+    var rowOffset = task.rowOffset
+    var importFields = task.importFields
     var obj = newReaderObj(dialect)
 
     var fh = newFile(path, encoding)
-    let n_pages = destinations.len
+    let nPages = destinations.len
 
     try:
-        fh.setFilePos(int64 row_offset, fspSet)
+        fh.setFilePos(int64 rowOffset, fspSet)
 
-        var (n_rows, longest_str, ranks) = collectPageInfo(
+        var (nRows, longestStr, ranks) = collectPageInfo(
             obj = obj,
             fh = fh,
-            guess_dtypes = guess_dtypes,
-            n_pages = n_pages,
-            row_count = row_count,
-            import_fields = import_fields
+            guessDtypes = guessDtypes,
+            nPages = nPages,
+            rowCount = rowCount,
+            importFields = importFields
         )
 
-        var (page_file_handlers, column_dtypes, binput) = dumpPageHeader(
+        var (pageFileHandlers, columnDtypes, binput) = dumpPageHeader(
             destinations = destinations,
-            n_pages = n_pages,
-            n_rows = n_rows,
-            guess_dtypes = guess_dtypes,
-            longest_str = longest_str,
+            nPages = nPages,
+            nRows = nRows,
+            guessDtypes = guessDtypes,
+            longestStr = longestStr,
             ranks = ranks,
         )
 
         try:
-            fh.setFilePos(int64 row_offset, fspSet)
+            fh.setFilePos(int64 rowOffset, fspSet)
 
             let (pgTypes, pgLens) = dumpPageBody(
                 obj = obj,
                 fh = fh,
-                guess_dtypes = guess_dtypes,
-                n_pages = n_pages,
-                row_count = row_count,
-                import_fields = import_fields,
-                page_file_handlers = page_file_handlers,
-                longest_str = longest_str,
+                guessDtypes = guessDtypes,
+                nPages = nPages,
+                rowCount = rowCount,
+                importFields = importFields,
+                pageFileHandlers = pageFileHandlers,
+                longestStr = longestStr,
                 ranks = ranks,
-                column_dtypes = column_dtypes,
+                columnDtypes = columnDtypes,
                 binput = binput
             )
 
             dumpPageFooter(
-                n_pages = n_pages,
-                n_rows = n_rows,
-                page_file_handlers = page_file_handlers,
-                column_dtypes = column_dtypes,
+                nPages = nPages,
+                nRows = nRows,
+                pageFileHandlers = pageFileHandlers,
+                columnDtypes = columnDtypes,
                 binput = binput
             )
 
             let elems = collect:
-                for i in 0..<n_pages:
+                for i in 0..<nPages:
                     let path = Path(destinations[i])
                     let workdir = string path.parentDir.parentDir
                     let id = string path.extractFilename.changeFileExt("")
@@ -75,7 +75,7 @@ proc textReaderTask*(task: TaskArgs): seq[nimpy.PyObject] =
 
             return elems
         finally:
-            for f in page_file_handlers:
+            for f in pageFileHandlers:
                 f.close()
 
     finally:
@@ -83,34 +83,34 @@ proc textReaderTask*(task: TaskArgs): seq[nimpy.PyObject] =
 
 proc importTextFile*(
     pid: string, path: string, encoding: FileEncoding, dia: Dialect,
-    columns: Option[seq[string]], first_row_has_headers: bool, header_row_index: uint,
-    page_size: uint, guess_dtypes: bool,
+    columns: Option[seq[string]], firstRowHasHeaders: bool, headerRowIndex: uint,
+    pageSize: uint, guessDtypes: bool,
     start: Option[int] = none[int](), limit: Option[int] = none[int]()
 ): TabliteTable =
 
     echo "Collecting tasks: '" & path & "'"
 
-    let opt_start = (if start.isSome: start.get else: 0)
-    let opt_limit = (if limit.isSome: limit.get else: -1)
-    let (newline_offsets, newlines) = findNewlines(path, encoding, dia)
+    let optStart = (if start.isSome: start.get else: 0)
+    let optLimit = (if limit.isSome: limit.get else: -1)
+    let (newlineOffsets, newlines) = findNewlines(path, encoding, dia)
     let dirname = pid & "/pages"
 
     if not dirExists(dirname):
         createDir(dirname)
 
-    if newlines > 0 and newlines > header_row_index:
-        let first_line = readColumns(path, encoding, dia, newline_offsets[header_row_index])
+    if newlines > 0 and newlines > headerRowIndex:
+        let firstLine = readColumns(path, encoding, dia, newlineOffsets[headerRowIndex])
 
         var fields = newSeq[string](0)
 
-        if first_row_has_headers:
-            fields = first_line
+        if firstRowHasHeaders:
+            fields = firstLine
         else:
-            fields = collect(newSeqOfCap(first_line.len)):
-                for i in 0..<first_line.len:
+            fields = collect(newSeqOfCap(firstLine.len)):
+                for i in 0..<firstLine.len:
                     $i
 
-        var imp_columns = newSeq[string](0)
+        var impColumns = newSeq[string](0)
 
         if columns.isSome:
             var missing = newSeq[string]()
@@ -122,81 +122,82 @@ proc importTextFile*(
                     for f in fields:
                         "'" & f & "'"
                 raise newException(IOError, "Missing columns: [" & missing.join(", ") & "]" & " | Available columns: (" & $field_list.len & ")[" & field_list.join(", ") & "]")
-            imp_columns = columns.get
+            impColumns = columns.get
         else:
-            imp_columns = fields
+            impColumns = fields
 
-        var field_relation = collect(initOrderedTable()):
+        var fieldRelation = collect(initOrderedTable()):
             for ix, name in enumerate(fields):
-                if name in imp_columns:
+                if name in impColumns:
                     {uint ix: name}
 
-        let import_fields = collect: (for k in field_relation.keys: k)
-        let import_field_names = collect: (for v in field_relation.values: v)
+        let importFields = collect: (for k in fieldRelation.keys: k)
+        let importFieldNames = collect: (for v in fieldRelation.values: v)
 
-        var field_relation_inv = collect(initOrderedTable()):
-            for (ix, name) in field_relation.pairs:
+        var fieldRelationInv = collect(initOrderedTable()):
+            for (ix, name) in fieldRelation.pairs:
                 {name: ix}
 
-        var page_list = collect(initOrderedTable()):
-            for (ix, name) in field_relation.pairs:
+        var pageList = collect(initOrderedTable()):
+            for (ix, name) in fieldRelation.pairs:
                 {ix: newSeq[string]()}
 
-        var name_list = newSeq[string]()
-        var table_columns = collect(initOrderedTable()):
-            for name in imp_columns:
-                let unq = uniqueName(name, name_list)
+        var nameList = newSeq[string]()
+        var tableColumns = collect(initOrderedTable()):
+            for name in impColumns:
+                let unq = uniqueName(name, nameList)
 
-                name_list.add(unq)
+                nameList.add(unq)
 
-                {unq: field_relation_inv[name]}
+                {unq: fieldRelationInv[name]}
 
-        let offset_row = (if first_row_has_headers: 1 else: 0) + int header_row_index
+        let offsetRow = (if firstRowHasHeaders: 1 else: 0) + int headerRowIndex
 
-        var page_idx: uint32 = 1
-        var row_idx: uint = uint opt_start + offset_row
-        var task_list = newSeq[TabliteTask]()
-        let max_line = (if opt_limit >= 0: min(newlines, uint (opt_limit + opt_start) + offset_row) else: newlines)
+        var pageIdx: uint32 = 1
+        var rowIdx: uint = uint optStart + offsetRow
+        var taskList = newSeq[TabliteTask]()
+        let maxLine = (if optLimit >= 0: min(newlines, uint (optLimit + optStart) + offsetRow) else: newlines)
 
         echo "Dumping tasks: '" & path & "'"
-        while row_idx < max_line:
-            let page_count = field_relation.len
-            let next_line = min(row_idx + page_size, max_line)
-            let row_count = next_line - row_idx
-            var pages = newSeq[string](page_count)
 
-            for idx in 0..page_count - 1:
-                var pagepath = dirname & "/" & $page_idx & ".npy"
+        while rowIdx < maxLine:
+            let pageCount = fieldRelation.len
+            let nextLine = min(rowIdx + pageSize, maxLine)
+            let rowCount = nextLine - rowIdx
+            var pages = newSeq[string](pageCount)
+
+            for idx in 0..<pageCount:
+                var pagepath = dirname & "/" & $pageIdx & ".npy"
 
                 if not pid.endsWith("tablite/nim"):
                     while fileExists(pagepath):
-                        inc page_idx
-                        pagepath = dirname & "/" & $page_idx & ".npy"
+                        inc pageIdx
+                        pagepath = dirname & "/" & $pageIdx & ".npy"
 
-                let field_idx = import_fields[idx]
+                let fieldIdx = importFields[idx]
 
-                page_list[field_idx].add(pagepath)
+                pageList[fieldIdx].add(pagepath)
                 pages[idx] = pagepath
 
-                inc page_idx
+                inc pageIdx
 
-            task_list.add(newTabliteTask(pages, newline_offsets[row_idx], row_count))
+            taskList.add(newTabliteTask(pages, newlineOffsets[rowIdx], rowCount))
 
-            row_idx = next_line
+            rowIdx = nextLine
 
         let tasks = newTabliteTasks(
             path = path,
             encoding = $encoding,
             dialect = dia,
-            tasks = task_list,
-            import_fields = import_fields,
-            import_field_names = import_field_names,
-            page_size = page_size,
-            guess_dtypes = guess_dtypes
+            tasks = taskList,
+            importFields = importFields,
+            importFieldNames = importFieldNames,
+            pageSize = pageSize,
+            guessDtypes = guessDtypes
         )
-        let columns = collect(newSeqOfCap(table_columns.len)):
-            for (column_name, page_index) in table_columns.pairs:
-                newTabliteColumn(column_name, page_list[page_index])
+        let columns = collect(newSeqOfCap(tableColumns.len)):
+            for (column_name, page_index) in tableColumns.pairs:
+                newTabliteColumn(column_name, pageList[page_index])
 
         let table = newTabliteTable(tasks, columns)
 
