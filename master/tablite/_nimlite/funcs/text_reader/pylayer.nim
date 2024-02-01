@@ -3,12 +3,12 @@ import encfile, table, csvparse, text_reader
 
 proc textReader*(
     pid: string, path: string, encoding: FileEncoding,
-    columns: Option[seq[string]], first_row_has_headers: bool, header_row_index: uint,
+    columns: Option[seq[string]], firstRowHasHeaders: bool, headerRowIndex: uint,
     start: Option[int], limit: Option[int],
-    guess_datatypes: bool,
+    guessDatatypes: bool,
     newline: char, delimiter: char,
-    text_qualifier: char, strip_leading_and_tailing_whitespace: bool,
-    page_size: uint,
+    textQualifier: char, stripLeadingAndTailingWhitespace: bool,
+    pageSize: uint,
     quoting: Quoting
 ): TabliteTable =
     var dialect = newDialect(
@@ -17,8 +17,8 @@ proc textReader*(
         escapechar = '\\',
         doublequote = true,
         quoting = quoting,
-        skipinitialspace = strip_leading_and_tailing_whitespace,
-        skiptrailingspace = strip_leading_and_tailing_whitespace,
+        skipinitialspace = stripLeadingAndTailingWhitespace,
+        skiptrailingspace = stripLeadingAndTailingWhitespace,
         lineterminator = newline,
     )
 
@@ -28,10 +28,10 @@ proc textReader*(
         encoding = encoding,
         dia = dialect,
         columns = columns,
-        first_row_has_headers = first_row_has_headers,
-        header_row_index = header_row_index,
-        page_size = page_size,
-        guess_dtypes = guess_datatypes,
+        firstRowHasHeaders = firstRowHasHeaders,
+        headerRowIndex = headerRowIndex,
+        pageSize = pageSize,
+        guessDtypes = guessDatatypes,
         start = start,
         limit = limit
     )

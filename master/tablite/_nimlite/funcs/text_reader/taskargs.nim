@@ -5,34 +5,34 @@ type TaskArgs* = object
     path*: string
     encoding*: FileEncoding
     dialect*: Dialect
-    guess_dtypes*: bool
+    guessDtypes*: bool
     destinations*: seq[string]
-    import_fields*: seq[uint]
-    row_offset*: uint
-    row_count*: int
+    importFields*: seq[uint]
+    rowOffset*: uint
+    rowCount*: int
 
 proc toTaskArgs*(
     path: string,
     encoding: string,
-    dia_delimiter: string,
-    dia_quotechar: string,
-    dia_escapechar: string,
-    dia_doublequote: bool,
-    dia_quoting: string,
-    dia_skipinitialspace: bool,
-    dia_skiptrailingspace: bool,
-    dia_lineterminator: string,
-    dia_strict: bool,
-    guess_dtypes: bool,
-    tsk_pages: seq[string],
-    tsk_offset: uint,
-    tsk_count: uint,
-    import_fields: seq[uint]
+    diaDelimiter: string,
+    diaQuotechar: string,
+    diaEscapechar: string,
+    diaDoublequote: bool,
+    diaQuoting: string,
+    diaSkipInitialSpace: bool,
+    diaSkipTrailingSpace: bool,
+    diaLineTerminator: string,
+    diaStrict: bool,
+    guessDtypes: bool,
+    tskPages: seq[string],
+    tskOffset: uint,
+    tskCount: uint,
+    importFields: seq[uint]
 ): TaskArgs =
-    var delimiter = dia_delimiter.unescapeSeq()
-    var quotechar = dia_quotechar.unescapeSeq()
-    var escapechar = dia_escapechar.unescapeSeq()
-    var lineterminator = dia_lineterminator.unescapeSeq()
+    var delimiter = diaDelimiter.unescapeSeq()
+    var quotechar = diaQuotechar.unescapeSeq()
+    var escapechar = diaEscapechar.unescapeSeq()
+    var lineterminator = diaLineTerminator.unescapeSeq()
 
     if delimiter.len != 1: raise newException(IOError, "'delimiter' must be 1 character")
     if quotechar.len != 1: raise newException(IOError, "'quotechar' must be 1 character")
@@ -43,10 +43,10 @@ proc toTaskArgs*(
         delimiter = delimiter[0],
         quotechar = quotechar[0],
         escapechar = escapechar[0],
-        doublequote = dia_doublequote,
-        quoting = str2quoting(dia_quoting),
-        skipinitialspace = dia_skipinitialspace,
-        skiptrailingspace = dia_skiptrailingspace,
+        doublequote = diaDoublequote,
+        quoting = str2quoting(diaQuoting),
+        skipinitialspace = diaSkipInitialSpace,
+        skiptrailingspace = diaSkipTrailingSpace,
         lineterminator = lineterminator[0],
     )
 
@@ -56,11 +56,11 @@ proc toTaskArgs*(
         path: path,
         encoding: arg_encoding,
         dialect: dialect,
-        guess_dtypes: guess_dtypes,
-        destinations: tsk_pages,
-        import_fields: import_fields,
-        row_offset: tsk_offset,
-        row_count: int tsk_count
+        guessDtypes: guessDtypes,
+        destinations: tskPages,
+        importFields: importFields,
+        rowOffset: tskOffset,
+        rowCount: int tskCount
     )
 
 proc saveTasks*(task: TabliteTasks, pid: string, taskname: string): string =
@@ -71,7 +71,7 @@ proc saveTasks*(task: TabliteTasks, pid: string, taskname: string): string =
         fh.write("\"" & getAppFilename() & "\" ")
 
         fh.write("--encoding=\"" & task.encoding & "\" ")
-        fh.write("--guess_dtypes=" & $task.guess_dtypes & " ")
+        fh.write("--guess_dtypes=" & $task.guessDtypes & " ")
 
         fh.write("--delimiter=\"" & task.dialect.delimiter & "\" ")
         fh.write("--quotechar=\"" & task.dialect.quotechar & "\" ")
@@ -85,7 +85,7 @@ proc saveTasks*(task: TabliteTasks, pid: string, taskname: string): string =
         fh.write("task ")
 
         fh.write("--pages=\"" & column_task.pages.join(",") & "\" ")
-        fh.write("--fields=\"" & task.import_fields.join(",") & "\" ")
+        fh.write("--fields=\"" & task.importFields.join(",") & "\" ")
 
         fh.write("\"" & task.path & "\" ")
         fh.write($column_task.offset & " ")
