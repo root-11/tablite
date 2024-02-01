@@ -70,94 +70,106 @@ def text_reader(
 ) -> K:
     assert isinstance(path, Path)
     assert isinstance(pid, Path)
+    with tqdm(total=10, desc=f"importing file") as pbar:
+        table = nl.text_reader(
+            pid=str(pid),
+            path=str(path),
+            encoding=encoding,
+            first_row_has_headers=first_row_has_headers, header_row_index=header_row_index,
+            columns=columns,
+            start=start, limit=limit,
+            guess_datatypes=guess_datatypes,
+            newline=newline, delimiter=delimiter, text_qualifier=text_qualifier,
+            quoting=quoting,
+            strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
+            page_size=Config.PAGE_SIZE
+        )
 
-    table = nl.text_reader(
-        pid=str(pid),
-        path=str(path),
-        encoding=encoding,
-        first_row_has_headers=first_row_has_headers, header_row_index=header_row_index,
-        columns=columns,
-        start=start, limit=limit,
-        guess_datatypes=guess_datatypes,
-        newline=newline, delimiter=delimiter, text_qualifier=text_qualifier,
-        quoting=quoting,
-        strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
-        page_size=Config.PAGE_SIZE
-    )
+        pbar.update(1)
 
-    task_info = table["task"]
-    task_columns = table["columns"]
+        task_info = table["task"]
+        task_columns = table["columns"]
 
-    ti_path = task_info["path"]
-    ti_encoding = task_info["encoding"]
-    ti_dialect = task_info["dialect"]
-    ti_guess_dtypes = task_info["guess_dtypes"]
-    ti_tasks = task_info["tasks"]
-    ti_import_fields = task_info["import_fields"]
-    ti_import_field_names = task_info["import_field_names"]
+        ti_path = task_info["path"]
+        ti_encoding = task_info["encoding"]
+        ti_dialect = task_info["dialect"]
+        ti_guess_dtypes = task_info["guess_dtypes"]
+        ti_tasks = task_info["tasks"]
+        ti_import_fields = task_info["import_fields"]
+        ti_import_field_names = task_info["import_field_names"]
 
-    is_windows = platform.system() == "Windows"
-    use_logical = False if is_windows else True
+        is_windows = platform.system() == "Windows"
+        use_logical = False if is_windows else True
 
-    cpus = max(psutil.cpu_count(logical=use_logical), 1)
+        cpus = max(psutil.cpu_count(logical=use_logical), 1)
 
-    tasks = [
-        Task(
-            _text_reader_task,
-            path=ti_path,
-            encoding=ti_encoding,
-            dialect=ti_dialect,
-            task=t,
-            guess_dtypes=ti_guess_dtypes,
-            import_fields=ti_import_fields
-        ) for t in ti_tasks
-    ]
+        tasks = [
+            Task(
+                _text_reader_task,
+                path=ti_path,
+                encoding=ti_encoding,
+                dialect=ti_dialect,
+                task=t,
+                guess_dtypes=ti_guess_dtypes,
+                import_fields=ti_import_fields
+            ) for t in ti_tasks
+        ]
 
-    is_sp = False
-
-    if Config.MULTIPROCESSING_MODE == Config.FALSE:
-        is_sp = True
-    elif Config.MULTIPROCESSING_MODE == Config.AUTO and cpus <= 1 or len(tasks) <= 1:
-        is_sp = True
-    elif Config.MULTIPROCESSING_MODE == Config.FORCE:
         is_sp = False
 
-    if is_sp:
-        res = [
-            task.f(*task.args, **task.kwargs)
-            for task in tqdm(tasks, "importing file")
-        ]
-    else:
-        with TaskManager(cpus) as tm:
-            res = tm.execute(tasks, tqdm)
+        if Config.MULTIPROCESSING_MODE == Config.FALSE:
+            is_sp = True
+        elif Config.MULTIPROCESSING_MODE == Config.AUTO and cpus <= 1 or len(tasks) <= 1:
+            is_sp = True
+        elif Config.MULTIPROCESSING_MODE == Config.FORCE:
+            is_sp = False
 
-            if not all(isinstance(r, list) for r in res):
-                raise Exception("failed")
+        pbar_step = 8 / max(len(tasks) - 1, 1)
 
-    col_path = pid
-    column_dict = {
-        cols: Column(col_path)
-        for cols in ti_import_field_names
-    }
+        if is_sp:
+            res = []
 
-    for res_pages in res:
-        col_map = {
-            n: res_pages[i]
-            for i, n in enumerate(ti_import_field_names)
+            for task in tasks:
+                res.append(task.f(*task.args, **task.kwargs))
+
+                pbar.update(pbar_step)
+        else:
+            class WrapUpdate:
+                def update(self, n):
+                    pbar.update(n * pbar_step)
+
+            with TaskManager(cpus) as tm:
+                res = tm.execute(tasks, pbar=WrapUpdate())
+
+                if not all(isinstance(r, list) for r in res):
+                    raise Exception("failed")
+
+        col_path = pid
+        column_dict = {
+            cols: Column(col_path)
+            for cols in ti_import_field_names
         }
 
-        for k, c in column_dict.items():
-            c.pages.append(col_map[k])
+        for res_pages in res:
+            col_map = {
+                n: res_pages[i]
+                for i, n in enumerate(ti_import_field_names)
+            }
 
-    if columns is None:
-        columns = [c["name"] for c in task_columns]
+            for k, c in column_dict.items():
+                c.pages.append(col_map[k])
 
-    table_dict = {
-        a["name"]: column_dict[b]
-        for a, b in zip(task_columns, columns)
-    }
+        if columns is None:
+            columns = [c["name"] for c in task_columns]
 
-    table = T(columns=table_dict)
+        table_dict = {
+            a["name"]: column_dict[b]
+            for a, b in zip(task_columns, columns)
+        }
+
+        pbar.update(1)
+
+        table = T(columns=table_dict)
 
     return table
 
@@ -233,11 +245,11 @@ def column_select(table: K, cols: list[ColumnSelectorDict], tqdm=_tqdm, TaskMana
         converted = []
         step_size = 45 / max(page_count - 1, 1)
 
-        class WrapUpdate:
-            def update(self, n):
-                pbar.update(n * step_size)
-
         if is_mp:
+            class WrapUpdate:
+                def update(self, n):
+                    pbar.update(n * step_size)
+
             with TaskManager(cpu_count=cpu_count) as tm:
                 res = tm.execute(list(tasks), pbar=WrapUpdate())
 
@@ -253,7 +265,7 @@ def column_select(table: K, cols: list[ColumnSelectorDict], tqdm=_tqdm, TaskMana
                     raise Exception(res)
 
                 converted.append(res)
-                pbar.update(1)
+                pbar.update(step_size)
 
         def extend_table(table, columns):
             for (col_name, pg) in columns:

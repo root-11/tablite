@@ -771,39 +771,44 @@ def _mp_join(
 
     # step 5: merge keys (if required)
     if merge_keys is True:
-        mapping["boolean map"] = np.array([mapping[right] == -1], dtype=bool)
-        step = 1 / len(left_keys)
-        tasks = []
-        for left_name, right_name in zip(left_keys, right_keys):
-            right_name = unique_name(right_name, T.columns)
-            for start, end in Config.page_steps(len(mapping)):
-                task = Task(
-                    _mp_where,
-                    T=new_table,
-                    mapping=mapping,
-                    field="boolean map",
-                    left=left_name,
-                    right=right_name,
-                    new="bmap",
-                    start=start,
-                    end=end,
-                    path=_pid_dir,
-                )
-                tasks.append(task)
+        if kind in ["outer", "left"]:
+            mapping["boolean map"] = np.array(mapping["left"]) != -1 \
+                if kind == "outer" else np.array(mapping["right"]) == -1
 
-        with TaskManager(cpu_count=_vpus(tasks)) as tm:
-            results = tm.execute(tasks, pbar=ProgressBar())
-            errors = [s for s in results if isinstance(s, str)]
+            step = 1 / len(left_keys)
+            tasks = []
+            for left_name, right_name in zip(left_keys, right_keys):
+                right_name = unique_name(right_name, T.columns)
+                for start, end in Config.page_steps(len(mapping)):
+                    task = Task(
+                        _mp_where,
+                        T=new_table,
+                        mapping=mapping,
+                        field="boolean map",
+                        left=left_name,
+                        right=right_name,
+                        new="bmap",
+                        start=start,
+                        end=end,
+                        path=_pid_dir,
+                    )
+                    tasks.append(task)
 
-            if len(errors) > 0:
-                raise Exception(errors[0])
+            with TaskManager(cpu_count=_vpus(tasks)) as tm:
+                results = tm.execute(tasks, pbar=ProgressBar())
+                errors = [s for s in results if isinstance(s, str)]
 
-        for task, result in zip(tasks, results):
-            col, start, end = _gets(task, "left", "start", "end")
-            new_table[col][start:end] = result["bmap"][:]
+                if len(errors) > 0:
+                    raise Exception(errors[0])
 
-        for name in right_keys:
-            del new_table[name]
+            for task, result in zip(tasks, results):
+                col, start, end = _gets(task, "left", "start", "end")
+                new_table[col][start:end] = result["bmap"][:]
+        elif kind not in ["inner", "cross"]:
+            raise TypeError(f"bad join type: {kind}")
+
+        for right_name in right_keys:
+            del new_table[unique_name(right_name, T.columns)]
     else:
         pbar.update(1)
 
