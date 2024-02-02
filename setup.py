@@ -99,9 +99,10 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     keywords=keywords,
-    packages=["tablite", "tablite/_nimlite"],
+    packages=["tablite", "nimlite"],
     package_data={
         "tablite": ["**/*.so", "**/*.pyd", "**/*.pyi"], # pack builds
+        "nimlite": ["**/*.so", "**/*.pyd", "**/*.pyi"], # pack builds
     },
     python_requires=">=3.8",
     include_package_data=True,

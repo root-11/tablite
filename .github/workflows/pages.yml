@@ -69,8 +69,8 @@ jobs:
         with:
           USE_NIMPORTER: 'false'
           PYTHONPATH: '.:tablite'
-          NIMLITE_DIR:  'tablite/_nimlite'
-          NIM_PACKAGE_NAME: 'nimlite'
+          NIMLITE_DIR:  'nimlite'
+          NIM_PACKAGE_NAME: 'libnimlite'
           TABLITE_PACKAGE_NAME: 'tablite'
           NIMC_FLAGS: '--app:lib --threads:on -d:release -d:danger'
       - name: Compile NimLite
