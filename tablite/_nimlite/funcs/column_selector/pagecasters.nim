@@ -6,7 +6,6 @@ from ../../pytypes import PY_ObjectND, KindObjectND
 import casters
 from mask import Mask
 from makepage import makePage, canBeNone
-from ../../utils import corrupted, implement
 
 macro mkPageCaster(nBaseType: typedesc, overrides: untyped) =
     expectKind(nBaseType, nnkSym)

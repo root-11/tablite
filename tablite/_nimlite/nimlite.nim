@@ -13,7 +13,7 @@ template isLib(): bool = isMainModule and appType == "lib"
 when isLib:
     import nimpy
     import std/[os, options, tables, paths, segfaults, sugar]
-    import pymodules
+    import pymodules, ranking
 
     # --------      NUMPY      --------
     import numpy
@@ -50,43 +50,23 @@ when isLib:
     # --------   TEXT READER   --------
     import funcs/text_reader as text_reader
 
+    proc collect_text_reader_page_info_task(
+        task_info: PyObject,
+        task: PyObject,
+    ): (uint, seq[uint], seq[Rank]) {.exportpy.} =
+        try:
+            return text_reader.toTaskArgs(task_info, task).collectPageInfoTask
+        except Exception as e:
+            echo $e.msg & "\n" & $e.getStackTrace
+            raise e
+
     proc text_reader_task(
-        path: string,
-        encoding: string,
-        dia_delimiter: string,
-        dia_quotechar: string,
-        dia_escapechar: string,
-        dia_doublequote: bool,
-        dia_quoting: string,
-        dia_skipinitialspace: bool,
-        dia_skiptrailingspace: bool,
-        dia_lineterminator: string,
-        dia_strict: bool,
-        guess_dtypes: bool,
-        tsk_pages: seq[string],
-        tsk_offset: uint,
-        tsk_count: int,
-        import_fields: seq[uint]
+        task_info: PyObject,
+        task: PyObject,
+        page_info: (uint, seq[uint], seq[Rank])
     ): seq[PyObject] {.exportpy.} =
         try:
-            return text_reader.toTaskArgs(
-                path = path,
-                encoding = encoding,
-                dia_delimiter = dia_delimiter,
-                dia_quotechar = dia_quotechar,
-                dia_escapechar = dia_escapechar,
-                dia_doublequote = dia_doublequote,
-                dia_quoting = dia_quoting,
-                dia_skipinitialspace = dia_skipinitialspace,
-                dia_skiptrailingspace = dia_skiptrailingspace,
-                dia_lineterminator = dia_lineterminator,
-                dia_strict = dia_strict,
-                guess_dtypes = guess_dtypes,
-                tsk_pages = tsk_pages,
-                tsk_offset = tsk_offset,
-                tsk_count = uint tsk_count,
-                import_fields = import_fields
-            ).textReaderTask
+            return text_reader.toTaskArgs(task_info, task).textReaderTask(page_info)
         except Exception as e:
             echo $e.msg & "\n" & $e.getStackTrace
             raise e
