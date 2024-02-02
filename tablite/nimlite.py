@@ -16,7 +16,7 @@ if True:
         import nimporter
 
         nimporter.Nimporter.IGNORE_CACHE = True
-    import tablite._nimlite.nimlite as nl
+    import nimlite.libnimlite as nl
 
     sys.argv.clear()
     sys.argv.extend(paths)  # importing nim module messes with pythons launch arguments!!!
