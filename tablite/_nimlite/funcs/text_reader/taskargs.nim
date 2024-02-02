@@ -1,3 +1,4 @@
+import nimpy
 import std/[os, strutils]
 import csvparse, encfile, ../../utils, table
 
@@ -62,6 +63,29 @@ proc toTaskArgs*(
         rowOffset: tskOffset,
         rowCount: int tskCount
     )
+
+proc toTaskArgs*(
+        task_info: PyObject,
+        task: PyObject,
+    ): TaskArgs =
+        return toTaskArgs(
+            path = task_info["path"].to(string),
+            encoding = task_info["encoding"].to(string),
+            diaDelimiter = task_info["dialect"]["delimiter"].to(string),
+            diaQuotechar = task_info["dialect"]["quotechar"].to(string),
+            diaEscapechar = task_info["dialect"]["escapechar"].to(string),
+            diaDoublequote = task_info["dialect"]["doublequote"].to(bool),
+            diaQuoting = task_info["dialect"]["quoting"].to(string),
+            diaSkipInitialSpace = task_info["dialect"]["skipinitialspace"].to(bool),
+            diaSkipTrailingSpace = task_info["dialect"]["skiptrailingspace"].to(bool),
+            diaLineTerminator = task_info["dialect"]["lineterminator"].to(string),
+            diaStrict = task_info["dialect"]["strict"].to(bool),
+            guessDtypes = task_info["guess_dtypes"].to(bool),
+            tskPages = task["pages"].to(seq[string]),
+            tskOffset = task["offset"].to(uint),
+            tskCount = task["count"].to(uint),
+            importFields = task_info["import_fields"].to(seq[uint])
+        )
 
 proc saveTasks*(task: TabliteTasks, pid: string, taskname: string): string =
     let task_path = pid & "/pages/" & taskname & ".txt"

@@ -118,7 +118,7 @@ proc date2NimDateTime*(year: int, month: int, day: int): DateTime {.inline.} =
     return dateTime(year, Month(month), MonthdayRange(day), zone=utc())
 
 proc datetime2NimDatetime*(year: int, month: int, day: int, hour: int, minute: int, second: int, microsecond: int): DateTime {.inline.} =
-    return dateTime(year, Month(month), MonthdayRange(day), hour, second, microsecond * 1000, zone=utc())
+    return dateTime(year, Month(month), MonthdayRange(day), hour, minute, second, microsecond * 1000, zone=utc())
 
 proc time2NimDuration*(hour: int, minute: int, second: int, microsecond: int): Duration {.inline.} =
     return initDuration(hours=hour, minutes=minute, seconds=second, microseconds=microsecond)

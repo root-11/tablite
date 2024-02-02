@@ -1,6 +1,5 @@
 import std/[os, tables, paths, enumerate, sequtils]
 from std/sugar import collect
-from std/strutils import parseInt
 import nimpy as nimpy
 import ../../numpy
 import ../../pytypes

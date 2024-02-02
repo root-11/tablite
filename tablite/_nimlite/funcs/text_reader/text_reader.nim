@@ -2,8 +2,9 @@ import nimpy as nimpy
 import std/[os, enumerate, sugar, tables, json, options, strutils, paths]
 import encfile, csvparse, table, ../../utils, paging, taskargs
 from ../../numpy import newPyPage
+from ../../ranking import Rank
 
-proc textReaderTask*(task: TaskArgs): seq[nimpy.PyObject] =
+proc collectPageInfoTask*(task: TaskArgs): (uint, seq[uint], seq[Rank]) =
     var dialect = task.dialect
     var encoding = task.encoding
     var destinations = task.destinations
@@ -28,6 +29,31 @@ proc textReaderTask*(task: TaskArgs): seq[nimpy.PyObject] =
             rowCount = rowCount,
             importFields = importFields
         )
+
+        return (nRows, longestStr, ranks)
+
+    finally:
+        fh.close()
+
+
+proc textReaderTask*(task: TaskArgs, page_info: (uint, seq[uint], seq[Rank])): seq[nimpy.PyObject] =
+    var dialect = task.dialect
+    var encoding = task.encoding
+    var destinations = task.destinations
+    var path = task.path
+    var guessDtypes = task.guessDtypes
+    var rowCount = task.rowCount
+    var rowOffset = task.rowOffset
+    var importFields = task.importFields
+    var obj = newReaderObj(dialect)
+
+    var fh = newFile(path, encoding)
+    let nPages = destinations.len
+
+    try:
+        fh.setFilePos(int64 rowOffset, fspSet)
+
+        var (nRows, longestStr, ranks) = pageInfo
 
         var (pageFileHandlers, columnDtypes, binput) = dumpPageHeader(
             destinations = destinations,
