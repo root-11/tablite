@@ -34,8 +34,8 @@ jobs:
     - name: Set Environment Variables
       uses: allenevans/set-env@v2.0.0
       with:
-        NIMLITE_DIR:  'tablite/_nimlite'
-        NIM_PACKAGE_NAME: 'nimlite'
+        NIMLITE_DIR:  'nimlite'
+        NIM_PACKAGE_NAME: 'libnimlite'
         TABLITE_PACKAGE_NAME: 'tablite'
         NIMC_FLAGS: '--app:lib --threads:on -d:release -d:danger'
     - name: Install dependencies
@@ -46,14 +46,14 @@ jobs:
     - name: Compile Debug & import (Unix)
       if: runner.os == 'Linux' || runner.os == 'macOS'
       run: |
-        # compile the nimlite
+        # compile the libnimlite
         nim c ${{ env.NIMC_FLAGS }} --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.so  ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
         # check if compiled successfully
         python -c "print(__import__('${{ env.TABLITE_PACKAGE_NAME }}.${{ env.NIM_PACKAGE_NAME }}').__file__)"
     - name: Compile Debug & import (Windows)
       if: runner.os == 'Windows'
       run: |
-        # compile the nimlite
+        # compile the libnimlite
         nim c ${{ env.NIMC_FLAGS }} --tlsEmulation:off --passL:-static --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.pyd ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
         # check if compiled successfully
         python -c "print(__import__('${{ env.TABLITE_PACKAGE_NAME }}.${{ env.NIM_PACKAGE_NAME }}').__file__)"
