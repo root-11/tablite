@@ -171,14 +171,6 @@ def _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns
     if len(left_keys) != len(right_keys):
         raise ValueError(f"Keys do not have same length: \n{left_keys}, \n{right_keys}")
 
-    for L, R in zip(left_keys, right_keys):
-        Lcol, Rcol = T[L], other[R]
-        if not set(Lcol.types()).intersection(set(Rcol.types())):
-            left_types = tuple(t.__name__ for t in list(Lcol.types().keys()))
-            right_types = tuple(t.__name__ for t in list(Rcol.types().keys()))
-            e = f"Type mismatch: Left key '{L}' {left_types} will never match right keys {right_types}"
-            raise TypeError(e)
-
     if not isinstance(left_columns, list) or not left_columns:
         raise TypeError("left_columns (list of strings) are required")
     if any(column not in T.columns for column in left_columns):
