@@ -20,7 +20,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.6">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.7">
     
     
       
@@ -28,7 +28,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.50c56a3b.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.f2e4d321.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
@@ -9628,7 +9628,9 @@ Example:</p>
 <span class="normal">1743</span>
 <span class="normal">1744</span>
 <span class="normal">1745</span>
-<span class="normal">1746</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">display_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slice_</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">blanks</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="normal">1746</span>
+<span class="normal">1747</span>
+<span class="normal">1748</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">display_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slice_</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">blanks</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;helper for creating dict for display.</span>
 
 <span class="sd">    Args:</span>
@@ -9649,7 +9651,9 @@ Example:</p>
     <span class="k">def</span> <span class="nf">datatype</span><span class="p">(</span><span class="n">col</span><span class="p">):</span>  <span class="c1"># PRIVATE</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;creates label for column datatype.&quot;&quot;&quot;</span>
         <span class="n">types</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">types</span><span class="p">()</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">types</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">types</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">typ</span> <span class="o">=</span> <span class="s2">&quot;empty&quot;</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">types</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
             <span class="n">dt</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">types</span><span class="o">.</span><span class="n">popitem</span><span class="p">()</span>
             <span class="n">typ</span> <span class="o">=</span> <span class="n">dt</span><span class="o">.</span><span class="vm">__name__</span>
         <span class="k">else</span><span class="p">:</span>
@@ -9800,9 +9804,7 @@ Example:</p>
 
           <details class="quote">
             <summary>Source code in <code>tablite/base.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1748</span>
-<span class="normal">1749</span>
-<span class="normal">1750</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1750</span>
 <span class="normal">1751</span>
 <span class="normal">1752</span>
 <span class="normal">1753</span>
@@ -9850,7 +9852,9 @@ Example:</p>
 <span class="normal">1795</span>
 <span class="normal">1796</span>
 <span class="normal">1797</span>
-<span class="normal">1798</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">to_ascii</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slice_</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">blanks</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="normal">1798</span>
+<span class="normal">1799</span>
+<span class="normal">1800</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">to_ascii</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slice_</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">blanks</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;returns ascii view of table as string.</span>
 
 <span class="sd">    Args:</span>
@@ -9991,15 +9995,15 @@ Example:</p>
 
           <details class="quote">
             <summary>Source code in <code>tablite/base.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1800</span>
-<span class="normal">1801</span>
-<span class="normal">1802</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1802</span>
 <span class="normal">1803</span>
 <span class="normal">1804</span>
 <span class="normal">1805</span>
 <span class="normal">1806</span>
 <span class="normal">1807</span>
-<span class="normal">1808</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">show</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slice_</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">blanks</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="normal">1808</span>
+<span class="normal">1809</span>
+<span class="normal">1810</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">show</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slice_</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">blanks</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;prints ascii view of table.</span>
 
 <span class="sd">    Args:</span>
@@ -10045,9 +10049,7 @@ slice_: slice. Default is None == all rows.</p>
 
           <details class="quote">
             <summary>Source code in <code>tablite/base.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1837</span>
-<span class="normal">1838</span>
-<span class="normal">1839</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1839</span>
 <span class="normal">1840</span>
 <span class="normal">1841</span>
 <span class="normal">1842</span>
@@ -10076,7 +10078,9 @@ slice_: slice. Default is None == all rows.</p>
 <span class="normal">1865</span>
 <span class="normal">1866</span>
 <span class="normal">1867</span>
-<span class="normal">1868</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">slice_</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">1868</span>
+<span class="normal">1869</span>
+<span class="normal">1870</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">slice_</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    columns: list of column names. Default is None == all columns.</span>
 <span class="sd">    slice_: slice. Default is None == all rows.</span>
@@ -10239,9 +10243,7 @@ Defaults to None which returns all columns.</p>
 
           <details class="quote">
             <summary>Source code in <code>tablite/base.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1870</span>
-<span class="normal">1871</span>
-<span class="normal">1872</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1872</span>
 <span class="normal">1873</span>
 <span class="normal">1874</span>
 <span class="normal">1875</span>
@@ -10272,7 +10274,9 @@ Defaults to None which returns all columns.</p>
 <span class="normal">1900</span>
 <span class="normal">1901</span>
 <span class="normal">1902</span>
-<span class="normal">1903</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">as_json_serializable</span><span class="p">(</span>
+<span class="normal">1903</span>
+<span class="normal">1904</span>
+<span class="normal">1905</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">as_json_serializable</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span> <span class="n">row_count</span><span class="o">=</span><span class="s2">&quot;row id&quot;</span><span class="p">,</span> <span class="n">start_on</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">slice_</span><span class="o">=</span><span class="kc">None</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;provides a JSON compatible format of the table.</span>
@@ -10354,9 +10358,7 @@ returns multikey index on the columns as d[(key tuple, )] = {index1, index2, ...
 
           <details class="quote">
             <summary>Source code in <code>tablite/base.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1905</span>
-<span class="normal">1906</span>
-<span class="normal">1907</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1907</span>
 <span class="normal">1908</span>
 <span class="normal">1909</span>
 <span class="normal">1910</span>
@@ -10392,7 +10394,9 @@ returns multikey index on the columns as d[(key tuple, )] = {index1, index2, ...
 <span class="normal">1940</span>
 <span class="normal">1941</span>
 <span class="normal">1942</span>
-<span class="normal">1943</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+<span class="normal">1943</span>
+<span class="normal">1944</span>
+<span class="normal">1945</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    param: *args: column names</span>
 <span class="sd">    returns multikey index on the columns as d[(key tuple, )] = {index1, index2, ...}</span>
@@ -10525,9 +10529,7 @@ returns multikey index on the columns as d[(key tuple, )] = {index1, index2, ...
 
           <details class="quote">
             <summary>Source code in <code>tablite/base.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1945</span>
-<span class="normal">1946</span>
-<span class="normal">1947</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1947</span>
 <span class="normal">1948</span>
 <span class="normal">1949</span>
 <span class="normal">1950</span>
@@ -10547,7 +10549,9 @@ returns multikey index on the columns as d[(key tuple, )] = {index1, index2, ...
 <span class="normal">1964</span>
 <span class="normal">1965</span>
 <span class="normal">1966</span>
-<span class="normal">1967</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">unique_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">):</span>
+<span class="normal">1967</span>
+<span class="normal">1968</span>
+<span class="normal">1969</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">unique_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;generates the index of unique rows given a list of column names</span>
 
 <span class="sd">    Args:</span>
@@ -10750,7 +10754,7 @@ is set, so that python can clean all temporary files up at exit.</p>
     <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.expand", "navigation.indexes", "navigation.top", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.e1c3ead8.min.js"></script>
+      <script src="../../assets/javascripts/bundle.caa56a14.min.js"></script>
       
     
   </body>

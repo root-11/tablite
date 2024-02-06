@@ -1683,7 +1683,9 @@ class BaseTable(object):
         def datatype(col):  # PRIVATE
             """creates label for column datatype."""
             types = col.types()
-            if len(types) == 1:
+            if len(types) == 0:
+                typ = "empty"
+            elif len(types) == 1:
                 dt, _ = types.popitem()
                 typ = dt.__name__
             else:
