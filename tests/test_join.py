@@ -561,3 +561,21 @@ def test_small_page_size():
     Config.PAGE_SIZE = original_page_size
    
 
+def test_join_with_no_pages():
+    A = Table({'A':[1,2,3], 'B':[]})
+    A.show(dtype=True, blanks="")
+
+    B = Table({'A':[1,2,3], 'B':[None,None,None]})
+    B.show(dtype=True)
+
+    C = Table({'A1': [1]})
+    A1 = C.join(A, left_keys=['A1'], right_keys=['B'])
+    assert isinstance(A1, Table), "although nothing will match, the operation is still valid"
+    B1 = C.join(B, left_keys=['A1'], right_keys=['B'])
+    assert isinstance(B1, Table), "although nothing will match, the operation is still valid"
+
+    AA = Table({'A':[1,2,3], 'B':[10,20,30]})
+    BB = Table({'A1': [1,2,3], 'B1': [1,2,3]})
+    CC = AA.join(BB, ['B'], ['B1'])
+    assert isinstance(CC, Table), "although nothing will match, the operation is still valid"
+    CC.show(dtype=True, blanks='')
