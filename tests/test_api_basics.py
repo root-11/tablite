@@ -618,7 +618,7 @@ def test05_verify_show_table():
     expected = """\
 +===+=====+=====+=====+
 | # |  A  |  B  |  C  |
-|row|mixed|mixed|mixed|
+|row|empty|empty|empty|
 +---+-----+-----+-----+
 +===+=====+=====+=====+"""
     assert txt2 == expected
