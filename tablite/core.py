@@ -729,7 +729,7 @@ class Table(BaseTable):
         """
         return _column_select(self, cols, tqdm, TaskManager)
 
-    def join(self, other, left_keys, right_keys, left_columns, right_columns, kind="inner", merge_keys=False, tqdm=_tqdm, pbar=None):
+    def join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, kind="inner", merge_keys=False, tqdm=_tqdm, pbar=None):
         """
         short-cut for all join functions.
         kind: 'inner', 'left', 'outer', 'cross'
