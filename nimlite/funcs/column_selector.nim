@@ -11,15 +11,16 @@ export fromPyObjToDesiredInfos
 when isMainModule and appType != "lib":
 
     import std/[os, tables, sugar, sets, sequtils, paths, macros]
-    import nimpy as nimpy
+    import nimpy
     from ../nimpyext import `!`
     import std/options as opt
-    import ../pymodules as pymodules
+    import ../pymodules
     import ../numpy
     import typetraits
 
     proc columnSelect(table: nimpy.PyObject, cols: nimpy.PyObject, tqdm: nimpy.PyObject, dir_pid: Path, TaskManager: nimpy.PyObject): (nimpy.PyObject, nimpy.PyObject) =
         # this is nim-only implementation, the library build doesn't need it because we need TaskManager to be used for slices
+        let TableClass = modules().getType(table)
         var pbar = tqdm!(total: 100, desc: "column select")
         var (columns, page_count, is_correct_type, desired_column_map, passed_column_data, failed_column_data, res_cols_pass, res_cols_fail, column_names, reject_reason_name) = collectColumnSelectInfo(table, cols, string dir_pid, pbar)
 
@@ -32,21 +33,21 @@ when isMainModule and appType != "lib":
                 for desired_name in failed_column_data:
                     {desired_name: newSeq[nimpy.PyObject]()}
 
-            let tbl_pass = tablite().Table(columns = tbl_pass_columns)
-            let tbl_fail = tablite().Table(columns = tbl_fail_columns)
+            let tbl_pass = TableClass!(columns = tbl_pass_columns)
+            let tbl_fail = TableClass!(columns = tbl_fail_columns)
 
             return (tbl_pass, tbl_fail)
 
         template ordered2PyDict(keys: seq[string]): nimpy.PyObject =
-            let dict = pymodules.builtins().dict()
+            let dict = modules().builtins.classes.DictClass!()
 
             for k in keys:
                 dict[k] = newSeq[nimpy.PyObject]()
 
             dict
 
-        var tbl_pass = tablite().Table(columns = passed_column_data.ordered2PyDict())
-        var tbl_fail = tablite().Table(columns = failed_column_data.ordered2PyDict())
+        var tbl_pass = TableClass!(columns = passed_column_data.ordered2PyDict())
+        var tbl_fail = TableClass!(columns = failed_column_data.ordered2PyDict())
 
         var task_list_inp = collect:
             for i in 0..<page_count:
@@ -55,7 +56,8 @@ when isMainModule and appType != "lib":
                         {name: column[i]}
                 (el, res_cols_pass[i], res_cols_fail[i])
 
-        var page_size = tabliteConfig().Config.PAGE_SIZE.to(int)
+        let tabliteConfig = modules().tablite.modules.config.classes.Config
+        var page_size = tabliteConfig.PAGE_SIZE.to(int)
         var converted = newSeqOfCap[(seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)])](task_list_inp.len)
         var pbarStep = 45 / max(task_list_inp.len - 1, 1)
 
@@ -79,10 +81,10 @@ when isMainModule and appType != "lib":
         return (tbl_pass, tbl_fail)
 
     proc newColumnSelectorInfo(column: string, `type`: string, allow_empty: bool, rename: opt.Option[string]): nimpy.PyObject =
-        let pyDict = builtins().dict(
-            column = column,
-            type = `type`,
-            allow_empty = allow_empty
+        let pyDict = modules().builtins.classes.DictClass!(
+            column: column,
+            type: `type`,
+            allow_empty: allow_empty
         )
 
         if rename.isNone():
@@ -92,35 +94,37 @@ when isMainModule and appType != "lib":
 
         return pyDict
 
-    let workdir = Path(pymodules.builtins().str(pymodules.tabliteConfig().Config.workdir).to(string))
+    let tabliteConfig = modules().tablite.modules.config.classes.Config
+    let workdir = Path(modules().toStr(tabliteConfig.workdir))
     let pid = "nim"
     let pagedir = workdir / Path(pid) / Path("pages")
 
     createDir(string pagedir)
 
-    pymodules.tabliteConfig().Config.pid = pid
-    # pymodules.tabliteConfig().Config.PAGE_SIZE = 2
-    # pymodules.tabliteConfig().Config.MULTIPROCESSING_MODE = pymodules.tabliteConfig().Config.FALSE
+    tabliteConfig.pid = pid
+    # tabliteConfig.PAGE_SIZE = 2
+    # tabliteConfig.MULTIPROCESSING_MODE = tabliteConfig.FALSE
 
-    # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(10), nimValueToPy(200)]}.toTable)
-    # let columns = pymodules.builtins().dict({"A ": @[1, 22, 333]}.toTable)
-    # let columns = pymodules.builtins().dict({"A ": @["1", "22", "333", "", "abc"]}.toTable)
-    # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy("1"), nimValueToPy("222"), nimValueToPy("333"), nimValueToPy(nil), nimValueToPy("abc")]}.toTable)
-    # let columns = pymodules.builtins().dict({"A ": @[nimValueToPy(1), nimValueToPy(2.0), nimValueToPy("333"), nimValueToPy("abc")]}.toTable)
-    let columns = pymodules.builtins().dict({"A": @[nimValueToPy(111111), nimValueToPy(222222), nimValueToPy(333333)], "B": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(2)]}.toTable)
-    # let columns = pymodules.builtins().dict({"A": @[nimValueToPy("0"), nimValueToPy(nil), nimValueToPy("2")], "B": @[nimValueToPy("3"), nimValueToPy(nil), nimValueToPy("4")]}.toTable)
-    # let columns = pymodules.builtins().dict({"str": @["1", "0"]})
-    # let columns = pymodules.builtins().dict({"float": @[1.0, 0.0]})
-    # let columns = pymodules.builtins().dict({"date": @[
+    # let columns = modules().builtins.classes.DictClass!({"A ": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(10), nimValueToPy(200)]}.toTable)
+    # let columns = modules().builtins.classes.DictClass!({"A ": @[1, 22, 333]}.toTable)
+    # let columns = modules().builtins.classes.DictClass!({"A ": @["1", "22", "333", "", "abc"]}.toTable)
+    # let columns = modules().builtins.classes.DictClass!({"A ": @[nimValueToPy("1"), nimValueToPy("222"), nimValueToPy("333"), nimValueToPy(nil), nimValueToPy("abc")]}.toTable)
+    # let columns = modules().builtins.classes.DictClass!({"A ": @[nimValueToPy(1), nimValueToPy(2.0), nimValueToPy("333"), nimValueToPy("abc")]}.toTable)
+    let columns = modules().builtins.classes.DictClass!({"A": @[nimValueToPy(111111), nimValueToPy(222222), nimValueToPy(333333)], "B": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(2)]}.toTable)
+    # let columns = modules().builtins.classes.DictClass!({"A": @[nimValueToPy("0"), nimValueToPy(nil), nimValueToPy("2")], "B": @[nimValueToPy("3"), nimValueToPy(nil), nimValueToPy("4")]}.toTable)
+    # let columns = modules().builtins.classes.DictClass!({"str": @["1", "0"]})
+    # let columns = modules().builtins.classes.DictClass!({"float": @[1.0, 0.0]})
+    # let columns = modules().builtins.classes.DictClass!({"date": @[
     #     datetime().date(2000, 1, 1),
     #     datetime().date(2000, 1, 2),
     # ]})
     # let columns = pymodules.builtins().dict({"str": @[nimValueToPy("abc"), nimValueToPy("efg"), nimValueToPy(nil)]}.toTable)
-    let table = pymodules.tablite().Table(columns = columns)
+    # let table = pymodules.tablite().Table(columns = columns)
+    let table = modules().tablite.fromFile("/home/ratchet/Documents/dematic/dce_logistics_functions/tests/data/gesaber_data_10k.csv")
 
     discard table.show(dtype = true)
 
-    let select_cols = builtins().list(@[
+    let select_cols = modules().builtins.classes.ListClass!(@[
         # newColumnSelectorInfo("A ", "int", true, opt.none[string]()),
         # newColumnSelectorInfo("A ", "float", true, opt.none[string]()),
             # newColumnSelectorInfo("A ", "float", false, opt.none[string]()),
@@ -155,15 +159,23 @@ when isMainModule and appType != "lib":
 
             # newColumnSelectorInfo("str", "str", true, opt.some("str")),
 
-            newColumnSelectorInfo("A", "str", false, opt.none[string]()),
-            newColumnSelectorInfo("B", "int", false, opt.none[string]()),
+            # newColumnSelectorInfo("A", "str", false, opt.none[string]()),
+            # newColumnSelectorInfo("B", "int", false, opt.none[string]()),
+
+            newColumnSelectorInfo("sale_date", "datetime", false, opt.none[string]()),
+            newColumnSelectorInfo("cust_nbr", "str", false, opt.none[string]()),
+            newColumnSelectorInfo("Order_Number", "str", false, opt.none[string]()),
+            newColumnSelectorInfo("prod_slbl", "str", false, opt.none[string]()),
+            newColumnSelectorInfo("cases", "int", false, opt.none[string]()),
     ])
+
+    
 
     let (select_pass, select_fail) = table.columnSelect(
         select_cols,
         nimpy.pyImport("tqdm").tqdm,
         dir_pid = workdir / Path(pid),
-        Taskmanager = mplite().TaskManager
+        Taskmanager = modules().mplite.classes.TaskManager
     )
 
     discard select_pass.show(dtype = true)

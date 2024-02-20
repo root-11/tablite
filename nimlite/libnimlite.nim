@@ -20,7 +20,7 @@ when isLib:
     import numpy
     proc read_page(path: string): nimpy.PyObject {.exportpy.} = return readNumpy(path).toPython()
     proc repaginate(column: nimpy.PyObject): void {.exportpy.} =
-        let pages = collect: (for p in column.pages: pymodules.builtins().str(p.path).to(string))
+        let pages = collect: (for p in column.pages: modules().toStr(p.path))
         let newPages = repaginate(pages)
 
         column.pages = newPages
