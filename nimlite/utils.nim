@@ -1,10 +1,12 @@
 import std/options
 from std/random import Rand, initRand, sample
 from std/math import floor
+from std/enumerate import enumerate
+from std/unicode import Rune, toRunes
 
 var rng = none[Rand]()
 
-const randChars = {'a'..'z','A'..'Z', '0'..'9'}
+const randChars = {'a'..'z', 'A'..'Z', '0'..'9'}
 
 template corrupted*(d: typedesc = IOError): void = raise newException(d, "file corrupted")
 template implement*(name: string = ""): void = raise newException(Exception, if name.len == 0: "not yet imlemented" else: "'" & name & "' not yet imlemented")
@@ -49,3 +51,23 @@ proc generateRandomString*(len: int): string {.inline.} =
         str[i] = rng.get().sample(randChars)
 
     return str
+
+proc convertSeqStrToSeqRune*(seqOfStr: seq[string], maxLength: int): seq[Rune] =
+    var buf = newSeq[Rune](maxLength * len(seqOfStr))
+
+    for (i, str) in enumerate(seqOfStr):
+        let runes = str.toRunes()
+        buf[i * maxLength].addr.copyMem(addr runes[0], len(runes) * sizeof(Rune))
+
+    return buf
+
+proc maxStringLen*(arr: seq[string]): int =
+    var v = 1
+
+    for s in arr:
+        v = max(v, s.toRunes.len)
+
+    return v
+
+proc convertSeqStrToSeqRune*(seqOfStr: seq[string]): seq[Rune] =
+    return seqOfStr.convertSeqStrToSeqRune(seqOfStr.maxStringLen)
