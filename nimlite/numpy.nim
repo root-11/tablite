@@ -1180,24 +1180,69 @@ proc repaginate*(pages: seq[string]): seq[nimpy.PyObject] =
 
     return resPages
 
-# proc newNDArray(arr: seq[int|int64]): Int64NDArray =
+template newPrimitiveNDArray[T: BaseNDArray](Constr: typedesc[T], buf: seq[typed]): T = Constr(buf: buf, shape: @[buf.len])
 
+proc newNDArray*(buf: seq[int8]): Int8NDArray {.inline.} = Int8NDArray.newPrimitiveNDArray(buf)
+proc newNDArray*(buf: seq[int16]): Int16NDArray {.inline.} = Int16NDArray.newPrimitiveNDArray(buf)
+proc newNDArray*(buf: seq[int32]): Int32NDArray {.inline.} = Int32NDArray.newPrimitiveNDArray(buf)
+proc newNDArray*(buf: seq[int64]): Int64NDArray {.inline.} = Int64NDArray.newPrimitiveNDArray(buf)
+
+proc newNDArray*(buf: seq[float32]): Float32NDArray {.inline.} = Float32NDArray.newPrimitiveNDArray(buf)
+proc newNDArray*(buf: seq[float64]): Float64NDArray {.inline.} = Float64NDArray.newPrimitiveNDArray(buf)
+
+proc newNDArray(buf: seq[string]): UnicodeNDArray =
+    let mlen = buf.maxStringLen
+    let rbuf = buf.convertSeqStrToSeqRune(mlen)
+
+    return UnicodeNDArray(buf: rbuf, shape: @[buf.len], size: mlen)
+
+
+proc newNDArray*[T: int | float](buf: seq[T]): Int32NDArray | Int64NDArray | Float32NDArray | Float64NDArray =
+    const sz = sizeof(T)
+
+    let count = buf.len
+    let byteCount = sz * count
+
+    when sz == 8:
+        when T is int:
+            var rbuf = newSeqUninitialized[int64](buf.len)
+        elif T is float:
+            var rbuf = newSeqUninitialized[float64](buf.len)
+        else:
+            raise newException(Exception, "invalid type")
+    elif sz == 4:
+        when T of int:
+            var rbuf = newSeqUninitialized[int32](buf.len)
+        elif T is float:
+            var rbuf = newSeqUninitialized[float32](buf.len)
+        else:
+            raise newException(Exception, "invalid type")
+    else:
+        raise newException(IOError, "invalid int size: " & $sz)
+
+    rbuf[0].addr.moveMem(addr buf[0], byteCount)
+
+    return newNDArray(rbuf)
 
 when isMainModule and appType != "lib":
-    let tabliteConfig = modules().tablite.modules.config.classes.Config
-    let workdir = Path(modules().toStr(tabliteConfig.workdir))
-    let pid = "nim"
-    let pagedir = workdir / Path(pid) / Path("pages")
+    # let tabliteConfig = modules().tablite.modules.config.classes.Config
+    # let workdir = Path(modules().toStr(tabliteConfig.workdir))
+    # let pid = "nim"
+    # let pagedir = workdir / Path(pid) / Path("pages")
 
-    createDir(string pagedir)
+    # createDir(string pagedir)
 
-    tabliteConfig.pid = pid
-    tabliteConfig.PAGE_SIZE = 2
+    # tabliteConfig.pid = pid
+    # tabliteConfig.PAGE_SIZE = 2
 
-    let columns = modules().builtins.classes.DictClass!({"A": @[1, 22, 333, 4444, 55555, 666666, 7777777]}.toTable)
-    let table = modules().tablite.classes.TableClass!(columns = columns)
-    let pages = collect: (for p in table["A"].pages: modules().toStr(p.path))
+    # let columns = modules().builtins.classes.DictClass!({"A": @[1, 22, 333, 4444, 55555, 666666, 7777777]}.toTable)
+    # let table = modules().tablite.classes.TableClass!(columns = columns)
+    # let pages = collect: (for p in table["A"].pages: modules().toStr(p.path))
 
-    let newPages = repaginate(pages)
+    # let newPages = repaginate(pages)
 
-    echo newPages
+    # echo newPages
+
+    echo newNDArray(@[1, 2, 3])
+    echo newNDArray(@[1.0, 2.0, 3.0])
+    echo newNDArray(@["a", "bb", "ccc"])
