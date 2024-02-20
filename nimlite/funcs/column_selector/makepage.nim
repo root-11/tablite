@@ -172,10 +172,10 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
                 continue
             buf[i * longest].addr.copyMem(addr str[0], str.len * sizeof(Rune))
 
-        let res = T(shape: @[strCount], buf: buf, size: longest, kind: T.pageKind)
+        let res = T(shape: @[strCount], buf: buf, size: longest)
     elif T is ObjectNDArray:
-        let res = T(shape: @[buf.len], dtypes: dtypes, buf: buf, kind: T.pageKind)
+        let res = T(shape: @[buf.len], dtypes: dtypes, buf: buf)
     else:
-        let res = T(shape: @[buf.len], buf: buf, kind: T.pageKind)
+        let res = T(shape: @[buf.len], buf: buf)
 
     BaseNDArray res

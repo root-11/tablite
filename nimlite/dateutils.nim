@@ -1,5 +1,6 @@
 import std/times
 from utils import divmod
+from std/hashes import Hash, hash
 from std/math import splitDecimal
 
 const DAYS_PER_MONTH_TABLE* = [
@@ -135,3 +136,5 @@ proc duration2Seconds*(dur: Duration): float {.inline.} = dur.inMicroseconds / 1
 proc duration2Date*(dur: Duration): DateTime {.inline.} = dateTime(1970, mJan, 1, zone=utc()) + dur
 proc seconds2Date*(seconds: float): DateTime {.inline.} = duration2Date(seconds2Duration(seconds))
 proc datetime2Date*(self: DateTime): DateTime {.inline.} = dateTime(self.year, self.month, self.monthday, zone=utc())
+
+proc hash*(self: DateTime): Hash = hash(self.toTime.toUnixFloat)

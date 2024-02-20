@@ -21,7 +21,10 @@ template toBangArg(inNode: NimNode, plainArgs: NimNode, kwArgs: NimNode) =
         plainArgs.add(newCall("toPyObjectArgument", node))
 
 macro `!`*(o: PyObject, args: varargs[untyped]): PyObject =
-    expectKind(o, nnkSym)
+    case o.kind:
+    of nnkSym, nnkDotExpr: discard
+    else:
+        raise newException(Exception, "unsupported kind: " & $o.kind)
 
     let plainArgs = newTree(nnkBracket)
     let kwArgs = newTree(nnkBracket)
