@@ -1263,16 +1263,15 @@ template validatePageKind(page: BaseNDArray, expected: KindObjectND) =
     var types = page.getPageTypes()
 
     for (typ, cnt) in types.pairs:
-        if typ == K_INT:
+        if typ == expected:
             continue
         if cnt > 0:
             raise newException(ValueError, "invalid page kind, expected only '" & $expected & "' but got: " & $types)
 
-proc iterateIntPage(page: BaseNDArray): iterator: int =
-    template collectValues(page: typed): iterator: int =
-        iterator(): int =
-            for v in page.pgIter:
-                yield int v
+iterator iterateIntPage(page: BaseNDArray): int =
+    template collectValues(page: typed) =
+        for v in page.pgIter:
+            yield int v
 
     case page.kind:
     of K_INT8: Int8NDArray(page).collectValues
@@ -1281,110 +1280,100 @@ proc iterateIntPage(page: BaseNDArray): iterator: int =
     of K_INT64: Int64NDArray(page).collectValues
     of K_OBJECT:
         page.validatePageKind(K_INT)
-        return iterator(): int =
-            for v in ObjectNDArray(page).pgIter:
-                yield PY_Int(v).value
+        for v in ObjectNDArray(page).pgIter:
+            yield PY_Int(v).value
 
     else: raise newException(ValueError, "invalid page type: " & $page.kind)
 
-proc iterateFloatPage(page: BaseNDArray): iterator: float =
-    template collectValues(page: typed): iterator: float =
-        iterator(): float =
-            for v in page.pgIter:
-                yield float v
+iterator iterateFloatPage(page: BaseNDArray): float =
+    template collectValues(page: typed) =
+        for v in page.pgIter:
+            yield float v
 
     case page.kind:
     of K_FLOAT32: Float32NDArray(page).collectValues
     of K_FLOAT64: Float64NDArray(page).collectValues
     of K_OBJECT:
         page.validatePageKind(K_FLOAT)
-        return iterator(): float =
-            for v in ObjectNDArray(page).pgIter:
-                yield PY_Float(v).value
+        for v in ObjectNDArray(page).pgIter:
+            yield PY_Float(v).value
 
     else: raise newException(ValueError, "invalid page type: " & $page.kind)
 
-proc iterateBooleanPage(page: BaseNDArray): iterator: bool =
+iterator iterateBooleanPage(page: BaseNDArray): bool =
     case page.kind:
     of K_BOOLEAN:
-        return iterator(): bool =
-            for v in BooleanNDArray(page).pgIter:
-                yield v
+        for v in BooleanNDArray(page).pgIter:
+            yield v
     of K_OBJECT:
         page.validatePageKind(K_BOOLEAN)
-        return iterator(): bool =
-            for v in ObjectNDArray(page).pgIter:
-                yield PY_Boolean(v).value
+        for v in ObjectNDArray(page).pgIter:
+            yield PY_Boolean(v).value
     else: raise newException(ValueError, "invalid page type: " & $page.kind)
 
 
-proc iterateStringPage(page: BaseNDArray): iterator: string =
+iterator iterateStringPage(page: BaseNDArray): string =
     case page.kind:
     of K_STRING:
-        return iterator(): string =
-            for v in UnicodeNDArray(page).pgIter:
-                yield v
+        for v in UnicodeNDArray(page).pgIter:
+            yield v
     of K_OBJECT:
         page.validatePageKind(K_STRING)
-        return iterator(): string =
-            for v in ObjectNDArray(page).pgIter:
-                yield PY_String(v).value
+        for v in ObjectNDArray(page).pgIter:
+            yield PY_String(v).value
     else: raise newException(ValueError, "invalid page type: " & $page.kind)
 
-proc iterateObjectPage(page: BaseNDArray): iterator: PY_ObjectND =
-    return iterator(): PY_ObjectND =
+iterator iterateObjectPage(page: BaseNDArray): PY_ObjectND =
+    case page.kind:
+    of K_BOOLEAN: (for v in BooleanNDArray(page).pgIter: yield newPY_Object(v))
+    of K_INT8: (for v in Int8NDArray(page).pgIter: yield newPY_Object(v))
+    of K_INT16: (for v in Int16NDArray(page).pgIter: yield newPY_Object(v))
+    of K_INT32: (for v in Int32NDArray(page).pgIter: yield newPY_Object(v))
+    of K_INT64: (for v in Int64NDArray(page).pgIter: yield newPY_Object(v))
+    of K_FLOAT32: (for v in Float32NDArray(page).pgIter: yield newPY_Object(v))
+    of K_FLOAT64: (for v in Float64NDArray(page).pgIter: yield newPY_Object(v))
+    of K_STRING: (for v in UnicodeNDArray(page).pgIter: yield newPY_Object(v))
+    of K_DATE: (for v in DateNDArray(page).pgIter: yield newPY_Object(v, K_DATE))
+    of K_DATETIME: (for v in DateTimeNDArray(page).pgIter: yield newPY_Object(v, K_DATETIME))
+    of K_OBJECT: (for v in ObjectNDArray(page).pgIter: yield v)
+
+iterator iterateColumn*[T: bool | int | float | string | PY_ObjectND](column: seq[string]): T =
+
+    for pgPath in column:
+        let page = readNumpy(pgPath)
+        for v in (
+            when T is bool: page.iterateBooleanPage
+            elif T is int: page.iterateIntPage
+            elif T is float: page.iterateFloatPage
+            elif T is string: page.iterateStringPage
+            elif T is PY_ObjectND: page.iterateObjectPage
+            else:
+                raise newException(FieldDefect, "unsupported column type: " & T.name)
+        ):
+            yield v
+
+iterator iterateColumn*(column: seq[string], kind: KindObjectND): DateTime =
+    for pgPath in column:
+        let page = readNumpy(pgPath)
+        page.validatePageKind(kind)
+
         case page.kind:
-        of K_BOOLEAN: (for v in BooleanNDArray(page).pgIter: yield newPY_Object(v))
-        of K_INT8: (for v in Int8NDArray(page).pgIter: yield newPY_Object(v))
-        of K_INT16: (for v in Int16NDArray(page).pgIter: yield newPY_Object(v))
-        of K_INT32: (for v in Int32NDArray(page).pgIter: yield newPY_Object(v))
-        of K_INT64: (for v in Int64NDArray(page).pgIter: yield newPY_Object(v))
-        of K_FLOAT32: (for v in Float32NDArray(page).pgIter: yield newPY_Object(v))
-        of K_FLOAT64: (for v in Float64NDArray(page).pgIter: yield newPY_Object(v))
-        of K_STRING: (for v in UnicodeNDArray(page).pgIter: yield newPY_Object(v))
-        of K_DATE: (for v in DateNDArray(page).pgIter: yield newPY_Object(v, K_DATE))
-        of K_DATETIME: (for v in DateTimeNDArray(page).pgIter: yield newPY_Object(v, K_DATETIME))
-        of K_OBJECT: (for v in ObjectNDArray(page).pgIter: yield v)
-
-proc iterateColumn*[T: bool | int | float | string | PY_ObjectND](column: seq[string]): iterator: T =
-    return iterator(): T =
-        for pgPath in column:
-            let page = readNumpy(pgPath)
-            for v in (
-                when T is bool: page.iterateBooleanPage
-                elif T is int: page.iterateIntPage
-                elif T is float: page.iterateFloatPage
-                elif T is string: page.iterateStringPage
-                elif T is PY_ObjectND: page.iterateObjectPage
-                else:
-                    raise newException(FieldDefect, "unsupported column type: " & T.name)
-            ):
-                yield v
-
-proc iterateColumn*(column: seq[string], kind: KindObjectND): iterator: DateTime =
-    template dateIter(): iterator(): DateTime =
-        iterator: Datetime =
-            case page.kind:
-            of K_DATE: (for v in DateNDArray(page).pgIter: yield v)
-            of K_DATETIME: (for v in DateTimeNDArray(page).pgIter: yield v)
-            of K_OBJECT:
-                case kind:
-                of K_DATE: (for v in ObjectNDArray(page).pgIter: yield PY_Date(v).value)
-                of K_DATETIME: (for v in ObjectNDArray(page).pgIter: yield PY_DateTime(v).value)
-                else: discard
+        of K_DATE: (for v in DateNDArray(page).pgIter: yield v)
+        of K_DATETIME: (for v in DateTimeNDArray(page).pgIter: yield v)
+        of K_OBJECT:
+            case kind:
+            of K_DATE: (for v in ObjectNDArray(page).pgIter: yield PY_Date(v).value)
+            of K_DATETIME: (for v in ObjectNDArray(page).pgIter: yield PY_DateTime(v).value)
             else: discard
-    
-    return iterator(): DateTime =
-        for pgPath in column:
-            let page = readNumpy(pgPath)
-            page.validatePageKind(kind)
+        else: discard
 
-            for v in dateIter:
-                yield v
+iterator iterateColumn*[T: bool | int | float | string | PY_ObjectND](column: nimpy.PyObject): T = 
+    for v in iterateColumn[T](modules().tablite.modules.base.collectPages(column)):
+        yield v
 
-proc iterateColumn*[T: bool | int | float | string | PY_ObjectND](column: nimpy.PyObject): iterator: T = iterateColumn[T](modules().tablite.modules.base.collectPages(column))
-
-proc iterateColumn*(column: nimpy.PyObject, kind: KindObjectND): iterator: DateTime = iterateColumn(column.collectPages, kind)
+iterator iterateColumn*(column: nimpy.PyObject, kind: KindObjectND): DateTime = 
+    for v in iterateColumn(modules().tablite.modules.base.collectPages(column), kind):
+        yield v
 
 when isMainModule and appType != "lib":
     let tabliteConfig = modules().tablite.modules.config.classes.Config
@@ -1397,14 +1386,14 @@ when isMainModule and appType != "lib":
         I'M GOING TO SHOOT UP A WALLMART. In Minecraft.
     ]#
 
-    echo readNumpy("tests/data/pages/scalar.npy")
+    echo readNumpy("tests/data/pages/scalar.npy").len
 
     # createDir(string pagedir)
 
     tabliteConfig.pid = pid
     tabliteConfig.PAGE_SIZE = 2
 
-    let columns = modules().builtins.classes.DictClass!({"A": @[1, 22, 333, 4444, 55555, 666666, 7777777]}.toTable)
+    let columns = modules().builtins.classes.DictClass!({"A": @["1", "22", "333", "4444", "55555", "666666", "7777777"]}.toTable)
     let table = modules().tablite.classes.TableClass!(columns = columns)
     let pages = collect: (for p in table["A"].pages: modules().toStr(p.path))
 
@@ -1412,7 +1401,7 @@ when isMainModule and appType != "lib":
 
     echo newPages
 
-    for i in iterateColumn[int](table["A"]):
+    for i in toSeq(iterateColumn[string](table["A"])):
         echo i
 
     echo newNDArray[DateNDArray](@[now().utc])

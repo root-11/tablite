@@ -13,21 +13,6 @@ jobs:
       PYTHON: '3.10'
     steps:
     - uses: actions/checkout@v3
-    - uses: jiro4989/setup-nim-action@v1
-      with:
-        nim-version: "2.0.0"
-    - name: Nimble Install dependencies
-      run: |
-        nimble -y refresh
-        nimble -y install nimpy argparse
-    - name: Set Environment Variables
-      uses: allenevans/set-env@v2.0.0
-      with:
-        NIMLITE_DIR:  'nimlite'
-        NIM_PACKAGE_NAME: 'libnimlite'
-        TABLITE_PACKAGE_NAME: 'tablite'
-        NIMC_FLAGS: '--app:lib --threads:on -d:release -d:danger'
-    
     - name: Setup Python
       uses: actions/setup-python@v3
       with:
@@ -38,12 +23,7 @@ jobs:
         python -m pip install pytest
         python -m pip install pytest-cov
         python -m pip install -r requirements.txt
-    - name: Compile Debug & import (Unix)
-      run: |
-        # compile the libnimlite
-        nim c ${{ env.NIMC_FLAGS }} --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.so  ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
-        # check if compiled successfully
-        python -c "print(__import__('${{ env.TABLITE_PACKAGE_NAME }}.${{ env.NIM_PACKAGE_NAME }}').__file__)"
+    - uses: ./.github/actions/buildnim
     - name: Generate Report
       run: |
         pytest --cov=tablite tests/ --cov-report=xml

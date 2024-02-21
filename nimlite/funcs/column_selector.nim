@@ -122,7 +122,7 @@ when isMainModule and appType != "lib":
     # let table = pymodules.tablite().Table(columns = columns)
     let table = modules().tablite.fromFile("/home/ratchet/Documents/dematic/dce_logistics_functions/tests/data/gesaber_data_10k.csv")
 
-    discard table.show(dtype = true)
+    # discard table.show(dtype = true)
 
     let select_cols = modules().builtins.classes.ListClass!(@[
         # newColumnSelectorInfo("A ", "int", true, opt.none[string]()),
