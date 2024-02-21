@@ -1228,6 +1228,10 @@ proc newNDArray*(buf: seq[string]): UnicodeNDArray =
 
     return UnicodeNDArray(buf: rbuf, shape: @[buf.len], size: mlen)
 
+proc newNDArray*(buf: seq[string], maxLen: int): UnicodeNDArray =
+    let rbuf = buf.convertSeqStrToSeqRune(maxLen)
+
+    return UnicodeNDArray(buf: rbuf, shape: @[buf.len], size: maxLen)
 
 proc newNDArray*(buf: seq[PY_ObjectND], dtypes: Table[KindObjectND, int]): ObjectNDArray =
     return ObjectNDArray(buf: buf, shape: @[buf.len], dtypes: dtypes)
