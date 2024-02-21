@@ -41,7 +41,7 @@ type PyTabliteConfig {.requiresInit.} = object
     Config*: nimpy.PyObject
 
 type PyTabliteBase {.requiresInit.} = object
-    ColumClass*: nimpy.PyObject
+    ColumnClass*: nimpy.PyObject
     SimplePageClass*: nimpy.PyObject
 
 type PyTabliteSubModules {.requiresInit.} = object
@@ -102,7 +102,7 @@ proc importPy(): void =
 
     let iPyTablite = PyTablite(TableClass: iTablite.Table)
     let iPyTabliteConf = PyTabliteConfig(Config: iTabliteConfig.Config)
-    let iPyTabliteBase = PyTabliteBase(ColumClass: iTabliteBase.Column, SimplePageClass: iTabliteBase.SimplePage)
+    let iPyTabliteBase = PyTabliteBase(ColumnClass: iTabliteBase.Column, SimplePageClass: iTabliteBase.SimplePage)
     let iPyTabliteSub = PyTabliteSubModules(
         config: PyModule[PyTabliteConfig].newModule(iTabliteConfig, iPyTabliteConf),
         base: PyModule[PyTabliteBase].newModule(iTabliteBase, iPyTabliteBase)
@@ -144,7 +144,7 @@ proc fromFile*(inst: PyModule[PyTablite], path: string): PyObject {.inline.} = i
 proc collectPages*(inst: PyModule[PyTabliteBase], column: PyObject): seq[string] {.inline.} =
     let builtins = modules().builtins
     
-    if not builtins.isinstance(column, inst.classes.ColumClass):
+    if not builtins.isinstance(column, inst.classes.ColumnClass):
         raise newException(ValueError, "not a column")
 
     return collect:
