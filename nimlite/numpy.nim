@@ -372,21 +372,6 @@ proc writeNumpyBool*(fh: var File, str: var string): void {.inline.} =
 proc writeNumpyBool*(fh: var File, value: var bool): void {.inline.} =
     fh.write(if value: '\x01' else: '\x00')
 
-proc repr(self: ObjectNDArray): string =
-    let elems = collect: (for e in self.buf: $e)
-    return "ObjectNDArray(buf: @[" & elems.join(", ") & "], shape: " & $self.shape & ")"
-
-proc `$`*(self: BaseNDArray): string =
-    case self.kind:
-    of K_BOOLEAN: return repr(BooleanNDArray self)
-    of K_INT64: return repr(Int64NDArray self)
-    of K_FLOAT64: return repr(Float64NDArray self)
-    of K_STRING: return repr(UnicodeNDArray self)
-    of K_OBJECT: return repr(ObjectNDArray self)
-    of K_DATE: return repr(DateNDArray self)
-    of K_DATETIME: return repr(DateTimeNDArray self)
-    else: implement("BaseNDArray.`$`" & $self.kind)
-
 
 proc validateHeader(fh: File, buf: var array[NUMPY_MAGIC_LEN, uint8], header: string, header_len: int): void {.inline.} =
     if fh.readBytes(buf, 0, header_len) != header_len:
@@ -1406,6 +1391,13 @@ when isMainModule and appType != "lib":
     # let workdir = Path(modules().toStr(tabliteConfig.workdir))
     let pid = "nim"
     # let pagedir = workdir / Path(pid) / Path("pages")
+
+    #[ 
+        getCurrentDir() is missing
+        I'M GOING TO SHOOT UP A WALLMART. In Minecraft.
+    ]#
+
+    echo readNumpy("tests/data/pages/scalar.npy")
 
     # createDir(string pagedir)
 
