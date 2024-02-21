@@ -1,0 +1,32 @@
+name: Build Nimlite
+description: "Builds Nimlite"
+runs:
+  using: "composite"
+  steps:
+    - uses: jiro4989/setup-nim-action@v1
+      with:
+        nim-version: "2.0.0"
+    - name: Nimble Install dependencies
+      shell: bash
+      run: |
+        nimble -y refresh
+        nimble -y install nimpy argparse
+    - name: Set Environment Variables
+      uses: allenevans/set-env@v2.0.0
+      with:
+        NIMLITE_DIR: 'nimlite'
+        NIM_PACKAGE_NAME: 'libnimlite'
+        TABLITE_PACKAGE_NAME: 'tablite'
+        NIMC_FLAGS: '--gc:refc --app:lib --threads:on -d:release -d:danger'
+    - name: Compile Debug & import (Unix)
+      shell: bash
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+      run: |
+        # compile the libnimlite
+        nim c ${{ env.NIMC_FLAGS }} --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.so ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
+    - name: Compile Debug & import (Windows)
+      shell: bash
+      if: runner.os == 'Windows'
+      run: |
+        # compile the libnimlite
+        nim c ${{ env.NIMC_FLAGS }} --tlsEmulation:off --passL:-static --out:${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.pyd ${{ env.NIMLITE_DIR }}/${{ env.NIM_PACKAGE_NAME }}.nim
