@@ -139,7 +139,7 @@ proc isinstance*(inst: PyModule[PyBuiltins], obj: PyObject, other: nimpy.PyObjec
 proc getAttr*(inst: PyModule[PyBuiltins], attr: string): PyObject {.inline.} = inst.module.getattr(inst.module, attr)
 proc getAttr*(inst: PyModule[PyBuiltins], obj: PyObject, attr: string): PyObject {.inline.} = inst.module.getattr(obj, attr)
 proc getType*(inst: PyModule[PyBuiltins], obj: PyObject): PyObject {.inline.} = inst.module.type(obj)
-proc getTypeName*(inst: PyModule[PyBuiltins], obj: PyObject): string {.inline.} = inst.getType(obj).getAttr(inst.getType(obj), "__name__").to(string)
+proc getTypeName*(inst: PyModule[PyBuiltins], obj: PyObject): string {.inline.} = inst.getAttr(inst.getType(obj), "__name__").to(string)
 proc toStr*(inst: PyModule[PyBuiltins], obj: PyObject): string {.inline.} = inst.module.str(obj).to(string)
 proc toRepr*(inst: PyModule[PyBuiltins], obj: PyObject): string {.inline.} = inst.module.repr(obj).to(string)
 proc getLen*(inst: PyModule[PyBuiltins], obj: PyObject): int {.inline.} = inst.module.len(obj).to(int)

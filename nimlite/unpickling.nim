@@ -405,7 +405,7 @@ proc newReducePickle(fn: var GlobalPickle, args: var TuplePickle): PY_Object =
 
         let pyBytes = bytesPy.data.tobytes()
         let valPy = np.core.multiarray.scalar(dtypePy, pyBytes).tolist()
-        let typeName = pymodules.modules().builtins.getTypeName(valPy)
+        let typeName = pymodules.modules().getTypeName(valPy)
 
         case typeName: # construct the nim native python object
         of "float": return newPY_Object(valPy.to(float))
