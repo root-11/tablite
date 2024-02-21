@@ -1366,11 +1366,11 @@ proc iterateColumn*[T: bool | int | float | string | PY_ObjectND](column: seq[st
         for pgPath in column:
             let page = readNumpy(pgPath)
             for v in (
-                when T of bool: page.iterateBooleanPage
-                elif T of int: page.iterateIntPage
-                elif T of float: page.iterateFloatPage
-                elif T of string: page.iterateStringPage
-                elif T of PY_ObjectND: page.iterateObjectPage
+                when T is bool: page.iterateBooleanPage
+                elif T is int: page.iterateIntPage
+                elif T is float: page.iterateFloatPage
+                elif T is string: page.iterateStringPage
+                elif T is PY_ObjectND: page.iterateObjectPage
                 else:
                     raise newException(FieldDefect, "unsupported column type: " & T.name)
             ):
@@ -1397,7 +1397,8 @@ proc iterateColumn*(column: seq[string], kind: KindObjectND): iterator: DateTime
             for v in dateIter:
                 yield v
 
-proc iterateColumn*[T: bool | int | float | string | PY_ObjectND](column: nimpy.PyObject): iterator: T = iterateColumn(column.collectPages)
+proc iterateColumn*[T: bool | int | float | string | PY_ObjectND](column: nimpy.PyObject): iterator: T = iterateColumn[T](modules().tablite.modules.base.collectPages(column))
+
 proc iterateColumn*(column: nimpy.PyObject, kind: KindObjectND): iterator: DateTime = iterateColumn(column.collectPages, kind)
 
 when isMainModule and appType != "lib":
@@ -1419,8 +1420,8 @@ when isMainModule and appType != "lib":
 
     echo newPages
 
-    # for i in table["A"]:
-    #     echo i
+    for i in iterateColumn[int](table["A"]):
+        echo i
 
     echo newNDArray[DateNDArray](@[now().utc])
     echo newNDArray[DateTimeNDArray](@[now().utc])
