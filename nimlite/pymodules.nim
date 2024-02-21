@@ -1,5 +1,6 @@
 from std/os import getEnv
 from std/strutils import split
+from std/sugar import collect
 import nimpy
 import std/options
 
@@ -140,7 +141,15 @@ proc toRepr*(inst: PyModule[PyBuiltins], obj: PyObject): string {.inline.} = ins
 proc getLen*(inst: PyModule[PyBuiltins], obj: PyObject): int {.inline.} = inst.module.len(obj).to(int)
 
 proc fromFile*(inst: PyModule[PyTablite], path: string): PyObject {.inline.} = inst.classes.TableClass.from_file(path)
+proc collectPages*(inst: PyModule[PyTabliteBase], column: PyObject): seq[string] {.inline.} =
+    let builtins = modules().builtins
+    
+    if not builtins.isinstance(column, inst.classes.ColumClass):
+        raise newException(ValueError, "not a column")
 
+    return collect:
+        for p in column.pages:
+            builtins.toStr(p.path)
 
 proc isinstance*(self: PyModules, obj: PyObject, other: nimpy.PyObject): bool {.inline.} = self.builtins.isinstance(obj, other)
 proc getAttr*(self: PyModules, obj: PyObject, attr: string): PyObject {.inline.} = self.builtins.getAttr(obj, attr)

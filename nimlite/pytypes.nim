@@ -1,6 +1,7 @@
 from std/tables import Table
 import std/times
 import dateutils
+from ./utils import implement
 
 const fmtDate* = initTimeFormat("yyyy-MM-dd")
 const fmtDateTime* = initTimeFormat("yyyy-MM-dd HH:mm:ss")
@@ -59,16 +60,15 @@ type Py_Dict* = ref object of Py_Object
 
 let PY_None* = PY_NoneType(kind: KindObjectND.K_NONETYPE)
 
-proc toRepr*(self: PY_ObjectND): string {.inline.} =
-    case self.kind:
-    of K_NONETYPE: "None"
-    of K_BOOLEAN: $PY_Boolean(self).value
-    of K_INT: $PY_Int(self).value
-    of K_FLOAT: $PY_Float(self).value
-    of K_STRING: $PY_String(self).value
-    of K_DATE: PY_Date(self).value.format(fmtDate)
-    of K_TIME: $PY_Time(self).value.duration2Date.format(fmtTime)
-    of K_DATETIME: PY_DateTime(self).value.format(fmtDateTime)
+method toRepr*(self: PY_ObjectND): string {.base, inline.} = implement("PY_ObjectND.`$` must be implemented by inheriting class: " & $self.kind)
+method toRepr*(self: PY_NoneType): string = "None"
+method toRepr*(self: PY_Boolean): string = $self.value
+method toRepr*(self: PY_Int): string = $self.value
+method toRepr*(self: PY_Float): string = $self.value
+method toRepr*(self: PY_String): string = "'" & self.value & "'"
+method toRepr*(self: PY_Date): string = self.value.format(fmtDate)
+method toRepr*(self: PY_Time): string = self.value.duration2Date.format(fmtTime)
+method toRepr*(self: PY_DateTime): string = self.value.format(fmtDateTime)
 
 proc newPY_Date*(year: uint16, month, day: uint8): PY_Date {.inline.} = PY_Date(value: date2NimDatetime(int year, int month, int day), kind: K_DATE)
 
@@ -100,10 +100,10 @@ proc newPY_Time*(hour, minute, second: uint8, microsecond: uint32): PY_Time {.in
 
 proc newPY_Time*(date: DateTime): PY_Time = PY_Time(value: date.toTime.time2Duration, kind: K_TIME)
 
-proc `$`*(self: PY_ObjectND): string {.inline.} = "PY_ObjectND"
-proc `$`*(self: PY_Date): string {.inline.} = "Date(" & self.toRepr & ")"
-proc `$`*(self: PY_Time): string {.inline.} = "Time(" & self.toRepr & ")"
-proc `$`*(self: PY_DateTime): string {.inline.} = "DateTime(" & self.toRepr & ")"
+method `$`*(self: PY_ObjectND): string {.inline, base.} = "PY_ObjectND"
+method `$`*(self: PY_Date): string {.inline.} = "Date(" & self.toRepr & ")"
+method `$`*(self: PY_Time): string {.inline.} = "Time(" & self.toRepr & ")"
+method `$`*(self: PY_DateTime): string {.inline.} = "DateTime(" & self.toRepr & ")"
 
 proc calcShapeElements*(shape: var Shape): int {.inline.} =
     var elements = 1

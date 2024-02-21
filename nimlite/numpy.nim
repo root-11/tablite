@@ -113,7 +113,7 @@ template pageKind*(_: typedesc[DateTimeNDArray]): KindNDArray = KindNDArray.K_DA
 template pageKind*(_: typedesc[UnicodeNDArray]): KindNDArray = KindNDArray.K_STRING
 template pageKind*(_: typedesc[ObjectNDArray]): KindNDArray = KindNDArray.K_OBJECT
 
-method kind*(self: BaseNDArray): KindNDArray {.base.} = raise newException(Exception, "must be implemented by inheriting class")
+method kind*(self: BaseNDArray): KindNDArray {.base.} = implement("must be implemented by inheriting class")
 method kind*(self: BooleanNDArray): KindNDArray = return type(self).pageKind
 method kind*(self: Int8NDArray): KindNDArray = return type(self).pageKind
 method kind*(self: Int16NDArray): KindNDArray = return type(self).pageKind
@@ -125,7 +125,6 @@ method kind*(self: DateNDArray): KindNDArray = return type(self).pageKind
 method kind*(self: DateTimeNDArray): KindNDArray = return type(self).pageKind
 method kind*(self: UnicodeNDArray): KindNDArray = return type(self).pageKind
 method kind*(self: ObjectNDArray): KindNDArray = return type(self).pageKind
-
 
 template headerType*(T: typedesc[BaseNDArray]): string =
     case T.pageKind:
@@ -189,6 +188,35 @@ iterator pgIter*(self: UnicodeNDArray): string =
         yield str
         i = next
 
+template fullPrint(T: typed, name: string, buf: string): string = "NDArray[" & name & "](shape: (" & self.shape.join(", ") & (if self.shape.len > 1: ")" else: ", )") & " buf: [" & buf & "])"
+template simplePrint(T: typed, name: string): string = self.fullPrint(name, self.buf.join(", "))
+
+method `$`(self: BaseNDArray): string {.base.} = implement("BaseNDArray.`$` must be implemented by inheriting class: " & $self.kind)
+method `$`*(self: BooleanNDArray): string = self.simplePrint("boolean")
+method `$`*(self: Int8NDArray): string = self.simplePrint("int8")
+method `$`*(self: Int16NDArray): string = self.simplePrint("int16")
+method `$`*(self: Int32NDArray): string = self.simplePrint("int32")
+method `$`*(self: Int64NDArray): string = self.simplePrint("int64")
+method `$`*(self: Float32NDArray): string = self.simplePrint("float32")
+method `$`*(self: Float64NDArray): string = self.simplePrint("float64")
+method `$`*(self: UnicodeNDArray): string = self.fullPrint("string<" & $self.size & ">", toSeq(self.pgIter).join(", "))
+method `$`*(self: DateNDArray): string = 
+    let v = collect:
+        for v in self.buf:
+            v.format(fmtDate)
+    self.fullPrint("date", v.join(", "))
+method `$`*(self: DateTimeNDArray): string =
+    let v = collect:
+        for v in self.buf:
+            v.format(fmtDateTime)
+    self.fullPrint("datetime", v.join(", "))
+method `$`*(self: ObjectNDArray): string =
+    let v = collect:
+        for v in self.buf:
+            v.toRepr
+    self.fullPrint("object", v.join(", "))
+
+
 proc `[]`(self: UnicodeNDArray, index: int): string =
     var chars = newSeqOfCap[Rune](self.size)
     let offset = self.size * index
@@ -251,7 +279,7 @@ proc `[]`(self: ObjectNDArray, slice: seq[int] | openArray[int]): BaseNDArray =
         of K_STRING:
             let newBuf = collect: (for v in buf: PY_String(v).value)
             return newBuf.newNDArray
-        of K_NONETYPE, K_TIME: 
+        of K_NONETYPE, K_TIME:
             # nones and times are always treated as objects
             discard
 
@@ -739,39 +767,14 @@ proc toNumpyPrimitive[T: bool | int8 | int16 | int32 | int64 | float32 | float64
         else:
             raise newException(IOError, "invalid primitive type: " & T.name)
 
-proc toPython(self: BooleanNDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[bool](self.shape, addr self.buf[0])
-
-proc toPython(self: Int8NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[int8](self.shape, addr self.buf[0])
-proc toPython(self: Int16NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[int16](self.shape, addr self.buf[0])
-proc toPython(self: Int32NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[int32](self.shape, addr self.buf[0])
-proc toPython(self: Int64NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[int64](self.shape, addr self.buf[0])
-
-proc toPython(self: Float32NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[float32](self.shape, addr self.buf[0])
-proc toPython(self: Float64NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[float64](self.shape, addr self.buf[0])
-
-proc toPython(self: UnicodeNDArray): nimpy.PyObject = toNumpyPrimitive(gendtypeStr(self.size), self.shape, self.size * sizeof(Rune), addr self.buf[0])
-
-proc toPython(self: DateNDArray): nimpy.PyObject =
-    var buf = collect:
-        for el in self.buf:
-            el.toTime.time2Duration.inDays
-
-    return toNumpyPrimitive(self.dtype, self.shape, sizeof(int64), addr buf[0])
-
-proc toPython(self: DateTimeNDArray): nimpy.PyObject =
-    var buf = collect:
-        for el in self.buf:
-            el.toTime.time2Duration.inMicroseconds
-
-    return toNumpyPrimitive(self.dtype, self.shape, sizeof(int64), addr buf[0])
-
-proc toNimpy(self: PY_NoneType): nimpy.PyObject = nil
-proc toNimpy(self: PY_Boolean): nimpy.PyObject = modules().builtins.classes.BoolClass!(self.value)
-proc toNimpy(self: PY_Int): nimpy.PyObject = modules().builtins.classes.IntClass!(self.value)
-proc toNimpy(self: PY_Float): nimpy.PyObject = modules().builtins.classes.FloatClass!(self.value)
-proc toNimpy(self: PY_String): nimpy.PyObject = modules().builtins.classes.StrClass!(self.value)
-proc toNimpy(self: PY_Date): nimpy.PyObject = modules().datetime.classes.DateClass!(self.value.year, self.value.month, self.value.monthday)
-proc toNimpy(self: PY_Time): nimpy.PyObject =
+method toNimpy(self: PY_ObjectND): nimpy.PyObject {.base.} = implement("must be implemented by inheriting class")
+method toNimpy(self: PY_NoneType): nimpy.PyObject = nil
+method toNimpy(self: PY_Boolean): nimpy.PyObject = modules().builtins.classes.BoolClass!(self.value)
+method toNimpy(self: PY_Int): nimpy.PyObject = modules().builtins.classes.IntClass!(self.value)
+method toNimpy(self: PY_Float): nimpy.PyObject = modules().builtins.classes.FloatClass!(self.value)
+method toNimpy(self: PY_String): nimpy.PyObject = modules().builtins.classes.StrClass!(self.value)
+method toNimpy(self: PY_Date): nimpy.PyObject = modules().datetime.classes.DateClass!(self.value.year, self.value.month, self.value.monthday)
+method toNimpy(self: PY_Time): nimpy.PyObject =
     let hour = self.getHour()
     let minute = self.getMinute()
     let second = self.getSecond()
@@ -781,44 +784,42 @@ proc toNimpy(self: PY_Time): nimpy.PyObject =
         hour: hour, minute: minute, second: second, microsecond: microsecond
     )
 
-proc toNimpy(self: PY_DateTime): nimpy.PyObject =
+method toNimpy(self: PY_DateTime): nimpy.PyObject =
     return modules().datetime.classes.DateTimeClass!(
         self.value.year, self.value.month, self.value.monthday,
         self.value.hour, self.value.minute, self.value.second, int(self.value.nanosecond / 1000)
     )
 
-proc toNimpy(self: PY_ObjectND): nimpy.PyObject =
-    case self.kind:
-    of K_NONETYPE: return PY_NoneType(self).toNimpy()
-    of K_BOOLEAN: return PY_Boolean(self).toNimpy()
-    of K_INT: return PY_Int(self).toNimpy()
-    of K_FLOAT: return PY_Float(self).toNimpy()
-    of K_STRING: return PY_String(self).toNimpy()
-    of K_DATE: return PY_Date(self).toNimpy()
-    of K_TIME: return PY_Time(self).toNimpy()
-    of K_DATETIME: return PY_DateTime(self).toNimpy()
 
-proc toPython(self: ObjectNDArray): nimpy.PyObject =
+method toPython*(self: BaseNDArray): nimpy.PyObject {.inline, base.} = implement("must be implemented by inheriting class")
+method toPython*(self: BooleanNDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[bool](self.shape, addr self.buf[0])
+method toPython*(self: Int8NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[int8](self.shape, addr self.buf[0])
+method toPython*(self: Int16NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[int16](self.shape, addr self.buf[0])
+method toPython*(self: Int32NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[int32](self.shape, addr self.buf[0])
+method toPython*(self: Int64NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[int64](self.shape, addr self.buf[0])
+method toPython*(self: Float32NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[float32](self.shape, addr self.buf[0])
+method toPython*(self: Float64NDArray): nimpy.PyObject {.inline.} = toNumpyPrimitive[float64](self.shape, addr self.buf[0])
+method toPython*(self: UnicodeNDArray): nimpy.PyObject = toNumpyPrimitive(gendtypeStr(self.size), self.shape, self.size * sizeof(Rune), addr self.buf[0])
+method toPython*(self: DateNDArray): nimpy.PyObject =
+    var buf = collect:
+        for el in self.buf:
+            el.toTime.time2Duration.inDays
+
+    return toNumpyPrimitive(self.dtype, self.shape, sizeof(int64), addr buf[0])
+
+method toPython*(self: DateTimeNDArray): nimpy.PyObject =
+    var buf = collect:
+        for el in self.buf:
+            el.toTime.time2Duration.inMicroseconds
+
+    return toNumpyPrimitive(self.dtype, self.shape, sizeof(int64), addr buf[0])
+
+method toPython*(self: ObjectNDArray): nimpy.PyObject =
     let buf = collect:
         for el in self.buf:
             el.toNimpy()
 
     return modules().numpy.classes.NdArrayClass!(buf)
-
-
-proc toPython*(self: BaseNDArray): nimpy.PyObject =
-    case self.kind:
-    of K_BOOLEAN: return BooleanNDArray(self).toPython()
-    of K_INT8: return Int8NDArray(self).toPython()
-    of K_INT16: return Int16NDArray(self).toPython()
-    of K_INT32: return Int32NDArray(self).toPython()
-    of K_INT64: return Int64NDArray(self).toPython()
-    of K_FLOAT32: return Float32NDArray(self).toPython()
-    of K_FLOAT64: return Float64NDArray(self).toPython()
-    of K_DATE: return DateNDArray(self).toPython()
-    of K_DATETIME: return DateTimeNDArray(self).toPython()
-    of K_STRING: return UnicodeNDArray(self).toPython()
-    of K_OBJECT: return ObjectNDArray(self).toPython()
 
 proc getPageLen*(fh: var File): int =
     var (_, _, shape) = readPageInfo(fh)
@@ -958,7 +959,7 @@ proc saveAsUnicode(self: ObjectNDArray, path: string): void =
 
     let elements = uint calcShapeElements(self.shape)
     var fh = open(path, fmWrite)
-    
+
     fh.writeNumpyHeader(gendtypeStr(longest), elements)
 
     for v in self.pgIter:
@@ -971,9 +972,9 @@ proc save(self: ObjectNDArray, path: string): void =
         for (k, v) in self.dtypes.pairs:
             if v == 0: continue
             {k: v}
-    
+
     var hasNones = K_NONETYPE in dtypes
-    
+
     if not hasNones:
         # we have no nones, we may be able to save as primitive
         var colDtypes = toSeq(dtypes.keys)
@@ -991,8 +992,8 @@ proc save(self: ObjectNDArray, path: string): void =
                 of K_STRING: self.saveAsUnicode(path); return
                 of K_DATE: self.saveAsPrimitive(path, DateNDArray.headerType, writeDate); return
                 of K_DATETIME: self.saveAsPrimitive(path, DateTimeNDArray.headerType, writeDateTime); return
-                of K_NONETYPE: discard  # can't happen
-                of K_TIME: discard      # time is always an object
+                of K_NONETYPE: discard # can't happen
+                of K_TIME: discard # time is always an object
 
     let dtype = self.dtype
     let elements = uint calcShapeElements(self.shape)
@@ -1019,7 +1020,7 @@ proc newNDArray*(arr: seq[string] | openArray[string] | iterator(): string): Uni
             longest = max(longest, res.len)
             page_len = page_len + 1
             res
-    
+
     let shape = @[page_len]
     let buf = newSeq[Rune](longest * page_len)
 
@@ -1042,20 +1043,32 @@ proc save*(self: BaseNDArray, path: string): void =
     of K_DATETIME: DateTimeNDArray(self).save(path)
     of K_OBJECT: ObjectNDArray(self).save(path)
 
+proc save*(self: BaseNDArray, page: nimpy.PyObject): void =
+    let m = modules()
+
+    if not m.isinstance(page, m.tablite.modules.base.classes.SimplePageClass):
+        raise newException(ValueError, "must be a page")
+
+    let path = m.toStr(page.path)
+
+    self.save(path)
+
 proc type2PyType(`type`: KindObjectND): nimpy.PyObject =
+    let m = modules()
+
     case `type`:
-    of K_BOOLEAN: return modules().builtins.classes.BoolClass
-    of K_INT: return modules().builtins.classes.IntClass
-    of K_FLOAT: return modules().builtins.classes.FloatClass
-    of K_STRING: return modules().builtins.classes.StrClass
-    of K_NONETYPE: return modules().builtins.classes.NoneTypeClass
-    of K_DATE: return modules().datetime.classes.DateClass
-    of K_TIME: return modules().datetime.classes.TimeClass
-    of K_DATETIME: return modules().datetime.classes.DateTimeClass
+    of K_BOOLEAN: return m.builtins.classes.BoolClass
+    of K_INT: return m.builtins.classes.IntClass
+    of K_FLOAT: return m.builtins.classes.FloatClass
+    of K_STRING: return m.builtins.classes.StrClass
+    of K_NONETYPE: return m.builtins.classes.NoneTypeClass
+    of K_DATE: return m.datetime.classes.DateClass
+    of K_TIME: return m.datetime.classes.TimeClass
+    of K_DATETIME: return m.datetime.classes.DateTimeClass
 
 proc newPyPage*(id: string, path: string, len: int, dtypes: Table[KindObjectND, int]): nimpy.PyObject =
     let pyDtypes = modules().builtins.classes.DictClass!()
-    
+
     for (dt, n) in dtypes.pairs:
         let obj = dt.type2PyType()
         pyDtypes[obj] = n
@@ -1063,6 +1076,21 @@ proc newPyPage*(id: string, path: string, len: int, dtypes: Table[KindObjectND, 
     let pg = modules().tablite.modules.base.classes.SimplePageClass!(id, path, len, pyDtypes)
 
     return pg
+
+proc newPyPage*(self: BaseNDArray, workdir: string, pid: string): nimpy.PyObject = newPyPage(pid, workdir, self.len, self.getPageTypes)
+proc newPyPage*(self: BaseNDArray, workdir: string): nimpy.PyObject = 
+    let pid = modules().tablite.modules.base.classes.SimplePageClass.next_id(workdir).to(string)
+
+    return self.newPyPage(workdir, pid)
+
+proc newPyPage*(self: BaseNDArray): nimpy.PyObject = 
+    let tabliteConfig = modules().tablite.modules.config.classes.Config
+    let wpid = tabliteConfig.pid.to(string)
+    let tablitDir = Path(modules().builtins.toStr(tabliteConfig.workdir))
+    let workdir = string (tablitDir / Path(wpid))
+    let pid = modules().tablite.modules.base.classes.SimplePageClass.next_id(workdir).to(string)
+
+    return self.newPyPage(workdir, pid)
 
 proc calcRepaginationSteps(shapes: seq[int] | var seq[int] | ptr seq[int], pageSize: int): (seq[seq[(int, int, int)]], int) =
     var colLen = 0
@@ -1073,7 +1101,7 @@ proc calcRepaginationSteps(shapes: seq[int] | var seq[int] | ptr seq[int], pageS
     else:
         for v in shapes:
             colLen = colLen + v
-    
+
     let resultPages = int ceil(colLen / pageSize)
 
     var steps = collect: (for _ in 0..<resultPages: newSeq[(int, int, int)]())
@@ -1114,8 +1142,8 @@ proc repaginate*(pages: seq[string]): seq[nimpy.PyObject] =
             dtypes[k] = 0
 
     let tabliteConfig = modules().tablite.modules.config.classes.Config
-    let pageSize = tabliteConfig.Config.PAGE_SIZE.to(int)
-    let wpid = tabliteConfig.Config.pid.to(string)
+    let pageSize = tabliteConfig.PAGE_SIZE.to(int)
+    let wpid = tabliteConfig.pid.to(string)
     let workdir = Path(modules().builtins.toStr(tabliteConfig.workdir))
     let dir = workdir / Path(wpid)
     let shapes = collect: (for path in pages: getPageLen(path))
@@ -1182,6 +1210,8 @@ proc repaginate*(pages: seq[string]): seq[nimpy.PyObject] =
 
 template newPrimitiveNDArray[T: BaseNDArray](Constr: typedesc[T], buf: seq[typed]): T = Constr(buf: buf, shape: @[buf.len])
 
+proc newNDArray*(buf: seq[bool]): BooleanNDArray {.inline.} = BooleanNDArray.newPrimitiveNDArray(buf)
+
 proc newNDArray*(buf: seq[int8]): Int8NDArray {.inline.} = Int8NDArray.newPrimitiveNDArray(buf)
 proc newNDArray*(buf: seq[int16]): Int16NDArray {.inline.} = Int16NDArray.newPrimitiveNDArray(buf)
 proc newNDArray*(buf: seq[int32]): Int32NDArray {.inline.} = Int32NDArray.newPrimitiveNDArray(buf)
@@ -1190,12 +1220,28 @@ proc newNDArray*(buf: seq[int64]): Int64NDArray {.inline.} = Int64NDArray.newPri
 proc newNDArray*(buf: seq[float32]): Float32NDArray {.inline.} = Float32NDArray.newPrimitiveNDArray(buf)
 proc newNDArray*(buf: seq[float64]): Float64NDArray {.inline.} = Float64NDArray.newPrimitiveNDArray(buf)
 
-proc newNDArray(buf: seq[string]): UnicodeNDArray =
+proc newNDArray*[T: DateNDArray or DateTimeNDArray](buf: seq[DateTime]): T = T.newPrimitiveNDArray(buf)
+
+proc newNDArray*(buf: seq[string]): UnicodeNDArray =
     let mlen = buf.maxStringLen
     let rbuf = buf.convertSeqStrToSeqRune(mlen)
 
     return UnicodeNDArray(buf: rbuf, shape: @[buf.len], size: mlen)
 
+
+proc newNDArray*(buf: seq[PY_ObjectND], dtypes: Table[KindObjectND, int]): ObjectNDArray =
+    return ObjectNDArray(buf: buf, shape: @[buf.len], dtypes: dtypes)
+
+proc newNDArray*(buf: seq[PY_ObjectND]): ObjectNDArray =
+    var dtypes = initTable[KindObjectND, int]()
+
+    for o in buf:
+        if not (o.kind in dtypes):
+            dtypes[o.kind] = 0
+
+        dtypes[o.kind] = dtypes[o.kind] + 1
+
+    return newNDArray(buf, dtypes)
 
 proc newNDArray*[T: int | float](buf: seq[T]): Int32NDArray | Int64NDArray | Float32NDArray | Float64NDArray =
     const sz = sizeof(T)
@@ -1224,25 +1270,158 @@ proc newNDArray*[T: int | float](buf: seq[T]): Int32NDArray | Int64NDArray | Flo
 
     return newNDArray(rbuf)
 
+template validatePageKind(page: BaseNDArray, expected: KindObjectND) =
+    var types = page.getPageTypes()
+
+    for (typ, cnt) in types.pairs:
+        if typ == K_INT:
+            continue
+        if cnt > 0:
+            raise newException(ValueError, "invalid page kind, expected only '" & $expected & "' but got: " & $types)
+
+proc iterateIntPage(page: BaseNDArray): iterator: int =
+    template collectValues(page: typed): iterator: int =
+        iterator(): int =
+            for v in page.pgIter:
+                yield int v
+
+    case page.kind:
+    of K_INT8: Int8NDArray(page).collectValues
+    of K_INT16: Int16NDArray(page).collectValues
+    of K_INT32: Int32NDArray(page).collectValues
+    of K_INT64: Int64NDArray(page).collectValues
+    of K_OBJECT:
+        page.validatePageKind(K_INT)
+        return iterator(): int =
+            for v in ObjectNDArray(page).pgIter:
+                yield PY_Int(v).value
+
+    else: raise newException(ValueError, "invalid page type: " & $page.kind)
+
+proc iterateFloatPage(page: BaseNDArray): iterator: float =
+    template collectValues(page: typed): iterator: float =
+        iterator(): float =
+            for v in page.pgIter:
+                yield float v
+
+    case page.kind:
+    of K_FLOAT32: Float32NDArray(page).collectValues
+    of K_FLOAT64: Float64NDArray(page).collectValues
+    of K_OBJECT:
+        page.validatePageKind(K_FLOAT)
+        return iterator(): float =
+            for v in ObjectNDArray(page).pgIter:
+                yield PY_Float(v).value
+
+    else: raise newException(ValueError, "invalid page type: " & $page.kind)
+
+proc iterateBooleanPage(page: BaseNDArray): iterator: bool =
+    case page.kind:
+    of K_BOOLEAN:
+        return iterator(): bool =
+            for v in BooleanNDArray(page).pgIter:
+                yield v
+    of K_OBJECT:
+        page.validatePageKind(K_BOOLEAN)
+        return iterator(): bool =
+            for v in ObjectNDArray(page).pgIter:
+                yield PY_Boolean(v).value
+    else: raise newException(ValueError, "invalid page type: " & $page.kind)
+
+
+proc iterateStringPage(page: BaseNDArray): iterator: string =
+    case page.kind:
+    of K_STRING:
+        return iterator(): string =
+            for v in UnicodeNDArray(page).pgIter:
+                yield v
+    of K_OBJECT:
+        page.validatePageKind(K_STRING)
+        return iterator(): string =
+            for v in ObjectNDArray(page).pgIter:
+                yield PY_String(v).value
+    else: raise newException(ValueError, "invalid page type: " & $page.kind)
+
+proc iterateObjectPage(page: BaseNDArray): iterator: PY_ObjectND =
+    return iterator(): PY_ObjectND =
+        case page.kind:
+        of K_BOOLEAN: (for v in BooleanNDArray(page).pgIter: yield newPY_Object(v))
+        of K_INT8: (for v in Int8NDArray(page).pgIter: yield newPY_Object(v))
+        of K_INT16: (for v in Int16NDArray(page).pgIter: yield newPY_Object(v))
+        of K_INT32: (for v in Int32NDArray(page).pgIter: yield newPY_Object(v))
+        of K_INT64: (for v in Int64NDArray(page).pgIter: yield newPY_Object(v))
+        of K_FLOAT32: (for v in Float32NDArray(page).pgIter: yield newPY_Object(v))
+        of K_FLOAT64: (for v in Float64NDArray(page).pgIter: yield newPY_Object(v))
+        of K_STRING: (for v in UnicodeNDArray(page).pgIter: yield newPY_Object(v))
+        of K_DATE: (for v in DateNDArray(page).pgIter: yield newPY_Object(v, K_DATE))
+        of K_DATETIME: (for v in DateTimeNDArray(page).pgIter: yield newPY_Object(v, K_DATETIME))
+        of K_OBJECT: (for v in ObjectNDArray(page).pgIter: yield v)
+
+proc iterateColumn*[T: bool | int | float | string | PY_ObjectND](column: seq[string]): iterator: T =
+    return iterator(): T =
+        for pgPath in column:
+            let page = readNumpy(pgPath)
+            for v in (
+                when T of bool: page.iterateBooleanPage
+                elif T of int: page.iterateIntPage
+                elif T of float: page.iterateFloatPage
+                elif T of string: page.iterateStringPage
+                elif T of PY_ObjectND: page.iterateObjectPage
+                else:
+                    raise newException(FieldDefect, "unsupported column type: " & T.name)
+            ):
+                yield v
+
+proc iterateColumn*(column: seq[string], kind: KindObjectND): iterator: DateTime =
+    template dateIter(): iterator(): DateTime =
+        iterator: Datetime =
+            case page.kind:
+            of K_DATE: (for v in DateNDArray(page).pgIter: yield v)
+            of K_DATETIME: (for v in DateTimeNDArray(page).pgIter: yield v)
+            of K_OBJECT:
+                case kind:
+                of K_DATE: (for v in ObjectNDArray(page).pgIter: yield PY_Date(v).value)
+                of K_DATETIME: (for v in ObjectNDArray(page).pgIter: yield PY_DateTime(v).value)
+                else: discard
+            else: discard
+    
+    return iterator(): DateTime =
+        for pgPath in column:
+            let page = readNumpy(pgPath)
+            page.validatePageKind(kind)
+
+            for v in dateIter:
+                yield v
+
+proc iterateColumn*[T: bool | int | float | string | PY_ObjectND](column: nimpy.PyObject): iterator: T = iterateColumn(column.collectPages)
+proc iterateColumn*(column: nimpy.PyObject, kind: KindObjectND): iterator: DateTime = iterateColumn(column.collectPages, kind)
+
 when isMainModule and appType != "lib":
-    # let tabliteConfig = modules().tablite.modules.config.classes.Config
+    let tabliteConfig = modules().tablite.modules.config.classes.Config
     # let workdir = Path(modules().toStr(tabliteConfig.workdir))
-    # let pid = "nim"
+    let pid = "nim"
     # let pagedir = workdir / Path(pid) / Path("pages")
 
     # createDir(string pagedir)
 
-    # tabliteConfig.pid = pid
-    # tabliteConfig.PAGE_SIZE = 2
+    tabliteConfig.pid = pid
+    tabliteConfig.PAGE_SIZE = 2
 
-    # let columns = modules().builtins.classes.DictClass!({"A": @[1, 22, 333, 4444, 55555, 666666, 7777777]}.toTable)
-    # let table = modules().tablite.classes.TableClass!(columns = columns)
-    # let pages = collect: (for p in table["A"].pages: modules().toStr(p.path))
+    let columns = modules().builtins.classes.DictClass!({"A": @[1, 22, 333, 4444, 55555, 666666, 7777777]}.toTable)
+    let table = modules().tablite.classes.TableClass!(columns = columns)
+    let pages = collect: (for p in table["A"].pages: modules().toStr(p.path))
 
-    # let newPages = repaginate(pages)
+    let newPages = repaginate(pages)
 
-    # echo newPages
+    echo newPages
 
+    # for i in table["A"]:
+    #     echo i
+
+    echo newNDArray[DateNDArray](@[now().utc])
+    echo newNDArray[DateTimeNDArray](@[now().utc])
+    echo newNDArray(@[false, false, true])
     echo newNDArray(@[1, 2, 3])
     echo newNDArray(@[1.0, 2.0, 3.0])
     echo newNDArray(@["a", "bb", "ccc"])
+    echo newNDArray(@[newPY_Object()])
