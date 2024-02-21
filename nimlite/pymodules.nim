@@ -48,6 +48,9 @@ type PyTabliteSubModules {.requiresInit.} = object
     config*: PyModule[PyTabliteConfig]
     base*: PyModule[PyTabliteBase]
 
+type PyTqdm {.requiresInit.} = object
+    TqdmClass*: nimpy.PyObject
+
 type PyModules {.requiresInit.} = object
     sys*: PyEmptyModule
     builtins*: PyModule[PyBuiltins]
@@ -56,7 +59,7 @@ type PyModules {.requiresInit.} = object
     numpy*: PyModule[PyNumpy]
     mplite*: PyModule[PyMplite]
     nimlite*: PyEmptyModule
-    tqdm*: PyEmptyModule
+    tqdm*: PyModule[PyTqdm]
 
 proc newModule[K, T](Class: typedesc[K], module: nimpy.PyObject, classes: T): K {.inline.} = Class(module: module, classes: classes)
 proc newModule[K, T1, T2](Class: typedesc[K], module: nimpy.PyObject, classes: T1, modules: T2): K {.inline.} = Class(module: module, classes: classes, modules: modules)
@@ -110,6 +113,7 @@ proc importPy(): void =
 
     let iPyNumpy = PyNumpy(NdArrayClass: iBuiltins.getattr(iNumpy, "array"))
     let iPyMplite = PyMplite(TaskManager: iBuiltins.getattr(iMplite, "TaskManager"))
+    let iPyTqdm = PyTqdm(TqdmClass: iBuiltins.getattr(iTqdm, "tqdm"))
 
     let pyModules = PyModules(
         sys: newEmptyModule(iSys),
@@ -119,7 +123,7 @@ proc importPy(): void =
         tablite: PyDeepModule[PyTablite, PyTabliteSubModules].newModule(iTablite, iPyTablite, iPyTabliteSub),
         mplite: PyModule[PyMplite].newModule(iMplite, iPyMplite),
         nimlite: newEmptyModule(iNimlite),
-        tqdm: newEmptyModule(iTqdm),
+        tqdm: PyModule[PyTqdm].newModule(iTqdm, iPyTqdm),
     )
 
     py = some(pyModules)
