@@ -14,21 +14,21 @@ type PageType = enum
     PG_DATETIME
     PG_DATE_SHORT
 
-var strNone = ""
+var noneStr = ""
 
 proc collectPageInfo*(
         obj: var ReaderObj, fh: var BaseEncodedFile,
-        guess_dtypes: bool, nPages: int, rowCount: int,
+        guessDtypes: bool, nPages: int, rowCount: int,
         importFields: var seq[uint]
     ): (uint, seq[uint], seq[Rank]) =
     var ranks: seq[Rank]
-    var strLongest = collect(newSeqOfCap(nPages)):
+    var longestStr = collect(newSeqOfCap(nPages)):
         for _ in 0..<nPages:
             1u
-    
+
     var nRows: uint = 0
 
-    if guess_dtypes:
+    if guessDtypes:
         ranks = collect(newSeqOfCap(nPages)):
             for _ in 0..<nPages:
                 newRank()
@@ -53,25 +53,25 @@ proc collectPageInfo*(
             if fidx < 0 or fidx >= nPages:
                 raise newException(Exception, "what")
 
-            if not guess_dtypes:
-                strLongest[fidx] = max(uint field.runeLen, strLongest[fidx])
+            if not guessDtypes:
+                longestStr[fidx] = max(uint field.runeLen, longestStr[fidx])
             else:
                 let rank = addr ranks[fidx]
                 let dt = rank[].updateRank(field.addr)
 
                 if dt == DataTypes.DT_STRING:
-                    strLongest[fidx] = max(uint field.runeLen, strLongest[fidx])
+                    longestStr[fidx] = max(uint field.runeLen, longestStr[fidx])
 
         for idx in (fidx+1)..<nPages:
             # fill missing fields with nones
-            strLongest[idx] = max(uint strNone.len, strLongest[idx])
+            longestStr[idx] = max(uint noneStr.len, longestStr[idx])
 
-            if guess_dtypes:
-                discard ranks[idx].updateRank(addr strNone)
+            if guessDtypes:
+                discard ranks[idx].updateRank(addr noneStr)
 
         inc nRows
 
-    return (nRows, strLongest, ranks)
+    return (nRows, longestStr, ranks)
 
 proc isAnyInt(dt: PageType): bool {.inline.} =
     return dt == PageType.PG_INT32_SIMPLE or dt == PageType.PG_INT32_US or dt == PageType.PG_INT32_EU
@@ -87,25 +87,25 @@ proc isAnyFloat(dt: DataTypes): bool {.inline.} =
 
 proc dumpPageHeader*(
         destinations: var seq[string],
-        nPages: int, nRows: uint, guess_dtypes: bool,
-        strLongest: var seq[uint], ranks: var seq[Rank]
+        nPages: int, nRows: uint, guessDtypes: bool,
+        longestStr: var seq[uint], ranks: var seq[Rank]
     ): (seq[File], seq[PageType], uint32) =
     let pageFileHandlers = collect(newSeqOfCap(nPages)):
         for p in destinations:
             open(p, fmWrite)
 
-    var dtypesColumn = newSeq[PageType](nPages)
+    var columnDtypes = newSeq[PageType](nPages)
     var binput: uint32 = 0
 
-    if not guess_dtypes:
-        for idx, (fh, i) in enumerate(zip(pageFileHandlers, strLongest)):
-            dtypesColumn[idx] = PageType.PG_UNICODE
+    if not guessDtypes:
+        for idx, (fh, i) in enumerate(zip(pageFileHandlers, longestStr)):
+            columnDtypes[idx] = PageType.PG_UNICODE
             fh.writeNumpyHeader(endiannessMark & "U" & $i, nRows)
     else:
         for i in 0..<nPages:
             let fh = pageFileHandlers[i]
             let rank = addr ranks[i]
-            var dtype = dtypesColumn[i]
+            var dtype = columnDtypes[i]
 
             rank[].sortRanks(false) # sort accounting for strings, so that if string is primary type, everything overlaps to string
 
@@ -161,7 +161,7 @@ proc dumpPageHeader*(
                 else: dtype = PageType.PG_OBJECT # types cannot overlap
 
             case dtype:
-                of PageType.PG_UNICODE: fh.writeNumpyHeader(endiannessMark & "U" & $ strLongest[i], nRows)
+                of PageType.PG_UNICODE: fh.writeNumpyHeader(endiannessMark & "U" & $ longestStr[i], nRows)
                 of PageType.PG_INT32_SIMPLE, PageType.PG_INT32_US, PageType.PG_INT32_EU: fh.writeNumpyHeader(endiannessMark & "i8", nRows)
                 of PageType.PG_FLOAT32_SIMPLE, PageType.PG_FLOAT32_US, PageType.PG_FLOAT32_EU: fh.writeNumpyHeader(endiannessMark & "f8", nRows)
                 of PageType.PG_BOOL: fh.writeNumpyHeader("|b1", nRows)
@@ -171,15 +171,15 @@ proc dumpPageHeader*(
                     rank[].sortRanks(true) # this is an object type, put string backs to the end
                 else: raise newException(Exception, "invalid")
 
-            dtypesColumn[i] = dtype
+            columnDtypes[i] = dtype
 
         for idx in 0..<nPages:
             var fh = pageFileHandlers[idx]
-            let dt = dtypesColumn[idx]
+            let dt = columnDtypes[idx]
             if dt == PageType.PG_OBJECT:
                 fh.writePickleStart(binput, nRows)
 
-    return (pageFileHandlers, dtypesColumn, binput)
+    return (pageFileHandlers, columnDtypes, binput)
 
 proc inferLocaleInt(rank: var Rank, str: var string): int {.inline.} =
     for ptrRank in rank.iter():
@@ -212,10 +212,10 @@ proc inferLocaleFloat(rank: var Rank, str: var string): float {.inline.} =
 
 proc dumpPageBody*(
         obj: var ReaderObj, fh: var BaseEncodedFile,
-        guess_dtypes: bool, nPages: int, rowCount: int,
+        guessDtypes: bool, nPages: int, rowCount: int,
         importFields: var seq[uint],
         pageFileHandlers: var seq[File],
-        strLongest: var seq[uint], ranks: var seq[Rank], dtypesColumn: var seq[PageType],
+        longestStr: var seq[uint], ranks: var seq[Rank], columnDtypes: var seq[PageType],
         binput: var uint32
     ): (seq[Table[KindObjectND, int]], seq[int]) =
     var bodyLens = newSeq[int](nPages)
@@ -246,16 +246,16 @@ proc dumpPageBody*(
             var fh = pageFileHandlers[fidx]
             var dtypes = addr typeCounts[fidx]
 
-            if not guess_dtypes:
-                fh.writeNumpyUnicode(str, strLongest[fidx])
+            if not guessDtypes:
+                fh.writeNumpyUnicode(str, longestStr[fidx])
                 dtypes.addType(K_STRING, fidx)
             else:
-                let dt = dtypesColumn[fidx]
+                let dt = columnDtypes[fidx]
                 var rank = ranks[fidx]
 
                 case dt:
                     of PageType.PG_UNICODE:
-                        fh.writeNumpyUnicode(str, strLongest[fidx])
+                        fh.writeNumpyUnicode(str, longestStr[fidx])
                         dtypes.addType(K_STRING, fidx)
                     of PageType.PG_INT32_SIMPLE, PageType.PG_INT32_US, PageType.PG_INT32_EU:
                         fh.writeNumpyInt(inferLocaleInt(rank, str))
@@ -327,15 +327,15 @@ proc dumpPageBody*(
             var fh = pageFileHandlers[idx]
             var dtypes = addr typeCounts[idx]
 
-            if not guess_dtypes:
-                fh.writeNumpyUnicode(strNone, strLongest[idx])
+            if not guessDtypes:
+                fh.writeNumpyUnicode(noneStr, longestStr[idx])
                 dtypes.addType(K_STRING, idx)
             else:
-                let dt = dtypesColumn[idx]
+                let dt = columnDtypes[idx]
 
                 case dt:
                     of PageType.PG_UNICODE:
-                        fh.writeNumpyUnicode(strNone, strLongest[idx])
+                        fh.writeNumpyUnicode(noneStr, longestStr[idx])
                         dtypes.addType(K_STRING, idx)
                     else:
                         fh.writePicklePyObj(PY_None, binput)
@@ -347,11 +347,11 @@ proc dumpPageBody*(
 proc dumpPageFooter*(
     nPages: int, nRows: uint,
     pageFileHandlers: var seq[File],
-    dtypesColumn: var seq[PageType],
+    columnDtypes: var seq[PageType],
     binput: var uint32
 ): void =
     for idx in 0..<nPages:
         var fh = pageFileHandlers[idx]
-        let dt = dtypesColumn[idx]
+        let dt = columnDtypes[idx]
         if dt == PageType.PG_OBJECT:
             fh.writePickleFinish(binput, nRows)
