@@ -1,5 +1,6 @@
 import std/times
 from utils import divmod
+from std/hashes import Hash, hash
 from std/math import splitDecimal
 
 const DAYS_PER_MONTH_TABLE* = [
@@ -118,7 +119,7 @@ proc date2NimDateTime*(year: int, month: int, day: int): DateTime {.inline.} =
     return dateTime(year, Month(month), MonthdayRange(day), zone=utc())
 
 proc datetime2NimDatetime*(year: int, month: int, day: int, hour: int, minute: int, second: int, microsecond: int): DateTime {.inline.} =
-    return dateTime(year, Month(month), MonthdayRange(day), hour, second, microsecond * 1000, zone=utc())
+    return dateTime(year, Month(month), MonthdayRange(day), hour, minute, second, microsecond * 1000, zone=utc())
 
 proc time2NimDuration*(hour: int, minute: int, second: int, microsecond: int): Duration {.inline.} =
     return initDuration(hours=hour, minutes=minute, seconds=second, microseconds=microsecond)
@@ -135,3 +136,5 @@ proc duration2Seconds*(dur: Duration): float {.inline.} = dur.inMicroseconds / 1
 proc duration2Date*(dur: Duration): DateTime {.inline.} = dateTime(1970, mJan, 1, zone=utc()) + dur
 proc seconds2Date*(seconds: float): DateTime {.inline.} = duration2Date(seconds2Duration(seconds))
 proc datetime2Date*(self: DateTime): DateTime {.inline.} = dateTime(self.year, self.month, self.monthday, zone=utc())
+
+proc hash*(self: DateTime): Hash = hash(self.toTime.toUnixFloat)

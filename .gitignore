@@ -9,14 +9,8 @@
 *.pyc
 tests/new.zip
 __pycache__
-*/_nimlite/*
-!*/_nimlite/**.nim
-!*/_nimlite/funcs/
-!*/_nimlite/includes/
-!*/_nimlite/includes/**.nim
-!*/_nimlite/funcs/column_selector/**.nim
-!*/_nimlite/**.py
-!*/_nimlite/**.pyi
+/nimlite/*.so
+/nimlite/nimtest
 
 # Notebook checkpoints
 .ipynb_checkpoints/

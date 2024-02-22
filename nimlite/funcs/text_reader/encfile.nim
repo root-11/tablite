@@ -43,49 +43,49 @@ proc readLine(f: FileConvertable, str: var string): bool =
     return res
 
 proc readLine(f: FileUTF16, str: var string): bool =
-    var ch_arr: array[2048, uint8] # must be divisible by 2
+    var chArr: array[2048, uint8] # must be divisible by 2
     var ch: uint16
 
-    let newline_char: uint16 = 0x000a
-    var wchar_seq = newSeqOfCap[uint16](80)
+    const nlChar: uint16 = 0x000a
+    var wchSeq = newSeqOfCap[uint16](80)
 
     var file_offset = f.fh.getFilePos()
-    var elements = f.fh.readBuffer(addr ch_arr, 2)
-    var el_iter = 0
+    var elements = f.fh.readBuffer(addr chArr, 2)
+    var itElem = 0
 
     if (elements mod 2) != 0:
         raise newException(Exception, "malformed file")
 
-    while likely(el_iter < elements):
+    while likely(itElem < elements):
         if f.endianness == bigEndian: # big if true
-            (ch_arr[el_iter], ch_arr[el_iter+1]) = (ch_arr[el_iter+1], ch_arr[el_iter])
+            (chArr[itElem], chArr[itElem+1]) = (chArr[itElem+1], chArr[itElem])
 
-        ch = cast[uint16](ch_arr)
+        ch = cast[uint16](chArr)
 
-        el_iter = el_iter + 2
+        itElem = itElem + 2
 
-        if newline_char == ch:
-            if wchar_seq.len == 0:
+        if nlChar == ch:
+            if wchSeq.len == 0:
                 str = "" # empty line
                 return true
             break
 
-        wchar_seq.add(ch)
+        wchSeq.add(ch)
 
-        if el_iter >= elements:
+        if itElem >= elements:
             file_offset = f.fh.getFilePos()
-            elements = f.fh.readBuffer(addr ch_arr, 2)
-            el_iter = 0
+            elements = f.fh.readBuffer(addr chArr, 2)
+            itElem = 0
 
             if (elements mod 2) != 0:
                 raise newException(Exception, "malformed file")
 
-    f.fh.setFilePos(file_offset + el_iter, fspSet)
+    f.fh.setFilePos(file_offset + itElem, fspSet)
 
-    var wstr = newWideCString(wchar_seq.len)
+    var wstr = newWideCString(wchSeq.len)
 
-    if wchar_seq.len > 0:
-        copyMem(wstr[0].addr, wchar_seq[0].addr, wchar_seq.len * 2)
+    if wchSeq.len > 0:
+        copyMem(wstr[0].addr, wchSeq[0].addr, wchSeq.len * 2)
     else:
         return false
 
@@ -109,12 +109,12 @@ proc newFileUTF16(filename: string): FileUTF16 =
     if fh.getFileSize() mod 2 != 0:
         raise newException(Exception, "invalid size")
 
-    var bom_bytes: array[2, uint16]
+    var bomBytes: array[2, uint16]
 
-    if fh.readBuffer(addr bom_bytes, bom_bytes.len) != bom_bytes.len:
+    if fh.readBuffer(addr bomBytes, bomBytes.len) != bomBytes.len:
         raise newException(Exception, "cannot find bom")
 
-    var bom = cast[uint16](bom_bytes)
+    var bom = cast[uint16](bomBytes)
     var endianness: Endianness;
 
     if bom == 0xfeff:
@@ -130,10 +130,10 @@ proc newFileUTF8(filename: string): FileUTF8 =
     let fh = open(filename, fmRead)
 
     var bom: array[3, uint8]
-    var bom_bytes = fh.readBytes(bom, 0, 3)
+    var bomBytes = fh.readBytes(bom, 0, 3)
 
     # detect bom
-    if bom_bytes != 3:
+    if bomBytes != 3:
         fh.setFilePos(0, FileSeekPos.fspSet)
     elif bom[0] != 0xEF or bom[1] != 0xBB or bom[2] != 0xBF:
         fh.setFilePos(0, FileSeekPos.fspSet)

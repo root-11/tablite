@@ -5,7 +5,7 @@ import numpy as np
 from pathlib import Path
 from tqdm import tqdm as _tqdm
 from tablite.config import Config
-from mplite import Task, TaskManager
+from mplite import Task, TaskChain, TaskManager
 from tablite.base import BaseTable, Column
 from typing import TYPE_CHECKING, Literal, Type, TypeVar, TypedDict, Union, List, Tuple
 
@@ -16,7 +16,7 @@ if True:
         import nimporter
 
         nimporter.Nimporter.IGNORE_CACHE = True
-    import tablite._nimlite.nimlite as nl
+    import nimlite.libnimlite as nl
 
     sys.argv.clear()
     sys.argv.extend(paths)  # importing nim module messes with pythons launch arguments!!!
@@ -33,26 +33,6 @@ ColumnSelectorDict = TypedDict(
         "rename": Union[str, None]
     }
 )
-
-def _text_reader_task(*, path, encoding, dialect, task, import_fields, guess_dtypes):
-    return nl.text_reader_task(
-        path=path,
-        encoding=encoding,
-        dia_delimiter=dialect["delimiter"],
-        dia_quotechar=dialect["quotechar"],
-        dia_escapechar=dialect["escapechar"],
-        dia_doublequote=dialect["doublequote"],
-        dia_quoting=dialect["quoting"],
-        dia_skipinitialspace=dialect["skipinitialspace"],
-        dia_skiptrailingspace=dialect["skiptrailingspace"],
-        dia_lineterminator=dialect["lineterminator"],
-        dia_strict=dialect["strict"],
-        tsk_pages=task["pages"],
-        tsk_offset=task["offset"],
-        tsk_count=task["count"],
-        import_fields=import_fields,
-        guess_dtypes=guess_dtypes
-    )
 
 
 def text_reader(
@@ -103,15 +83,28 @@ def text_reader(
 
         cpus = max(psutil.cpu_count(logical=use_logical), 1)
 
+        pbar_step = 4 / max(len(ti_tasks), 1)
+
+        class WrapUpdate:
+                def update(self, n):
+                    pbar.update(n * pbar_step)
+
+        wrapped_pbar = WrapUpdate()
+
+        def next_task(task: Task, page_info):
+            wrapped_pbar.update(1)
+            return Task(
+                nl.text_reader_task,
+                *task.args, **task.kwargs, page_info=page_info
+            )
+
         tasks = [
-            Task(
-                _text_reader_task,
-                path=ti_path,
-                encoding=ti_encoding,
-                dialect=ti_dialect,
-                task=t,
-                guess_dtypes=ti_guess_dtypes,
-                import_fields=ti_import_fields
+            TaskChain(
+                Task(
+                    nl.collect_text_reader_page_info_task,
+                    task=t,
+                    task_info=task_info
+                ), next_task=next_task
             ) for t in ti_tasks
         ]
 
@@ -119,27 +112,21 @@ def text_reader(
 
         if Config.MULTIPROCESSING_MODE == Config.FALSE:
             is_sp = True
-        elif Config.MULTIPROCESSING_MODE == Config.AUTO and cpus <= 1 or len(tasks) <= 1:
-            is_sp = True
         elif Config.MULTIPROCESSING_MODE == Config.FORCE:
             is_sp = False
-
-        pbar_step = 8 / max(len(tasks) - 1, 1)
+        elif Config.MULTIPROCESSING_MODE == Config.AUTO and cpus <= 1 or len(tasks) <= 1:
+            is_sp = True
 
         if is_sp:
             res = []
 
             for task in tasks:
-                res.append(task.f(*task.args, **task.kwargs))
+                page = task.execute()
 
-                pbar.update(pbar_step)
+                res.append(page)
         else:
-            class WrapUpdate:
-                def update(self, n):
-                    pbar.update(n * pbar_step)
-
             with TaskManager(cpus) as tm:
-                res = tm.execute(tasks, pbar=WrapUpdate())
+                res = tm.execute(tasks, pbar=wrapped_pbar)
 
                 if not all(isinstance(r, list) for r in res):
                     raise Exception("failed")
@@ -167,7 +154,7 @@ def text_reader(
             for a, b in zip(task_columns, columns)
         }
 
-        pbar.update(1)
+        pbar.update(pbar.total - pbar.n)
 
         table = T(columns=table_dict)
 

@@ -1,0 +1,17 @@
+name: Validate Nimlite
+description: "Validates Nimlite build"
+runs:
+  using: "composite"
+  steps:
+    - name: Compile Debug & import (Unix)
+      shell: bash
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+      run: |
+        # check if compiled successfully
+        python -c "print(__import__('${{ env.NIMLITE_DIR }}.${{ env.NIM_PACKAGE_NAME }}').__file__)"
+    - name: Compile Debug & import (Windows)
+      shell: bash
+      if: runner.os == 'Windows'
+      run: |
+        # check if compiled successfully
+        python -c "print(__import__('${{ env.NIMLITE_DIR }}.${{ env.NIM_PACKAGE_NAME }}').__file__)"

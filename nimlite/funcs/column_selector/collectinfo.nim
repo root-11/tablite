@@ -35,13 +35,13 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
     for c in cols: # now lets iterate over all given columns
         # this is our old name
         let nameInp = c["column"].to(string)
-        var rename = c.get("rename", builtins().None)
+        var rename = c.get("rename", nil)
 
-        if rename.isNone() or not builtins().isinstance(rename, builtins().str).to(bool) or builtins().len(rename).to(int) == 0:
-            rename = builtins().None
+        if rename.isNone() or not modules().isinstance(rename, modules().builtins.classes.StrClass) or modules().getLen(rename) == 0:
+            rename = nil
         else:
             let nameOutStripped = rename.strip()
-            if builtins().len(rename).to(int) > 0 and builtins().len(nameOutStripped).to(int) == 0:
+            if modules().getLen(rename) > 0 and modules().getLen(nameOutStripped) == 0:
                 raise newException(ValueError, "Validating 'column_select' failed, '" & nameInp & "' cannot be whitespace.")
 
             rename = nameOutStripped
@@ -54,12 +54,12 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
         else:
             collisions[nameOut] = 1
 
-        let desiredType = c.get("type", builtins().None)
+        let desiredType = c.get("type", nil)
 
         desiredColumnMap[nameOut] = DesiredColumnInfo( # collect the information about the column, fill in any defaults
             originalName: nameInp,
             `type`: if desiredType.isNone(): K_NONETYPE else: toPageType(desiredType.to(string)),
-            allowEmpty: c.get("allow_empty", builtins().False).to(bool)
+            allowEmpty: c.get("allow_empty", false).to(bool)
         )
 
     discard pbar.update(3)
@@ -77,7 +77,7 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
             let pyColPages = table[colName].pages
             let pages = collect:
                 for pyPage in pyColPages:
-                    builtins().str(pyPage.path.absolute()).to(string)
+                    modules().toStr(pyPage.path.absolute())
 
             failedColumnData.add(colName)
 
@@ -112,7 +112,7 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
 
     var isCorrectType = initTable[string, bool]()
 
-    proc genpage(dirpid: string): ColSliceInfo {.inline.} = (dir_pid, tabliteBase().SimplePage.next_id(dir_pid).to(string))
+    proc genpage(dirpid: string): ColSliceInfo {.inline.} = (dir_pid, modules().tablite.modules.base.classes.SimplePageClass.next_id(dir_pid).to(string))
 
     discard pbar.update(5)
     discard pbar.display()
