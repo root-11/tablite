@@ -120,7 +120,8 @@ when isMainModule and appType != "lib":
     # ]})
     # let columns = pymodules.builtins().dict({"str": @[nimValueToPy("abc"), nimValueToPy("efg"), nimValueToPy(nil)]}.toTable)
     # let table = pymodules.tablite().Table(columns = columns)
-    let table = modules().tablite.fromFile("/home/ratchet/Documents/dematic/dce_logistics_functions/tests/data/gesaber_data_10k.csv")
+    let dirdata = os.getEnv("DATA_DIR", ".")
+    let table = modules().tablite.fromFile(dirdata & "/gesaber_data_10k.csv")
 
     # discard table.show(dtype = true)
 
