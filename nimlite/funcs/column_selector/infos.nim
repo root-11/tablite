@@ -1,7 +1,8 @@
 import std/[tables]
 import nimpy as nimpy
 from std/sugar import collect
-from ../../pymodules import builtins
+import ../../pymodules
+import ../../nimpyext
 from ../../pytypes import KindObjectND, str2ObjKind
 
 type ColSliceInfo* = (string, string)
@@ -23,7 +24,7 @@ proc toPyObj*(infos: var OrderedTable[string, DesiredColumnInfo]): nimpy.PyObjec
         for (name, info) in infos.pairs:
             (name, (info.originalName, $info.`type`, info.allowEmpty))
 
-    let res = builtins().dict(elems)
+    let res = modules().builtins.classes.DictClass!(elems)
 
     return res
 

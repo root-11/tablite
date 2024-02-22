@@ -3,7 +3,7 @@ import encfile
 
 # const NOT_SET = uint32.high
 const EOL = uint32.high - 1
-const field_limit: uint = 128 * 1024
+const fieldLimit: uint = 128 * 1024
 
 type Quoting* {.pure.} = enum
     QUOTE_MINIMAL, QUOTE_ALL, QUOTE_NONNUMERIC, QUOTE_NONE,
@@ -27,16 +27,16 @@ type Dialect* = object
 
 
 type ReaderObj* = object
-    numeric_field: bool
-    line_num: uint
+    numericField: bool
+    lineNum: uint
     dialect: Dialect
 
-    field_len: uint
-    field_size: uint
+    fieldLen: uint
+    fieldSize: uint
     field: seq[char]
 
     fields: seq[string]
-    field_count: uint
+    fieldCount: uint
 
 proc newDialect*(delimiter: char = ',', quotechar: char = '"', escapechar: char = '\\', doublequote: bool = true, quoting: Quoting = QUOTE_MINIMAL, skipinitialspace: bool = false, skiptrailingspace: bool = false, lineterminator: char = '\n'): Dialect =
     Dialect(delimiter: delimiter, quotechar: quotechar, escapechar: escapechar, doublequote: doublequote, quoting: quoting, skipinitialspace: skipinitialspace, skiptrailingspace: skiptrailingspace, lineterminator: lineterminator)
@@ -45,37 +45,37 @@ proc newReaderObj*(dialect: Dialect): ReaderObj =
     ReaderObj(dialect: dialect, fields: newSeq[string](1024))
 
 proc parseGrowBuff(self: var ReaderObj): bool =
-    let field_size_new: uint = (if self.field_size > 0: 2u * self.field_size else: 4096u)
+    let field_size_new: uint = (if self.fieldSize > 0: 2u * self.fieldSize else: 4096u)
 
     self.field.setLen(field_size_new)
-    self.field_size = field_size_new
+    self.fieldSize = field_size_new
 
     return true
 
 proc parseAddChar(self: var ReaderObj, state: var ParserState, c: char): bool =
-    if self.field_len >= field_limit:
+    if self.fieldLen >= fieldLimit:
         return false
 
-    if unlikely(self.field_len == self.field_size and not self.parseGrowBuff()):
+    if unlikely(self.fieldLen == self.fieldSize and not self.parseGrowBuff()):
         return false
 
-    self.field[self.field_len] = c
-    inc self.field_len
+    self.field[self.fieldLen] = c
+    inc self.fieldLen
 
     return true
 
 proc parseSaveField(self: var ReaderObj, dia: Dialect): bool =
-    if self.numeric_field:
-        self.numeric_field = false
+    if self.numericField:
+        self.numericField = false
 
-        raise newException(Exception, "not yet implemented: parseSaveField numeric_field")
+        raise newException(Exception, "not yet implemented: parseSaveField numericField")
 
-    var field = newString(self.field_len)
+    var field = newString(self.fieldLen)
 
-    if likely(self.field_len > 0):
-        copyMem(field[0].addr, self.field[0].addr, self.field_len)
+    if likely(self.fieldLen > 0):
+        copyMem(field[0].addr, self.field[0].addr, self.fieldLen)
 
-    if unlikely(self.field_count + 1 >= (uint self.field.high)):
+    if unlikely(self.fieldCount + 1 >= (uint self.field.high)):
         self.field.setLen(self.field.len() * 2)
 
     if dia.skiptrailingspace:
@@ -84,11 +84,11 @@ proc parseSaveField(self: var ReaderObj, dia: Dialect): bool =
     if dia.quoting != Quoting.QUOTE_NONE:
         field = field.multiReplace(("\n", "\\n"), ("\t", "\\t"))
 
-    self.fields[self.field_count] = field
+    self.fields[self.fieldCount] = field
 
-    inc self.field_count
+    inc self.fieldCount
 
-    self.field_len = 0
+    self.fieldLen = 0
 
     return true
 
@@ -124,7 +124,7 @@ proc parseProcessChar(self: var ReaderObj, state: var ParserState, cc: uint32): 
                     return false
             else:
                 if dia.quoting == QUOTE_NONNUMERIC:
-                    self.numeric_field = true
+                    self.numericField = true
                 if unlikely(not self.parseAddChar(state, c)):
                     return false
                 state = IN_FIELD
@@ -214,17 +214,17 @@ iterator parseCSV*(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[str
     let dia = self.dialect
 
     var state: ParserState = START_RECORD
-    var line_num: uint = 0
+    var lineNum: uint = 0
     var line = newStringOfCap(80)
     var pos: uint
     var linelen: uint;
 
-    self.field_len = 0
-    self.field_count = 0
+    self.fieldLen = 0
+    self.fieldCount = 0
 
     while likely(not fh.endOfFile):
         if not fh.readLine(line):
-            if self.field_len != 0 and state == IN_QUOTED_FIELD:
+            if self.fieldLen != 0 and state == IN_QUOTED_FIELD:
                 if dia.strict:
                     raise newException(Exception, "unexpected end of data")
                 elif self.parseSaveField(dia):
@@ -246,21 +246,21 @@ iterator parseCSV*(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[str
             raise newException(Exception, "illegal")
 
         if state == START_RECORD:
-            yield (line_num, addr self.fields, self.field_count)
+            yield (lineNum, addr self.fields, self.fieldCount)
 
-            self.field_count = 0
+            self.fieldCount = 0
 
-            inc line_num
+            inc lineNum
 
-proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, row_offset: uint): seq[string] =
+proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, rowOffset: uint): seq[string] =
     let fh = newFile(path, encoding)
     var obj = newReaderObj(dialect)
 
     try:
-        fh.setFilePos(int64 row_offset, fspSet)
+        fh.setFilePos(int64 rowOffset, fspSet)
 
-        for (row_idx, fields, field_count) in obj.parseCSV(fh):
-            return fields[0..field_count-1]
+        for (idxRow, fields, fieldCount) in obj.parseCSV(fh):
+            return fields[0..fieldCount-1]
     finally:
         fh.close()
 
@@ -284,32 +284,32 @@ proc str2quoting*(quoting: string): Quoting {.inline.} =
     else: raise newException(Exception, "invalid quoting: " & quoting)
 
 proc findNewlinesNoQualifier*(fh: BaseEncodedFile): (seq[uint], uint) =
-    var newline_offsets = newSeq[uint](1)
-    var total_lines: uint = 0
+    var newlineOffsets = newSeq[uint](1)
+    var totalLines: uint = 0
     var str: string
 
-    newline_offsets[0] = fh.getFilePos()
+    newlineOffsets[0] = fh.getFilePos()
 
     while likely(fh.readLine(str)):
-        inc total_lines
+        inc totalLines
 
-        newline_offsets.add(fh.getFilePos())
+        newlineOffsets.add(fh.getFilePos())
 
-    return (newline_offsets, total_lines)
+    return (newlineOffsets, totalLines)
 
 proc findNewlinesQualifier*(fh: BaseEncodedFile, dia: Dialect): (seq[uint], uint) =
-    var newline_offsets = newSeq[uint](1)
-    var total_lines: uint = 0
+    var newlineOffsets = newSeq[uint](1)
+    var totalLines: uint = 0
     var obj = newReaderObj(dia)
 
-    newline_offsets[0] = fh.getFilePos()
+    newlineOffsets[0] = fh.getFilePos()
 
-    for (row_idx, fields, field_count) in obj.parseCSV(fh):
-        inc total_lines
+    for (idxRow, fields, fieldCount) in obj.parseCSV(fh):
+        inc totalLines
 
-        newline_offsets.add(fh.getFilePos())
+        newlineOffsets.add(fh.getFilePos())
 
-    return (newline_offsets, total_lines)
+    return (newlineOffsets, totalLines)
 
 proc findNewlines*(fh: BaseEncodedFile, dia: Dialect): (seq[uint], uint) {.inline.} =
     if dia.quoting == Quoting.QUOTE_NONE:

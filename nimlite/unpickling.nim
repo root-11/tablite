@@ -389,7 +389,7 @@ proc newReducePickle(fn: var GlobalPickle, args: var TuplePickle): PY_Object =
         let dtypeName = PY_NpDType(args.elems[0]).dtype
         let bytes = BinBytesPickle(args.elems[1]).value
         let byteCount = bytes.len
-        let np = pymodules.numpy()
+        let np = pymodules.modules().numpy.module
         let dtypePy = np.dtype(dtypeName)
 
         let bytesPy = np.empty(byteCount, dtype="bytes") # can't do it we builtins.bytes() because it creates readonly buffer
@@ -405,7 +405,7 @@ proc newReducePickle(fn: var GlobalPickle, args: var TuplePickle): PY_Object =
 
         let pyBytes = bytesPy.data.tobytes()
         let valPy = np.core.multiarray.scalar(dtypePy, pyBytes).tolist()
-        let typeName = pymodules.builtins().getattr(pymodules.builtins().type(valPy), "__name__").to(string)
+        let typeName = pymodules.modules().getTypeName(valPy)
 
         case typeName: # construct the nim native python object
         of "float": return newPY_Object(valPy.to(float))
