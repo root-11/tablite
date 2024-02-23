@@ -1381,11 +1381,6 @@ when isMainModule and appType != "lib":
     let pid = "nim"
     # let pagedir = workdir / Path(pid) / Path("pages")
 
-    #[ 
-        getCurrentDir() is missing
-        I'M GOING TO SHOOT UP A WALLMART. In Minecraft.
-    ]#
-
     echo readNumpy("tests/data/pages/scalar.npy").len
 
     # createDir(string pagedir)
