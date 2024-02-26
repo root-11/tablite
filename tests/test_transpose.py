@@ -79,6 +79,21 @@ def test_05():
     assert list(new.columns) == ["a"]
     assert [r for r in new.rows] == [["b"], ["c"], ["d"], ["e"]]
 
+def test06():
+    t = Table()
+    t["a"] = [1]
+    t["b"] = [2]
+    t["c"] = [3]
+    t["d"] = [4]
+    t["e"] = [5]
+
+    new = t.pivot_transpose(columns=["a"], keep=[])
+
+    assert [r for r in new.rows] == [
+        ["a", 1]
+    ]
+
+
 def test_bug_3015():
     t = Table()
     t["a"] = [1]
