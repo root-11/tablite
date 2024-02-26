@@ -264,13 +264,13 @@ def pivot_transpose(T, columns, keep=None, column_name="transpose", value_name="
     n = len(keep)
 
     with tqdm(total=len(T), desc="transpose", disable=Config.TQDM_DISABLE) as pbar:
-        it = T[keep + columns] if len(keep + columns) > 1 else ((v, ) for v in T[keep + columns])
+        it = T[keep + columns].rows if len(keep + columns) > 1 else ((v, ) for v in T[keep + columns])
         
         for ix, row in enumerate(it, start=1):
             keeps = row[:n]
             transposes = row[n:]
 
-            for name, value in zip(it, keeps):
+            for name, value in zip(keep, keeps):
                 news[name].extend([value] * len(transposes))
             for name, value in zip(columns, transposes):
                 news[column_name].append(name)
