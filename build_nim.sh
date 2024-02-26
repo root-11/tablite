@@ -17,11 +17,14 @@ else
     exit 1
 fi
 
+base_name="nimlite/libnimlite"
+shared_args="--app:lib --gc:refc --out:$base_name.so"
+
 if [ $is_release = true ]
 then
-    nim c --app:lib --gc:refc -d:release -d:danger --out:nimlite/libnimlite.so nimlite/libnimlite.nim
+    nim c $shared_args -d:release -d:danger $base_name.nim
     echo "Built release."
 else
-    nim c --app:lib --gc:refc -d:debug --out:nimlite/libnimlite.so nimlite/libnimlite.nim
+    nim c $shared_args -d:debug $base_name.nim
     echo "Built debug."
 fi

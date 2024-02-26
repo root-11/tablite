@@ -264,7 +264,9 @@ def pivot_transpose(T, columns, keep=None, column_name="transpose", value_name="
     n = len(keep)
 
     with tqdm(total=len(T), desc="transpose", disable=Config.TQDM_DISABLE) as pbar:
-        for ix, row in enumerate(T[keep + columns].rows, start=1):
+        it = T[keep + columns].rows if len(keep + columns) > 1 else ((v, ) for v in T[keep + columns])
+        
+        for ix, row in enumerate(it, start=1):
             keeps = row[:n]
             transposes = row[n:]
 
