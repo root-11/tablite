@@ -1,7 +1,6 @@
 from collections import defaultdict
 import math
 import re
-from types import NoneType
 import os
 from time import time as now
 from pathlib import Path
@@ -15,6 +14,7 @@ import xml.parsers.expat as expat
 import logging
 
 letters = string.ascii_lowercase + string.digits
+NoneType = type(None)
 
 
 def generate_random_string(len):
