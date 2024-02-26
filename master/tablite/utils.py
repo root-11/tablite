@@ -14,6 +14,7 @@ import xml.parsers.expat as expat
 import logging
 
 letters = string.ascii_lowercase + string.digits
+NoneType = type(None)
 
 
 def generate_random_string(len):
@@ -470,3 +471,25 @@ def load_numpy(path):
     update_access_time(path)
 
     return np.load(path, allow_pickle=True, fix_imports=False)
+
+def select_type_name(dtypes: dict):
+    dtypes = [t for t in dtypes.items() if t[0] != NoneType]
+
+    if len(dtypes) == 0:
+        return "empty"
+
+    (best_type, _), *_ = sorted(dtypes, key=lambda t: t[1], reverse=True)
+
+    return best_type.__name__
+
+
+def get_predominant_types(table, all_dtypes=None):
+    if all_dtypes is None:
+        all_dtypes = table.types()
+
+    dtypes = {
+        k: select_type_name(v)
+        for k, v in all_dtypes.items()
+    }
+
+    return dtypes
