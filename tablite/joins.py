@@ -8,7 +8,7 @@ from tablite.reindex import reindex
 from tablite.merge import where
 from tablite.base import BaseTable, Column
 from tablite.utils import sub_cls_check, unique_name, type_check
-from tablite.mp_utils import select_processing_method
+from tablite.mp_utils import is_mp
 from mplite import Task, TaskManager as _TaskManager
 from tqdm import tqdm as _tqdm
 
@@ -106,10 +106,7 @@ def join(
 
     _jointype_check(T, other, left_keys, right_keys, left_columns, right_columns)
 
-    fields = len(T)*len(T.columns) + len(other)*len(other.columns)
-    m = select_processing_method(fields, sp=_sp_join, mp=_mp_join)
-
-    return m(kind, T,other,left_keys, right_keys, left_columns, right_columns, merge_keys=merge_keys,
+    return _join(kind, T,other,left_keys, right_keys, left_columns, right_columns, merge_keys=merge_keys,
              tqdm=tqdm, pbar=pbar)
 
 # fmt:off
@@ -299,48 +296,6 @@ _sp_mapping_methods = {
     "cross": _sp_cross_mapping,
 }
 
-def _sp_join(kind, T, other, left_keys, right_keys, left_columns, right_columns, merge_keys=None, tqdm=_tqdm, pbar=None):
-    _mapping = _sp_mapping_methods.get(kind, None)
-    if _mapping is None:
-        raise ValueError(f"join type unknown: {kind}")
-    
-    _left,_right = _mapping(T, other, left_keys, right_keys, tqdm=tqdm, pbar=pbar)
-    assert len(_left) == len(_right)
-
-    if pbar is None:
-        total = len(left_columns) + len(right_columns)
-        pbar = tqdm(total=total, desc="join", disable=Config.TQDM_DISABLE)
-
-    result = reindex(T, _left, left_columns, tqdm=tqdm, pbar=pbar)
-    second = reindex(other, _right, right_columns, tqdm=tqdm, pbar=pbar)
-    for name in right_columns:
-        revised_name = unique_name(name, result.columns)
-        result[revised_name] = second[name]
-
-    if merge_keys is True:
-        result = _merge_keys(kind, T, result, _left,_right, left_keys, right_keys)
-    return result
-
-def _merge_keys(kind, T, result, left, right, left_keys, right_keys):
-    if kind in ["inner", "cross"]:
-        for right_name in right_keys:
-            right_name = unique_name(right_name, T.columns)
-            if right_name in result.columns:
-                del result[right_name]
-    else:
-        if kind == "outer":
-            boolean_map = (left != -1)
-        elif kind == "left":
-            boolean_map = (right == -1)
-        else:
-            raise TypeError(f"bad join type: {kind}")
-        
-        for left_name, right_name in zip(left_keys,right_keys):
-            right_name = unique_name(right_name, T.columns)
-            result = where(result, boolean_map, left_name, right_name, new=left_name)
-    return result
-
-
 # -----------------------
 # MULTIPROCESSING SECTION
 # -----------------------
@@ -380,180 +335,6 @@ def _mp_where(
     new_values = np.where(criteria, left_values, right_values)
     return Constr({new: new_values}, _path=path)
 
-
-def _mp_left_mapping(
-    T: BaseTable,
-    other: BaseTable,
-    left_slice: slice,
-    right_slice: slice,
-    left_keys: List[str],
-    right_keys: List[str],
-    path: Path,
-):
-    """create mapping for left and right keys.
-
-    Args:
-        T (Table): left table
-        Other (Table): right table
-        left_slice (slice): slice of left table to perform mapping on.
-        right_slice (slice): slice of right table to perform mapping on.
-        left_keys (list): list of keys for the join from left table.
-        right_keys (list): list of keys for the join from right table.
-        path (pathlib.Path): directory of the main process
-
-    Returns:
-        Table: table initiated in the main process' working directory
-    """
-    left = T[left_keys + [left_slice]]
-    right = other[right_keys + [right_slice]]
-    left_index = left.index(*left_keys)
-    right_index = right.index(*right_keys)
-    del left, right
-
-    _left, _right = [], []
-    for left_key, left_ixs in left_index.items():
-        right_ixs = right_index.get(left_key, (-1,))
-        for left_ix in left_ixs:
-            for right_ix in right_ixs:
-                _left.append(left_ix)
-                _right.append(right_ix)
-
-    Constr = type(T)
-    mapping = Constr({"left": _left, "right": _right}, _path=path)
-    return mapping
-
-def _mp_inner_mapping(
-    T: BaseTable,
-    other: BaseTable,
-    left_slice: slice,
-    right_slice: slice,
-    left_keys: List[str],
-    right_keys: List[str],
-    path: Path,
-):
-    """create mapping for left and right keys.
-
-    Args:
-        T (Table): left table
-        Other (Table): right table
-        left_slice (slice): slice of left table to perform mapping on.
-        right_slice (slice): slice of right table to perform mapping on.
-        left_keys (list): list of keys for the join from left table.
-        right_keys (list): list of keys for the join from right table.
-        path (pathlib.Path): directory of the main process
-
-    Returns:
-        Table: table initiated in the main process' working directory
-    """
-    left = T[left_keys + [left_slice]]
-    right = other[right_keys + [right_slice]]
-    left_index = left.index(*left_keys)
-    right_index = right.index(*right_keys)
-    del left, right
-
-    _left, _right = [], []
-    for left_key, left_ixs in left_index.items():
-        right_ixs = right_index.get(left_key, None)
-        if right_ixs is None:
-            continue
-        for left_ix in left_ixs:
-            for right_ix in right_ixs:
-                _left.append(left_ix)
-                _right.append(right_ix)
-
-    Constr = type(T)
-    mapping = Constr({"left": _left, "right": _right}, _path=path)
-    return mapping
-
-
-def _mp_outer_mapping(
-    T: BaseTable,
-    other: BaseTable,
-    left_slice: slice,
-    right_slice: slice,
-    left_keys: List[str],
-    right_keys: List[str],
-    path: Path,
-):
-    """create mapping for left and right keys.
-
-    Args:
-        T (Table): left table
-        Other (Table): right table
-        left_slice (slice): slice of left table to perform mapping on.
-        right_slice (slice): slice of right table to perform mapping on.
-        left_keys (list): list of keys for the join from left table.
-        right_keys (list): list of keys for the join from right table.
-        path (pathlib.Path): directory of the main process
-
-    Returns:
-        Table: table initiated in the main process' working directory
-    """
-    left = T[left_keys + [left_slice]]
-    right = other[right_keys + [right_slice]]
-    left_index = left.index(*left_keys)
-    right_index = right.index(*right_keys)
-    del left, right
-
-    _left, _right, _right_unused = [], [], set(right_index.keys())
-    for left_key, left_ixs in left_index.items():
-        right_ixs = right_index.get(left_key, (-1,))
-        for left_ix in left_ixs:
-            for right_ix in right_ixs:
-                _left.append(left_ix)
-                _right.append(right_ix)
-                _right_unused.discard(left_key)
-
-    for right_key in _right_unused:
-        for right_ix in right_index[right_key]:
-            _left.append(-1)
-            _right.append(right_ix)
-
-    Constr = type(T)
-    mapping = Constr({"left": _left, "right": _right}, _path=path)
-    return mapping
-
-
-def _mp_cross_mapping(
-    T: BaseTable,
-    other: BaseTable,
-    left_slice: slice,
-    right_slice: slice,
-    left_keys: List[str],
-    right_keys: List[str],
-    path: Path,
-):
-    """create mapping for left and right keys.
-
-    Args:
-        T (Table): left table
-        Other (Table): right table
-        left_slice (slice): slice of left table to perform mapping on.
-        right_slice (slice): slice of right table to perform mapping on.
-        left_keys (list): list of keys for the join from left table.
-        right_keys (list): list of keys for the join from right table.
-        path (pathlib.Path): directory of the main process
-
-    Returns:
-        Table: table initiated in the main process' working directory
-    """ 
-    Constr = type(T)
-    rr = np.arange(right_slice.start, min(right_slice.stop, len(other)))
-    tmp = Constr({"right": rr}, _path=path)
-    right = tmp["right"]
-    rr_shape = rr.shape
-    del rr
-
-    lr = np.arange(left_slice.start, min(left_slice.stop, len(T)))
-    mapping = Constr({"left": [], "right": []}, _path=path)
-    for a in lr:
-        mapping["right"].extend(right)  
-        # by using the right filepointer above, the page-id is 
-        # repeated, costing 0 Mb in storage.
-        mapping["left"].extend(np.full(rr_shape, a))
-    return mapping
-
-
 def _mp_reindex_page(
     T: BaseTable,
     column_name: str,
@@ -579,7 +360,7 @@ def _mp_reindex_page(
     """
     part = slice(start, end)
     ix_arr = mapping[index][part]
-    if ix_arr[0]==start and ix_arr[-1] == end-1 and np.all(ix_arr == np.arange(start,end)):  
+    if len(ix_arr) == 0 or ix_arr[0]==start and ix_arr[-1] == end-1 and np.all(ix_arr == np.arange(start,end)):  
         array = T[column_name][part]
     else:
         array = T[column_name].get_by_indices(ix_arr)
@@ -625,16 +406,7 @@ def _gets(task, *args):
         result += (task.kwargs.get(arg),)
     return result
 
-
-_mp_mapping_methods = {
-    'left': _mp_left_mapping,
-    'inner': _mp_inner_mapping,
-    'outer': _mp_outer_mapping,
-    'cross': _mp_cross_mapping
-}
-
-
-def _mp_join(
+def _join(
         kind: str,
         T: BaseTable,
         other: BaseTable,
@@ -649,6 +421,8 @@ def _mp_join(
     ):
 
     Constr = type(T)
+    fields = len(T)*len(T.columns) + len(other)*len(other.columns)
+    use_mp = is_mp(fields)
 
     if pbar is None:
         _pbar_created_here = True
@@ -670,39 +444,25 @@ def _mp_join(
     _pid_dir = Path(Config.workdir) / Config.pid
 
     # step 1: create mapping tasks
-    _mapping = _mp_mapping_methods.get(kind)
+    _mapping = _sp_mapping_methods.get(kind, None)
     if _mapping is None:
         raise ValueError(f"join type unknown: {kind}")
 
-    step = Config.PAGE_SIZE
-    for left in range(0, len(T) + 1, step):
-        for right in range(0, len(other) + 1, step):
-            left_slice = slice(left, left + step, 1)
-            right_slice = slice(right, right + step, 1)
-            task = Task(
-                _mapping,
-                T=T,
-                other=other,
-                left_slice=left_slice,
-                right_slice=right_slice,
-                left_keys=left_keys,
-                right_keys=right_keys,
-                path=_pid_dir,
-            )
-            tasks.append(task)
+    """
+        Ratchet:
+        
+        I thought real good about it and it is not possible to mapping tasks be
+        multi-processed/constant memory, because every slice must know the entire right table dictionary
+        and anything that is not the first slice must also have all previous other slice indices.
 
-    with TaskManager(cpu_count=_vpus(tasks)) as tm:
-        results = tm.execute(tasks, pbar=ProgressBar())
-        errors = [s for s in results if isinstance(s, str)]
-
-        if len(errors) > 0:
-            raise Exception(errors[0])
+        Best we can do is reduce the RAM usage via using hash of a string or reduce memory usage via native implementation.
+    """
+    _left, _right = _mapping(T, other, left_keys, right_keys, None, None)
 
     # step 2: assemble mapping from tasks
-    mapping = Constr({"left": [], "right": []})
-    for result in results:
-        assert isinstance(result, BaseTable)
-        mapping += result
+    mapping = Constr({"left": _left, "right": _right})
+
+    del _left, _right
 
     pbar.update(1)
 
@@ -711,6 +471,7 @@ def _mp_join(
     names = []  # will store (old name, new name) for derefences during assemble.
     new_table = Constr()
     n = len(mapping)
+    step = Config.PAGE_SIZE
     for name in left_columns:
         new_table.add_column(name)
 
@@ -746,12 +507,15 @@ def _mp_join(
             )
             tasks.append(task)
 
-    with TaskManager(cpu_count=_vpus(tasks)) as tm:
-        results = tm.execute(tasks, pbar=ProgressBar())
-        errors = [s for s in results if isinstance(s, str)]
+    if use_mp:
+        with TaskManager(cpu_count=_vpus(tasks)) as tm:
+            results = tm.execute(tasks, pbar=ProgressBar())
+            errors = [s for s in results if isinstance(s, str)]
 
-        if len(errors) > 0:
-            raise Exception(errors[0])
+            if len(errors) > 0:
+                raise Exception(errors[0])
+    else:
+        results = [t.f(*t.args, **t.kwargs) for t in tasks]
 
     # step 4: assemble the result
     for task, result, (new, old) in zip(tasks, results, names):
@@ -786,12 +550,15 @@ def _mp_join(
                     )
                     tasks.append(task)
 
-            with TaskManager(cpu_count=_vpus(tasks)) as tm:
-                results = tm.execute(tasks, pbar=ProgressBar())
-                errors = [s for s in results if isinstance(s, str)]
+            if use_mp:
+                with TaskManager(cpu_count=_vpus(tasks)) as tm:
+                    results = tm.execute(tasks, pbar=ProgressBar())
+                    errors = [s for s in results if isinstance(s, str)]
 
-                if len(errors) > 0:
-                    raise Exception(errors[0])
+                    if len(errors) > 0:
+                        raise Exception(errors[0])
+            else:
+                results = [t.f(*t.args, **t.kwargs) for t in tasks]
 
             for task, result in zip(tasks, results):
                 col, start, end = _gets(task, "left", "start", "end")
