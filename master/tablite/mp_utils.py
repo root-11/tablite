@@ -43,6 +43,29 @@ filter_ops = {
 filter_ops_from_text = {"gt": ">", "gteq": ">=", "eq": "==", "lt": "<", "lteq": "<=", "neq": "!=", "in": _in}
 
 
+def is_mp(fields: int) -> bool:
+    """
+
+    Args:
+        fields (int): number of fields
+
+    Returns:
+        bool
+    """
+    if Config.MULTIPROCESSING_MODE == Config.FORCE:
+        return True
+    
+    if Config.MULTIPROCESSING_MODE == Config.FALSE:
+        return False
+    
+    if fields < Config.SINGLE_PROCESSING_LIMIT:
+        return False
+    
+    if max(psutil.cpu_count(logical=False), 1) < 2:
+        return False
+
+    return True
+
 def select_processing_method(fields, sp, mp):
     """
 
@@ -54,18 +77,7 @@ def select_processing_method(fields, sp, mp):
     Returns:
         _type_: _description_
     """
-    if Config.MULTIPROCESSING_MODE == Config.FORCE:
-        m = mp
-    elif Config.MULTIPROCESSING_MODE == Config.FALSE:
-        m = sp
-    elif fields < Config.SINGLE_PROCESSING_LIMIT:
-        m = sp
-    elif max(psutil.cpu_count(logical=False), 1) < 2:
-        m = sp
-    else:
-        m = mp
-    return m
-
+    return mp if is_mp(fields) else sp
 
 def maskify(arr):
     none_mask = [False] * len(arr)  # Setting the default
