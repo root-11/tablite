@@ -60,6 +60,7 @@ type PyModules {.requiresInit.} = object
     mplite*: PyModule[PyMplite]
     nimlite*: PyEmptyModule
     tqdm*: PyModule[PyTqdm]
+    math*: PyEmptyModule
 
 proc newModule[K, T](Class: typedesc[K], module: nimpy.PyObject, classes: T): K {.inline.} = Class(module: module, classes: classes)
 proc newModule[K, T1, T2](Class: typedesc[K], module: nimpy.PyObject, classes: T1, modules: T2): K {.inline.} = Class(module: module, classes: classes, modules: modules)
@@ -86,6 +87,7 @@ proc importPy(): void =
     let iNumpy = nimpy.pyImport("numpy")
     let iTqdm = nimpy.pyImport("tqdm")
     let iNimlite = nimpy.pyImport("tablite.nimlite")
+    let iMath = nimpy.pyImport("math")
 
     let iPyBuiltins = PyBuiltins(
         NoneTypeClass: iBuiltins.None.getattr("__class__"),
@@ -124,6 +126,7 @@ proc importPy(): void =
         mplite: PyModule[PyMplite].newModule(iMplite, iPyMplite),
         nimlite: newEmptyModule(iNimlite),
         tqdm: PyModule[PyTqdm].newModule(iTqdm, iPyTqdm),
+        math: newEmptyModule(iMath),
     )
 
     py = some(pyModules)
