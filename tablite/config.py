@@ -1,7 +1,6 @@
 import os
 import pathlib
 import tempfile
-import platform
 
 from dotenv import load_dotenv
 

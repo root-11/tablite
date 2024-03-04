@@ -5,6 +5,8 @@ def text_reader_task(path,  encoding,  dia_delimiter,  dia_quotechar,  dia_escap
 def text_reader(pid, path, encoding, columns, first_row_has_headers, header_row_index, start, limit, guess_datatypes, newline, delimiter, text_qualifier, strip_leading_and_tailing_whitespace, page_size, quoting):
     pass
 
+def get_headers(path, encoding, newline, delimiter, text_qualifier, strip_leading_and_tailing_whitespace, page_size, quoting, header_row_index, linecount):
+    pass
 
 def collect_column_select_info(table, cols, dir_pid, pbar):
     pass

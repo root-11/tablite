@@ -8,7 +8,7 @@ import csv
 from pathlib import Path
 import openpyxl
 import pyexcel
-from tablite.utils import load_numpy
+from tablite.utils import load_numpy, py_to_nim_encoding
 import sys
 import warnings
 import logging
@@ -555,15 +555,7 @@ def text_reader(
     if encoding is None:
         encoding = get_encoding(path, nbytes=ENCODING_GUESS_BYTES)
 
-    if encoding.lower() in ["utf8", "utf-8", "utf-8-sig"]:
-        enc = "ENC_UTF8"
-    elif encoding.lower() in ["utf16", "utf-16"]:
-        enc = "ENC_UTF16"
-    elif encoding in Config.NIM_SUPPORTED_CONV_TYPES:
-        enc = f"ENC_CONV|{encoding}"
-    else:
-        raise NotImplementedError(f"encoding not implemented: {encoding}")
-
+    enc = py_to_nim_encoding(encoding)
     pid = Config.workdir / Config.pid
     kwargs = {}
 
