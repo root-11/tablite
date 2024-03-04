@@ -37,8 +37,8 @@ when isLib:
 
             return (columns, page_count, is_correct_type, desired_column_map.toPyObj, passed_column_data, failed_column_data, res_cols_pass, res_cols_fail, column_names, reject_reason_name)
         except Exception as e:
-                echo $e.msg & "\n" & $e.getStackTrace
-                raise e
+            echo $e.msg & "\n" & $e.getStackTrace
+            raise e
 
     proc do_slice_convert*(dir_pid: string, page_size: int, columns: Table[string, string], reject_reason_name: string, res_pass: column_selector.ColInfo, res_fail: column_selector.ColInfo, desired_column_map: PyObject, column_names: seq[string], is_correct_type: Table[string, bool]): (seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)]) {.exportpy.} =
         try:
@@ -71,6 +71,32 @@ when isLib:
         except Exception as e:
             echo $e.msg & "\n" & $e.getStackTrace
             raise e
+
+    proc get_headers(
+        path: string, encoding: string,
+        newline: string, delimiter: string, text_qualifier: string,
+        strip_leading_and_tailing_whitespace: bool,
+        quoting: string,
+        header_row_index: uint, linecount: int): seq[seq[string]] {.exportpy.} =
+        var arg_encoding = str2Enc(encoding)
+        var arg_newline = (if newline.len == 1: newline[0] else: raise newException(Exception, "'newline' not a char"))
+        var arg_delimiter = (if delimiter.len == 1: delimiter[0] else: raise newException(Exception, "'delimiter' not a char"))
+        var arg_text_qualifier = (if text_qualifier.len == 1: text_qualifier[0] else: raise newException(Exception, "'text_qualifier' not a char"))
+        var arg_quoting = str2quoting(quoting)
+
+        let headers = getHeaders(
+            path = path,
+            encoding = arg_encoding,
+            headerRowIndex = header_row_index,
+            lineCount = linecount,
+            newline = arg_newline,
+            delimiter = arg_delimiter,
+            textQualifier = arg_text_qualifier,
+            stripLeadingAndTailingWhitespace = strip_leading_and_tailing_whitespace,
+            quoting = arg_quoting
+        )
+
+        return headers
 
     proc text_reader(
         pid: string, path: string, encoding: string,

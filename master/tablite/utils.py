@@ -12,6 +12,7 @@ import string
 import random
 import xml.parsers.expat as expat
 import logging
+from tablite.config import Config
 
 letters = string.ascii_lowercase + string.digits
 NoneType = type(None)
@@ -493,3 +494,13 @@ def get_predominant_types(table, all_dtypes=None):
     }
 
     return dtypes
+
+def py_to_nim_encoding(encoding: str) -> str:
+    if encoding is None or encoding.lower() in ["ascii", "utf8", "utf-8", "utf-8-sig"]:
+        return "ENC_UTF8"
+    elif encoding.lower() in ["utf16", "utf-16"]:
+        return "ENC_UTF16"
+    elif encoding in Config.NIM_SUPPORTED_CONV_TYPES:
+        return f"ENC_CONV|{encoding}"
+    
+    raise NotImplementedError(f"encoding not implemented: {encoding}")

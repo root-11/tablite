@@ -2,14 +2,14 @@
   {
     "version": "master",
     "title": "master",
-    "aliases": []
+    "aliases": [
+      "latest"
+    ]
   },
   {
     "version": "2023.10.2",
     "title": "2023.10.2",
-    "aliases": [
-      "latest"
-    ]
+    "aliases": []
   },
   {
     "version": "2023.10.1",
