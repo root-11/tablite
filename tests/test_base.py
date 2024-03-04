@@ -606,4 +606,3 @@ def test_page_refcount():
 
     assert all(p.exists() == False for p in a_pages), "Pages should be deleted"
     assert all(p.exists() == False for p in b_pages), "Pages should be deleted"
-

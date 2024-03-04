@@ -107,6 +107,35 @@ proc textReaderTask*(task: TaskArgs, page_info: (uint, seq[uint], seq[Rank])): s
     finally:
         fh.close()
 
+proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, headerRowIndex: uint, lineCount: int): seq[seq[string]] =
+    let fh = newFile(path, encoding)
+    var obj = newReaderObj(dia)
+
+    try:
+        var totalLines: int = 0
+        var linesToSkip = headerRowIndex
+        var headers = newSeqOfCap[seq[string]](lineCount)
+
+        for (idxRow, fields, fieldCount) in obj.parseCSV(fh):
+            if linesToSkip > 0:
+                dec linesToSkip
+                continue
+            
+            inc totalLines
+
+            var row = newSeq[string](fieldCount)
+            for i in 0..<fieldCount:
+                row[i] = fields[i]
+
+            headers.add(row)
+
+            if totalLines >= lineCount: # we want one extra, because the first one is most likely labels
+                break
+
+        return headers
+    finally:
+        fh.close()
+
 proc importTextFile*(
     pid: string, path: string, encoding: FileEncoding, dia: Dialect,
     columns: Option[seq[string]], firstRowHasHeaders: bool, headerRowIndex: uint,

@@ -34,6 +34,24 @@ ColumnSelectorDict = TypedDict(
     }
 )
 
+def get_headers(
+    path: Union[str, Path],
+    encoding: ValidEncoders ="ENC_UTF8",
+    *,
+    header_row_index: int=0,
+    newline: str='\n', delimiter: str=',', text_qualifier: str='"',
+    quoting: ValidQuoting, strip_leading_and_tailing_whitespace: bool=True,
+    linecount: int = 10
+) -> list[list[str]]:
+    return nl.get_headers(
+            path=str(path),
+            encoding=encoding,
+            newline=newline, delimiter=delimiter, text_qualifier=text_qualifier,
+            strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
+            header_row_index=header_row_index,
+            quoting=quoting,
+            linecount = linecount
+        )
 
 def text_reader(
     T: Type[K],
@@ -70,12 +88,7 @@ def text_reader(
         task_info = table["task"]
         task_columns = table["columns"]
 
-        ti_path = task_info["path"]
-        ti_encoding = task_info["encoding"]
-        ti_dialect = task_info["dialect"]
-        ti_guess_dtypes = task_info["guess_dtypes"]
         ti_tasks = task_info["tasks"]
-        ti_import_fields = task_info["import_fields"]
         ti_import_field_names = task_info["import_field_names"]
 
         is_windows = platform.system() == "Windows"
