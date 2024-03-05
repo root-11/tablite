@@ -1,6 +1,6 @@
 import nimpy
-import std/[os, strutils]
-import csvparse, encfile, ../../utils, table
+import csvparse, encfile
+import ../../utils
 
 type TaskArgs* = object
     path*: string
@@ -11,7 +11,7 @@ type TaskArgs* = object
     importFields*: seq[uint]
     rowOffset*: uint
     rowCount*: int
-    skipEmpty*: bool
+    skipEmpty*: SkipEmpty
 
 proc toTaskArgs*(
     path: string,
@@ -30,7 +30,7 @@ proc toTaskArgs*(
     tskOffset: uint,
     tskCount: uint,
     importFields: seq[uint],
-    skipEmpty: bool
+    skipEmpty: string
 ): TaskArgs =
     var delimiter = diaDelimiter.unescapeSeq()
     var quotechar = diaQuotechar.unescapeSeq()
@@ -64,7 +64,7 @@ proc toTaskArgs*(
         importFields: importFields,
         rowOffset: tskOffset,
         rowCount: int tskCount,
-        skipEmpty: skipEmpty
+        skipEmpty: str2SkipEmpty(skipEmpty)
     )
 
 proc toTaskArgs*(
@@ -88,5 +88,5 @@ proc toTaskArgs*(
             tskOffset = task["offset"].to(uint),
             tskCount = task["count"].to(uint),
             importFields = task_info["import_fields"].to(seq[uint]),
-            skipEmpty = task_info["skip_empty"].to(bool)
+            skipEmpty = task_info["skip_empty"].to(string)
         )

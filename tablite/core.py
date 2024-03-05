@@ -22,7 +22,7 @@ from tablite import pivots
 from tablite import imputation
 from tablite import diff
 from tablite.config import Config
-from tablite.nimlite import column_select as _column_select, ColumnSelectorDict
+from tablite.nimlite import column_select as _column_select, ColumnSelectorDict, ValidSkipEmpty
 from mplite import TaskManager as _TaskManager
 
 logging.getLogger("lml").propagate = False
@@ -65,7 +65,7 @@ class Table(BaseTable):
         strip_leading_and_tailing_whitespace=True,
         text_escape_openings="",
         text_escape_closures="",
-        skip_empty=False,
+        skip_empty: ValidSkipEmpty="NONE",
         tqdm=_tqdm,
     ) -> "Table":
         """

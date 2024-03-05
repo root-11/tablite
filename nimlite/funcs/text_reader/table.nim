@@ -30,7 +30,7 @@ type TabliteTasks* = object
     import_field_names*: seq[string]
     page_size*: uint
     guess_dtypes*: bool
-    skip_empty*: bool
+    skip_empty*: string
 
 type TabliteTable* = object
     task*: TabliteTasks
@@ -64,7 +64,7 @@ proc newTabliteTask*(pages: seq[string], offset: uint, count: uint): TabliteTask
 
 proc newTabliteTasks*(
     path: string, encoding: string, dialect: Dialect,
-    tasks: seq[TabliteTask], import_fields: seq[uint], import_field_names: seq[string], page_size: uint, guess_dtypes: bool, skip_empty: bool): TabliteTasks =
+    tasks: seq[TabliteTask], import_fields: seq[uint], import_field_names: seq[string], page_size: uint, guess_dtypes: bool, skip_empty: string): TabliteTasks =
     TabliteTasks(
         path: path,
         encoding: encoding,

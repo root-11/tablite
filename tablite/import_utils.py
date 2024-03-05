@@ -584,7 +584,9 @@ def text_reader(
     if strip_leading_and_tailing_whitespace is not None:
         kwargs["strip_leading_and_tailing_whitespace"] = strip_leading_and_tailing_whitespace
 
-    if skip_empty is not None:
+    if skip_empty is None:
+        kwargs["skip_empty"] = "NONE"
+    else:
         kwargs["skip_empty"] = skip_empty
 
     return nimlite.text_reader(

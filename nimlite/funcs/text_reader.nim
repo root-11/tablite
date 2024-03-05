@@ -16,10 +16,10 @@ export csvparse
 
 when isMainModule and appType != "lib":
     import nimpy
-    import std/[sugar, paths, osproc, times, enumerate, strutils, options, os]
+    import std/[paths, osproc, times, enumerate, strutils, options, os]
     import ../[numpy, pymodules, nimpyext]
 
-    proc toTaskArgs*(path: string, encoding: string, dialect: TabliteDialect, task: TabliteTask, import_fields: seq[uint], guess_dtypes: bool, skip_empty: bool): TaskArgs {.inline.} =
+    proc toTaskArgs*(path: string, encoding: string, dialect: TabliteDialect, task: TabliteTask, import_fields: seq[uint], guess_dtypes: bool, skip_empty: string): TaskArgs {.inline.} =
         return toTaskArgs(
             path = path,
             encoding = encoding,
@@ -60,16 +60,16 @@ when isMainModule and appType != "lib":
     proc importFile*(
         pid: string, taskname: string, path: string, encoding: FileEncoding, dialect: Dialect,
         cols: Option[seq[string]], first_row_has_headers: bool, header_row_index: uint,
-        page_size: uint, guess_dtypes: bool, skipempty: bool,
+        page_size: uint, guess_dtypes: bool, skipEmpty: SkipEmpty,
         start: Option[int], limit: Option[int]
     ): PyObject =
         let d0 = getTime()
 
-        let table = importTextFile(pid, path, encoding, dialect, cols, first_row_has_headers, header_row_index, page_size, guess_dtypes, skipempty, start, limit)
+        let table = importTextFile(pid, path, encoding, dialect, cols, first_row_has_headers, header_row_index, page_size, guess_dtypes, skipEmpty, start, limit)
         let task = table.task
 
         for i, column_task in enumerate(task.tasks):
-            let taskArgs = toTaskArgs(task.path, task.encoding, task.dialect, column_task, task.import_fields, task.guess_dtypes, skipempty)
+            let taskArgs = toTaskArgs(task.path, task.encoding, task.dialect, column_task, task.import_fields, task.guess_dtypes, $skipEmpty)
             let pageInfo = taskArgs.collectPageInfoTask()
 
             taskArgs.runTask(pageInfo)
@@ -122,7 +122,7 @@ when isMainModule and appType != "lib":
 
     var skipinitialspace = false
     var skiptrailingspace = false
-    var skipempty = true
+    var skipEmpty = SkipEmpty.ALL
 
     dialect = newDialect(
         delimiter = delimiter,
@@ -171,6 +171,6 @@ when isMainModule and appType != "lib":
     # cols = some(@["a", "c"])
     # page_size = 2
 
-    let pyTable = importFile(pid, taskname, path_csv, encoding, dialect, cols, first_row_has_headers, header_row_index, page_size, guess_dtypes, skipempty, start, limit)
+    let pyTable = importFile(pid, taskname, path_csv, encoding, dialect, cols, first_row_has_headers, header_row_index, page_size, guess_dtypes, skipEmpty, start, limit)
 
     discard pyTable.show(dtype=true)

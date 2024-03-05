@@ -112,7 +112,7 @@ proc textReaderTask*(task: TaskArgs, page_info: PageInfo): seq[nimpy.PyObject] =
     finally:
         fh.close()
 
-proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, skipEmpty: bool, headerRowIndex: uint, lineCount: int): seq[seq[string]] =
+proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, skipEmpty: SkipEmpty, headerRowIndex: uint, lineCount: int): seq[seq[string]] =
     let fh = newFile(path, encoding)
     var obj = newReaderObj(dia)
 
@@ -122,7 +122,7 @@ proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, skipEmpty: 
         var headers = newSeqOfCap[seq[string]](lineCount)
 
         for (idxRow, fields, fieldCount) in obj.parseCSV(fh):
-            if skipEmpty and fields.allFieldsEmpty(fieldCount):
+            if skipEmpty.checkSkipEmpty(fields, fieldCount):
                 continue
 
             if linesToSkip > 0:
@@ -147,7 +147,7 @@ proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, skipEmpty: 
 proc importTextFile*(
     pid: string, path: string, encoding: FileEncoding, dia: Dialect,
     columns: Option[seq[string]], firstRowHasHeaders: bool, headerRowIndex: uint,
-    pageSize: uint, guessDtypes: bool, skipEmpty: bool,
+    pageSize: uint, guessDtypes: bool, skipEmpty: SkipEmpty,
     start: Option[int] = none[int](), limit: Option[int] = none[int]()
 ): TabliteTable =
 
@@ -266,7 +266,7 @@ proc importTextFile*(
             importFieldNames = importFieldNames,
             pageSize = pageSize,
             guessDtypes = guessDtypes,
-            skipEmpty = skipEmpty
+            skipEmpty = $skipEmpty
         )
         let columns = collect(newSeqOfCap(tableColumns.len)):
             for (column_name, page_index) in tableColumns.pairs:

@@ -38,6 +38,11 @@ type ReaderObj* = object
     fields: seq[string]
     fieldCount: uint
 
+type SkipEmpty* = enum
+    NONE,
+    ANY,
+    ALL
+
 proc newDialect*(delimiter: char = ',', quotechar: char = '"', escapechar: char = '\\', doublequote: bool = true, quoting: Quoting = QUOTE_MINIMAL, skipinitialspace: bool = false, skiptrailingspace: bool = false, lineterminator: char = '\n'): Dialect =
     Dialect(delimiter: delimiter, quotechar: quotechar, escapechar: escapechar, doublequote: doublequote, quoting: quoting, skipinitialspace: skipinitialspace, skiptrailingspace: skiptrailingspace, lineterminator: lineterminator)
 
@@ -252,13 +257,28 @@ iterator parseCSV*(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[str
 
             inc lineNum
 
-proc allFieldsEmpty*(fields: ptr seq[string], fieldCount: uint): bool {.inline.} =
-    for i in 0..<fieldCount:
-        if fields[i].len > 0:
-            return false
-    return true
+proc str2SkipEmpty*(skipEmpty: string): SkipEmpty =
+    case skipEmpty.toUpper:
+    of $SkipEmpty.NONE: NONE
+    of $SkipEmpty.ANY: ANY
+    of $SkipEmpty.ALL: ALL
+    else: raise newException(IOError, "invalid skip_empty: " & skipEmpty)
 
-proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, rowOffset: uint, skipEmpty: bool): seq[string] =
+proc checkSkipEmpty*(skipEmpty: SkipEmpty, fields: ptr seq[string], fieldCount: uint): bool {.inline.} =
+    case skipEmpty:
+    of NONE: return false
+    of ALL:
+        for i in 0..<fieldCount:
+            if fields[i].len > 0:
+                return false
+        return true
+    of ANY:
+        for i in 0..<fieldCount:
+            if fields[i].len == 0:
+                return true
+        return false
+
+proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, rowOffset: uint, skipEmpty: SkipEmpty): seq[string] =
     let fh = newFile(path, encoding)
     var obj = newReaderObj(dialect)
 
@@ -266,7 +286,7 @@ proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, rowOff
         fh.setFilePos(int64 rowOffset, fspSet)
 
         for (idxRow, fields, fieldCount) in obj.parseCSV(fh):
-            if skipEmpty and fields.allFieldsEmpty(fieldCount):
+            if skipEmpty.checkSkipEmpty(fields, fieldCount):
                 continue
             return fields[0..<fieldCount]
     finally:

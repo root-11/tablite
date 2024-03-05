@@ -19,7 +19,7 @@ var noneStr = ""
 proc collectPageInfo*(
         obj: var ReaderObj, fh: var BaseEncodedFile,
         guessDtypes: bool, nPages: int, rowCount: int,
-        importFields: var seq[uint], skipEmpty: bool
+        importFields: var seq[uint], skipEmpty: SkipEmpty
     ): (uint, seq[uint], seq[Rank]) =
     var ranks: seq[Rank]
     var longestStr = collect(newSeqOfCap(nPages)):
@@ -36,8 +36,8 @@ proc collectPageInfo*(
         ranks = newSeq[Rank](0)
 
     for (idxRow, fields, fieldCount) in obj.parseCSV(fh):
-        if skipEmpty and fields.allFieldsEmpty(fieldCount):
-                continue
+        if skipEmpty.checkSkipEmpty(fields, fieldCount):
+            continue
 
         if rowCount >= 0 and idxRow >= (uint rowCount):
             break
@@ -215,7 +215,7 @@ proc inferLocaleFloat(rank: var Rank, str: var string): float {.inline.} =
 
 proc dumpPageBody*(
         obj: var ReaderObj, fh: var BaseEncodedFile,
-        guessDtypes: bool, nPages: int, rowCount: int, skipEmpty: bool,
+        guessDtypes: bool, nPages: int, rowCount: int, skipEmpty: SkipEmpty,
         importFields: var seq[uint],
         pageFileHandlers: var seq[File],
         longestStr: var seq[uint], ranks: var seq[Rank], columnDtypes: var seq[PageType],
@@ -234,8 +234,8 @@ proc dumpPageBody*(
         bodyLens[i] = bodyLens[i] + 1
 
     for (idxRow, fields, fieldCount) in obj.parseCSV(fh):
-        if skipEmpty and fields.allFieldsEmpty(fieldCount):
-                continue
+        if skipEmpty.checkSkipEmpty(fields, fieldCount):
+            continue
 
         if rowCount >= 0 and idxRow >= (uint rowCount):
             break

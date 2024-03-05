@@ -25,6 +25,7 @@ if True:
 K = TypeVar("K", bound=BaseTable)
 ValidEncoders = Union[Literal["ENC_UTF8"], Literal["ENC_UTF16"], Literal["ENC_WIN1250"]]
 ValidQuoting = Union[Literal["QUOTE_MINIMAL"], Literal["QUOTE_ALL"], Literal["QUOTE_NONNUMERIC"], Literal["QUOTE_NONE"], Literal["QUOTE_STRINGS"], Literal["QUOTE_NOTNULL"]]
+ValidSkipEmpty = Union[Literal["NONE"], Literal["ANY"], Literal["ALL"]]
 ColumnSelectorDict = TypedDict(
     "ColumnSelectorDict", {
         "column": str,
@@ -40,7 +41,7 @@ def get_headers(
     *,
     header_row_index: int=0,
     newline: str='\n', delimiter: str=',', text_qualifier: str='"',
-    quoting: ValidQuoting, strip_leading_and_tailing_whitespace: bool=True, skip_empty: bool=False,
+    quoting: ValidQuoting, strip_leading_and_tailing_whitespace: bool=True, skip_empty: ValidSkipEmpty="NONE",
     linecount: int = 10
 ) -> list[list[str]]:
     return nl.get_headers(
@@ -64,7 +65,7 @@ def text_reader(
     start: Union[str, None] = None, limit: Union[str, None]=None,
     guess_datatypes: bool =False,
     newline: str='\n', delimiter: str=',', text_qualifier: str='"',
-    quoting: ValidQuoting, strip_leading_and_tailing_whitespace: bool=True, skip_empty: bool = False,
+    quoting: ValidQuoting, strip_leading_and_tailing_whitespace: bool=True, skip_empty: ValidSkipEmpty = "NONE",
     tqdm=_tqdm
 ) -> K:
     assert isinstance(path, Path)
