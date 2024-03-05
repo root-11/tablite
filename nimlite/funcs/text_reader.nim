@@ -19,7 +19,7 @@ when isMainModule and appType != "lib":
     import std/[sugar, paths, osproc, times, enumerate, strutils, options, os]
     import ../[numpy, pymodules, nimpyext]
 
-    proc toTaskArgs*(path: string, encoding: string, dialect: TabliteDialect, task: TabliteTask, import_fields: seq[uint], guess_dtypes: bool): TaskArgs {.inline.} =
+    proc toTaskArgs*(path: string, encoding: string, dialect: TabliteDialect, task: TabliteTask, import_fields: seq[uint], guess_dtypes: bool, skip_empty: bool): TaskArgs {.inline.} =
         return toTaskArgs(
             path = path,
             encoding = encoding,
@@ -36,7 +36,8 @@ when isMainModule and appType != "lib":
             tsk_pages = task.pages,
             tsk_offset = task.offset,
             tsk_count = task.count,
-            import_fields = import_fields
+            import_fields = import_fields,
+            skip_empty = skip_empty
         )
 
     proc runTask*(taskArgs: TaskArgs, pageInfo: PageInfo): void =
@@ -60,34 +61,20 @@ when isMainModule and appType != "lib":
         pid: string, taskname: string, path: string, encoding: FileEncoding, dialect: Dialect,
         cols: Option[seq[string]], first_row_has_headers: bool, header_row_index: uint,
         page_size: uint, guess_dtypes: bool, skipempty: bool,
-        start: Option[int], limit: Option[int],
-        multiprocess: bool, execute: bool, use_json: bool
+        start: Option[int], limit: Option[int]
     ): PyObject =
-        if use_json and execute:
-            raise newException(IOError, "Cannot use 'execute' with combination of 'use_json'")
-
         let d0 = getTime()
 
         let table = importTextFile(pid, path, encoding, dialect, cols, first_row_has_headers, header_row_index, page_size, guess_dtypes, skipempty, start, limit)
         let task = table.task
 
-        if multiprocess:
-            if use_json:
-                discard table.saveTable(pid, taskname)
-            else:
-                let task_path = task.saveTasks(pid, taskname)
+        for i, column_task in enumerate(task.tasks):
+            let taskArgs = toTaskArgs(task.path, task.encoding, task.dialect, column_task, task.import_fields, task.guess_dtypes, skipempty)
+            let pageInfo = taskArgs.collectPageInfoTask()
 
-                if execute:
-                    executeParallel(task_path)
-        else:
-            if execute:
-                for i, column_task in enumerate(task.tasks):
-                    let taskArgs = toTaskArgs(task.path, task.encoding, task.dialect, column_task, task.import_fields, task.guess_dtypes)
-                    let pageInfo = taskArgs.collectPageInfoTask()
-
-                    taskArgs.runTask(pageInfo)
-                    echo "Dumped " & $(i + 1) & "/" & $task.tasks.len
-                    # echo taskArgs
+            taskArgs.runTask(pageInfo)
+            echo "Dumped " & $(i + 1) & "/" & $task.tasks.len
+            # echo taskArgs
 
         let d1 = getTime()
         echo $(d1 - d0)
@@ -175,8 +162,6 @@ when isMainModule and appType != "lib":
     # dialect.quoting = Quoting.QUOTE_NONE
     # dialect.delimiter = ';'
 
-    let multiprocess = false
-    let execute = true
     let start = some[int](0)
     let limit = some[int](-1)
     let first_row_has_headers = true
@@ -186,6 +171,6 @@ when isMainModule and appType != "lib":
     # cols = some(@["a", "c"])
     # page_size = 2
 
-    let pyTable = importFile(pid, taskname, path_csv, encoding, dialect, cols, first_row_has_headers, header_row_index, page_size, guess_dtypes, skipempty, start, limit, multiprocess, execute, use_json)
+    let pyTable = importFile(pid, taskname, path_csv, encoding, dialect, cols, first_row_has_headers, header_row_index, page_size, guess_dtypes, skipempty, start, limit)
 
     discard pyTable.show(dtype=true)

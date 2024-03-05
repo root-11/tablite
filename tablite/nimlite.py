@@ -63,7 +63,7 @@ def text_reader(
     start: Union[str, None] = None, limit: Union[str, None]=None,
     guess_datatypes: bool =False,
     newline: str='\n', delimiter: str=',', text_qualifier: str='"',
-    quoting: ValidQuoting, strip_leading_and_tailing_whitespace: bool=True,
+    quoting: ValidQuoting, strip_leading_and_tailing_whitespace: bool=True, skip_empty: bool = False,
     tqdm=_tqdm
 ) -> K:
     assert isinstance(path, Path)
@@ -80,6 +80,7 @@ def text_reader(
             newline=newline, delimiter=delimiter, text_qualifier=text_qualifier,
             quoting=quoting,
             strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
+            skip_empty=skip_empty,
             page_size=Config.PAGE_SIZE
         )
 
@@ -99,8 +100,8 @@ def text_reader(
         pbar_step = 4 / max(len(ti_tasks), 1)
 
         class WrapUpdate:
-                def update(self, n):
-                    pbar.update(n * pbar_step)
+            def update(self, n):
+                pbar.update(n * pbar_step)
 
         wrapped_pbar = WrapUpdate()
 
@@ -135,6 +136,8 @@ def text_reader(
 
             for task in tasks:
                 page = task.execute()
+                if isinstance(page, str):
+                    raise Exception(page)
 
                 res.append(page)
         else:

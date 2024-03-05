@@ -11,6 +11,7 @@ type TaskArgs* = object
     importFields*: seq[uint]
     rowOffset*: uint
     rowCount*: int
+    skipEmpty*: bool
 
 proc toTaskArgs*(
     path: string,
@@ -28,7 +29,8 @@ proc toTaskArgs*(
     tskPages: seq[string],
     tskOffset: uint,
     tskCount: uint,
-    importFields: seq[uint]
+    importFields: seq[uint],
+    skipEmpty: bool
 ): TaskArgs =
     var delimiter = diaDelimiter.unescapeSeq()
     var quotechar = diaQuotechar.unescapeSeq()
@@ -61,7 +63,8 @@ proc toTaskArgs*(
         destinations: tskPages,
         importFields: importFields,
         rowOffset: tskOffset,
-        rowCount: int tskCount
+        rowCount: int tskCount,
+        skipEmpty: skipEmpty
     )
 
 proc toTaskArgs*(
@@ -84,39 +87,6 @@ proc toTaskArgs*(
             tskPages = task["pages"].to(seq[string]),
             tskOffset = task["offset"].to(uint),
             tskCount = task["count"].to(uint),
-            importFields = task_info["import_fields"].to(seq[uint])
+            importFields = task_info["import_fields"].to(seq[uint]),
+            skipEmpty = task_info["skip_empty"].to(bool)
         )
-
-proc saveTasks*(task: TabliteTasks, pid: string, taskname: string): string =
-    let task_path = pid & "/pages/" & taskname & ".txt"
-    let fh = open(task_path, fmWrite)
-
-    for column_task in task.tasks:
-        fh.write("\"" & getAppFilename() & "\" ")
-
-        fh.write("--encoding=\"" & task.encoding & "\" ")
-        fh.write("--guess_dtypes=" & $task.guessDtypes & " ")
-
-        fh.write("--delimiter=\"" & task.dialect.delimiter & "\" ")
-        fh.write("--quotechar=\"" & task.dialect.quotechar & "\" ")
-        fh.write("--escapechar=\"" & task.dialect.escapechar & "\" ")
-        fh.write("--lineterminator=\"" & task.dialect.lineterminator & "\" ")
-        fh.write("--doublequote=" & $task.dialect.doublequote & " ")
-        fh.write("--skipinitialspace=" & $task.dialect.skipinitialspace & " ")
-        fh.write("--skiptrailingspace=" & $task.dialect.skiptrailingspace & " ")
-        fh.write("--quoting=" & task.dialect.quoting & " ")
-
-        fh.write("task ")
-
-        fh.write("--pages=\"" & column_task.pages.join(",") & "\" ")
-        fh.write("--fields=\"" & task.importFields.join(",") & "\" ")
-
-        fh.write("\"" & task.path & "\" ")
-        fh.write($column_task.offset & " ")
-        fh.write(task.page_size)
-
-        fh.write("\n")
-
-    fh.close()
-
-    return task_path

@@ -252,7 +252,13 @@ iterator parseCSV*(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[str
 
             inc lineNum
 
-proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, rowOffset: uint): seq[string] =
+proc allFieldsEmpty*(fields: ptr seq[string], fieldCount: uint): bool {.inline.} =
+    for i in 0..<fieldCount:
+        if fields[i].len > 0:
+            return false
+    return true
+
+proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, rowOffset: uint, skipEmpty: bool): seq[string] =
     let fh = newFile(path, encoding)
     var obj = newReaderObj(dialect)
 
@@ -260,7 +266,9 @@ proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, rowOff
         fh.setFilePos(int64 rowOffset, fspSet)
 
         for (idxRow, fields, fieldCount) in obj.parseCSV(fh):
-            return fields[0..fieldCount-1]
+            if skipEmpty and fields.allFieldsEmpty(fieldCount):
+                continue
+            return fields[0..<fieldCount]
     finally:
         fh.close()
 

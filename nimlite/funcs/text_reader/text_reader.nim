@@ -13,6 +13,7 @@ proc collectPageInfoTask*(task: TaskArgs): (uint, seq[uint], seq[Rank]) =
     var rowCount = task.rowCount
     var rowOffset = task.rowOffset
     var importFields = task.importFields
+    var skipEmpty = task.skipEmpty
     var obj = newReaderObj(dialect)
 
     var fh = newFile(path, encoding)
@@ -27,7 +28,8 @@ proc collectPageInfoTask*(task: TaskArgs): (uint, seq[uint], seq[Rank]) =
             guessDtypes = guessDtypes,
             nPages = nPages,
             rowCount = rowCount,
-            importFields = importFields
+            importFields = importFields,
+            skipEmpty = skipEmpty
         )
 
         return (nRows, longestStr, ranks)
@@ -47,6 +49,7 @@ proc textReaderTask*(task: TaskArgs, page_info: PageInfo): seq[nimpy.PyObject] =
     var rowCount = task.rowCount
     var rowOffset = task.rowOffset
     var importFields = task.importFields
+    var skipEmpty = task.skipEmpty
     var obj = newReaderObj(dialect)
 
     var fh = newFile(path, encoding)
@@ -74,6 +77,7 @@ proc textReaderTask*(task: TaskArgs, page_info: PageInfo): seq[nimpy.PyObject] =
                 guessDtypes = guessDtypes,
                 nPages = nPages,
                 rowCount = rowCount,
+                skipEmpty = skipEmpty,
                 importFields = importFields,
                 pageFileHandlers = pageFileHandlers,
                 longestStr = longestStr,
@@ -108,7 +112,7 @@ proc textReaderTask*(task: TaskArgs, page_info: PageInfo): seq[nimpy.PyObject] =
     finally:
         fh.close()
 
-proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, headerRowIndex: uint, lineCount: int): seq[seq[string]] =
+proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, skipEmpty: bool, headerRowIndex: uint, lineCount: int): seq[seq[string]] =
     let fh = newFile(path, encoding)
     var obj = newReaderObj(dia)
 
@@ -118,6 +122,9 @@ proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, headerRowIn
         var headers = newSeqOfCap[seq[string]](lineCount)
 
         for (idxRow, fields, fieldCount) in obj.parseCSV(fh):
+            if skipEmpty and fields.allFieldsEmpty(fieldCount):
+                continue
+
             if linesToSkip > 0:
                 dec linesToSkip
                 continue
@@ -155,7 +162,7 @@ proc importTextFile*(
         createDir(dirname)
 
     if newlines > 0 and newlines > headerRowIndex:
-        let firstLine = readColumns(path, encoding, dia, newlineOffsets[headerRowIndex])
+        let firstLine = readColumns(path, encoding, dia, newlineOffsets[headerRowIndex], skipEmpty)
 
         var fields = newSeq[string](0)
 
@@ -258,7 +265,8 @@ proc importTextFile*(
             importFields = importFields,
             importFieldNames = importFieldNames,
             pageSize = pageSize,
-            guessDtypes = guessDtypes
+            guessDtypes = guessDtypes,
+            skipEmpty = skipEmpty
         )
         let columns = collect(newSeqOfCap(tableColumns.len)):
             for (column_name, page_index) in tableColumns.pairs:

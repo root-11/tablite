@@ -546,6 +546,7 @@ def text_reader(
     guess_datatypes,
     text_qualifier,
     strip_leading_and_tailing_whitespace,
+    skip_empty,
     delimiter,
     text_escape_openings,
     text_escape_closures,
@@ -582,6 +583,9 @@ def text_reader(
         kwargs["quoting"] = "QUOTE_NONE"
     if strip_leading_and_tailing_whitespace is not None:
         kwargs["strip_leading_and_tailing_whitespace"] = strip_leading_and_tailing_whitespace
+
+    if skip_empty is not None:
+        kwargs["skip_empty"] = skip_empty
 
     return nimlite.text_reader(
         T, pid, path, enc,

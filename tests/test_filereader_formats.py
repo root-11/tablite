@@ -748,3 +748,31 @@ def test_booleans():
 
     assert len(tbl) == 1
     assert next(tbl.rows) == [False, True, False, True, False, True]
+
+
+def test_filereader_with_empties():
+    path = Path(__file__).parent / "data" / "with_empty_lines.csv"
+    assert path.exists()
+    table = Table.from_file(path, text_qualifier=None, skip_empty=False)
+
+    assert len(table) == 8
+    assert table.to_dict() == {
+        '': [None, 'a', None, None, '0', None, None, None],
+        '_1': [None, 'b', None, None, '1', None, None, None],
+        '_2': [None, 'c', None, None, '2', None, None, None],
+        '_3': [None, 'd', None, None, '3', None, '9', None],
+        '_4': [None, 'e', None, None, '4', None, None, None],
+        '_5': [None, 'f', None, None, '5', None, None, None]
+    }
+
+    table = Table.from_file(path, text_qualifier=None, skip_empty=True)
+
+    assert len(table) == 3
+    assert table.to_dict() == {
+        'a': ['a', '0', ''],
+        'b': ['b', '1', ''],
+        'c': ['c', '2', ''],
+        'd': ['d', '3', '9'],
+        'e': ['e', '4', ''],
+        'f': ['f', '5', '']
+    }

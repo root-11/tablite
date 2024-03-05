@@ -2,7 +2,7 @@ def text_reader_task(path,  encoding,  dia_delimiter,  dia_quotechar,  dia_escap
     pass
 
 
-def text_reader(pid, path, encoding, columns, first_row_has_headers, header_row_index, start, limit, guess_datatypes, newline, delimiter, text_qualifier, strip_leading_and_tailing_whitespace, page_size, quoting):
+def text_reader(pid, path, encoding, columns, first_row_has_headers, header_row_index, start, limit, guess_datatypes, newline, delimiter, text_qualifier, strip_leading_and_tailing_whitespace, skip_empty, page_size, quoting):
     pass
 
 def get_headers(path, encoding, newline, delimiter, text_qualifier, strip_leading_and_tailing_whitespace, page_size, quoting, header_row_index, linecount):

@@ -65,6 +65,7 @@ class Table(BaseTable):
         strip_leading_and_tailing_whitespace=True,
         text_escape_openings="",
         text_escape_closures="",
+        skip_empty=False,
         tqdm=_tqdm,
     ) -> "Table":
         """
@@ -175,7 +176,7 @@ class Table(BaseTable):
             # here we inject tqdm, if tqdm is not provided, use generic iterator
             # fmt:off
             config = (path, columns, first_row_has_headers, header_row_index, encoding, start, limit, newline,
-                      guess_datatypes, text_qualifier, strip_leading_and_tailing_whitespace,
+                      guess_datatypes, text_qualifier, strip_leading_and_tailing_whitespace, skip_empty,
                       delimiter, text_escape_openings, text_escape_closures)
             # fmt:on
 
