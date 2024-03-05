@@ -36,7 +36,9 @@ proc collectPageInfoTask*(task: TaskArgs): (uint, seq[uint], seq[Rank]) =
         fh.close()
 
 
-proc textReaderTask*(task: TaskArgs, page_info: (uint, seq[uint], seq[Rank])): seq[nimpy.PyObject] =
+type PageInfo* = (uint, seq[uint], seq[Rank])
+
+proc textReaderTask*(task: TaskArgs, page_info: PageInfo): seq[nimpy.PyObject] =
     var dialect = task.dialect
     var encoding = task.encoding
     var destinations = task.destinations
