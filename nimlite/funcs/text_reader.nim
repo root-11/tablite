@@ -188,4 +188,4 @@ when isMainModule and appType != "lib":
 
     let pyTable = importFile(pid, taskname, path_csv, encoding, dialect, cols, first_row_has_headers, header_row_index, page_size, guess_dtypes, skipempty, start, limit, multiprocess, execute, use_json)
 
-    discard pyTable.show()
+    discard pyTable.show(dtype=true)

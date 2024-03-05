@@ -56,7 +56,6 @@ proc textReaderTask*(task: TaskArgs, page_info: PageInfo): seq[nimpy.PyObject] =
         fh.setFilePos(int64 rowOffset, fspSet)
 
         var (nRows, longestStr, ranks) = pageInfo
-
         var (pageFileHandlers, columnDtypes, binput) = dumpPageHeader(
             destinations = destinations,
             nPages = nPages,
@@ -161,7 +160,14 @@ proc importTextFile*(
         var fields = newSeq[string](0)
 
         if firstRowHasHeaders:
-            fields = firstLine
+            for n in firstLine:
+                #[
+                    deal with duplicate headers,
+                    we can make them unique immediatly,
+                    because even if user uses selects which columns to import we wouldn't know which to choose and default to first one
+                    meanwhile this will deal with duplicates when all columns are improted
+                ]#
+                fields.add(uniqueName(n, fields))
         else:
             fields = collect(newSeqOfCap(firstLine.len)):
                 for i in 0..<firstLine.len:
@@ -187,6 +193,8 @@ proc importTextFile*(
             for ix, name in enumerate(fields):
                 if name in impColumns:
                     {uint ix: name}
+
+        echo fieldRelation
 
         let importFields = collect: (for k in fieldRelation.keys: k)
         let importFieldNames = collect: (for v in fieldRelation.values: v)
