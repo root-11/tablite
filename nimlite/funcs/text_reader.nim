@@ -16,7 +16,7 @@ export csvparse
 
 when isMainModule and appType != "lib":
     import nimpy
-    import std/[paths, sugar, paths, osproc, times, enumerate, strutils, options, os]
+    import std/[sugar, paths, osproc, times, enumerate, strutils, options, os]
     import ../[numpy, pymodules, nimpyext]
 
     proc toTaskArgs*(path: string, encoding: string, dialect: TabliteDialect, task: TabliteTask, import_fields: seq[uint], guess_dtypes: bool): TaskArgs {.inline.} =
