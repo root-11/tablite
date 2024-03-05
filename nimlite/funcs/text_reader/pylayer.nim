@@ -19,7 +19,7 @@ proc textReader*(
     start: Option[int], limit: Option[int],
     guessDatatypes: bool,
     newline: char, delimiter: char,
-    textQualifier: char, stripLeadingAndTailingWhitespace: bool,
+    textQualifier: char, stripLeadingAndTailingWhitespace: bool, skipEmpty: bool,
     pageSize: uint,
     quoting: Quoting
 ): TabliteTable =
@@ -35,6 +35,7 @@ proc textReader*(
         headerRowIndex = headerRowIndex,
         pageSize = pageSize,
         guessDtypes = guessDatatypes,
+        skipEmpty = skipEmpty,
         start = start,
         limit = limit
     )

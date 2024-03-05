@@ -59,7 +59,7 @@ when isMainModule and appType != "lib":
     proc importFile*(
         pid: string, taskname: string, path: string, encoding: FileEncoding, dialect: Dialect,
         cols: Option[seq[string]], first_row_has_headers: bool, header_row_index: uint,
-        page_size: uint, guess_dtypes: bool,
+        page_size: uint, guess_dtypes: bool, skipempty: bool,
         start: Option[int], limit: Option[int],
         multiprocess: bool, execute: bool, use_json: bool
     ): PyObject =
@@ -68,7 +68,7 @@ when isMainModule and appType != "lib":
 
         let d0 = getTime()
 
-        let table = importTextFile(pid, path, encoding, dialect, cols, first_row_has_headers, header_row_index, page_size, guess_dtypes, start, limit)
+        let table = importTextFile(pid, path, encoding, dialect, cols, first_row_has_headers, header_row_index, page_size, guess_dtypes, skipempty, start, limit)
         let task = table.task
 
         if multiprocess:
@@ -135,6 +135,7 @@ when isMainModule and appType != "lib":
 
     var skipinitialspace = false
     var skiptrailingspace = false
+    var skipempty = true
 
     dialect = newDialect(
         delimiter = delimiter,
@@ -161,7 +162,8 @@ when isMainModule and appType != "lib":
     # (path_csv, encoding) = ("tests/data/win1250_test.csv", str2ConvEnc("Windows-1252"))
 
     # (path_csv, encoding) = ("tests/data/book1.txt", str2Enc($ENC_UTF8))
-    (path_csv, encoding) = ("tests/data/gdocs1.csv", str2Enc($ENC_UTF8))
+    # (path_csv, encoding) = ("tests/data/gdocs1.csv", str2Enc($ENC_UTF8))
+    (path_csv, encoding) = ("tests/data/with_empty_lines.csv", str2Enc($ENC_UTF8))
     # (path_csv, encoding) = (dirdata & "/Dematic YDC Order Data.csv", str2Enc($ENC_UTF8))
     # (path_csv, encoding) = (dirdata & "/Dematic YDC Order Data_1M.csv", str2Enc($ENC_UTF8))
     # (path_csv, encoding) = (dirdata & "/Dematic YDC Order Data_1M_1col.csv", str2Enc($ENC_UTF8))
@@ -184,6 +186,6 @@ when isMainModule and appType != "lib":
     # cols = some(@["a", "c"])
     # page_size = 2
 
-    let pyTable = importFile(pid, taskname, path_csv, encoding, dialect, cols, first_row_has_headers, header_row_index, page_size, guess_dtypes, start, limit, multiprocess, execute, use_json)
+    let pyTable = importFile(pid, taskname, path_csv, encoding, dialect, cols, first_row_has_headers, header_row_index, page_size, guess_dtypes, skipempty, start, limit, multiprocess, execute, use_json)
 
     discard pyTable.show()

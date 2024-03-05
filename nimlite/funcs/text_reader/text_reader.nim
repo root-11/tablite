@@ -141,7 +141,7 @@ proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, headerRowIn
 proc importTextFile*(
     pid: string, path: string, encoding: FileEncoding, dia: Dialect,
     columns: Option[seq[string]], firstRowHasHeaders: bool, headerRowIndex: uint,
-    pageSize: uint, guessDtypes: bool,
+    pageSize: uint, guessDtypes: bool, skipEmpty: bool,
     start: Option[int] = none[int](), limit: Option[int] = none[int]()
 ): TabliteTable =
 
