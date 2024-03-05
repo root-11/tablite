@@ -22,3 +22,7 @@ def read_page(path):
 
 def repaginate(column):
     pass
+
+
+def collect_text_reader_page_info_task(task_info, task):
+    pass
