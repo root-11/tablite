@@ -1898,32 +1898,7 @@
 
                 <details class="quote">
                   <summary>Source code in <code>tablite/import_utils.py</code></summary>
-                  <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">391</span>
-<span class="normal">392</span>
-<span class="normal">393</span>
-<span class="normal">394</span>
-<span class="normal">395</span>
-<span class="normal">396</span>
-<span class="normal">397</span>
-<span class="normal">398</span>
-<span class="normal">399</span>
-<span class="normal">400</span>
-<span class="normal">401</span>
-<span class="normal">402</span>
-<span class="normal">403</span>
-<span class="normal">404</span>
-<span class="normal">405</span>
-<span class="normal">406</span>
-<span class="normal">407</span>
-<span class="normal">408</span>
-<span class="normal">409</span>
-<span class="normal">410</span>
-<span class="normal">411</span>
-<span class="normal">412</span>
-<span class="normal">413</span>
-<span class="normal">414</span>
-<span class="normal">415</span>
-<span class="normal">416</span>
+                  <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">416</span>
 <span class="normal">417</span>
 <span class="normal">418</span>
 <span class="normal">419</span>
@@ -1936,7 +1911,32 @@
 <span class="normal">426</span>
 <span class="normal">427</span>
 <span class="normal">428</span>
-<span class="normal">429</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+<span class="normal">429</span>
+<span class="normal">430</span>
+<span class="normal">431</span>
+<span class="normal">432</span>
+<span class="normal">433</span>
+<span class="normal">434</span>
+<span class="normal">435</span>
+<span class="normal">436</span>
+<span class="normal">437</span>
+<span class="normal">438</span>
+<span class="normal">439</span>
+<span class="normal">440</span>
+<span class="normal">441</span>
+<span class="normal">442</span>
+<span class="normal">443</span>
+<span class="normal">444</span>
+<span class="normal">445</span>
+<span class="normal">446</span>
+<span class="normal">447</span>
+<span class="normal">448</span>
+<span class="normal">449</span>
+<span class="normal">450</span>
+<span class="normal">451</span>
+<span class="normal">452</span>
+<span class="normal">453</span>
+<span class="normal">454</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span>
     <span class="n">source</span><span class="p">,</span>
     <span class="n">destination</span><span class="p">,</span>
@@ -2252,8 +2252,8 @@
 
           <details class="quote">
             <summary>Source code in <code>tablite/import_utils.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">431</span>
-<span class="normal">432</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">456</span>
+<span class="normal">457</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
     <span class="k">return</span> <span class="n">TRconfig</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">dict</span><span class="p">())</span>
 </code></pre></div></td></tr></table></div>
           </details>
@@ -2276,8 +2276,8 @@
 
           <details class="quote">
             <summary>Source code in <code>tablite/import_utils.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">434</span>
-<span class="normal">435</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">459</span>
+<span class="normal">460</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
     <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">callable</span><span class="p">(</span><span class="n">v</span><span class="p">))}</span>
 </code></pre></div></td></tr></table></div>
           </details>
@@ -2695,7 +2695,7 @@ t2.show(dtype=True)
 
 
 <h4 id="tablite.import_utils.excel_reader" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">import_utils</span><span class="o">.</span><span class="n">excel_reader</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">first_row_has_headers</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">header_row_index</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sheet</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">maxsize</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">import_utils</span><span class="o">.</span><span class="n">excel_reader</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">first_row_has_headers</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">header_row_index</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sheet</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">skip_empty</span><span class="o">=</span><span class="s1">&#39;NONE&#39;</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">maxsize</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
 
 </h4>
 
@@ -2873,7 +2873,28 @@ t2.show(dtype=True)
 <span class="normal">340</span>
 <span class="normal">341</span>
 <span class="normal">342</span>
-<span class="normal">343</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">excel_reader</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">first_row_has_headers</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">header_row_index</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sheet</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">maxsize</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="normal">343</span>
+<span class="normal">344</span>
+<span class="normal">345</span>
+<span class="normal">346</span>
+<span class="normal">347</span>
+<span class="normal">348</span>
+<span class="normal">349</span>
+<span class="normal">350</span>
+<span class="normal">351</span>
+<span class="normal">352</span>
+<span class="normal">353</span>
+<span class="normal">354</span>
+<span class="normal">355</span>
+<span class="normal">356</span>
+<span class="normal">357</span>
+<span class="normal">358</span>
+<span class="normal">359</span>
+<span class="normal">360</span>
+<span class="normal">361</span>
+<span class="normal">362</span>
+<span class="normal">363</span>
+<span class="normal">364</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">excel_reader</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">first_row_has_headers</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">header_row_index</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sheet</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">skip_empty</span><span class="o">=</span><span class="s2">&quot;NONE&quot;</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">maxsize</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    returns Table from excel</span>
 
@@ -2897,10 +2918,22 @@ t2.show(dtype=True)
 
     <span class="n">worksheet</span> <span class="o">=</span> <span class="n">book</span><span class="p">[</span><span class="n">sheet</span><span class="p">]</span>
     <span class="n">fixup_worksheet</span><span class="p">(</span><span class="n">worksheet</span><span class="p">)</span>
+    <span class="n">skipped_rows</span> <span class="o">=</span> <span class="mi">0</span>
 
     <span class="k">try</span><span class="p">:</span>
-        <span class="c1"># get the first row to know our headers or the number of columns</span>
-        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">next</span><span class="p">(</span><span class="n">worksheet</span><span class="o">.</span><span class="n">iter_rows</span><span class="p">(</span><span class="n">min_row</span><span class="o">=</span><span class="n">header_row_index</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))]</span> <span class="c1"># excel is offset by 1</span>
+        <span class="n">it_header</span> <span class="o">=</span> <span class="n">worksheet</span><span class="o">.</span><span class="n">iter_rows</span><span class="p">(</span><span class="n">min_row</span><span class="o">=</span><span class="n">header_row_index</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="c1"># get the first row to know our headers or the number of columns</span>
+            <span class="n">row</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">value</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">next</span><span class="p">(</span><span class="n">it_header</span><span class="p">)]</span>
+
+            <span class="k">if</span> <span class="n">skip_empty</span> <span class="o">==</span> <span class="s2">&quot;ALL&quot;</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="n">v</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">row</span><span class="p">):</span>
+                <span class="n">skipped_rows</span> <span class="o">=</span> <span class="n">skipped_rows</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="k">continue</span>
+            <span class="k">elif</span> <span class="n">skip_empty</span> <span class="o">==</span> <span class="s2">&quot;ANY&quot;</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">(</span><span class="n">v</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">row</span><span class="p">):</span>
+                <span class="n">skipped_rows</span> <span class="o">=</span> <span class="n">skipped_rows</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="k">continue</span>
+            <span class="k">break</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">row</span><span class="p">]</span> <span class="c1"># excel is offset by 1</span>
     <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
         <span class="c1"># excel was empty, return empty table</span>
         <span class="k">return</span> <span class="n">T</span><span class="p">()</span>
@@ -2926,7 +2959,7 @@ t2.show(dtype=True)
             <span class="n">field_dict</span><span class="p">[</span><span class="n">unique_name</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">field_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">())]</span> <span class="o">=</span> <span class="n">i</span>
 
     <span class="c1"># calculate our data rows iterator offset</span>
-    <span class="n">it_offset</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="k">if</span> <span class="n">first_row_has_headers</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">header_row_index</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">it_offset</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="k">if</span> <span class="n">first_row_has_headers</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">header_row_index</span> <span class="o">+</span> <span class="n">skipped_rows</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
 
     <span class="c1"># attempt to fetch number of rows in the sheet</span>
     <span class="n">total_rows</span> <span class="o">=</span> <span class="n">worksheet</span><span class="o">.</span><span class="n">max_row</span>
@@ -2976,13 +3009,20 @@ t2.show(dtype=True)
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">tqdm_iter</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">it_rows_filtered</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;importing excel: </span><span class="si">{</span><span class="n">pbar_fname</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-    <span class="n">tqdm_iter</span> <span class="o">=</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">tqdm_iter</span><span class="p">)</span>
+    <span class="n">tqdm_iter</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">(</span><span class="n">tqdm_iter</span><span class="p">)</span>
+
+    <span class="n">idx</span> <span class="o">=</span> <span class="mi">0</span>
 
     <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">idx</span><span class="p">,</span> <span class="n">row</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">tqdm_iter</span><span class="p">)</span>
+            <span class="n">row</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">tqdm_iter</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
             <span class="k">break</span> <span class="c1"># because in some cases we can&#39;t know the size of excel to set the upper iterator limit we loop until stop iteration is encountered</span>
+
+        <span class="k">if</span> <span class="n">skip_empty</span> <span class="o">==</span> <span class="s2">&quot;ALL&quot;</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="n">v</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">row</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="k">elif</span> <span class="n">skip_empty</span> <span class="o">==</span> <span class="s2">&quot;ANY&quot;</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">(</span><span class="n">v</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">row</span><span class="p">):</span>
+            <span class="k">continue</span>
 
         <span class="k">if</span> <span class="n">idx</span> <span class="o">%</span> <span class="n">Config</span><span class="o">.</span><span class="n">PAGE_SIZE</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">page_fhs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -3035,6 +3075,8 @@ t2.show(dtype=True)
             <span class="n">fh</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">byte_count</span><span class="p">)</span>
             <span class="n">fh</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">bytes_</span><span class="p">)</span>
 
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span>
+
     <span class="k">if</span> <span class="n">page_fhs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="c1"># we reached end of the loop, fix the pages</span>
         <span class="p">[</span><span class="n">_fix_xls_page</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">fh</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">fh</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">field_names</span><span class="p">,</span> <span class="n">page_fhs</span><span class="p">)]</span>
@@ -3052,7 +3094,7 @@ t2.show(dtype=True)
 
 
 <h4 id="tablite.import_utils.ods_reader" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">import_utils</span><span class="o">.</span><span class="n">ods_reader</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">first_row_has_headers</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">header_row_index</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sheet</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">maxsize</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">import_utils</span><span class="o">.</span><span class="n">ods_reader</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">first_row_has_headers</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">header_row_index</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sheet</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">skip_empty</span><span class="o">=</span><span class="s1">&#39;NONE&#39;</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">maxsize</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
 
 </h4>
 
@@ -3063,28 +3105,7 @@ t2.show(dtype=True)
 
           <details class="quote">
             <summary>Source code in <code>tablite/import_utils.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">346</span>
-<span class="normal">347</span>
-<span class="normal">348</span>
-<span class="normal">349</span>
-<span class="normal">350</span>
-<span class="normal">351</span>
-<span class="normal">352</span>
-<span class="normal">353</span>
-<span class="normal">354</span>
-<span class="normal">355</span>
-<span class="normal">356</span>
-<span class="normal">357</span>
-<span class="normal">358</span>
-<span class="normal">359</span>
-<span class="normal">360</span>
-<span class="normal">361</span>
-<span class="normal">362</span>
-<span class="normal">363</span>
-<span class="normal">364</span>
-<span class="normal">365</span>
-<span class="normal">366</span>
-<span class="normal">367</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">367</span>
 <span class="normal">368</span>
 <span class="normal">369</span>
 <span class="normal">370</span>
@@ -3104,24 +3125,51 @@ t2.show(dtype=True)
 <span class="normal">384</span>
 <span class="normal">385</span>
 <span class="normal">386</span>
-<span class="normal">387</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">ods_reader</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">first_row_has_headers</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">header_row_index</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sheet</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">maxsize</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="normal">387</span>
+<span class="normal">388</span>
+<span class="normal">389</span>
+<span class="normal">390</span>
+<span class="normal">391</span>
+<span class="normal">392</span>
+<span class="normal">393</span>
+<span class="normal">394</span>
+<span class="normal">395</span>
+<span class="normal">396</span>
+<span class="normal">397</span>
+<span class="normal">398</span>
+<span class="normal">399</span>
+<span class="normal">400</span>
+<span class="normal">401</span>
+<span class="normal">402</span>
+<span class="normal">403</span>
+<span class="normal">404</span>
+<span class="normal">405</span>
+<span class="normal">406</span>
+<span class="normal">407</span>
+<span class="normal">408</span>
+<span class="normal">409</span>
+<span class="normal">410</span>
+<span class="normal">411</span>
+<span class="normal">412</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">ods_reader</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">first_row_has_headers</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">header_row_index</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sheet</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">skip_empty</span><span class="o">=</span><span class="s2">&quot;NONE&quot;</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">maxsize</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    returns Table from .ODS</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Expected subclass of Table&quot;</span><span class="p">)</span>
 
-    <span class="n">sheets</span> <span class="o">=</span> <span class="n">pyexcel</span><span class="o">.</span><span class="n">get_book_dict</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">read_excel</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">),</span> <span class="n">sheet_name</span><span class="o">=</span><span class="n">sheet</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="n">data</span><span class="p">[</span><span class="n">pandas</span><span class="o">.</span><span class="n">isna</span><span class="p">(</span><span class="n">data</span><span class="p">)]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># convert any empty cells to None</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="c1"># convert pandas to list</span>
 
-    <span class="k">if</span> <span class="n">sheet</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">sheet</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sheets</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No sheet_name declared: </span><span class="se">\n</span><span class="s2">available sheets:</span><span class="se">\n</span><span class="si">{</span><span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">name</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">sheets</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">skip_empty</span> <span class="o">==</span> <span class="s2">&quot;ALL&quot;</span> <span class="ow">or</span> <span class="n">skip_empty</span> <span class="o">==</span> <span class="s2">&quot;ANY&quot;</span><span class="p">:</span>
+        <span class="n">fn_filter</span> <span class="o">=</span> <span class="nb">any</span> <span class="k">if</span> <span class="n">skip_empty</span> <span class="o">==</span> <span class="s2">&quot;ALL&quot;</span> <span class="k">else</span> <span class="nb">all</span> <span class="c1"># this is intentional</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">row</span>
+            <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">data</span>
+            <span class="k">if</span> <span class="n">fn_filter</span><span class="p">(</span><span class="ow">not</span> <span class="p">(</span><span class="n">v</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">row</span><span class="p">)</span>
+        <span class="p">]</span>
 
-    <span class="n">data</span> <span class="o">=</span> <span class="n">sheets</span><span class="p">[</span><span class="n">sheet</span><span class="p">]</span>
-    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)):</span>  <span class="c1"># remove empty lines at the end of the data.</span>
-        <span class="k">if</span> <span class="s2">&quot;&quot;</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">data</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]):</span>
-            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">break</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">object_</span><span class="p">)</span> <span class="c1"># cast back to numpy array for slicing but don&#39;t try to convert datatypes</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">and</span> <span class="n">start</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;expected start as an integer &gt;=0&quot;</span><span class="p">)</span>
@@ -3133,7 +3181,7 @@ t2.show(dtype=True)
     <span class="n">used_columns_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">ix</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">header_row_index</span><span class="p">]):</span>
         <span class="k">if</span> <span class="n">first_row_has_headers</span><span class="p">:</span>
-            <span class="n">header</span><span class="p">,</span> <span class="n">start_row_pos</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">header_row_index</span><span class="p">)</span>
+            <span class="n">header</span><span class="p">,</span> <span class="n">start_row_pos</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span> <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">header_row_index</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">header</span><span class="p">,</span> <span class="n">start_row_pos</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;_</span><span class="si">{</span><span class="n">ix</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span> <span class="o">+</span> <span class="n">header_row_index</span><span class="p">)</span>
 
@@ -3144,7 +3192,9 @@ t2.show(dtype=True)
         <span class="n">unique_column_name</span> <span class="o">=</span> <span class="n">unique_name</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">header</span><span class="p">),</span> <span class="n">used_columns_names</span><span class="p">)</span>
         <span class="n">used_columns_names</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">unique_column_name</span><span class="p">)</span>
 
-        <span class="n">t</span><span class="p">[</span><span class="n">unique_column_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="n">ix</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">data</span><span class="p">[</span><span class="n">start_row_pos</span> <span class="p">:</span> <span class="n">start_row_pos</span> <span class="o">+</span> <span class="n">limit</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">ix</span><span class="p">]</span>
+        <span class="n">column_values</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">start_row_pos</span> <span class="p">:</span> <span class="n">start_row_pos</span> <span class="o">+</span> <span class="n">limit</span><span class="p">,</span> <span class="n">ix</span><span class="p">]</span>
+
+        <span class="n">t</span><span class="p">[</span><span class="n">unique_column_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">column_values</span>
     <span class="k">return</span> <span class="n">t</span>
 </code></pre></div></td></tr></table></div>
           </details>
@@ -3181,32 +3231,7 @@ encoding: chardet encoding ('utf-8, 'ascii', ..., 'ISO-22022-CN')</p>
 
           <details class="quote">
             <summary>Source code in <code>tablite/import_utils.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">458</span>
-<span class="normal">459</span>
-<span class="normal">460</span>
-<span class="normal">461</span>
-<span class="normal">462</span>
-<span class="normal">463</span>
-<span class="normal">464</span>
-<span class="normal">465</span>
-<span class="normal">466</span>
-<span class="normal">467</span>
-<span class="normal">468</span>
-<span class="normal">469</span>
-<span class="normal">470</span>
-<span class="normal">471</span>
-<span class="normal">472</span>
-<span class="normal">473</span>
-<span class="normal">474</span>
-<span class="normal">475</span>
-<span class="normal">476</span>
-<span class="normal">477</span>
-<span class="normal">478</span>
-<span class="normal">479</span>
-<span class="normal">480</span>
-<span class="normal">481</span>
-<span class="normal">482</span>
-<span class="normal">483</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">483</span>
 <span class="normal">484</span>
 <span class="normal">485</span>
 <span class="normal">486</span>
@@ -3254,7 +3279,32 @@ encoding: chardet encoding ('utf-8, 'ascii', ..., 'ISO-22022-CN')</p>
 <span class="normal">528</span>
 <span class="normal">529</span>
 <span class="normal">530</span>
-<span class="normal">531</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">text_reader_task</span><span class="p">(</span>
+<span class="normal">531</span>
+<span class="normal">532</span>
+<span class="normal">533</span>
+<span class="normal">534</span>
+<span class="normal">535</span>
+<span class="normal">536</span>
+<span class="normal">537</span>
+<span class="normal">538</span>
+<span class="normal">539</span>
+<span class="normal">540</span>
+<span class="normal">541</span>
+<span class="normal">542</span>
+<span class="normal">543</span>
+<span class="normal">544</span>
+<span class="normal">545</span>
+<span class="normal">546</span>
+<span class="normal">547</span>
+<span class="normal">548</span>
+<span class="normal">549</span>
+<span class="normal">550</span>
+<span class="normal">551</span>
+<span class="normal">552</span>
+<span class="normal">553</span>
+<span class="normal">554</span>
+<span class="normal">555</span>
+<span class="normal">556</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">text_reader_task</span><span class="p">(</span>
     <span class="n">source</span><span class="p">,</span>
     <span class="n">destination</span><span class="p">,</span>
     <span class="n">start</span><span class="p">,</span>
@@ -3340,7 +3390,7 @@ encoding: chardet encoding ('utf-8, 'ascii', ..., 'ISO-22022-CN')</p>
 
 
 <h4 id="tablite.import_utils.text_reader" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">import_utils</span><span class="o">.</span><span class="n">text_reader</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">first_row_has_headers</span><span class="p">,</span> <span class="n">header_row_index</span><span class="p">,</span> <span class="n">encoding</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">limit</span><span class="p">,</span> <span class="n">newline</span><span class="p">,</span> <span class="n">guess_datatypes</span><span class="p">,</span> <span class="n">text_qualifier</span><span class="p">,</span> <span class="n">strip_leading_and_tailing_whitespace</span><span class="p">,</span> <span class="n">delimiter</span><span class="p">,</span> <span class="n">text_escape_openings</span><span class="p">,</span> <span class="n">text_escape_closures</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">import_utils</span><span class="o">.</span><span class="n">text_reader</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">first_row_has_headers</span><span class="p">,</span> <span class="n">header_row_index</span><span class="p">,</span> <span class="n">encoding</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">limit</span><span class="p">,</span> <span class="n">newline</span><span class="p">,</span> <span class="n">guess_datatypes</span><span class="p">,</span> <span class="n">text_qualifier</span><span class="p">,</span> <span class="n">strip_leading_and_tailing_whitespace</span><span class="p">,</span> <span class="n">skip_empty</span><span class="p">,</span> <span class="n">delimiter</span><span class="p">,</span> <span class="n">text_escape_openings</span><span class="p">,</span> <span class="n">text_escape_closures</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
 
 </h4>
 
@@ -3349,32 +3399,7 @@ encoding: chardet encoding ('utf-8, 'ascii', ..., 'ISO-22022-CN')</p>
 
           <details class="quote">
             <summary>Source code in <code>tablite/import_utils.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">536</span>
-<span class="normal">537</span>
-<span class="normal">538</span>
-<span class="normal">539</span>
-<span class="normal">540</span>
-<span class="normal">541</span>
-<span class="normal">542</span>
-<span class="normal">543</span>
-<span class="normal">544</span>
-<span class="normal">545</span>
-<span class="normal">546</span>
-<span class="normal">547</span>
-<span class="normal">548</span>
-<span class="normal">549</span>
-<span class="normal">550</span>
-<span class="normal">551</span>
-<span class="normal">552</span>
-<span class="normal">553</span>
-<span class="normal">554</span>
-<span class="normal">555</span>
-<span class="normal">556</span>
-<span class="normal">557</span>
-<span class="normal">558</span>
-<span class="normal">559</span>
-<span class="normal">560</span>
-<span class="normal">561</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">561</span>
 <span class="normal">562</span>
 <span class="normal">563</span>
 <span class="normal">564</span>
@@ -3403,7 +3428,38 @@ encoding: chardet encoding ('utf-8, 'ascii', ..., 'ISO-22022-CN')</p>
 <span class="normal">587</span>
 <span class="normal">588</span>
 <span class="normal">589</span>
-<span class="normal">590</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">text_reader</span><span class="p">(</span>
+<span class="normal">590</span>
+<span class="normal">591</span>
+<span class="normal">592</span>
+<span class="normal">593</span>
+<span class="normal">594</span>
+<span class="normal">595</span>
+<span class="normal">596</span>
+<span class="normal">597</span>
+<span class="normal">598</span>
+<span class="normal">599</span>
+<span class="normal">600</span>
+<span class="normal">601</span>
+<span class="normal">602</span>
+<span class="normal">603</span>
+<span class="normal">604</span>
+<span class="normal">605</span>
+<span class="normal">606</span>
+<span class="normal">607</span>
+<span class="normal">608</span>
+<span class="normal">609</span>
+<span class="normal">610</span>
+<span class="normal">611</span>
+<span class="normal">612</span>
+<span class="normal">613</span>
+<span class="normal">614</span>
+<span class="normal">615</span>
+<span class="normal">616</span>
+<span class="normal">617</span>
+<span class="normal">618</span>
+<span class="normal">619</span>
+<span class="normal">620</span>
+<span class="normal">621</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">text_reader</span><span class="p">(</span>
     <span class="n">T</span><span class="p">,</span>
     <span class="n">path</span><span class="p">,</span>
     <span class="n">columns</span><span class="p">,</span>
@@ -3416,6 +3472,7 @@ encoding: chardet encoding ('utf-8, 'ascii', ..., 'ISO-22022-CN')</p>
     <span class="n">guess_datatypes</span><span class="p">,</span>
     <span class="n">text_qualifier</span><span class="p">,</span>
     <span class="n">strip_leading_and_tailing_whitespace</span><span class="p">,</span>
+    <span class="n">skip_empty</span><span class="p">,</span>
     <span class="n">delimiter</span><span class="p">,</span>
     <span class="n">text_escape_openings</span><span class="p">,</span>
     <span class="n">text_escape_closures</span><span class="p">,</span>
@@ -3452,6 +3509,11 @@ encoding: chardet encoding ('utf-8, 'ascii', ..., 'ISO-22022-CN')</p>
         <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;quoting&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;QUOTE_NONE&quot;</span>
     <span class="k">if</span> <span class="n">strip_leading_and_tailing_whitespace</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;strip_leading_and_tailing_whitespace&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">strip_leading_and_tailing_whitespace</span>
+
+    <span class="k">if</span> <span class="n">skip_empty</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;skip_empty&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;NONE&quot;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;skip_empty&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">skip_empty</span>
 
     <span class="k">return</span> <span class="n">nimlite</span><span class="o">.</span><span class="n">text_reader</span><span class="p">(</span>
         <span class="n">T</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">enc</span><span class="p">,</span>

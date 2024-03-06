@@ -19,7 +19,7 @@ proc textReader*(
     start: Option[int], limit: Option[int],
     guessDatatypes: bool,
     newline: char, delimiter: char,
-    textQualifier: char, stripLeadingAndTailingWhitespace: bool,
+    textQualifier: char, stripLeadingAndTailingWhitespace: bool, skipEmpty: SkipEmpty,
     pageSize: uint,
     quoting: Quoting
 ): TabliteTable =
@@ -35,6 +35,7 @@ proc textReader*(
         headerRowIndex = headerRowIndex,
         pageSize = pageSize,
         guessDtypes = guessDatatypes,
+        skipEmpty = skipEmpty,
         start = start,
         limit = limit
     )
@@ -43,9 +44,9 @@ proc getHeaders*(
     path: string, encoding: FileEncoding,
     headerRowIndex: uint, lineCount: int,
     newline: char, delimiter: char,
-    textQualifier: char, stripLeadingAndTailingWhitespace: bool,
+    textQualifier: char, stripLeadingAndTailingWhitespace: bool, skipEmpty: SkipEmpty,
     quoting: Quoting
 ): seq[seq[string]] =
     let dialect = makeDialect()
 
-    return getHeaders(path, encoding, dialect, headerRowIndex, lineCount)
+    return getHeaders(path, encoding, dialect, skipEmpty, headerRowIndex, lineCount)
