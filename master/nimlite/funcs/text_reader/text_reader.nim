@@ -112,7 +112,7 @@ proc textReaderTask*(task: TaskArgs, page_info: PageInfo): seq[nimpy.PyObject] =
     finally:
         fh.close()
 
-proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, skipEmpty: SkipEmpty, headerRowIndex: uint, lineCount: int): seq[seq[string]] =
+proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, headerRowIndex: uint, lineCount: int): seq[seq[string]] =
     let fh = newFile(path, encoding)
     var obj = newReaderObj(dia)
 
@@ -122,9 +122,6 @@ proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, skipEmpty: 
         var headers = newSeqOfCap[seq[string]](lineCount)
 
         for (idxRow, fields, fieldCount) in obj.parseCSV(fh):
-            if skipEmpty.checkSkipEmpty(fields, fieldCount):
-                continue
-
             if linesToSkip > 0:
                 dec linesToSkip
                 continue
@@ -162,7 +159,7 @@ proc importTextFile*(
         createDir(dirname)
 
     if newlines > 0 and newlines > headerRowIndex:
-        let (firstLine, skippedLines) = readColumns(path, encoding, dia, newlineOffsets[headerRowIndex], skipEmpty)
+        let firstLine = readColumns(path, encoding, dia, newlineOffsets[headerRowIndex])
 
         var fields = newSeq[string](0)
 
@@ -201,8 +198,6 @@ proc importTextFile*(
                 if name in impColumns:
                     {uint ix: name}
 
-        echo fieldRelation
-
         let importFields = collect: (for k in fieldRelation.keys: k)
         let importFieldNames = collect: (for v in fieldRelation.values: v)
 
@@ -223,7 +218,7 @@ proc importTextFile*(
 
                 {unq: fieldRelationInv[name]}
 
-        let offsetRow = (if firstRowHasHeaders: 1 else: 0) + int (headerRowIndex + skippedLines)
+        let offsetRow = (if firstRowHasHeaders: 1 else: 0) + int headerRowIndex
 
         var pageIdx: uint32 = 1
         var rowIdx: uint = uint optStart + offsetRow
