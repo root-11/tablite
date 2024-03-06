@@ -38,6 +38,11 @@ type ReaderObj* = object
     fields: seq[string]
     fieldCount: uint
 
+type SkipEmpty* = enum
+    NONE,
+    ANY,
+    ALL
+
 proc newDialect*(delimiter: char = ',', quotechar: char = '"', escapechar: char = '\\', doublequote: bool = true, quoting: Quoting = QUOTE_MINIMAL, skipinitialspace: bool = false, skiptrailingspace: bool = false, lineterminator: char = '\n'): Dialect =
     Dialect(delimiter: delimiter, quotechar: quotechar, escapechar: escapechar, doublequote: doublequote, quoting: quoting, skipinitialspace: skipinitialspace, skiptrailingspace: skiptrailingspace, lineterminator: lineterminator)
 
@@ -252,15 +257,40 @@ iterator parseCSV*(self: var ReaderObj, fh: BaseEncodedFile): (uint, ptr seq[str
 
             inc lineNum
 
-proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, rowOffset: uint): seq[string] =
+proc str2SkipEmpty*(skipEmpty: string): SkipEmpty =
+    case skipEmpty.toUpper:
+    of $SkipEmpty.NONE: NONE
+    of $SkipEmpty.ANY: ANY
+    of $SkipEmpty.ALL: ALL
+    else: raise newException(IOError, "invalid skip_empty: " & skipEmpty)
+
+proc checkSkipEmpty*(skipEmpty: SkipEmpty, fields: ptr seq[string], fieldCount: uint): bool {.inline.} =
+    case skipEmpty:
+    of NONE: return false
+    of ALL:
+        for i in 0..<fieldCount:
+            if fields[i].len > 0:
+                return false
+        return true
+    of ANY:
+        for i in 0..<fieldCount:
+            if fields[i].len == 0:
+                return true
+        return false
+
+proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, rowOffset: uint, skipEmpty: SkipEmpty): (seq[string], uint) =
     let fh = newFile(path, encoding)
     var obj = newReaderObj(dialect)
+    var skippedRows = 0u
 
     try:
         fh.setFilePos(int64 rowOffset, fspSet)
 
         for (idxRow, fields, fieldCount) in obj.parseCSV(fh):
-            return fields[0..fieldCount-1]
+            if skipEmpty.checkSkipEmpty(fields, fieldCount):
+                inc skippedRows
+                continue
+            return (fields[0..<fieldCount], skippedRows)
     finally:
         fh.close()
 

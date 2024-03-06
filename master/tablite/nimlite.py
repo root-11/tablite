@@ -25,6 +25,7 @@ if True:
 K = TypeVar("K", bound=BaseTable)
 ValidEncoders = Union[Literal["ENC_UTF8"], Literal["ENC_UTF16"], Literal["ENC_WIN1250"]]
 ValidQuoting = Union[Literal["QUOTE_MINIMAL"], Literal["QUOTE_ALL"], Literal["QUOTE_NONNUMERIC"], Literal["QUOTE_NONE"], Literal["QUOTE_STRINGS"], Literal["QUOTE_NOTNULL"]]
+ValidSkipEmpty = Union[Literal["NONE"], Literal["ANY"], Literal["ALL"]]
 ColumnSelectorDict = TypedDict(
     "ColumnSelectorDict", {
         "column": str,
@@ -40,7 +41,7 @@ def get_headers(
     *,
     header_row_index: int=0,
     newline: str='\n', delimiter: str=',', text_qualifier: str='"',
-    quoting: ValidQuoting, strip_leading_and_tailing_whitespace: bool=True,
+    quoting: ValidQuoting, strip_leading_and_tailing_whitespace: bool=True, skip_empty: ValidSkipEmpty="NONE",
     linecount: int = 10
 ) -> list[list[str]]:
     return nl.get_headers(
@@ -50,7 +51,8 @@ def get_headers(
             strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
             header_row_index=header_row_index,
             quoting=quoting,
-            linecount = linecount
+            linecount=linecount,
+            skip_empty=skip_empty
         )
 
 def text_reader(
@@ -63,7 +65,7 @@ def text_reader(
     start: Union[str, None] = None, limit: Union[str, None]=None,
     guess_datatypes: bool =False,
     newline: str='\n', delimiter: str=',', text_qualifier: str='"',
-    quoting: ValidQuoting, strip_leading_and_tailing_whitespace: bool=True,
+    quoting: ValidQuoting, strip_leading_and_tailing_whitespace: bool=True, skip_empty: ValidSkipEmpty = "NONE",
     tqdm=_tqdm
 ) -> K:
     assert isinstance(path, Path)
@@ -80,6 +82,7 @@ def text_reader(
             newline=newline, delimiter=delimiter, text_qualifier=text_qualifier,
             quoting=quoting,
             strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
+            skip_empty=skip_empty,
             page_size=Config.PAGE_SIZE
         )
 
@@ -99,8 +102,8 @@ def text_reader(
         pbar_step = 4 / max(len(ti_tasks), 1)
 
         class WrapUpdate:
-                def update(self, n):
-                    pbar.update(n * pbar_step)
+            def update(self, n):
+                pbar.update(n * pbar_step)
 
         wrapped_pbar = WrapUpdate()
 
@@ -135,6 +138,8 @@ def text_reader(
 
             for task in tasks:
                 page = task.execute()
+                if isinstance(page, str):
+                    raise Exception(page)
 
                 res.append(page)
         else:
