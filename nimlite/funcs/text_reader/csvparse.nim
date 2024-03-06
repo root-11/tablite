@@ -278,17 +278,19 @@ proc checkSkipEmpty*(skipEmpty: SkipEmpty, fields: ptr seq[string], fieldCount: 
                 return true
         return false
 
-proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, rowOffset: uint, skipEmpty: SkipEmpty): seq[string] =
+proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, rowOffset: uint, skipEmpty: SkipEmpty): (seq[string], uint) =
     let fh = newFile(path, encoding)
     var obj = newReaderObj(dialect)
+    var skippedRows = 0u
 
     try:
         fh.setFilePos(int64 rowOffset, fspSet)
 
         for (idxRow, fields, fieldCount) in obj.parseCSV(fh):
             if skipEmpty.checkSkipEmpty(fields, fieldCount):
+                inc skippedRows
                 continue
-            return fields[0..<fieldCount]
+            return (fields[0..<fieldCount], skippedRows)
     finally:
         fh.close()
 

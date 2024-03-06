@@ -162,7 +162,7 @@ proc importTextFile*(
         createDir(dirname)
 
     if newlines > 0 and newlines > headerRowIndex:
-        let firstLine = readColumns(path, encoding, dia, newlineOffsets[headerRowIndex], skipEmpty)
+        let (firstLine, skippedLines) = readColumns(path, encoding, dia, newlineOffsets[headerRowIndex], skipEmpty)
 
         var fields = newSeq[string](0)
 
@@ -223,7 +223,7 @@ proc importTextFile*(
 
                 {unq: fieldRelationInv[name]}
 
-        let offsetRow = (if firstRowHasHeaders: 1 else: 0) + int headerRowIndex
+        let offsetRow = (if firstRowHasHeaders: 1 else: 0) + int (headerRowIndex + skippedLines)
 
         var pageIdx: uint32 = 1
         var rowIdx: uint = uint optStart + offsetRow

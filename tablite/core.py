@@ -193,6 +193,7 @@ class Table(BaseTable):
                 header_row_index,
                 sheet,
                 columns,
+                skip_empty,
                 start,
                 limit,
             )  # if file length changes - re-import.
@@ -205,6 +206,7 @@ class Table(BaseTable):
                 header_row_index,
                 sheet,
                 columns,
+                skip_empty,
                 start,
                 limit,
             )  # if file length changes - re-import.
