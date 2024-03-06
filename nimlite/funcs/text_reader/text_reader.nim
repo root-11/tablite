@@ -13,6 +13,7 @@ proc collectPageInfoTask*(task: TaskArgs): (uint, seq[uint], seq[Rank]) =
     var rowCount = task.rowCount
     var rowOffset = task.rowOffset
     var importFields = task.importFields
+    var skipEmpty = task.skipEmpty
     var obj = newReaderObj(dialect)
 
     var fh = newFile(path, encoding)
@@ -27,7 +28,8 @@ proc collectPageInfoTask*(task: TaskArgs): (uint, seq[uint], seq[Rank]) =
             guessDtypes = guessDtypes,
             nPages = nPages,
             rowCount = rowCount,
-            importFields = importFields
+            importFields = importFields,
+            skipEmpty = skipEmpty
         )
 
         return (nRows, longestStr, ranks)
@@ -36,7 +38,9 @@ proc collectPageInfoTask*(task: TaskArgs): (uint, seq[uint], seq[Rank]) =
         fh.close()
 
 
-proc textReaderTask*(task: TaskArgs, page_info: (uint, seq[uint], seq[Rank])): seq[nimpy.PyObject] =
+type PageInfo* = (uint, seq[uint], seq[Rank])
+
+proc textReaderTask*(task: TaskArgs, page_info: PageInfo): seq[nimpy.PyObject] =
     var dialect = task.dialect
     var encoding = task.encoding
     var destinations = task.destinations
@@ -45,6 +49,7 @@ proc textReaderTask*(task: TaskArgs, page_info: (uint, seq[uint], seq[Rank])): s
     var rowCount = task.rowCount
     var rowOffset = task.rowOffset
     var importFields = task.importFields
+    var skipEmpty = task.skipEmpty
     var obj = newReaderObj(dialect)
 
     var fh = newFile(path, encoding)
@@ -54,7 +59,6 @@ proc textReaderTask*(task: TaskArgs, page_info: (uint, seq[uint], seq[Rank])): s
         fh.setFilePos(int64 rowOffset, fspSet)
 
         var (nRows, longestStr, ranks) = pageInfo
-
         var (pageFileHandlers, columnDtypes, binput) = dumpPageHeader(
             destinations = destinations,
             nPages = nPages,
@@ -73,6 +77,7 @@ proc textReaderTask*(task: TaskArgs, page_info: (uint, seq[uint], seq[Rank])): s
                 guessDtypes = guessDtypes,
                 nPages = nPages,
                 rowCount = rowCount,
+                skipEmpty = skipEmpty,
                 importFields = importFields,
                 pageFileHandlers = pageFileHandlers,
                 longestStr = longestStr,
@@ -107,7 +112,7 @@ proc textReaderTask*(task: TaskArgs, page_info: (uint, seq[uint], seq[Rank])): s
     finally:
         fh.close()
 
-proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, headerRowIndex: uint, lineCount: int): seq[seq[string]] =
+proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, skipEmpty: SkipEmpty, headerRowIndex: uint, lineCount: int): seq[seq[string]] =
     let fh = newFile(path, encoding)
     var obj = newReaderObj(dia)
 
@@ -117,6 +122,9 @@ proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, headerRowIn
         var headers = newSeqOfCap[seq[string]](lineCount)
 
         for (idxRow, fields, fieldCount) in obj.parseCSV(fh):
+            if skipEmpty.checkSkipEmpty(fields, fieldCount):
+                continue
+
             if linesToSkip > 0:
                 dec linesToSkip
                 continue
@@ -139,7 +147,7 @@ proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, headerRowIn
 proc importTextFile*(
     pid: string, path: string, encoding: FileEncoding, dia: Dialect,
     columns: Option[seq[string]], firstRowHasHeaders: bool, headerRowIndex: uint,
-    pageSize: uint, guessDtypes: bool,
+    pageSize: uint, guessDtypes: bool, skipEmpty: SkipEmpty,
     start: Option[int] = none[int](), limit: Option[int] = none[int]()
 ): TabliteTable =
 
@@ -154,12 +162,19 @@ proc importTextFile*(
         createDir(dirname)
 
     if newlines > 0 and newlines > headerRowIndex:
-        let firstLine = readColumns(path, encoding, dia, newlineOffsets[headerRowIndex])
+        let (firstLine, skippedLines) = readColumns(path, encoding, dia, newlineOffsets[headerRowIndex], skipEmpty)
 
         var fields = newSeq[string](0)
 
         if firstRowHasHeaders:
-            fields = firstLine
+            for n in firstLine:
+                #[
+                    deal with duplicate headers,
+                    we can make them unique immediatly,
+                    because even if user uses selects which columns to import we wouldn't know which to choose and default to first one
+                    meanwhile this will deal with duplicates when all columns are improted
+                ]#
+                fields.add(uniqueName(n, fields))
         else:
             fields = collect(newSeqOfCap(firstLine.len)):
                 for i in 0..<firstLine.len:
@@ -186,6 +201,8 @@ proc importTextFile*(
                 if name in impColumns:
                     {uint ix: name}
 
+        echo fieldRelation
+
         let importFields = collect: (for k in fieldRelation.keys: k)
         let importFieldNames = collect: (for v in fieldRelation.values: v)
 
@@ -206,7 +223,7 @@ proc importTextFile*(
 
                 {unq: fieldRelationInv[name]}
 
-        let offsetRow = (if firstRowHasHeaders: 1 else: 0) + int headerRowIndex
+        let offsetRow = (if firstRowHasHeaders: 1 else: 0) + int (headerRowIndex + skippedLines)
 
         var pageIdx: uint32 = 1
         var rowIdx: uint = uint optStart + offsetRow
@@ -248,7 +265,8 @@ proc importTextFile*(
             importFields = importFields,
             importFieldNames = importFieldNames,
             pageSize = pageSize,
-            guessDtypes = guessDtypes
+            guessDtypes = guessDtypes,
+            skipEmpty = $skipEmpty
         )
         let columns = collect(newSeqOfCap(tableColumns.len)):
             for (column_name, page_index) in tableColumns.pairs:

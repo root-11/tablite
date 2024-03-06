@@ -748,3 +748,91 @@ def test_booleans():
 
     assert len(tbl) == 1
     assert next(tbl.rows) == [False, True, False, True, False, True]
+
+
+def test_filereader_with_empties_text():
+    root_path = Path(__file__).parent / "data"
+    path = root_path / "with_empty_lines.csv"
+    assert path.exists()
+    table = Table.from_file(path, text_qualifier=None, skip_empty="NONE")
+
+    assert len(table) == 8
+    assert table.to_dict() == {
+        '': [None, 'a', None, None, '0', None, None, None],
+        '_1': [None, 'b', None, None, '1', None, None, None],
+        '_2': [None, 'c', None, None, '2', None, None, None],
+        '_3': [None, 'd', None, None, '3', None, '9', None],
+        '_4': [None, 'e', None, None, '4', None, None, None],
+        '_5': [None, 'f', None, None, '5', None, None, None]
+    }
+
+    table = Table.from_file(path, text_qualifier=None, skip_empty="ALL")
+
+    assert len(table) == 2
+    assert table.to_dict() == {
+        'a': [0, None],
+        'b': [1, None],
+        'c': [2, None],
+        'd': [3, 9],
+        'e': [4, None],
+        'f': [5, None]
+    }
+
+    table = Table.from_file(path, text_qualifier=None, skip_empty="ANY")
+
+    assert len(table) == 1
+    assert table.to_dict() == {
+        'a': [0],
+        'b': [1],
+        'c': [2],
+        'd': [3],
+        'e': [4],
+        'f': [5]
+    }
+
+def test_filereader_with_empties_excel():
+    root_path = Path(__file__).parent / "data"
+    
+    fnames = (
+        "with_empty_lines.xlsx",
+        "with_empty_lines.ods",
+    )
+    
+    for fname in fnames:
+        path = root_path / fname
+        assert path.exists()
+        table = Table.from_file(path, skip_empty="NONE", sheet="with_empty_lines")
+
+        assert len(table) == 7
+        assert table.to_dict() == {
+            '': [None, 'a', None, None, 0, None, None],
+            '_1': [None, 'b', None, None, 1, None, None],
+            '_2': [None, 'c', None, None, 2, None, None],
+            '_3': [None, 'd', None, None, 3, None, 9],
+            '_4': [None, 'e', None, None, 4, None, None],
+            '_5': [None, 'f', None, None, 5, None, None]
+        }
+
+        table = Table.from_file(path, skip_empty="ALL", sheet="with_empty_lines")
+
+        assert len(table) == 2
+        assert table.to_dict() == {
+            'a': [0, None],
+            'b': [1, None],
+            'c': [2, None],
+            'd': [3, 9],
+            'e': [4, None],
+            'f': [5, None]
+        }
+
+        table = Table.from_file(path, skip_empty="ANY", sheet="with_empty_lines")
+
+        assert len(table) == 1
+        assert table.to_dict() == {
+            'a': [0],
+            'b': [1],
+            'c': [2],
+            'd': [3],
+            'e': [4],
+            'f': [5]
+        }

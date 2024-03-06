@@ -432,27 +432,28 @@ def calc_col_count(letters: str):
 
 def calc_true_dims(sheet):
     src = sheet._get_source()
-    last_column = None
+    max_col, max_row = 0, 0
+
+    regex = re.compile("\d+")
     
     def handleStartElement(name, attrs):
-        nonlocal last_column
+        nonlocal max_col, max_row
+
         if name == "c":
-            last_column = attrs
+            last_index = attrs["r"]
+            idx, _ = next(regex.finditer(last_index)).span()
+            letters, digits = last_index[0:idx], int(last_index[idx:])
+
+            col_idx, row_idx = calc_col_count(letters), digits
+
+            max_col, max_row = max(max_col, col_idx), max(max_row, row_idx)
 
     parser = expat.ParserCreate()
     parser.buffer_text = True
     parser.StartElementHandler = handleStartElement
     parser.ParseFile(src)
 
-    last_index = last_column["r"]
-
-    regex = re.compile("\d+")
-
-    idx, _ = next(regex.finditer(last_index)).span()
-
-    letters, digits = last_index[0:idx], int(last_index[idx:])
-
-    return calc_col_count(letters), digits
+    return max_col, max_row
 
 def fixup_worksheet(worksheet):
     try:

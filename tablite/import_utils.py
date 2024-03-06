@@ -7,7 +7,7 @@ import psutil
 import csv
 from pathlib import Path
 import openpyxl
-import pyexcel
+import pandas
 from tablite.utils import load_numpy, py_to_nim_encoding
 import sys
 import warnings
@@ -174,7 +174,7 @@ def from_html(T, path, tqdm=_tqdm, pbar=None):
 
 
 
-def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=None, columns=None, start=0, limit=sys.maxsize, tqdm=_tqdm, **kwargs):
+def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=None, columns=None, skip_empty="NONE", start=0, limit=sys.maxsize, tqdm=_tqdm, **kwargs):
     """
     returns Table from excel
 
@@ -198,10 +198,22 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
 
     worksheet = book[sheet]
     fixup_worksheet(worksheet)
+    skipped_rows = 0
 
     try:
-        # get the first row to know our headers or the number of columns
-        fields = [str(c.value) for c in next(worksheet.iter_rows(min_row=header_row_index + 1))] # excel is offset by 1
+        it_header = worksheet.iter_rows(min_row=header_row_index + 1)
+        while True:
+            # get the first row to know our headers or the number of columns
+            row = [c.value for c in next(it_header)]
+
+            if skip_empty == "ALL" and all(v is None for v in row):
+                skipped_rows = skipped_rows + 1
+                continue
+            elif skip_empty == "ANY" and any(v is None for v in row):
+                skipped_rows = skipped_rows + 1
+                continue
+            break
+        fields = [str(c) if c is not None else "" for c in row] # excel is offset by 1
     except StopIteration:
         # excel was empty, return empty table
         return T()
@@ -227,7 +239,7 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
             field_dict[unique_name(k, field_dict.keys())] = i
 
     # calculate our data rows iterator offset
-    it_offset = start + (1 if first_row_has_headers else 0) + header_row_index + 1
+    it_offset = start + (1 if first_row_has_headers else 0) + (header_row_index + skipped_rows) + 1
     
     # attempt to fetch number of rows in the sheet
     total_rows = worksheet.max_row
@@ -277,14 +289,21 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
         """
         tqdm_iter = tqdm(it_rows_filtered, desc=f"importing excel: {pbar_fname}")
 
-    tqdm_iter = enumerate(tqdm_iter)
+    tqdm_iter = iter(tqdm_iter)
+
+    idx = 0
 
     while True:
         try:
-            idx, row = next(tqdm_iter)
+            row = next(tqdm_iter)
         except StopIteration:
             break # because in some cases we can't know the size of excel to set the upper iterator limit we loop until stop iteration is encountered
         
+        if skip_empty == "ALL" and all(v is None for v in row):
+            continue
+        elif skip_empty == "ANY" and any(v is None for v in row):
+            continue
+
         if idx % Config.PAGE_SIZE == 0:
             if page_fhs is not None:
                 # we reached the max page file size, fix the pages
@@ -336,6 +355,8 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
             fh.write(byte_count)
             fh.write(bytes_)
 
+        idx = idx + 1
+
     if page_fhs is not None:
         # we reached end of the loop, fix the pages
         [_fix_xls_page(table, c, fh) for c, fh in zip(field_names, page_fhs)]
@@ -343,24 +364,26 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
     return table
 
 
-def ods_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=None, columns=None, start=0, limit=sys.maxsize, **kwargs):
+def ods_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=None, columns=None, skip_empty="NONE", start=0, limit=sys.maxsize, **kwargs):
     """
     returns Table from .ODS
     """
     if not issubclass(T, BaseTable):
         raise TypeError("Expected subclass of Table")
 
-    sheets = pyexcel.get_book_dict(file_name=str(path))
+    data = pandas.read_excel(str(path), sheet_name=sheet, header=None)
+    data[pandas.isna(data)] = None  # convert any empty cells to None
+    data = data.to_numpy().tolist() # convert pandas to list
 
-    if sheet is None or sheet not in sheets:
-        raise ValueError(f"No sheet_name declared: \navailable sheets:\n{[s.name for s in sheets]}")
+    if skip_empty == "ALL" or skip_empty == "ANY":
+        fn_filter = any if skip_empty == "ALL" else all # this is intentional
+        data = [
+            row
+            for row in data
+            if fn_filter(not (v is None or isinstance(v, str) and len(v) == 0) for v in row)
+        ]
 
-    data = sheets[sheet]
-    for _ in range(len(data)):  # remove empty lines at the end of the data.
-        if "" == "".join(str(i) for i in data[-1]):
-            data = data[:-1]
-        else:
-            break
+    data = np.array(data, dtype=np.object_) # cast back to numpy array for slicing but don't try to convert datatypes
 
     if not (isinstance(start, int) and start >= 0):
         raise ValueError("expected start as an integer >=0")
@@ -372,7 +395,7 @@ def ods_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=No
     used_columns_names = set()
     for ix, value in enumerate(data[header_row_index]):
         if first_row_has_headers:
-            header, start_row_pos = str(value), (1 + header_row_index)
+            header, start_row_pos = "" if value is None else str(value), (1 + header_row_index)
         else:
             header, start_row_pos = f"_{ix + 1}", (0 + header_row_index)
 
@@ -383,7 +406,9 @@ def ods_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=No
         unique_column_name = unique_name(str(header), used_columns_names)
         used_columns_names.add(unique_column_name)
 
-        t[unique_column_name] = [row[ix] for row in data[start_row_pos : start_row_pos + limit] if len(row) > ix]
+        column_values = data[start_row_pos : start_row_pos + limit, ix]
+
+        t[unique_column_name] = column_values
     return t
 
 
@@ -546,6 +571,7 @@ def text_reader(
     guess_datatypes,
     text_qualifier,
     strip_leading_and_tailing_whitespace,
+    skip_empty,
     delimiter,
     text_escape_openings,
     text_escape_closures,
@@ -582,6 +608,11 @@ def text_reader(
         kwargs["quoting"] = "QUOTE_NONE"
     if strip_leading_and_tailing_whitespace is not None:
         kwargs["strip_leading_and_tailing_whitespace"] = strip_leading_and_tailing_whitespace
+
+    if skip_empty is None:
+        kwargs["skip_empty"] = "NONE"
+    else:
+        kwargs["skip_empty"] = skip_empty
 
     return nimlite.text_reader(
         T, pid, path, enc,

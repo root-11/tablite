@@ -77,7 +77,7 @@ when isLib:
         newline: string, delimiter: string, text_qualifier: string,
         strip_leading_and_tailing_whitespace: bool,
         quoting: string,
-        header_row_index: uint, linecount: int): seq[seq[string]] {.exportpy.} =
+        header_row_index: uint, linecount: int, skip_empty: SkipEmpty): seq[seq[string]] {.exportpy.} =
         var arg_encoding = str2Enc(encoding)
         var arg_newline = (if newline.len == 1: newline[0] else: raise newException(Exception, "'newline' not a char"))
         var arg_delimiter = (if delimiter.len == 1: delimiter[0] else: raise newException(Exception, "'delimiter' not a char"))
@@ -93,7 +93,8 @@ when isLib:
             delimiter = arg_delimiter,
             textQualifier = arg_text_qualifier,
             stripLeadingAndTailingWhitespace = strip_leading_and_tailing_whitespace,
-            quoting = arg_quoting
+            quoting = arg_quoting,
+            skipEmpty = skip_empty
         )
 
         return headers
@@ -104,7 +105,7 @@ when isLib:
         start: PyObject, limit: PyObject,
         guess_datatypes: bool,
         newline: string, delimiter: string, text_qualifier: string,
-        strip_leading_and_tailing_whitespace: bool,
+        strip_leading_and_tailing_whitespace: bool, skip_empty: SkipEmpty,
         page_size: uint,
         quoting: string
     ): text_reader.TabliteTable {.exportpy.} =
@@ -133,7 +134,8 @@ when isLib:
                     text_qualifier = arg_text_qualifier,
                     strip_leading_and_tailing_whitespace = strip_leading_and_tailing_whitespace,
                     page_size = page_size,
-                    quoting = arg_quoting
+                    quoting = arg_quoting,
+                    skip_empty = skip_empty
             )
 
             return table

@@ -22,7 +22,7 @@ from tablite import pivots
 from tablite import imputation
 from tablite import diff
 from tablite.config import Config
-from tablite.nimlite import column_select as _column_select, ColumnSelectorDict
+from tablite.nimlite import column_select as _column_select, ColumnSelectorDict, ValidSkipEmpty
 from mplite import TaskManager as _TaskManager
 
 logging.getLogger("lml").propagate = False
@@ -65,6 +65,7 @@ class Table(BaseTable):
         strip_leading_and_tailing_whitespace=True,
         text_escape_openings="",
         text_escape_closures="",
+        skip_empty: ValidSkipEmpty="NONE",
         tqdm=_tqdm,
     ) -> "Table":
         """
@@ -175,7 +176,7 @@ class Table(BaseTable):
             # here we inject tqdm, if tqdm is not provided, use generic iterator
             # fmt:off
             config = (path, columns, first_row_has_headers, header_row_index, encoding, start, limit, newline,
-                      guess_datatypes, text_qualifier, strip_leading_and_tailing_whitespace,
+                      guess_datatypes, text_qualifier, strip_leading_and_tailing_whitespace, skip_empty,
                       delimiter, text_escape_openings, text_escape_closures)
             # fmt:on
 
@@ -192,6 +193,7 @@ class Table(BaseTable):
                 header_row_index,
                 sheet,
                 columns,
+                skip_empty,
                 start,
                 limit,
             )  # if file length changes - re-import.
@@ -204,6 +206,7 @@ class Table(BaseTable):
                 header_row_index,
                 sheet,
                 columns,
+                skip_empty,
                 start,
                 limit,
             )  # if file length changes - re-import.

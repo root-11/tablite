@@ -7,6 +7,7 @@ pyexcel-odsr==0.6.0
 pyexcel-ods==0.6.0
 pyexcel-xlsx==0.6.0
 pyexcel-xls==0.7.0
+pandas>=2.2.1
 pyuca>=1.2
 mplite>=1.2.5
 PyYAML==6.0
