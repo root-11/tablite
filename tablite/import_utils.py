@@ -198,20 +198,12 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
 
     worksheet = book[sheet]
     fixup_worksheet(worksheet)
-    skipped_rows = 0
 
     try:
         it_header = worksheet.iter_rows(min_row=header_row_index + 1)
         while True:
             # get the first row to know our headers or the number of columns
             row = [c.value for c in next(it_header)]
-
-            if skip_empty == "ALL" and all(v is None for v in row):
-                skipped_rows = skipped_rows + 1
-                continue
-            elif skip_empty == "ANY" and any(v is None for v in row):
-                skipped_rows = skipped_rows + 1
-                continue
             break
         fields = [str(c) if c is not None else "" for c in row] # excel is offset by 1
     except StopIteration:
@@ -239,7 +231,7 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
             field_dict[unique_name(k, field_dict.keys())] = i
 
     # calculate our data rows iterator offset
-    it_offset = start + (1 if first_row_has_headers else 0) + (header_row_index + skipped_rows) + 1
+    it_offset = start + (1 if first_row_has_headers else 0) + header_row_index + 1
     
     # attempt to fetch number of rows in the sheet
     total_rows = worksheet.max_row
@@ -379,8 +371,8 @@ def ods_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=No
         fn_filter = any if skip_empty == "ALL" else all # this is intentional
         data = [
             row
-            for row in data
-            if fn_filter(not (v is None or isinstance(v, str) and len(v) == 0) for v in row)
+            for ridx, row in enumerate(data)
+            if ridx < header_row_index + (1 if first_row_has_headers else 0) or fn_filter(not (v is None or isinstance(v, str) and len(v) == 0) for v in row)
         ]
 
     data = np.array(data, dtype=np.object_) # cast back to numpy array for slicing but don't try to convert datatypes
