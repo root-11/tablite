@@ -754,7 +754,7 @@ def test_filereader_with_empties_text():
     root_path = Path(__file__).parent / "data"
     path = root_path / "with_empty_lines.csv"
     assert path.exists()
-    table = Table.from_file(path, text_qualifier=None, skip_empty="NONE")
+    table = Table.from_file(path, text_qualifier=None, skip_empty="NONE",)
 
     assert len(table) == 8
     assert table.to_dict() == {
@@ -768,36 +768,37 @@ def test_filereader_with_empties_text():
 
     table = Table.from_file(path, text_qualifier=None, skip_empty="ALL")
 
-    assert len(table) == 2
+    assert len(table) == 3
     assert table.to_dict() == {
-        'a': [0, None],
-        'b': [1, None],
-        'c': [2, None],
-        'd': [3, 9],
-        'e': [4, None],
-        'f': [5, None]
+        '':   ['a', '0', ''],
+        '_1': ['b', '1', ''],
+        '_2': ['c', '2', ''],
+        '_3': ['d', '3', '9'],
+        '_4': ['e', '4', ''],
+        '_5': ['f', '5', '']
     }
 
     table = Table.from_file(path, text_qualifier=None, skip_empty="ANY")
 
-    assert len(table) == 1
+    assert len(table) == 2
     assert table.to_dict() == {
-        'a': [0],
-        'b': [1],
-        'c': [2],
-        'd': [3],
-        'e': [4],
-        'f': [5]
+        '':   ['a', '0'],
+        '_1': ['b', '1'],
+        '_2': ['c', '2'],
+        '_3': ['d', '3'],
+        '_4': ['e', '4'],
+        '_5': ['f', '5']
     }
+
 
 def test_filereader_with_empties_excel():
     root_path = Path(__file__).parent / "data"
-    
+
     fnames = (
         "with_empty_lines.xlsx",
         "with_empty_lines.ods",
     )
-    
+
     for fname in fnames:
         path = root_path / fname
         assert path.exists()
@@ -805,7 +806,7 @@ def test_filereader_with_empties_excel():
 
         assert len(table) == 7
         assert table.to_dict() == {
-            '': [None, 'a', None, None, 0, None, None],
+            '':   [None, 'a', None, None, 0, None, None],
             '_1': [None, 'b', None, None, 1, None, None],
             '_2': [None, 'c', None, None, 2, None, None],
             '_3': [None, 'd', None, None, 3, None, 9],
@@ -815,24 +816,24 @@ def test_filereader_with_empties_excel():
 
         table = Table.from_file(path, skip_empty="ALL", sheet="with_empty_lines")
 
-        assert len(table) == 2
+        assert len(table) == 3
         assert table.to_dict() == {
-            'a': [0, None],
-            'b': [1, None],
-            'c': [2, None],
-            'd': [3, 9],
-            'e': [4, None],
-            'f': [5, None]
+            '':    ['a', 0, None],
+            '_1':  ['b', 1, None],
+            '_2':  ['c', 2, None],
+            '_3':  ['d', 3, 9],
+            '_4':  ['e', 4, None],
+            '_5':  ['f', 5, None]
         }
 
         table = Table.from_file(path, skip_empty="ANY", sheet="with_empty_lines")
 
-        assert len(table) == 1
+        assert len(table) == 2
         assert table.to_dict() == {
-            'a': [0],
-            'b': [1],
-            'c': [2],
-            'd': [3],
-            'e': [4],
-            'f': [5]
+            '':   ['a', 0],
+            '_1': ['b', 1],
+            '_2': ['c', 2],
+            '_3': ['d', 3],
+            '_4': ['e', 4],
+            '_5': ['f', 5]
         }

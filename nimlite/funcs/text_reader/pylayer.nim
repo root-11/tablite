@@ -44,9 +44,9 @@ proc getHeaders*(
     path: string, encoding: FileEncoding,
     headerRowIndex: uint, lineCount: int,
     newline: char, delimiter: char,
-    textQualifier: char, stripLeadingAndTailingWhitespace: bool, skipEmpty: SkipEmpty,
+    textQualifier: char, stripLeadingAndTailingWhitespace: bool,
     quoting: Quoting
 ): seq[seq[string]] =
     let dialect = makeDialect()
 
-    return getHeaders(path, encoding, dialect, skipEmpty, headerRowIndex, lineCount)
+    return getHeaders(path, encoding, dialect, headerRowIndex, lineCount)

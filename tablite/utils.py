@@ -6,7 +6,7 @@ from time import time as now
 from pathlib import Path
 import numpy as np
 import ast
-from datetime import datetime, date, time, timedelta, timezone  # noqa
+from datetime import datetime, date, time, timedelta  # noqa
 from itertools import compress
 import string
 import random

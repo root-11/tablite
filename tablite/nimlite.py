@@ -41,7 +41,7 @@ def get_headers(
     *,
     header_row_index: int=0,
     newline: str='\n', delimiter: str=',', text_qualifier: str='"',
-    quoting: ValidQuoting, strip_leading_and_tailing_whitespace: bool=True, skip_empty: ValidSkipEmpty="NONE",
+    quoting: ValidQuoting, strip_leading_and_tailing_whitespace: bool=True,
     linecount: int = 10
 ) -> list[list[str]]:
     return nl.get_headers(
@@ -51,8 +51,7 @@ def get_headers(
             strip_leading_and_tailing_whitespace=strip_leading_and_tailing_whitespace,
             header_row_index=header_row_index,
             quoting=quoting,
-            linecount=linecount,
-            skip_empty=skip_empty
+            linecount=linecount
         )
 
 def text_reader(
