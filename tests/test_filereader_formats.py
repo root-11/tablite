@@ -458,18 +458,16 @@ def test_filereader_book1xlsx():
 def test_filereader_exceldatesxlsx():
     path = Path(__file__).parent / "data" / "excel_dates.xlsx"
     assert path.exists()
-    try:
-        _ = Table.from_file(path, sheet=None, columns=None)
-        assert False
-    except ValueError as e:
-        assert "available sheets" in str(e)
 
-    table2 = Table.from_file(path, sheet="Sheet1", columns=None)
     sample = get_headers(path)
     columns = [k for k in sample["Sheet1"][0]]
-
+    
     table = Table.from_file(path, sheet="Sheet1", columns=columns)
+    table2 = Table.from_file(path, sheet="Sheet1", columns=None)
+    table3 = Table.from_file(path, sheet=None, columns=None)
+
     assert table == table2
+    assert table == table3
 
     table.show()
     # +===+===================+=============+==========+=====+
