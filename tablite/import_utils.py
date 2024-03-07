@@ -186,8 +186,17 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
     book = openpyxl.load_workbook(path, read_only=True, data_only=True)
 
     if sheet is None:  # help the user.
-        sheet_list = ', '.join((f'\n - {c}' for c in book.sheetnames))
-        raise ValueError(f"No 'sheet' declared, available sheets:{sheet_list}")
+        """
+            If no sheet specified, assume first sheet.
+            
+            Reasoning:
+                Pandas ODS reader does that, so this preserves parity and it might be expected by users.
+                If we don't know the sheet name but only have single sheet,
+                    we would need to take extra steps to find out the name of the sheet.
+                We already make assumptions in case of column selection,
+                    when columns are None, we import all of them.
+        """
+        sheet = book.sheetnames[0]
     elif sheet not in book.sheetnames:
         raise ValueError(f"sheet not found: {sheet}")
 
@@ -363,11 +372,16 @@ def ods_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=No
     if not issubclass(T, BaseTable):
         raise TypeError("Expected subclass of Table")
 
-    data = pandas.read_excel(str(path), sheet_name=sheet, header=None)
+    if sheet is None:
+        data = pandas.read_excel(str(path), header=None) # selects first sheet
+    else:
+        data = pandas.read_excel(str(path), sheet_name=sheet, header=None)
+
     data[pandas.isna(data)] = None  # convert any empty cells to None
     data = data.to_numpy().tolist() # convert pandas to list
 
     if skip_empty == "ALL" or skip_empty == "ANY":
+        """ filter out all rows based on predicate that come after header row """
         fn_filter = any if skip_empty == "ALL" else all # this is intentional
         data = [
             row
