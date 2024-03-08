@@ -1081,5 +1081,25 @@ def test_column_select_unstastable_1():
     assert list(select_1_fail['A']) == ["a", "b", "c"]
     assert list(select_1_fail['B']) == ["d", "e", "f"]
 
+def test_column_select_unstastable_2():
+    tbl = Table(columns={
+        "A": ["a", "1", "c"],
+        "B": ["d", "e", "f"]
+    })
+
+    select_1_pass, select_1_fail = tbl.column_select(cols=[
+        {"column": "A", "type": "int", "allow_empty": False, "rename": None},
+    ])
+
+    assert list(select_1_pass.columns.keys()) == ['A']
+    assert list(select_1_fail.columns.keys()) == ['reject_reason', 'A', 'B']
+
+    assert len(select_1_pass) == 1
+    assert list(select_1_pass['A']) == [1]
+
+    assert len(select_1_fail) == 2
+    assert list(select_1_fail['A']) == ["a", "c"]
+    assert list(select_1_fail['B']) == ["d", "f"]
+
 if __name__ == "__main__":
     test_casting_11()
