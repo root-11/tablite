@@ -18,7 +18,7 @@ else
 fi
 
 base_name="nimlite/libnimlite"
-shared_args="--app:lib --gc:refc --out:$base_name.so"
+shared_args="--app:lib --mm:refc --out:$base_name.so"
 
 if [ $is_release = true ]
 then

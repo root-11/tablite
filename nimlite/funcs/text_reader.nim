@@ -150,7 +150,8 @@ when isMainModule and appType != "lib":
 
     # (path_csv, encoding) = ("tests/data/book1.txt", str2Enc($ENC_UTF8))
     # (path_csv, encoding) = ("tests/data/gdocs1.csv", str2Enc($ENC_UTF8))
-    (path_csv, encoding) = ("tests/data/with_empty_lines.csv", str2Enc($ENC_UTF8))
+    # (path_csv, encoding) = ("tests/data/with_empty_lines.csv", str2Enc($ENC_UTF8))
+    (path_csv, encoding) = ("tests/data/with_escape.csv", str2Enc($ENC_UTF8))
     # (path_csv, encoding) = (dirdata & "/Dematic YDC Order Data.csv", str2Enc($ENC_UTF8))
     # (path_csv, encoding) = (dirdata & "/Dematic YDC Order Data_1M.csv", str2Enc($ENC_UTF8))
     # (path_csv, encoding) = (dirdata & "/Dematic YDC Order Data_1M_1col.csv", str2Enc($ENC_UTF8))

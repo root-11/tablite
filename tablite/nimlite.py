@@ -182,10 +182,10 @@ def wrap(str_: str) -> str:
     return '"' + str_.replace('"', '\\"').replace("'", "\\'").replace("\n", "\\n").replace("\t", "\\t") + '"'
 
 
-def _collect_cs_info(i: int, columns: dict, res_cols_pass: list, res_cols_fail: list):
+def _collect_cs_info(i: int, columns: dict, res_cols_pass: list, res_cols_fail: list, original_pages_map: list):
     el = {
-        k: column[i]
-        for k, column in columns.items()
+        name: (column[i], original_pages_map[name][i])
+        for name, column in columns.items()
     }
 
     col_pass = res_cols_pass[i]
@@ -199,7 +199,19 @@ def column_select(table: K, cols: list[ColumnSelectorDict], tqdm=_tqdm, TaskMana
         T = type(table)
         dir_pid = Config.workdir / Config.pid
 
-        columns, page_count, is_correct_type, desired_column_map, passed_column_data, failed_column_data, res_cols_pass, res_cols_fail, column_names, reject_reason_name = nl.collect_column_select_info(table, cols, str(dir_pid), pbar)
+        col_infos = nl.collect_column_select_info(table, cols, str(dir_pid), pbar)
+
+        columns = col_infos["columns"]
+        page_count = col_infos["page_count"]
+        is_correct_type = col_infos["is_correct_type"]
+        desired_column_map = col_infos["desired_column_map"]
+        original_pages_map = col_infos["original_pages_map"]
+        passed_column_data = col_infos["passed_column_data"]
+        failed_column_data = col_infos["failed_column_data"]
+        res_cols_pass = col_infos["res_cols_pass"]
+        res_cols_fail = col_infos["res_cols_fail"]
+        column_names = col_infos["column_names"]
+        reject_reason_name = col_infos["reject_reason_name"]
 
         if all(is_correct_type.values()):
             tbl_pass_columns = {
@@ -218,7 +230,7 @@ def column_select(table: K, cols: list[ColumnSelectorDict], tqdm=_tqdm, TaskMana
             return (tbl_pass, tbl_fail)
 
         task_list_inp = (
-            _collect_cs_info(i, columns, res_cols_pass, res_cols_fail)
+            _collect_cs_info(i, columns, res_cols_pass, res_cols_fail, original_pages_map)
             for i in range(page_count)
         )
 
@@ -263,10 +275,7 @@ def column_select(table: K, cols: list[ColumnSelectorDict], tqdm=_tqdm, TaskMana
                 converted.extend(res)
         else:
             for task in tasks:
-                res = task.execute()
-
-                if isinstance(res, str):
-                    raise Exception(res)
+                res = task.f(*task.args, **task.kwargs)
 
                 converted.append(res)
                 pbar.update(step_size)

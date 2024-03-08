@@ -7,7 +7,7 @@ import psutil
 import csv
 from pathlib import Path
 import openpyxl
-import pandas
+from pandas import read_excel, isna
 from tablite.utils import load_numpy, py_to_nim_encoding
 import sys
 import warnings
@@ -373,11 +373,11 @@ def ods_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=No
         raise TypeError("Expected subclass of Table")
 
     if sheet is None:
-        data = pandas.read_excel(str(path), header=None) # selects first sheet
+        data = read_excel(str(path), header=None) # selects first sheet
     else:
-        data = pandas.read_excel(str(path), sheet_name=sheet, header=None)
+        data = read_excel(str(path), sheet_name=sheet, header=None)
 
-    data[pandas.isna(data)] = None  # convert any empty cells to None
+    data[isna(data)] = None  # convert any empty cells to None
     data = data.to_numpy().tolist() # convert pandas to list
 
     if skip_empty == "ALL" or skip_empty == "ANY":
