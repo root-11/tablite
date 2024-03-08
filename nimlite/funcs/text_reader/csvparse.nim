@@ -1,4 +1,4 @@
-import std/strutils
+import std/[strutils, sugar]
 import encfile
 
 # const NOT_SET = uint32.high
@@ -286,7 +286,13 @@ proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, rowOff
         fh.setFilePos(int64 rowOffset, fspSet)
 
         for (idxRow, fields, fieldCount) in obj.parseCSV(fh):
-            return fields[0..<fieldCount]
+            return collect:
+                for f in fields[0..<fieldCount]:
+                    f.multiReplace(
+                        ("\\t", ""),
+                        ("\\n", ""),
+                        ("\\r", "")
+                    )
     finally:
         fh.close()
 

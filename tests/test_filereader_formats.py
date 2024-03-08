@@ -752,7 +752,7 @@ def test_filereader_with_empties_text():
     root_path = Path(__file__).parent / "data"
     path = root_path / "with_empty_lines.csv"
     assert path.exists()
-    table = Table.from_file(path, text_qualifier=None, skip_empty="NONE",)
+    table = Table.from_file(path, text_qualifier=None, skip_empty="NONE")
 
     assert len(table) == 8
     assert table.to_dict() == {
@@ -835,3 +835,11 @@ def test_filereader_with_empties_excel():
             '_4': ['e', 4],
             '_5': ['f', 5]
         }
+
+def test_filereader_with_escape():
+    root_path = Path(__file__).parent / "data"
+    path = root_path / "with_escape.csv"
+    assert path.exists()
+    table = Table.from_file(path, text_qualifier="\"")
+
+    assert table.to_dict() == {'tab': [1], 'newline': [2]}

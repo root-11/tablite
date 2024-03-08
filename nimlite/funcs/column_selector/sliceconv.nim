@@ -131,8 +131,6 @@ proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, (string
             convertedPage.putPage(pageInfosPass, desiredName, resPass[desiredName])
             convertedPage.save(string castPath)
 
-        echo pageInfosFail
-
         var maskSlice = 0..<unusedMaskSearch(validMask)
 
         validMask = validMask[maskSlice]
