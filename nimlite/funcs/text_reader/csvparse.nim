@@ -1,5 +1,6 @@
 import std/[strutils, sugar]
 import encfile
+from ../../utils import stripEscape
 
 # const NOT_SET = uint32.high
 const EOL = uint32.high - 1
@@ -288,11 +289,7 @@ proc readColumns*(path: string, encoding: FileEncoding, dialect: Dialect, rowOff
         for (idxRow, fields, fieldCount) in obj.parseCSV(fh):
             return collect:
                 for f in fields[0..<fieldCount]:
-                    f.multiReplace(
-                        ("\\t", ""),
-                        ("\\n", ""),
-                        ("\\r", "")
-                    )
+                    f.stripEscape()
     finally:
         fh.close()
 
