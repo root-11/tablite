@@ -1028,6 +1028,9 @@ proc save*(self: BaseNDArray, path: string): void =
     of K_DATETIME: DateTimeNDArray(self).save(path)
     of K_OBJECT: ObjectNDArray(self).save(path)
 
+proc save*(self: BaseNDArray, workdir: string, pid: string): void =
+    self.save(workdir & "/pages/" & pid & ".npy")
+
 proc save*(self: BaseNDArray, page: nimpy.PyObject): void =
     let m = modules()
 
@@ -1052,13 +1055,14 @@ proc type2PyType(`type`: KindObjectND): nimpy.PyObject =
     of K_DATETIME: return m.datetime.classes.DateTimeClass
 
 proc newPyPage*(id: string, path: string, len: int, dtypes: Table[KindObjectND, int]): nimpy.PyObject =
-    let pyDtypes = modules().builtins.classes.DictClass!()
+    let m = modules()
+    let pyDtypes = m.builtins.classes.DictClass!()
 
     for (dt, n) in dtypes.pairs:
         let obj = dt.type2PyType()
         pyDtypes[obj] = n
 
-    let pg = modules().tablite.modules.base.classes.SimplePageClass!(id, path, len, pyDtypes)
+    let pg = m.tablite.modules.base.classes.SimplePageClass!(id, path, len, pyDtypes)
 
     return pg
 
@@ -1069,11 +1073,12 @@ proc newPyPage*(self: BaseNDArray, workdir: string): nimpy.PyObject =
     return self.newPyPage(workdir, pid)
 
 proc newPyPage*(self: BaseNDArray): nimpy.PyObject = 
-    let tabliteConfig = modules().tablite.modules.config.classes.Config
+    let m = modules()
+    let tabliteConfig = m.tablite.modules.config.classes.Config
     let wpid = tabliteConfig.pid.to(string)
-    let tablitDir = Path(modules().builtins.toStr(tabliteConfig.workdir))
+    let tablitDir = Path(m.builtins.toStr(tabliteConfig.workdir))
     let workdir = string (tablitDir / Path(wpid))
-    let pid = modules().tablite.modules.base.classes.SimplePageClass.next_id(workdir).to(string)
+    let pid = m.tablite.modules.base.classes.SimplePageClass.next_id(workdir).to(string)
 
     return self.newPyPage(workdir, pid)
 
@@ -1268,7 +1273,7 @@ template validatePageKind(page: BaseNDArray, expected: KindObjectND) =
         if cnt > 0:
             raise newException(ValueError, "invalid page kind, expected only '" & $expected & "' but got: " & $types)
 
-iterator iterateIntPage(page: BaseNDArray): int =
+iterator iterateIntPage*(page: BaseNDArray): int =
     template collectValues(page: typed) =
         for v in page.pgIter:
             yield int v
@@ -1285,7 +1290,7 @@ iterator iterateIntPage(page: BaseNDArray): int =
 
     else: raise newException(ValueError, "invalid page type: " & $page.kind)
 
-iterator iterateFloatPage(page: BaseNDArray): float =
+iterator iterateFloatPage*(page: BaseNDArray): float =
     template collectValues(page: typed) =
         for v in page.pgIter:
             yield float v
@@ -1300,19 +1305,20 @@ iterator iterateFloatPage(page: BaseNDArray): float =
 
     else: raise newException(ValueError, "invalid page type: " & $page.kind)
 
-iterator iterateBooleanPage(page: BaseNDArray): bool =
-    case page.kind:
-    of K_BOOLEAN:
-        for v in BooleanNDArray(page).pgIter:
-            yield v
-    of K_OBJECT:
-        page.validatePageKind(K_BOOLEAN)
-        for v in ObjectNDArray(page).pgIter:
-            yield PY_Boolean(v).value
-    else: raise newException(ValueError, "invalid page type: " & $page.kind)
+iterator iterateBooleanPage*(page: BaseNDArray): bool =
+    yield true
+    # case page.kind:
+    # of K_BOOLEAN:
+    #     for v in BooleanNDArray(page).pgIter:
+    #         yield v
+    # of K_OBJECT:
+    #     page.validatePageKind(K_BOOLEAN)
+    #     for v in ObjectNDArray(page).pgIter:
+    #         yield PY_Boolean(v).value
+    # else: raise newException(ValueError, "invalid page type: " & $page.kind)
 
 
-iterator iterateStringPage(page: BaseNDArray): string =
+iterator iterateStringPage*(page: BaseNDArray): string =
     case page.kind:
     of K_STRING:
         for v in UnicodeNDArray(page).pgIter:
@@ -1323,7 +1329,7 @@ iterator iterateStringPage(page: BaseNDArray): string =
             yield PY_String(v).value
     else: raise newException(ValueError, "invalid page type: " & $page.kind)
 
-iterator iterateObjectPage(page: BaseNDArray): PY_ObjectND =
+iterator iterateObjectPage*(page: BaseNDArray): PY_ObjectND =
     case page.kind:
     of K_BOOLEAN: (for v in BooleanNDArray(page).pgIter: yield newPY_Object(v))
     of K_INT8: (for v in Int8NDArray(page).pgIter: yield newPY_Object(v))

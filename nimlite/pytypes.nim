@@ -30,9 +30,13 @@ proc str2ObjKind*(val: string): KindObjectND =
     else: raise newException(ValueError, "invalid object kind: " & val)
 
 type Shape* = seq[int]
-type PY_Object* = ref object of RootObj
-type PY_ObjectND* {.requiresInit.} = ref object of PY_Object
-    kind*: KindObjectND
+type
+    PyObj = object of RootObj
+    PY_Object* = ref PyObj
+type
+    PyObjND {.requiresInit.} = object of PyObj
+        kind*: KindObjectND
+    PY_ObjectND* = ref PyObjND
 type PY_Boolean* = ref object of PY_ObjectND
     value*: bool
 type PY_Int* = ref object of PY_ObjectND
@@ -65,7 +69,7 @@ method toRepr*(self: PY_NoneType): string = "None"
 method toRepr*(self: PY_Boolean): string = $self.value
 method toRepr*(self: PY_Int): string = $self.value
 method toRepr*(self: PY_Float): string = $self.value
-method toRepr*(self: PY_String): string = "'" & self.value & "'"
+method toRepr*(self: PY_String): string = self.value
 method toRepr*(self: PY_Date): string = self.value.format(fmtDate)
 method toRepr*(self: PY_Time): string = self.value.duration2Date.format(fmtTime)
 method toRepr*(self: PY_DateTime): string = self.value.format(fmtDateTime)
