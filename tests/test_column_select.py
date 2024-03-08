@@ -1061,5 +1061,25 @@ def test_casting_datetime_2_nones():
     for true, expect in zip((list(l) for l in select_1_pass.columns.values()), results):
         assert true == expect
 
+def test_column_select_unstastable_1():
+    tbl = Table(columns={
+        "A": ["a", "b", "c"],
+        "B": ["d", "e", "f"]
+    })
+
+    select_1_pass, select_1_fail = tbl.column_select(cols=[
+        {"column": "A", "type": "int", "allow_empty": False, "rename": None},
+    ])
+
+    assert list(select_1_pass.columns.keys()) == ['A']
+    assert list(select_1_fail.columns.keys()) == ['reject_reason', 'A', 'B']
+
+    assert len(select_1_pass) == 0
+    assert list(select_1_pass['A']) == []
+
+    assert len(select_1_fail) == 3
+    assert list(select_1_fail['A']) == ["a", "b", "c"]
+    assert list(select_1_fail['B']) == ["d", "e", "f"]
+
 if __name__ == "__main__":
     test_casting_11()

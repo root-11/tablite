@@ -1407,7 +1407,7 @@ class BaseTable(object):
         Returns:
             Table: table in read-only mode.
         """
-        type_check(path, Path)
+        path = Path(path)
         log.debug(f"loading {path}")
         with zipfile.ZipFile(path, "r") as f:
             yml = f.read("table.yml")

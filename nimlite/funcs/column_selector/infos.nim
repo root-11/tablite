@@ -19,7 +19,7 @@ proc newDesiredColumnInfo*(name: string, `type`: KindObjectND, allowEmpty: bool)
         allowEmpty: allowEmpty
     )
 
-proc toPyObj*(infos: var OrderedTable[string, DesiredColumnInfo]): nimpy.PyObject =
+proc toPyObj*(infos: OrderedTable[string, DesiredColumnInfo]): nimpy.PyObject =
     let elems = collect:
         for (name, info) in infos.pairs:
             (name, (info.originalName, $info.`type`, info.allowEmpty))
@@ -29,16 +29,17 @@ proc toPyObj*(infos: var OrderedTable[string, DesiredColumnInfo]): nimpy.PyObjec
     return res
 
 proc fromPyObjToDesiredInfos*(pyInfos: nimpy.PyObject): OrderedTable[string, DesiredColumnInfo] =
-    let res = collect(initOrderedTable()):
-        for k in pyInfos:
-            let pyInfo = pyInfos[k]
-            let (pyName, pyType, pyAllowEmpty) = (pyInfo[0], pyInfo[1], pyInfo[2])
-            let info = newDesiredColumnInfo(
-                pyName.to(string),
-                str2ObjKind(pyType.to(string)),
-                pyAllowEmpty.to(bool)
-            )
+    var res = initOrderedTable[string, DesiredColumnInfo]()
 
-            {k.to(string): info}
+    for k in pyInfos:
+        let pyInfo = pyInfos[k]
+        let (pyName, pyType, pyAllowEmpty) = (pyInfo[0], pyInfo[1], pyInfo[2])
+        let info = newDesiredColumnInfo(
+            pyName.to(string),
+            str2ObjKind(pyType.to(string)),
+            pyAllowEmpty.to(bool)
+        )
+
+        res[k.to(string)] = info
 
     return res
