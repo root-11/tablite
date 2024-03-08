@@ -1663,11 +1663,11 @@ if None or empty, all columns will be used.</p>
     <span class="n">methods</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;nearest neighbour&quot;</span><span class="p">,</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;mode&quot;</span><span class="p">,</span> <span class="s2">&quot;carry forward&quot;</span><span class="p">]</span>
 
     <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;carry forward&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">carry_forward</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">missing</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">carry_forward</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">missing</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="n">pbar</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">method</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;mode&quot;</span><span class="p">}:</span>
-        <span class="k">return</span> <span class="n">stats_method</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">missing</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">stats_method</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">missing</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="n">pbar</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;nearest neighbour&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">nearest_neighbour</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">missing</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">nearest_neighbour</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">missing</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="n">pbar</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;method </span><span class="si">{</span><span class="n">method</span><span class="si">}</span><span class="s2"> not recognised amonst known methods: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">methods</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
@@ -1777,7 +1777,18 @@ if None or empty, all columns will be used.</p>
 <span class="normal">144</span>
 <span class="normal">145</span>
 <span class="normal">146</span>
-<span class="normal">147</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">stats_method</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">missing</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">147</span>
+<span class="normal">148</span>
+<span class="normal">149</span>
+<span class="normal">150</span>
+<span class="normal">151</span>
+<span class="normal">152</span>
+<span class="normal">153</span>
+<span class="normal">154</span>
+<span class="normal">155</span>
+<span class="normal">156</span>
+<span class="normal">157</span>
+<span class="normal">158</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">stats_method</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">missing</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">missing</span><span class="p">,</span> <span class="nb">set</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">pbar</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -1789,7 +1800,18 @@ if None or empty, all columns will be used.</p>
         <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">targets</span><span class="p">:</span>
             <span class="n">col</span> <span class="o">=</span> <span class="n">T</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
             <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">Column</span><span class="p">)</span>
-            <span class="n">stats</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">statistics</span><span class="p">()</span>
+
+            <span class="n">hist_values</span><span class="p">,</span> <span class="n">hist_counts</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">histogram</span><span class="p">()</span>
+
+            <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">missing</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">idx</span> <span class="o">=</span> <span class="n">hist_values</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
+                    <span class="n">hist_counts</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                    <span class="k">pass</span>
+
+            <span class="n">stats</span> <span class="o">=</span> <span class="n">summary_statistics</span><span class="p">(</span><span class="n">hist_values</span><span class="p">,</span> <span class="n">hist_counts</span><span class="p">)</span>
+
             <span class="n">new_value</span> <span class="o">=</span> <span class="n">stats</span><span class="p">[</span><span class="n">method</span><span class="p">]</span>
             <span class="n">col</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">mapping</span><span class="o">=</span><span class="p">{</span><span class="n">m</span><span class="p">:</span> <span class="n">new_value</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">missing</span><span class="p">})</span>
             <span class="n">new</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">col</span>
@@ -1819,18 +1841,7 @@ if None or empty, all columns will be used.</p>
 
           <details class="quote">
             <summary>Source code in <code>tablite/imputation.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">150</span>
-<span class="normal">151</span>
-<span class="normal">152</span>
-<span class="normal">153</span>
-<span class="normal">154</span>
-<span class="normal">155</span>
-<span class="normal">156</span>
-<span class="normal">157</span>
-<span class="normal">158</span>
-<span class="normal">159</span>
-<span class="normal">160</span>
-<span class="normal">161</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">161</span>
 <span class="normal">162</span>
 <span class="normal">163</span>
 <span class="normal">164</span>
@@ -1887,7 +1898,18 @@ if None or empty, all columns will be used.</p>
 <span class="normal">215</span>
 <span class="normal">216</span>
 <span class="normal">217</span>
-<span class="normal">218</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">nearest_neighbour</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">missing</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">218</span>
+<span class="normal">219</span>
+<span class="normal">220</span>
+<span class="normal">221</span>
+<span class="normal">222</span>
+<span class="normal">223</span>
+<span class="normal">224</span>
+<span class="normal">225</span>
+<span class="normal">226</span>
+<span class="normal">227</span>
+<span class="normal">228</span>
+<span class="normal">229</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">nearest_neighbour</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">missing</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">missing</span><span class="p">,</span> <span class="nb">set</span><span class="p">)</span>
 
     <span class="n">new</span> <span class="o">=</span> <span class="n">T</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
