@@ -840,6 +840,6 @@ def test_filereader_with_escape():
     root_path = Path(__file__).parent / "data"
     path = root_path / "with_escape.csv"
     assert path.exists()
-    table = Table.from_file(path, text_qualifier="\"")
-
-    assert table.to_dict() == {'tab': [1], 'newline': [2]}
+    
+    assert get_headers(path, text_qualifier="\"")["with_escape.csv"] == [["tab", "newline"], ["1", "2"]]
+    assert Table.from_file(path, text_qualifier="\"").to_dict() == {'tab': [1], 'newline': [2]}
