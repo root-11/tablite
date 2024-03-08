@@ -1,0 +1,1391 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Tablite Documentation">
+      
+      
+      
+        <link rel="canonical" href="https://root-11.github.io/tablite/2023.10.8/changelog/">
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../benchmarks/">
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.13">
+    
+    
+      
+        <title>Changelog - Tablite</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.7e359304.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="deep-purple">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#changelog" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Tablite" class="md-header__button md-logo" aria-label="Tablite" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Tablite
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Changelog
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/root-11/tablite/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href=".." class="md-tabs__link">
+          
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../reference/base/" class="md-tabs__link">
+          
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Tablite" class="md-nav__button md-logo" aria-label="Tablite" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    Tablite
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/root-11/tablite/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" checked>
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href=".." class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_1" id="__nav_1_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            Home
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Changelog
+  </span>
+  
+
+      </a>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Benchmarks
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Tutorial
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Reference
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/base/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Base
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/config/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Config
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/core/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Core
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/datasets/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Datasets
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/datatypes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Datatypes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/diff/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Diff
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/export_utils/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Export utils
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/file_reader_utils/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    File reader utils
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/groupby_utils/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Groupby utils
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/groupbys/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Groupbys
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/import_utils/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Import utils
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/imputation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Imputation
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/joins/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Joins
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/lookup/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Lookup
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/match/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Match
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/merge/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Merge
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/mp_utils/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Mp utils
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/nimlite/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Nimlite
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/pivots/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Pivots
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/redux/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Redux
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/reindex/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Reindex
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sort_utils/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Sort utils
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sortation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Sortation
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/tools/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Tools
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/utils/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Utils
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/version/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Version
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+<h1 id="changelog">Changelog</h1>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Version</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">2023.9.0</td>
+<td>Adding <code>Table.match</code> operation.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2023.8.0</td>
+<td>Nim backend for csv importer.<br>Improve excel importer.<br>Improve slicing consistency.<br>Logical cores re-enabled on *nix based systems.<br>Filter is now type safe.<br>Added merge utility.<br>Various bugfixes.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2023.6.5</td>
+<td>Fix issues with <code>get_headers</code> falling back to text reading when reading 0 lines of excel, fix issue where reading excel file would ignore file count, excel file reader now has parity for linecount selection.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2023.6.4</td>
+<td>Fix a logic bug in <code>get_headers</code> that caused one extra line to be returned than requested.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2023.6.3</td>
+<td>Updated the way reference counting works. Tablite now tracks references to used pages and cleans them up based on number of references to those pages in the current process. This change allows to handle deep table clones when sending tables via processes (pickling/unpickling), whereas previous implementation would corrupt all tables using same pages due to reference counting asserting that all tables are shallow copies to the same object.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2023.6.2</td>
+<td>Updated <code>mplite</code> dependency, changed to soft version requirement to prevent pipeline freezes due to small bugfixes in <code>mplite</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2023.6.1</td>
+<td>Major change of the backend processes. Speed up of ~6x. For more see the <a href="https://github.com/root-11/tablite/releases/tag/2023.6.1">release notes</a></td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.19</td>
+<td>Fixed some memory leaks.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.18</td>
+<td><code>copy</code>, <code>filter</code>, <code>sort</code>, <code>any</code>, <code>all</code> methods now properly respects the table subclass.<br>Filter for tables with under <code>SINGLE_PROCESSING_LIMIT</code> rows will run on same process to reduce overhead.<br>Errors within child processes now properly propagate to parent.<br><code>Table.reset_storage(include_imports=True)</code> now allows the user to reset the storage but exclude any imported files by setting <code>include_imports=False</code> during <code>Table.reset(...)</code>.<br>Bug: A column with <code>1,None,2</code> would be written to csv &amp; tsv as <code>"1,None,2"</code>. Now it is written <code>"1,,2"</code> where None means absent.<br>Fix mp <code>join</code> producing mismatched columns lengths when different table lengths are used as an input or when join product is longer than the input table.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.17</td>
+<td><code>Table.load</code> now properly subclassess the table instead of always resulting in <code>tablite.Table</code>.<br><code>Table.from_*</code> methods now respect subclassess, fixed some <code>from_*</code> methods which were instance methods and not class methods.<br>Fixed <code>Table.from_dict</code> only accepting <code>list</code> and <code>tuple</code> but not <code>tablite.Column</code> which is an equally valid type.<br>Fix <code>lookup</code> parity in single process and multiple process outputs.<br>Fix an issue with multiprocess <code>lookup</code> where no matches would throw instead of producing <code>None</code>.<br>Fix an issue with filtering an empty table.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.16</td>
+<td>Changed <code>join</code> to process 1M rows per task to avoid potential OOM on lower memory systems.<br> Added <code>mp_merge_columns</code> to <code>MemoryManager</code> that merges column pages into a single column.<br>Fix <code>join</code> parity in single process and multiple process outputs.<br>Fix an issue with multiprocess <code>join</code> where no matches would throw instead of producing <code>None</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.15</td>
+<td>Bump <code>mplite</code> to avoid deadlock issues OS kill the process.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.14</td>
+<td>Improve locking mechanism to allow retries when opening file as the previous solution could cause deadlocks when running multiple threads.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.13</td>
+<td>Fix an issue with copying empty pages.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.12</td>
+<td>Tablite now is now able to create it's own temporary directory.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.11</td>
+<td><code>text_reader</code> tqdm tracks the entire process now. <br> <code>text_reader</code> properly respects free memory in *nix based systems. <br> <code>text_reader</code> no longer discriminates against hyperthreaded cores.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.10</td>
+<td><code>get_headers</code> now uses plain <code>openpyxl</code> instead of <code>pyexcel</code> wrapper to speed up fetch times ~10x on certain files.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.9</td>
+<td><code>get_headers</code> can fail safe on unrecognized characters.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.8</td>
+<td>Fix a bug with task size calculation on single core systems.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.7</td>
+<td>Added <code>TABLITE_TMPDIR</code> environment variable for setting tablite work directory. <br> Characters that fail to be read text reader due to improper encoding will be skipped. <br> Fixed an issue where single column text files with no column delimiters would be imported as empty tables.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.6</td>
+<td>Date inference fix</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.5</td>
+<td>Fixed negative slicing issues</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.4</td>
+<td>Transpose API changes: <br> <code>table.transpose(...)</code> was renamed to <code>table.pivot_transpose(...)</code> <br> new <code>table.transpose()</code> and <code>table.T</code> were added, it's functionality acts similarly to <code>numpy.T</code>, the column headers are used the first row in the table when transposing.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.3</td>
+<td>Bugfix for non-ascii encoded strings during <code>t.add_rows(...)</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.2</td>
+<td>As <code>utf-8</code> is ascii compatible, the file reader utils selects <code>utf-8</code> instead of <code>ascii</code> as a default.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.1</td>
+<td>bugfix in <code>datatypes.infer()</code> where 1 was inferred as int, not float.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.11.0</td>
+<td>New table features: <br><code>Table.diff(other, columns=...)</code>, <br><code>table.remove_duplicates_rows()</code>, <br><code>table.drop_na(*arg)</code>,<br><code>table.replace(target,replacement)</code>,<br> <code>table.imputation(sources, targets, methods=...)</code>, <br><code>table.to_pandas()</code> and <code>Table.from_pandas(pd.DataFrame)</code>,<br><code>table.to_dict(columns, slice)</code>, <br><code>Table.from_dict()</code>,<br><code>table.transpose(columns, keep, ...)</code>,<br> New column features: <br> <code>Column.count(item)</code>, <br><code>Column[:]</code> is guaranteed to return a python list.<br><code>Column.to_numpy(slice)</code> returns <code>np.ndarray</code>. <br> new <code>tools</code> library: <code>from tablite import tools</code> with: <br> <code>date_range(start,end)</code>, <br><code>xround(value, multiple, up=None)</code>, and, <br> <code>guess</code> as short-cut for <code>Datatypes.guess(...)</code>.<br> bugfixes: <br> <code>__eq__</code> was updated but missed <code>__ne__</code>.<br><code>in</code> operator in filter would crash if datatypes were not strings.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.10.11</td>
+<td>filter now accepts any expression (str) that can be compiled by pythons compiler</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.10.11</td>
+<td>Bugfix for <code>.any</code> and <code>.all</code>. The code now executes much faster</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.10.10</td>
+<td>Bugfix for <code>Table.import_file</code>: <code>import_as</code> has been removed from keywords.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.10.10</td>
+<td>All Table functions now have tqdm progressbar.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.10.10</td>
+<td>More robust calculation for task size for multiprocessing.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.10.10</td>
+<td>Dependency update: mplite==1.2.0 is now required.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.10.9</td>
+<td>Bugfix for <code>Table.import_file</code>: <br>files with duplicate header names would only have last duplicate name imported.<br>Now the headers are made unique using <code>name_x</code> where x is a number.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.10.8</td>
+<td>Bugfix for groupby: <br>Where keys are empty error should have been raised.<br>Where there are no functions, unique keypairs are returned.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.10.7</td>
+<td>Bugfix for Column.statistics() for an empty column</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.10.6</td>
+<td>Bugfix for <code>__setitem__</code>: tbl['a'] = [] is now seen as <code>tbl.add_column('a')</code><br>Bugfix for <code>__getitem__</code>: calling a missing key raises keyerror.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.10.5</td>
+<td>Bugfix for summary statistics.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.10.4</td>
+<td>Bugfix for join shortcut.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.10.3</td>
+<td>Bugfix for DataTypes where bool was evaluated wrongly</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.10.0</td>
+<td>Added ability to reindex in <code>table.reindex(index=[0,1...,n,n-1])</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.9.0</td>
+<td>Added ability to store python objects (<a href="https://github.com/root-11/tablite/blob/master/tests/test_api_basics.py#L111">example</a>).<br>Added warning when user iterates over non-rectangular dataset.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.8.0</td>
+<td>Added <code>table.export(path)</code> which exports tablite Tables to file format given by the file extension. For example <code>my_table.export('example.xlsx')</code>.<br>supported formats are: <code>json</code>, <code>html</code>, <code>xlsx</code>, <code>xls</code>, <code>csv</code>, <code>tsv</code>, <code>txt</code>, <code>ods</code> and <code>sql</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.7.8</td>
+<td>Added ability to forward <code>tqdm</code> progressbar into <code>Table.import_file(..., tqdm=your_tqdm)</code>, so that Jupyter notebook can use it in <code>display</code>-methods.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.7.7</td>
+<td>Added method <code>Table.to_sql()</code> for export to ANSI-92 SQL engines<br>Bugfix on to_json for <code>timedelta</code>. <br>Jupyter notebook provides nice view using <code>Table._repr_html_()</code> <br>JS-users can use <code>.as_json_serializable</code> where suitable.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.7.6</td>
+<td>get_headers now takes argument <code>(path, linecount=10)</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.7.5</td>
+<td>added helper <code>Table.as_json_serializable</code> as Jupyterkernel compat.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.7.4</td>
+<td>adder helper <code>Table.to_dict</code>, and updated <code>Table.to_json</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.7.3</td>
+<td>table.to_json now takes kwargs: <code>row_count</code>, <code>columns</code>, <code>slice_</code>, <code>start_on</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.7.2</td>
+<td>documentation update.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.7.1</td>
+<td>minor bugfix.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.7.0</td>
+<td>BREAKING CHANGES<br>- Tablite now uses HDF5 as backend. <br>- Has multiprocessing enabled by default. <br>- Is 20x faster. <br>- Completely new API.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2022.6.0</td>
+<td><code>DataTypes.guess([list of strings])</code> returns the best matching python datatype.</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12Z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.expand", "navigation.indexes", "navigation.top", "toc.follow", "search.suggest", "search.highlight"], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.c8d2eff1.min.js"></script>
+      
+    
+  </body>
+</html>
