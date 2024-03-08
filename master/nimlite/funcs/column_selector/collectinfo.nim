@@ -8,6 +8,64 @@ from ../../pytypes import KindObjectND
 import ../../numpy
 import ../../pymodules
 from ../../utils import uniqueName
+from ../../nimpyext import `!`
+
+type CollectColumnSelectInfoResult = object
+    columns*: Table[string, seq[string]]
+    pageCount*: int
+    isCorrectType*: Table[string, bool]
+    desiredColumnMap*: OrderedTable[string, DesiredColumnInfo]
+    originalPagesMap*: Table[string, seq[nimpy.PyObject]]
+    passedColumnData*: seq[string]
+    failedColumnData*: seq[string]
+    resColsPass*: seq[ColInfo]
+    resColsFail*: seq[ColInfo]
+    columnNames*: seq[string]
+    rejectReasonName*: string
+
+proc toPyObj*(self: CollectColumnSelectInfoResult): nimpy.PyObject =
+    let pyObj = modules().builtins.classes.DictClass!()
+
+    pyObj["columns"] = self.columns
+    pyObj["page_count"] = self.pageCount
+    pyObj["is_correct_type"] = self.isCorrectType
+    pyObj["desired_column_map"] = self.desiredColumnMap.toPyObj()
+    pyObj["original_pages_map"] = self.originalPagesMap
+    pyObj["passed_column_data"] = self.passedColumnData
+    pyObj["failed_column_data"] = self.failedColumnData
+    pyObj["res_cols_pass"] = self.resColsPass
+    pyObj["res_cols_fail"] = self.resColsFail
+    pyObj["column_names"] = self.columnNames
+    pyObj["reject_reason_name"] = self.rejectReasonName
+
+    return pyObj
+
+proc fromPyObjToCollectColumnSelectInfos*(pyObj: nimpy.PyObject): CollectColumnSelectInfoResult =
+    let columns = pyObj["columns"].to(Table[string, seq[string]])
+    let pageCount = pyObj["page_count"].to(int)
+    let isCorrectType = pyObj["is_correct_type"].to(Table[string, bool])
+    let desiredColumnMap = pyObj["desired_column_map"].to(OrderedTable[string, DesiredColumnInfo])
+    let originalPagesMap = pyObj["original_pages_map"].to(Table[string, seq[nimpy.PyObject]])
+    let passedColumnData = pyObj["passed_column_data"].to(seq[string])
+    let failedColumnData = pyObj["failed_column_data"].to(seq[string])
+    let resColsPass = pyObj["res_cols_pass"].to(seq[ColInfo])
+    let resColsFail = pyObj["res_cols_fail"].to(seq[ColInfo])
+    let columnNames = pyObj["column_names"].to(seq[string])
+    let rejectReasonName = pyObj["reject_reason_name"].to(string)
+
+    return CollectColumnSelectInfoResult(
+        columns: columns,
+        pageCount: pageCount,
+        isCorrectType: isCorrectType,
+        desiredColumnMap: desiredColumnMap,
+        originalPagesMap: originalPagesMap,
+        passedColumnData: passedColumnData,
+        failedColumnData: failedColumnData,
+        resColsPass: resColsPass,
+        resColsFail: resColsFail,
+        columnNames: columnNames,
+        rejectReasonName: rejectReasonName,
+    )
 
 proc toPageType(name: string): KindObjectND =
     case name.toLower():
@@ -20,10 +78,9 @@ proc toPageType(name: string): KindObjectND =
     of "datetime": return KindObjectND.K_DATETIME
     else: raise newException(FieldDefect, "unsupported page type: '" & name & "'")
 
-proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPid: string, pbar: nimpy.PyObject): (
-    Table[string, seq[string]], int, Table[string, bool], OrderedTable[string, DesiredColumnInfo], seq[string], seq[string], seq[ColInfo], seq[ColInfo], seq[string], string
-) =
+proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPid: string, pbar: nimpy.PyObject): CollectColumnSelectInfoResult =
     var desiredColumnMap = initOrderedTable[string, DesiredColumnInfo]()
+    var originalPagesMap = initTable[string, seq[nimpy.PyObject]]()
     var collisions = initTable[string, int]()
 
     let dirpage = Path(dirPid) / Path("pages")
@@ -71,17 +128,23 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
     # Registry of data
     var passedColumnData = newSeq[string]()
     var failedColumnData = newSeq[string]()
-    let columns = collect(initTable()):
-        for pyColName in table.columns:
-            let colName = pyColName.to(string)
-            let pyColPages = table[colName].pages
-            let pages = collect:
-                for pyPage in pyColPages:
-                    modules().toStr(pyPage.path.absolute())
+    var columns = initTable[string, seq[string]]()
 
-            failedColumnData.add(colName)
+    for pyColName in table.columns:
+        let colName = pyColName.to(string)
+        let pyColPages = table[colName].pages
+        let pyPageCount = modules().getLen(pyColPages)
+        var pagesPaths = newSeqOfCap[string](pyPageCount)
+        var pagesObjs = newSeqOfCap[nimpy.PyObject](pyPageCount)
 
-            {colName: pages}
+        for pyPage in pyColPages:
+            pagesPaths.add(modules().toStr(pyPage.path.absolute()))
+            pagesObjs.add(pyPage)
+
+        failedColumnData.add(colName)
+
+        columns[colName] = pagesPaths
+        originalPagesMap[colName] = pagesObjs
 
     let columnNames = collect: (for k in columns.keys: k)
     var layoutSet = newSeq[(int, int)]()
@@ -177,4 +240,16 @@ proc collectColumnSelectInfo*(table: nimpy.PyObject, cols: nimpy.PyObject, dirPi
     discard pbar.update(2)
     discard pbar.display()
 
-    return (columns, pageCount, isCorrectType, desiredColumnMap, passedColumnData, failedColumnData, resColsPass, resColsFail, columnNames, rejectReasonName)
+    return CollectColumnSelectInfoResult(
+        columns: columns,
+        pageCount: pageCount,
+        isCorrectType: isCorrectType,
+        desiredColumnMap: desiredColumnMap,
+        originalPagesMap: originalPagesMap,
+        passedColumnData: passedColumnData,
+        failedColumnData: failedColumnData,
+        resColsPass: resColsPass,
+        resColsFail: resColsFail,
+        columnNames: columnNames,
+        rejectReasonName: rejectReasonName
+    )

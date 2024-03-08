@@ -130,7 +130,7 @@ proc getHeaders*(path: string, encoding: FileEncoding, dia: Dialect, headerRowIn
 
             var row = newSeq[string](fieldCount)
             for i in 0..<fieldCount:
-                row[i] = fields[i]
+                row[i] = fields[i].stripEscape()
 
             headers.add(row)
 

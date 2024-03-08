@@ -38,7 +38,7 @@ proc toColSliceInfo(path: Path): ColSliceInfo =
 
     return (workdir, pid)
 
-proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string], rejectReasonName: string, resPass: ColInfo, resFail: ColInfo, desiredColumnMap: OrderedTable[string, DesiredColumnInfo], columnNames: seq[string], isCorrectType: Table[string, bool]): (seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)]) =
+proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, (string, nimpy.PyObject)], rejectReasonName: string, resPass: ColInfo, resFail: ColInfo, desiredColumnMap: OrderedTable[string, DesiredColumnInfo], columnNames: seq[string], isCorrectType: Table[string, bool]): (seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)]) =
     var castPathsPass = initTable[string, (Path, Path, Path, bool)]()
     var castPathsFail = initTable[string, (Path, Path, Path, bool)]()
     var pageInfosPass = initTable[string, nimpy.PyObject]()
@@ -47,9 +47,12 @@ proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string]
     var pagesFail = newSeq[(string, nimpy.PyObject)]()
 
     try:
-        let pagePaths = collect(initTable()):
-            for (key, path) in columns.pairs:
-                {key: path}
+        var pagePaths = initTable[string, string]()
+        for (colName, page) in columns.pairs:
+            let (path, pageObj) = page
+            
+            pagePaths[colName] = path
+            pageInfosFail[colName] = pageObj
 
         let processingWorkdir = dirPid / Path("processing")
 
@@ -58,11 +61,11 @@ proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string]
         var validMask = newSeq[Mask](pageSize)
         var reasonLst = newSeq[string](pageSize)
 
-        for (k, v) in pagePaths.pairs:
-            let (wd, pid) = resFail[k]
+        for (originalName, v) in pagePaths.pairs:
+            let (wd, pid) = resFail[originalName]
             let dstPath = Path(wd) / Path("pages") / Path($pid & ".npy")
 
-            castPathsFail[k] = (Path v, dstPath, dstPath, false)
+            castPathsFail[originalName] = (Path v, dstPath, dstPath, false)
 
         let (rjwd, rjpid) = resFail[rejectReasonName]
         let rejectReasonPath = Path(rjwd) / Path("pages") / Path($rjpid & ".npy")
@@ -71,8 +74,8 @@ proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string]
         for (desiredName, desiredInfo) in desiredColumnMap.pairs:
             let originalName = desiredInfo.originalName
             let originalPath = Path pagePaths[originalName]
-            let szData = getPageLen(string originalPath)
             let originalData = readNumpy(string originalPath)
+            let szData = originalData.len
 
             assert validMask.len >= szData, "Invalid mask size"
 
@@ -80,8 +83,6 @@ proc doSliceConvert*(dirPid: Path, pageSize: int, columns: Table[string, string]
             let (workdir, pid) = resPass[desiredName]
             let pagedir = Path(workdir) / Path("pages")
             let dstPath = pagedir / Path($pid & ".npy")
-
-            originalData.putPage(pageInfosFail, originalName, originalPath.toColSliceInfo)
 
             if alreadyCast:
                 # we already know the type, just set the mask

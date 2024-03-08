@@ -3,6 +3,7 @@ from std/random import Rand, initRand, sample
 from std/math import floor
 from std/enumerate import enumerate
 from std/unicode import Rune, toRunes
+from std/strutils import multiReplace
 
 var rng = none[Rand]()
 
@@ -69,5 +70,15 @@ proc maxStringLen*(arr: seq[string]): int =
 
     return v
 
-proc convertSeqStrToSeqRune*(seqOfStr: seq[string]): seq[Rune] =
+proc convertSeqStrToSeqRune*(seqOfStr: seq[string]): seq[Rune] {.inline.} =
     return seqOfStr.convertSeqStrToSeqRune(seqOfStr.maxStringLen)
+
+proc stripEscape*(str: string): string {.inline.} =
+    return str.multiReplace(
+        ("\\t", ""),
+        ("\\n", ""),
+        ("\\r", ""),
+        ("\t", ""),
+        ("\n", ""),
+        ("\r", "")
+    )
