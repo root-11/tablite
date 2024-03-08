@@ -70,7 +70,7 @@ proc maxStringLen*(arr: seq[string]): int =
 
     return v
 
-proc convertSeqStrToSeqRune*(seqOfStr: seq[string]): seq[Rune] =
+proc convertSeqStrToSeqRune*(seqOfStr: seq[string]): seq[Rune] {.inline.} =
     return seqOfStr.convertSeqStrToSeqRune(seqOfStr.maxStringLen)
 
 proc stripEscape*(str: string): string {.inline.} =
