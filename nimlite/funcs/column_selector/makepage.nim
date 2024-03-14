@@ -1,4 +1,4 @@
-import std/[enumerate, unicode, tables, times]
+import std/[enumerate, unicode, tables, times, macros]
 import ../../numpy
 import ../../pytypes
 from mask import Mask
@@ -25,7 +25,55 @@ proc canBeNone*(page: BaseNDArray): bool =
 
     return canBeNone
 
-template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[Mask], reasonLst: var seq[string], conv: proc, allowEmpty: bool, originalName: string, desiredName: string, desiredType: KindObjectND): BaseNDArray =
+macro fetchIter(nIter: typeof(nil) | proc, nPage: typed, nBody: untyped) =
+    var nStmts = newNimNode(nnkStmtList)
+    var nIterator: NimNode
+
+    case nIter.kind:
+    of nnkNilLit:
+        nIterator = newDotExpr(
+                newIdentNode("page"),
+                newIdentNode("pgIter")
+        )
+    of nnkSym:
+        let nMyIter = newIdentNode("myIter")
+        let nVar = newNimNode(nnkVarSection)
+            .add(
+                newNimNode(nnkIdentDefs)
+                    .add(
+                        nMyIter,
+                        newEmptyNode(),
+                        newCall(
+                            nIter,
+                            nPage
+                        )
+                    )
+            )
+
+        nStmts.add(nVar)
+        nIterator = newCall(nMyIter)
+    else: raise newException(Exception, "not implemented: " & $nIter.kind)
+
+
+    let nIterValues = newNimNode(nnkVarTuple)
+        .add(newIdentNode("i"))
+        .add(newIdentNode("v"))
+        .add(newEmptyNode())
+
+    let nIteratorEnumerated = newNimNode(nnkCall)
+        .add(newIdentNode("enumerate"))
+        .add(nIterator)
+
+    let nFor = newNimNode(nnkForStmt)
+        .add(nIterValues)
+        .add(nIteratorEnumerated)
+        .add(nBody)
+
+    nStmts.add(nFor)
+
+    return nStmts
+
+template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[Mask], reasonLst: var seq[string], conv: proc, allowEmpty: bool, originalName: string, desiredName: string, desiredType: KindObjectND, iter: proc | typeof(nil) = nil): T =
     template getTypeUserName(t: KindObjectND): string =
         case t:
         of K_BOOLEAN: "bool"
@@ -86,7 +134,12 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
                 dtypes[KindObjectND.K_NONETYPE] = dtypes[KindObjectND.K_NONETYPE] + 1
             mask[i] = Mask.VALID
 
-    for (i, v) in enumerate(page.pgIter):
+    # when not (iter is typeof(nil)):
+    #     var myIter = iter(page)
+    # else:
+    #     var myIter: bool = false
+
+    fetchIter(iter, page):
         # 0. Check if already invalid, if so, skip
         if mask[i] == Mask.INVALID:
             continue
@@ -154,7 +207,10 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
             elif page is DateTimeNDArray:
                 let strRepr = v.format(fmtDateTime)
             else:
-                let strRepr = $v
+                when v is PY_ObjectND:
+                    let strRepr = v.toRepr
+                else:
+                    let strRepr = $v
 
             reasonLst[i] = createCastErrorReason(strRepr, inTypeKind)
             mask[i] = Mask.INVALID
@@ -178,4 +234,4 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
     else:
         let res = T(shape: @[buf.len], buf: buf)
 
-    BaseNDArray res
+    res

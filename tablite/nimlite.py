@@ -259,14 +259,14 @@ def column_select(table: K, cols: list[ColumnSelectorDict], tqdm=_tqdm, TaskMana
         tbl_fail = T({k: [] for k in failed_column_data})
 
         converted = []
-        step_size = 45 / max(page_count - 1, 1)
+        step_size = 45 / max(page_count, 1)
 
         if is_mp:
             class WrapUpdate:
                 def update(self, n):
                     pbar.update(n * step_size)
 
-            with TaskManager(cpu_count=cpu_count) as tm:
+            with TaskManager(min(cpu_count, page_count)) as tm:
                 res = tm.execute(list(tasks), pbar=WrapUpdate())
 
                 if any(isinstance(r, str) for r in res):
