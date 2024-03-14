@@ -2124,14 +2124,14 @@
         <span class="n">tbl_fail</span> <span class="o">=</span> <span class="n">T</span><span class="p">({</span><span class="n">k</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">failed_column_data</span><span class="p">})</span>
 
         <span class="n">converted</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">step_size</span> <span class="o">=</span> <span class="mi">45</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="n">page_count</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">step_size</span> <span class="o">=</span> <span class="mi">45</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="n">page_count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">is_mp</span><span class="p">:</span>
             <span class="k">class</span> <span class="nc">WrapUpdate</span><span class="p">:</span>
                 <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
                     <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">n</span> <span class="o">*</span> <span class="n">step_size</span><span class="p">)</span>
 
-            <span class="k">with</span> <span class="n">TaskManager</span><span class="p">(</span><span class="n">cpu_count</span><span class="o">=</span><span class="n">cpu_count</span><span class="p">)</span> <span class="k">as</span> <span class="n">tm</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">TaskManager</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">cpu_count</span><span class="p">,</span> <span class="n">page_count</span><span class="p">))</span> <span class="k">as</span> <span class="n">tm</span><span class="p">:</span>
                 <span class="n">res</span> <span class="o">=</span> <span class="n">tm</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">tasks</span><span class="p">),</span> <span class="n">pbar</span><span class="o">=</span><span class="n">WrapUpdate</span><span class="p">())</span>
 
                 <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">res</span><span class="p">):</span>

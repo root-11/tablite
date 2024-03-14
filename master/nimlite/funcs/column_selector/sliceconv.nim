@@ -10,7 +10,7 @@ import infos
 
 
 
-proc putPage(page: BaseNDArray, infos: var Table[string, nimpy.PyObject], colName: string, col: ColSliceInfo): void {.inline.} =
+proc putPage*(page: BaseNDArray, infos: var Table[string, nimpy.PyObject], colName: string, col: ColSliceInfo): void {.inline.} =
     let (dir, pid) = col
 
     infos[colName] = newPyPage(pid, dir, page.len, page.getPageTypes())

@@ -12,7 +12,7 @@ type
     FromDateTime* = object
     ToTime* = object
 
-template uncastable() = raise newException(ValueError, "uncastable")
+template uncastable*() = raise newException(ValueError, "uncastable")
 
 proc newMkCaster(caster: NimNode, isPyCaster: bool): NimNode =
     expectKind(caster, nnkLambda)
@@ -209,6 +209,28 @@ template obj2prim(v: PY_ObjectND) =
     of K_TIME: PY_Time.fnCast(R)(PY_Time(v))
     of K_DATETIME: FromDateTime.fnCast(R)(PY_DateTime(v).value)
     of K_NONETYPE: uncastable()
+
+template castFromType*(v: KindObjectND): typedesc =
+    return case v:
+    of K_BOOLEAN: bool
+    of K_INT: int
+    of K_FLOAT: float
+    of K_STRING: string
+    of K_DATE: FromDate
+    of K_TIME: PY_Time
+    of K_DATETIME: FromDateTime
+    of K_NONETYPE: uncastable()
+
+template castToType*(v: KindObjectND) =
+    case v:
+    of K_BOOLEAN: bool
+    of K_INT: int
+    of K_FLOAT: float
+    of K_STRING: string
+    of K_DATE: ToDate
+    of K_TIME: ToTime
+    of K_DATETIME: ToDateTime
+    else: uncastable()
 
 mkCasters:
     proc(v: PY_ObjectND) =
