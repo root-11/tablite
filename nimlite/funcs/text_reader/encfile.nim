@@ -5,7 +5,7 @@ type FileEncoding* = object
     encoding: Encodings
     conv: string
 
-type BaseEncodedFile* = object of RootObj
+type BaseEncodedFile* = ref object of RootObj
     fh: File
 
 type FileUTF8 = ref object of BaseEncodedFile
