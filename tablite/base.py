@@ -69,9 +69,6 @@ class SimplePage(object):
     refcounts = {}
     autocleanup = True
 
-    def __setitem__(self, k, v):
-        raise NotImplementedError()
-
     def __init__(self, id, path, len, py_dtype) -> None:
         self.path = Path(path) / "pages" / f"{id}.npy"
         self.len = len
