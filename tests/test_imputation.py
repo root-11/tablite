@@ -18,15 +18,15 @@ def test_replace_missing_values_00():
 
 
 def test_nearest_neighbour_multiple_missing():
-    sample = [[1, 2, 3], [1, 2, None], [5, 5, 5], [5,5,"NULL"], [6, 6, 6], [6,-1,6]]
-    
+    sample = [[1, 2, 3], [1, 2, None], [5, 5, 5], [5, 5, "NULL"], [6, 6, 6], [6, -1, 6]]
+
     t = Table()
     t.add_columns(*list("abc"))
     for row in sample:
         t.add_rows(row)
-    
+
     result = t.imputation(sources=["a", "b"], targets=["c"], method="nearest neighbour", missing={None, "NULL", -1})
-    
+
     expected = [[1, 2, 3], [1, 2, 3], [5, 5, 5], [5, 5, 5], [6, 6, 6], [6, -1, 6]]  # only repair column C using A and B
     assert [r for r in result.rows] == expected
 
@@ -234,6 +234,8 @@ def test_replace_missing_values_03():
 
     assert [r for r in result.rows] == expected
 
+    dtypes = result.types()
+
 
 def test_replace_missing_values_04():
     sample = [
@@ -275,3 +277,121 @@ def test_replace_missing_values_04():
     ]
 
     assert [r for r in result.rows] == expected
+
+def create_dtypes_fragmented_table():
+    sample = [
+        [1, 2, 1, 1, 1],
+        [2, 1, 4, 3, 1],
+        [2, 3, 2, None, 1],
+        [3, 3, 4, 4, 3],
+        [3, 1, 2, 1, 1],
+        [4, 3, 3, 3, 1],
+        [2, 2, 4, 2, 1],
+        [1, 4, 2, None, 3],
+        [4, 4, 2, 3, 4],
+        [4, 2, 1, 1, 2],
+        [4, 4, 4, 1, 1],
+        [3, 3, 4, 1, None],
+    ]
+
+    t = Table()
+    t.add_columns(*list("abcde"))
+    for row in sample:
+        t.add_rows(row)
+
+    return t
+
+def test_imputation_dtypes_01():
+    t = create_dtypes_fragmented_table()
+
+    result = t.imputation(targets=["d", "e"], method="nearest neighbour", sources=list("abc"))
+
+    dtypes = result.types()
+
+    assert dtypes["d"] == {int: 12}
+    assert dtypes["e"] == {int: 12}
+
+
+def test_imputation_dtypes_02():
+    t = create_dtypes_fragmented_table()
+
+    result = t.imputation(targets=["d", "e"], method="carry forward", sources=list("abc"))
+
+    dtypes = result.types()
+
+    assert dtypes["d"] == {int: 12}
+    assert dtypes["e"] == {int: 12}
+
+
+def test_imputation_dtypes_03():
+    t = create_dtypes_fragmented_table()
+
+    result = t.imputation(targets=["d", "e"], method="mode", sources=list("abc"))
+
+    dtypes = result.types()
+
+    assert dtypes["d"] == {int: 12}
+    assert dtypes["e"] == {int: 12}
+
+
+def test_imputation_dtypes_04():
+    t = create_dtypes_fragmented_table()
+
+    result = t.imputation(targets=["d", "e"], method="mean", sources=list("abc"))
+
+    dtypes = result.types()
+
+    assert dtypes["d"] == {int: 10, float: 2}
+    assert dtypes["e"] == {int: 11, float: 1}
+
+def create_dtypes_solid_table():
+    return Table({
+        'a': [1, 2, 2, 3, 3, 4, 2, 1, 4, 4, 4, 3],
+        'b': [2, 1, 3, 3, 1, 3, 2, 4, 4, 2, 4, 3],
+        'c': [1, 4, 2, 4, 2, 3, 4, 2, 2, 1, 4, 4],
+        'd': [1, 3, None, 4, 1, 3, 2, None, 3, 1, 1, 1],
+        'e': [1, 1, 1, 3, 1, 1, 1, 3, 4, 2, 1, None]
+    })
+
+def test_imputation_dtypes_05():
+    t = create_dtypes_solid_table()
+
+    result = t.imputation(targets=["d", "e"], method="nearest neighbour", sources=list("abc"))
+
+    dtypes = result.types()
+
+    assert dtypes["d"] == {int: 12}
+    assert dtypes["e"] == {int: 12}
+
+
+def test_imputation_dtypes_06():
+    t = create_dtypes_solid_table()
+
+    result = t.imputation(targets=["d", "e"], method="carry forward", sources=list("abc"))
+
+    dtypes = result.types()
+
+    assert dtypes["d"] == {int: 12}
+    assert dtypes["e"] == {int: 12}
+
+
+def test_imputation_dtypes_07():
+    t = create_dtypes_solid_table()
+
+    result = t.imputation(targets=["d", "e"], method="mode", sources=list("abc"))
+
+    dtypes = result.types()
+
+    assert dtypes["d"] == {int: 12}
+    assert dtypes["e"] == {int: 12}
+
+
+def test_imputation_dtypes_08():
+    t = create_dtypes_solid_table()
+
+    result = t.imputation(targets=["d", "e"], method="mean", sources=list("abc"))
+
+    dtypes = result.types()
+
+    assert dtypes["d"] == {int: 10, float: 2}
+    assert dtypes["e"] == {int: 11, float: 1}
