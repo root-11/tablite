@@ -106,7 +106,7 @@ def carry_forward(T, targets, missing, tqdm=_tqdm, pbar=None):
         total = len(targets) * len(T)
         pbar = tqdm(total=total, desc="imputation.carry_forward", disable=Config.TQDM_DISABLE)
 
-    new = type(T)()
+    new = T.copy()
     for name in T.columns:
         if name in targets:
             data = T[name][:]  # create copy
@@ -131,7 +131,7 @@ def stats_method(T, targets, missing, method, tqdm=_tqdm, pbar=None):
         total = len(targets)
         pbar = tqdm(total=total, desc=f"imputation.{method}", disable=Config.TQDM_DISABLE)
 
-    new = type(T)()
+    new = T.copy()
     for name in T.columns:
         if name in targets:
             col = T.columns[name]
