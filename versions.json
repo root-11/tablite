@@ -2,6 +2,11 @@
   {
     "version": "master",
     "title": "master",
+    "aliases": []
+  },
+  {
+    "version": "2023.10.10",
+    "title": "2023.10.10",
     "aliases": [
       "latest"
     ]
