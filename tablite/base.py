@@ -69,6 +69,9 @@ class SimplePage(object):
     refcounts = {}
     autocleanup = True
 
+    def __setitem__(self, k, v):
+        raise NotImplementedError()
+
     def __init__(self, id, path, len, py_dtype) -> None:
         self.path = Path(path) / "pages" / f"{id}.npy"
         self.len = len
@@ -447,10 +450,17 @@ class Column(object):
             start, end = end, end + page.len
             if start <= key < end:
                 data = page.get()
-                if pytype(value) not in page.dtype:
-                    py_dtype = page.dtype.copy()
-                    py_dtype[pytype(value)] = 1
-                    data = MetaArray(array=data, dtype=object, py_dtype=py_dtype)
+                new_dt, old_dt = pytype(value), pytype(data[key - start])
+            
+                py_dtype = page.dtype.copy()
+
+                py_dtype[new_dt] = py_dtype.get(new_dt, 0) + 1
+                py_dtype[old_dt] = py_dtype.get(old_dt, 0) - 1
+
+                if py_dtype[old_dt] <= 0:
+                    del py_dtype[old_dt]
+
+                data = MetaArray(array=data, dtype=object, py_dtype=py_dtype)
                 data[key - start] = value
                 new_page = Page(self.path, data)
                 self.pages[index] = new_page
@@ -899,8 +909,21 @@ class Column(object):
             bitmask = np.isin(data, to_replace)  # identify elements to replace.
             if bitmask.any():
                 warray = np.compress(bitmask, data)
+                py_dtype = page.dtype
                 for ix, v in enumerate(warray):
-                    warray[ix] = mapping[numpy_to_python(v)]
+                    old_py_val = numpy_to_python(v)
+                    new_py_val = mapping[old_py_val]
+                    old_dt = type(old_py_val)
+                    new_dt = type(new_py_val)
+
+                    warray[ix] = new_py_val
+
+                    py_dtype[new_dt] = py_dtype.get(new_dt, 0) + 1
+                    py_dtype[old_dt] = py_dtype.get(old_dt, 0) - 1
+
+                    if py_dtype[old_dt] <= 0:
+                        del py_dtype[old_dt]
+
                 data[bitmask] = warray
                 self.pages[index] = Page(path=self.path, array=data)
 
