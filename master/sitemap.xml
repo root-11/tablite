@@ -2,152 +2,152 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://root-11.github.io/tablite/master/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/benchmarks/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/changelog/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/tutorial/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/base/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/config/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/core/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/datasets/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/datatypes/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/diff/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/export_utils/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/file_reader_utils/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/groupby_utils/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/groupbys/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/import_utils/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/imputation/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/joins/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/lookup/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/match/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/merge/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/mp_utils/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/nimlite/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/pivots/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/redux/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/reindex/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/sort_utils/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/sortation/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/tools/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/utils/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://root-11.github.io/tablite/master/reference/version/</loc>
-         <lastmod>2024-03-14</lastmod>
+         <lastmod>2024-03-15</lastmod>
          <changefreq>daily</changefreq>
     </url>
 </urlset>
