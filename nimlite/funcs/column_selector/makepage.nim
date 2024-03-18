@@ -114,7 +114,7 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
     when T is UnicodeNDArray:
         # string arrays are first saved into separate sequences, after we collect them we will copy their memory to single buffer
         var longest = 1
-        var runeBuf = newSeqOfCap[seq[Rune]](page.len)
+        var runeBuf = newSeq[seq[Rune]](page.len)
     else:
         when T is ObjectNDArray:
             var dtypes = {
@@ -123,25 +123,28 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
             }.toTable
 
         # we know the maximum size of the sequence based on the page size as we cannot manifest new values
-        var buf = newSeqOfCap[T.baseType](page.len)
+        var buf = newSeq[T.baseType](page.len)
 
     when page is UnicodeNDArray or page is ObjectNDArray:
         template addEmpty(i: int): void =
             when T is UnicodeNDArray:
-                runeBuf.add(newSeq[Rune](0))
+                runeBuf[i] = newSeq[Rune](0)
             elif T is ObjectNDArray:
-                buf.add(PY_None)
+                buf[i] = PY_None
                 dtypes[KindObjectND.K_NONETYPE] = dtypes[KindObjectND.K_NONETYPE] + 1
             mask[i] = Mask.VALID
 
-    # when not (iter is typeof(nil)):
-    #     var myIter = iter(page)
-    # else:
-    #     var myIter: bool = false
+    template fillDefault() =
+        when T is ObjectNDArray:
+            buf[i] = PY_None
+            dtypes[KindObjectND.K_NONETYPE] = dtypes[KindObjectND.K_NONETYPE] + 1
+        elif T is UnicodeNDArray:
+            runeBuf[i] = newSeq[Rune](0)
 
     fetchIter(iter, page):
         # 0. Check if already invalid, if so, skip
         if mask[i] == Mask.INVALID:
+            fillDefault()
             continue
 
         # 1. Emptiness test
@@ -151,6 +154,7 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
                 # empty string
                 if not allowEmpty:
                     mask[i] = Mask.INVALID
+                    fillDefault()
                     reasonLst[i] = createEmptyErrorReason()
                 else:
                     addEmpty(i)
@@ -166,6 +170,7 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
                             # empty string
                             if not allowEmpty:
                                 mask[i] = Mask.INVALID
+                                fillDefault()
                                 reasonLst[i] = createEmptyErrorReason()
                             else:
                                 addEmpty(i)
@@ -174,6 +179,7 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
                         if not allowEmpty:
                             # empty object
                             mask[i] = Mask.INVALID
+                            fillDefault()
                             reasonLst[i] = createNoneErrorReason()
                         else:
                             addEmpty(i)
@@ -190,9 +196,9 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
                 let res = str.toRunes
 
                 longest = max(longest, res.len)
-                runeBuf.add(res)
+                runeBuf[i] = res
             else:
-                buf.add(conv(v))
+                buf[i] = conv(v)
 
             when T is ObjectNDArray:
                 dtypes[desiredType] = dtypes[desiredType] + 1
@@ -214,6 +220,7 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
 
             reasonLst[i] = createCastErrorReason(strRepr, inTypeKind)
             mask[i] = Mask.INVALID
+            fillDefault()
 
     # 3. Dump the page
     when T is UnicodeNDArray:
