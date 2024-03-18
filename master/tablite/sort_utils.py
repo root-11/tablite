@@ -1,5 +1,7 @@
+from collections.abc import Iterator
 from datetime import datetime, date, time, timedelta
 from pyuca import Collator
+from tablite.datatypes import numpy_to_python
 
 
 uca_collator = Collator()
@@ -184,8 +186,10 @@ def unix_sort(values, reverse=False):
     text_code = _unix_typecodes[str]
     text = [(text_code, ix, v) for ix, v in enumerate(text)]
 
+    d = HashDict()
     L = non_text + text
-    d = {value: ix for ix, (_, _, value) in enumerate(L)}
+    for ix, (_, _, value) in enumerate(L):
+        d[value] = ix
     return d
 
 
@@ -258,3 +262,38 @@ def rank(values, reverse, mode):
         raise ValueError(f"{mode} not in list of modes: {list(modes)}")
     f = modes.get(mode)
     return f(values, reverse)
+
+
+class HashDict(dict):
+    """
+        This class is just a nicity syntatic sugar for debugging.
+        Function identically to regular dictionary, just uses tupled key.
+    """
+ 
+    def _get_hash(self, key):
+        key = numpy_to_python(key)
+        return (type(key), key)
+    
+    def items(self):
+        return [(k, v) for (_, k), v in super().items()]
+            
+    def keys(self):
+        return [k for (_, k) in super().keys()]
+
+    def __iter__(self) -> Iterator:
+        return (k for (_, k) in super().keys())
+ 
+    def __getitem__(self, key):
+        return super().__getitem__(self._get_hash(key))
+ 
+    def __setitem__(self, key, value):
+        return super().__setitem__(self._get_hash(key), value)
+ 
+    def __contains__(self, key) -> bool:
+        return super().__contains__(self._get_hash(key))
+ 
+    def __delitem__(self, key):
+        return super().__delitem__(self._get_hash(key))
+    
+    def __repr__(self) -> str:
+        return '{' + ", ".join([f"{k}: {v}" for (_, k), v in self.items()]) + '}'
