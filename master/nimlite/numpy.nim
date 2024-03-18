@@ -191,7 +191,7 @@ iterator pgIter*(self: UnicodeNDArray): string =
 template fullPrint(T: typed, name: string, buf: string): string = "NDArray[" & name & "](shape: (" & self.shape.join(", ") & (if self.shape.len > 1: ")" else: ", )") & " buf: [" & buf & "])"
 template simplePrint(T: typed, name: string): string = self.fullPrint(name, self.buf.join(", "))
 
-method `$`(self: BaseNDArray): string {.base.} = implement("BaseNDArray.`$` must be implemented by inheriting class: " & $self.kind)
+method `$`*(self: BaseNDArray): string {.base.} = implement("BaseNDArray.`$` must be implemented by inheriting class: " & $self.kind)
 method `$`*(self: BooleanNDArray): string = self.simplePrint("boolean")
 method `$`*(self: Int8NDArray): string = self.simplePrint("int8")
 method `$`*(self: Int16NDArray): string = self.simplePrint("int16")

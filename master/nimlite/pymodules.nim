@@ -75,8 +75,6 @@ proc importPy(): void =
     let envs = getEnv("NIM_PYTHON_MODULES", "").split(":")
     let iSys = nimpy.pyImport("sys")
 
-    echo iSys.path
-
     discard iSys.path.extend(envs)
 
     let iBuiltins = nimpy.pyBuiltinsModule()
