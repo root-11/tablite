@@ -1306,16 +1306,15 @@ iterator iterateFloatPage*(page: BaseNDArray): float =
     else: raise newException(ValueError, "invalid page type: " & $page.kind)
 
 iterator iterateBooleanPage*(page: BaseNDArray): bool =
-    yield true
-    # case page.kind:
-    # of K_BOOLEAN:
-    #     for v in BooleanNDArray(page).pgIter:
-    #         yield v
-    # of K_OBJECT:
-    #     page.validatePageKind(K_BOOLEAN)
-    #     for v in ObjectNDArray(page).pgIter:
-    #         yield PY_Boolean(v).value
-    # else: raise newException(ValueError, "invalid page type: " & $page.kind)
+    case page.kind:
+    of K_BOOLEAN:
+        for v in BooleanNDArray(page).pgIter:
+            yield v
+    of K_OBJECT:
+        page.validatePageKind(K_BOOLEAN)
+        for v in ObjectNDArray(page).pgIter:
+            yield PY_Boolean(v).value
+    else: raise newException(ValueError, "invalid page type: " & $page.kind)
 
 
 iterator iterateStringPage*(page: BaseNDArray): string =
