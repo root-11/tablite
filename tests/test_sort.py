@@ -1,7 +1,7 @@
 from tablite import Table
 from datetime import datetime
 from numpy import datetime64
-
+from tablite.sort_utils import unix_sort
 
 def test_sort():
     t = Table(columns={"A": [4, 3, 2, 1], "B": [2, 2, 1, 1], "C": ["a", "d", "c", "b"]})
@@ -50,3 +50,23 @@ def test_sort_datetime():
 
     t = Table(columns={"A": [datetime64("2005"), datetime64(datetime.now())], "B": [2, 2]})
     t.sort({"A": False})
+
+
+def test_unix_sort():
+    d = unix_sort([True, True, True, 0, 1, 1.0, False, 2])
+    assert False in d
+    assert d[False] == 0
+    
+    assert True in d
+    assert d[True] == 3
+    assert 0 in d
+    assert d[0] == 4
+    
+    assert 1 in d
+    assert d[1] == 5
+    
+    assert 1.0 in d
+    assert d[1.0] == 6
+    
+    assert 2 in d
+    assert d[2] == 7
