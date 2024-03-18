@@ -170,9 +170,10 @@ def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm, pbar=None):
         values = [(v, k) for k, v in values.items()]
         values.sort()
         values = [k for _, k in values]
-
+        d = sort_utils.HashDict()
         n = len([v for v in values if v not in missing])
-        d = {v: i / n if v not in missing else math.inf for i, v in enumerate(values)}
+        for i, v in enumerate(values):
+            d[v] = i / n if v not in missing else math.inf
         normalised_values[name] = [d[v] for v in T[name]]
         norm_index[name] = d
         values.clear()
@@ -180,9 +181,11 @@ def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm, pbar=None):
     missing_value_index = T.index(*targets)
     missing_value_index = {k: v for k, v in missing_value_index.items() if missing.intersection(set(k))}  # strip out all that do not have missings.
 
-    ranks = set()
-    for k, v in missing_value_index.items():
-        ranks.update(set(k))
+    ranks = sort_utils.HashDict()
+    for k in missing_value_index.keys():
+        for vv in k:
+            ranks[vv] = True
+    ranks = ranks.keys()
     item_order = sort_utils.unix_sort(list(ranks))
     new_order = {tuple(item_order[i] for i in k): k for k in missing_value_index.keys()}
 
