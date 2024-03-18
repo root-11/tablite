@@ -1,5 +1,7 @@
+from collections.abc import Iterator
 from datetime import datetime, date, time, timedelta
 from pyuca import Collator
+from tablite.datatypes import numpy_to_python
 
 
 uca_collator = Collator()
@@ -269,7 +271,17 @@ class HashDict(dict):
     """
  
     def _get_hash(self, key):
+        key = numpy_to_python(key)
         return (type(key), key)
+    
+    def items(self):
+        return [(k, v) for (_, k), v in super().items()]
+            
+    def keys(self):
+        return [k for (_, k) in super().keys()]
+
+    def __iter__(self) -> Iterator:
+        return (k for (_, k) in super().keys())
  
     def __getitem__(self, key):
         return super().__getitem__(self._get_hash(key))
