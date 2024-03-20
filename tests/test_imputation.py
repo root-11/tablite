@@ -126,7 +126,7 @@ def test_replace_missing_values_05():
     for row in sample:
         t.add_rows(row)
 
-    result = t.imputation(targets=cols, missing=[None], method="nearest neighbour", sources=cols)
+    result = t.imputation(targets=cols, method="nearest neighbour", sources=cols)
     result = result.imputation(targets=cols, method="nearest neighbour", sources=cols)
 
     expected = [
@@ -409,12 +409,3 @@ def test_imputation_dtypes_08():
 
     assert dtypes["d"] == {int: 10, float: 2}
     assert dtypes["e"] == {int: 11, float: 1}
-
-
-if __name__=="__main__":
-    test_replace_missing_values_00()
-    test_replace_missing_values_345()
-    test_nearest_neighbour_multiple_missing()
-    test_replace_missing_values_01()
-    test_replace_missing_values_02()
-    test_replace_missing_values_02b()

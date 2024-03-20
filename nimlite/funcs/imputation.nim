@@ -262,10 +262,10 @@ proc nearestNeighbourImputation*(T: nimpy.PyObject, sources: seq[string],
         savePages(targetsPages.get(), targetsPYColumns, lastPageIndex)
     return newTable
 
-when appType != "lib":
+# when appType != "lib":
     # echo unixSort(@[newPY_Object(true), newPY_Object(true), newPY_Object(true), newPY_Object(0), newPY_Object(1), newPY_Object(1.0), newPY_Object(false), newPY_Object(2)])
-    modules().tablite.modules.config.classes.Config.PAGE_SIZE = 1
-    let columns = modules().builtins.classes.DictClass!()
+    # modules().tablite.modules.config.classes.Config.PAGE_SIZE = 1
+    # let columns = modules().builtins.classes.DictClass!()
     # 1
     # columns["A"] = @[nimValueToPy(0), nimValueToPy(1), nimValueToPy(nil), nimValueToPy(3), nimValueToPy(0)]
     # columns["B"] = @[nimValueToPy("4"), nimValueToPy(5), nimValueToPy(6), nimValueToPy(7), nimValueToPy(4)]
@@ -276,14 +276,14 @@ when appType != "lib":
     # columns["c"] = @[nimValueToPy(3), nimValueToPy(nil), nimValueToPy(5), nimValueToPy("NULL"), nimValueToPy(6), nimValueToPy(6)]
 
     # 3
-    columns["a"] = @[nimValueToPy(nil), nimValueToPy(1), nimValueToPy(2), nimValueToPy(3)]
-    columns["b"] = @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(2), nimValueToPy(3)]
-    columns["c"] = @[nimValueToPy(0), nimValueToPy(1), nimValueToPy(nil), nimValueToPy(3)]
-    columns["d"] = @[nimValueToPy(0), nimValueToPy(1), nimValueToPy(2), nimValueToPy(nil)]
+    # columns["a"] = @[nimValueToPy(nil), nimValueToPy(1), nimValueToPy(2), nimValueToPy(3)]
+    # columns["b"] = @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(2), nimValueToPy(3)]
+    # columns["c"] = @[nimValueToPy(0), nimValueToPy(1), nimValueToPy(nil), nimValueToPy(3)]
+    # columns["d"] = @[nimValueToPy(0), nimValueToPy(1), nimValueToPy(2), nimValueToPy(nil)]
 
-    let table = modules().tablite.classes.TableClass!(columns = columns)
+    # let table = modules().tablite.classes.TableClass!(columns = columns)
 
-    discard table.show()
+    # discard table.show()
 
     # echo index(table, @["A", "B"])
     # 1
@@ -291,6 +291,6 @@ when appType != "lib":
     # 2
     # var r = nearestNeighbourImputation(table, @["a", "b", "c"], @[PY_ObjectND(PY_None), newPY_Object("NULL"), newPY_Object(-1)], @["b", "c"])
     # 3
-    var r = nearestNeighbourImputation(table, @["a", "b", "c", "d"], @[PY_ObjectND(PY_None)], @["a", "b", "c", "d"])
+    # var r = nearestNeighbourImputation(table, @["a", "b", "c", "d"], @[PY_ObjectND(PY_None)], @["a", "b", "c", "d"])
 
-    discard r.show()
+    # discard r.show()
