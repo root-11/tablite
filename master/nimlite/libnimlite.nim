@@ -14,7 +14,7 @@ template isLib(): bool = isMainModule and appType == "lib"
 when isLib:
     import nimpy
     import std/[os, options, tables, paths, sugar]
-    import pymodules, ranking
+    import pymodules, ranking, dateutils, pytypes
 
     # --------      NUMPY      --------
     import numpy
@@ -29,14 +29,14 @@ when isLib:
     # -------- COLUMN SELECTOR --------
     import funcs/column_selector as column_selector
 
-    proc collect_column_select_info*(table: PyObject, cols: PyObject, dir_pid: string, pbar: PyObject): nimpy.PyObject {.exportpy.} =
+    proc collect_column_select_info*(table: nimpy.PyObject, cols: nimpy.PyObject, dir_pid: string, pbar: nimpy.PyObject): nimpy.PyObject {.exportpy.} =
         try:
             return column_selector.collectColumnSelectInfo(table, cols, dir_pid, pbar).toPyObj()
         except Exception as e:
             echo $e.msg & "\n" & $e.getStackTrace
             raise e
 
-    proc do_slice_convert*(dir_pid: string, page_size: int, columns: Table[string, (string, nimpy.PyObject)], reject_reason_name: string, res_pass: column_selector.ColInfo, res_fail: column_selector.ColInfo, desired_column_map: PyObject, column_names: seq[string], is_correct_type: Table[string, bool]): (seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)]) {.exportpy.} =
+    proc do_slice_convert*(dir_pid: string, page_size: int, columns: Table[string, (string, nimpy.PyObject)], reject_reason_name: string, res_pass: column_selector.ColInfo, res_fail: column_selector.ColInfo, desired_column_map: nimpy.PyObject, column_names: seq[string], is_correct_type: Table[string, bool]): (seq[(string, nimpy.PyObject)], seq[(string, nimpy.PyObject)]) {.exportpy.} =
         try:
             return column_selector.doSliceConvert(Path(dir_pid), page_size, columns, reject_reason_name, res_pass, res_fail, desired_column_map.fromPyObjToDesiredInfos(), column_names, is_correct_type)
         except Exception as e:
@@ -48,8 +48,8 @@ when isLib:
     import funcs/text_reader as text_reader
 
     proc collect_text_reader_page_info_task(
-        task_info: PyObject,
-        task: PyObject,
+        task_info: nimpy.PyObject,
+        task: nimpy.PyObject,
     ): (uint, seq[uint], seq[Rank]) {.exportpy.} =
         try:
             return text_reader.toTaskArgs(task_info, task).collectPageInfoTask
@@ -58,10 +58,10 @@ when isLib:
             raise e
 
     proc text_reader_task(
-        task_info: PyObject,
-        task: PyObject,
+        task_info: nimpy.PyObject,
+        task: nimpy.PyObject,
         page_info: (uint, seq[uint], seq[Rank])
-    ): seq[PyObject] {.exportpy.} =
+    ): seq[nimpy.PyObject] {.exportpy.} =
         try:
             return text_reader.toTaskArgs(task_info, task).textReaderTask(page_info)
         except Exception as e:
@@ -96,8 +96,8 @@ when isLib:
 
     proc text_reader(
         pid: string, path: string, encoding: string,
-        columns: PyObject, first_row_has_headers: bool, header_row_index: uint,
-        start: PyObject, limit: PyObject,
+        columns: nimpy.PyObject, first_row_has_headers: bool, header_row_index: uint,
+        start: nimpy.PyObject, limit: nimpy.PyObject,
         guess_datatypes: bool,
         newline: string, delimiter: string, text_qualifier: string,
         strip_leading_and_tailing_whitespace: bool, skip_empty: SkipEmpty,
@@ -138,3 +138,30 @@ when isLib:
             echo $e.msg & "\n" & $e.getStackTrace
             raise e
     # --------   TEXT READER   --------
+
+    # --------   IMPUTATION -----------
+    
+    import funcs/imputation
+    proc nearest_neighbour(T: nimpy.PyObject, sources: seq[string], missing: seq[nimpy.PyObject], targets: seq[string], tqdm: nimpy.PyObject): nimpy.PyObject {. exportpy .}=
+        var miss: seq[PY_ObjectND] = @[]
+        for m in missing:
+            case modules().builtins.getTypeName(m):
+            of "NoneType":
+                miss.add(PY_ObjectND(PY_None))
+            of "str":
+                miss.add(PY_ObjectND(newPY_Object(m.to(string))))
+            of "int":
+                miss.add(PY_ObjectND(newPY_Object(m.to(int))))
+            of "float":
+                miss.add(PY_ObjectND(newPY_Object(m.to(float))))
+            of "datetime":
+                miss.add(PY_ObjectND(newPY_Object(pyDateTime2NimDateTime(m), K_DATETIME)))
+            of "date":
+                miss.add(PY_ObjectND(newPY_Object(pyDate2NimDateTime(m), K_DATE)))
+            of "time":
+                miss.add(PY_ObjectND(newPY_Object(pyTime2NimDuration(m))))
+            of "bool":
+                miss.add(PY_ObjectND(newPY_Object(m.to(bool))))
+            else:
+                raise newException(ValueError, "unrecognized type.")
+        return nearestNeighbourImputation(T, sources, miss, targets, tqdm)

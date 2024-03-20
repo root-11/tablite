@@ -7,7 +7,10 @@ import psutil
 import csv
 from pathlib import Path
 import openpyxl
-from pandas import read_excel, isna
+try:
+    from pandas import read_excel, isna
+except ModuleNotFoundError:
+    pass
 from tablite.utils import load_numpy, py_to_nim_encoding
 import sys
 import warnings

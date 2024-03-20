@@ -1,3 +1,4 @@
+import nimpy
 import std/times
 from utils import divmod
 from std/hashes import Hash, hash
@@ -138,3 +139,29 @@ proc seconds2Date*(seconds: float): DateTime {.inline.} = duration2Date(seconds2
 proc datetime2Date*(self: DateTime): DateTime {.inline.} = dateTime(self.year, self.month, self.monthday, zone=utc())
 
 proc hash*(self: DateTime): Hash = hash(self.toTime.toUnixFloat)
+
+proc pyDateTime2NimDateTime*(pyDateTime: nimpy.PyObject): DateTime =
+    let
+        year: int = pyDateTime.year.to(int)
+        month: int = pyDateTime.month.to(int)
+        day: int = pyDateTime.day.to(int)
+        hour: int = pyDateTime.hour.to(int)
+        minute: int = pyDateTime.minute.to(int)
+        second: int = pyDateTime.second.to(int)
+        microsecond: int = pyDateTime.microsecond.to(int)
+    result = datetime2NimDatetime(year, month, day, hour, minute, second, microsecond)
+
+proc pyDate2NimDateTime*(pyDate: nimpy.PyObject): DateTime =
+    let
+        year: int = pyDate.year.to(int)
+        month: int = pyDate.month.to(int)
+        day: int = pyDate.day.to(int)
+    result = date2NimDateTime(year, month, day)
+
+proc pyTime2NimDuration*(pyTime: nimpy.PyObject): Duration =
+    let
+        hour: int = pyTime.hour.to(int)
+        minute: int = pyTime.minute.to(int)
+        second: int = pyTime.second.to(int)
+        microsecond: int = pyTime.microsecond.to(int)
+    result = time2NimDuration(hour, minute, second, microsecond)

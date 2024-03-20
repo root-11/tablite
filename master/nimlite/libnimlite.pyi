@@ -28,3 +28,7 @@ def repaginate(column):
 
 def collect_text_reader_page_info_task(task_info, task):
     pass
+
+
+def nearest_neighbour(T, sources, missing, targets, tqdm):
+    pass

@@ -1069,6 +1069,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tablite.nimlite.nearest_neighbour" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;nearest_neighbour
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1434,6 +1443,15 @@
   <a href="#tablite.nimlite.repaginate" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;repaginate
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.nimlite.nearest_neighbour" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;nearest_neighbour
     </span>
   </a>
   
@@ -2204,6 +2222,30 @@
             <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">298</span>
 <span class="normal">299</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">repaginate</span><span class="p">(</span><span class="n">column</span><span class="p">:</span> <span class="n">Column</span><span class="p">):</span>
     <span class="n">nl</span><span class="o">.</span><span class="n">repaginate</span><span class="p">(</span><span class="n">column</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+          </details>
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h4 id="tablite.nimlite.nearest_neighbour" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">nimlite</span><span class="o">.</span><span class="n">nearest_neighbour</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">missing</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">)</span></code>
+
+</h4>
+
+
+  <div class="doc doc-contents ">
+
+          <details class="quote">
+            <summary>Source code in <code>tablite/nimlite.py</code></summary>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">301</span>
+<span class="normal">302</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">nearest_neighbour</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">missing</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">nl</span><span class="o">.</span><span class="n">nearest_neighbour</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">missing</span><span class="p">),</span> <span class="n">targets</span><span class="p">,</span> <span class="n">tqdm</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
           </details>
   </div>
