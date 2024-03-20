@@ -5,6 +5,7 @@ from tablite.utils import sub_cls_check, summary_statistics
 from tablite.config import Config
 from tablite import sort_utils
 
+from tablite.nimlite import nearest_neighbour
 from tqdm import tqdm as _tqdm
 
 
@@ -94,7 +95,7 @@ def imputation(T, targets, missing=None, method="carry forward", sources=None, t
     elif method in {"mean", "mode"}:
         return stats_method(T, targets, missing, method, tqdm=tqdm, pbar=pbar)
     elif method == "nearest neighbour":
-        return nearest_neighbour(T, sources, missing, targets, tqdm=tqdm, pbar=pbar)
+        return nearest_neighbour(T, sources, missing, targets, tqdm=tqdm)
     else:
         raise ValueError(f"method {method} not recognised amonst known methods: {list(methods)})")
 
@@ -155,78 +156,4 @@ def stats_method(T, targets, missing, method, tqdm=_tqdm, pbar=None):
         else:
             new[name] = T[name]  # no entropy, keep as is.
         
-    return new
-
-
-def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm, pbar=None):
-    assert isinstance(missing, set)
-
-    new = T.copy()
-    norm_index = {}
-    normalised_values = BaseTable()
-    for name in sources:
-        values = T[name].unique().tolist()
-        values = sort_utils.unix_sort(values, reverse=False)
-        values = [(v, k) for k, v in values.items()]
-        values.sort()
-        values = [k for _, k in values]
-        d = sort_utils.HashDict()
-        n = len([v for v in values if v not in missing])
-        for i, v in enumerate(values):
-            d[v] = i / n if v not in missing else math.inf
-        normalised_values[name] = [d[v] for v in T[name]]
-        norm_index[name] = d
-        values.clear()
-
-    missing_value_index = T.index(*targets)
-    missing_value_index = {k: v for k, v in missing_value_index.items() if missing.intersection(set(k))}  # strip out all that do not have missings.
-
-    ranks = sort_utils.HashDict()
-    for k in missing_value_index.keys():
-        for vv in k:
-            ranks[vv] = True
-    ranks = ranks.keys()
-    item_order = sort_utils.unix_sort(list(ranks))
-    new_order = {tuple(item_order[i] for i in k): k for k in missing_value_index.keys()}
-
-    if pbar is None:
-        total = total=sum(len(v) for v in missing_value_index.values())
-        pbar = tqdm(total=total, desc=f"imputation.nearest_neighbour", disable=Config.TQDM_DISABLE)
-
-    for _, key in sorted(new_order.items(), reverse=True):  # Fewest None's are at the front of the list.
-        for row_id in missing_value_index[key]:
-            err_map = [0.0 for _ in range(len(T))]
-            for n, v in T.to_dict(columns=sources, slice_=slice(row_id, row_id + 1, 1)).items():
-                # ^--- T.to_dict doesn't go to disk as hence saves an IO step.
-                v = v[0]
-                norm_value = norm_index[n][v]
-                if norm_value != math.inf:
-                    err_map = [e1 + abs(norm_value - e2) for e1, e2 in zip(err_map, normalised_values[n])]
-
-            min_err = min(err_map)
-            ix = err_map.index(min_err)
-
-            for name in targets:
-                current_value = new[name][row_id]
-                if current_value not in missing:  # no need to replace anything.
-                    continue
-                if new[name][ix] not in missing:  # can confidently impute.
-                    new[name][row_id] = new[name][ix]
-                else:  # replacement is required, but ix points to another missing value.
-                    # we therefore have to search after the next best match:
-                    tmp_err_map = err_map[:]
-                    for _ in range(len(err_map)):
-                        tmp_min_err = min(tmp_err_map)
-                        tmp_ix = tmp_err_map.index(tmp_min_err)
-                        if row_id == tmp_ix:
-                            tmp_err_map[tmp_ix] = math.inf
-                            continue
-                        elif new[name][tmp_ix] in missing:
-                            tmp_err_map[tmp_ix] = math.inf
-                            continue
-                        else:
-                            new[name][row_id] = new[name][tmp_ix]
-                            break
-
-            pbar.update(1)
     return new

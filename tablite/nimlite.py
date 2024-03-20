@@ -297,3 +297,6 @@ def read_page(path: Union[str, Path]) -> np.ndarray:
 
 def repaginate(column: Column):
     nl.repaginate(column)
+
+def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm):
+    return nl.nearest_neighbour(T, sources, list(missing), targets, tqdm)
