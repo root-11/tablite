@@ -1,4 +1,4 @@
-import std/[os, unicode, strutils, sugar, times, tables, enumerate, sequtils, paths]
+import std/[os, unicode, strutils, sugar, times, tables, enumerate, sequtils, paths, hashes]
 from std/macros import bindSym
 from std/typetraits import name
 from std/math import ceil
@@ -216,8 +216,17 @@ method `$`*(self: ObjectNDArray): string =
             v.toRepr
     self.fullPrint("object", v.join(", "))
 
-
-proc `[]`(self: UnicodeNDArray, index: int): string =
+proc `[]`*(self: BooleanNDArray, index: int): bool = self.buf[index]
+proc `[]`*(self: Int8NDArray, index: int): int8 = self.buf[index]
+proc `[]`*(self: Int16NDArray, index: int): int16 = self.buf[index]
+proc `[]`*(self: Int32NDArray, index: int): int32 = self.buf[index]
+proc `[]`*(self: Int64NDArray, index: int): int64 = self.buf[index]
+proc `[]`*(self: Float32NDArray, index: int): float32 = self.buf[index]
+proc `[]`*(self: Float64NDArray, index: int): float64 = self.buf[index]
+proc `[]`*(self: DateNDArray, index: int): DateTime = self.buf[index]
+proc `[]`*(self: DateTimeNDArray, index: int): DateTime = self.buf[index]
+proc `[]`*(self: ObjectNDArray, index: int): PY_ObjectND = self.buf[index]
+proc `[]`*(self: UnicodeNDArray, index: int): string =
     var chars = newSeqOfCap[Rune](self.size)
     let offset = self.size * index
 
@@ -1379,6 +1388,65 @@ iterator iterateColumn*[T: bool | int | float | string | PY_ObjectND](column: ni
 iterator iterateColumn*(column: nimpy.PyObject, kind: KindObjectND): DateTime = 
     for v in iterateColumn(modules().tablite.modules.base.collectPages(column), kind):
         yield v
+
+proc getItemAsObject*(page: BaseNDArray, index: int): PY_ObjectND =
+    case page.kind:
+    of K_BOOLEAN: return newPY_Object(BooleanNDArray(page)[index])
+    of K_INT8: return newPY_Object(Int8NDArray(page)[index])
+    of K_INT16: return newPY_Object(Int16NDArray(page)[index])
+    of K_INT32: return newPY_Object(Int32NDArray(page)[index])
+    of K_INT64: return newPY_Object(Int64NDArray(page)[index])
+    of K_FLOAT32: return newPY_Object(Float32NDArray(page)[index])
+    of K_FLOAT64: return newPY_Object(Float64NDArray(page)[index])
+    of K_STRING: return newPY_Object(UnicodeNDArray(page)[index])
+    of K_DATE: return newPY_Object(DateNDArray(page)[index], K_DATE)
+    of K_DATETIME: return newPY_Object(DateTimeNDArray(page)[index], K_DATETIME)
+    of K_OBJECT: return ObjectNDArray(page)[index]
+
+proc getItemAsObject*(pagePaths: seq[string], index:int): PY_ObjectND =
+    var pageCount = len(pagePaths)
+    var cnt = 0
+    for pageIndex in 0 ..< pageCount:
+        let pageLength = getPageLen(pagePaths[pageIndex])
+        if index >= cnt + pageLength:
+            cnt = cnt + pageLength
+            continue
+        var page = readNumpy(pagePaths[pageIndex])
+        return getItemAsObject(page, index - cnt)
+    raise newException(IndexDefect, "out of range.")
+
+type TableIndices* = OrderedTable[seq[PY_ObjectND], seq[int]]
+
+method toHash(self: PY_ObjectND): Hash {.base, inline.} = implement("PY_ObjectND.`hash` must be implemented by inheriting class: " & $self.kind)
+method toHash(self: PY_NoneType): Hash = hash(self.kind)
+method toHash(self: PY_Boolean): Hash = hash((self.kind, self.value))
+method toHash(self: PY_Int): Hash = hash((self.kind, self.value))
+method toHash(self: PY_Float): Hash = hash((self.kind, self.value))
+method toHash(self: PY_Date): Hash = hash((self.kind, self.value))
+method toHash(self: PY_Time): Hash = hash((self.kind, self.value))
+method toHash(self: PY_DateTime): Hash = hash((self.kind, self.value))
+method toHash(self: PY_String): Hash = hash((self.kind, self.value))
+proc hash*(self: PY_ObjectND): Hash = self.toHash()
+proc hash*(self: seq[PY_ObjectND]): Hash = hash(self, 0, self.high)
+
+
+proc index*(table: nimpy.PyObject, columnNames: openArray[string]): TableIndices =
+    var d = initOrderedTable[seq[PY_ObjectND], seq[int]]()
+    var columnsPages: seq[seq[string]] = collect: 
+        for name in columnNames: 
+            modules().tablite.modules.base.collectPages(table[name])
+    var pageCount = len(columnsPages[0])
+    var ix = 0
+    for pageIndex in 0 ..< pageCount:
+        let pages = collect: (for paths in columnsPages: readNumpy(paths[pageIndex]))
+        let pageLength = len(pages[0])
+        for rowIndex in 0 ..< pageLength:
+            let row = collect: (for page in pages: getItemAsObject(page, rowIndex))
+            if row notin d:
+                d[row] = newSeq[int]()
+            d[row].add(ix)
+            inc ix
+    return d
 
 when isMainModule and appType != "lib":
     let tabliteConfig = modules().tablite.modules.config.classes.Config

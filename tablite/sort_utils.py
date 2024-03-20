@@ -297,3 +297,7 @@ class HashDict(dict):
     
     def __repr__(self) -> str:
         return '{' + ", ".join([f"{k}: {v}" for (_, k), v in self.items()]) + '}'
+
+    def __str__(self) -> str:
+        return repr(self)
+    

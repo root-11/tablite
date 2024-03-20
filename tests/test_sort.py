@@ -59,6 +59,7 @@ def test_unix_sort():
     
     assert True in d
     assert d[True] == 3
+
     assert 0 in d
     assert d[0] == 4
     
@@ -70,3 +71,5 @@ def test_unix_sort():
     
     assert 2 in d
     assert d[2] == 7
+
+    print(d)

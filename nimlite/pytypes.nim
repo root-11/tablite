@@ -74,6 +74,18 @@ method toRepr*(self: PY_Date): string = self.value.format(fmtDate)
 method toRepr*(self: PY_Time): string = self.value.duration2Date.format(fmtTime)
 method toRepr*(self: PY_DateTime): string = self.value.format(fmtDateTime)
 
+template isSameType(first: PY_ObjectND, second: PY_ObjectND): bool = first.kind == second.kind
+
+method `==`*(self: PY_ObjectND, other: PY_ObjectND): bool {.base, inline.} = implement("PY_ObjectND.`==` must be implemented by inheriting class: " & $self.kind)
+method `==`*(self: PY_NoneType, other: PY_ObjectND): bool = isSameType(self, other)
+method `==`*(self: PY_Boolean, other: PY_ObjectND): bool = self.isSameType(other) and PY_Boolean(other).value == self.value
+method `==`*(self: PY_Int, other: PY_ObjectND): bool = self.isSameType(other) and PY_Int(other).value == self.value
+method `==`*(self: PY_Float, other: PY_ObjectND): bool = self.isSameType(other) and PY_Float(other).value == self.value
+method `==`*(self: PY_String, other: PY_ObjectND): bool = self.isSameType(other) and PY_String(other).value == self.value
+method `==`*(self: PY_Date, other: PY_ObjectND): bool = self.isSameType(other) and PY_Date(other).value == self.value
+method `==`*(self: PY_Time, other: PY_ObjectND): bool = self.isSameType(other) and PY_Time(other).value == self.value
+method `==`*(self: PY_DateTime, other: PY_ObjectND): bool = self.isSameType(other) and PY_DateTime(other).value == self.value
+
 proc newPY_Date*(year: uint16, month, day: uint8): PY_Date {.inline.} = PY_Date(value: date2NimDatetime(int year, int month, int day), kind: K_DATE)
 
 proc newPY_DateTime*(date: PY_Date, time: PY_Time): PY_DateTime = PY_DateTime(value: date.value + time.value, kind: K_DATETIME)
@@ -104,10 +116,15 @@ proc newPY_Time*(hour, minute, second: uint8, microsecond: uint32): PY_Time {.in
 
 proc newPY_Time*(date: DateTime): PY_Time = PY_Time(value: date.toTime.time2Duration, kind: K_TIME)
 
-method `$`*(self: PY_ObjectND): string {.inline, base.} = "PY_ObjectND"
-method `$`*(self: PY_Date): string {.inline.} = "Date(" & self.toRepr & ")"
-method `$`*(self: PY_Time): string {.inline.} = "Time(" & self.toRepr & ")"
-method `$`*(self: PY_DateTime): string {.inline.} = "DateTime(" & self.toRepr & ")"
+method `$`*(self: PY_ObjectND): string {.base, inline.} = implement("PY_ObjectND.`$` must be implemented by inheriting class: " & $self.kind)
+method `$`*(self: PY_NoneType): string = "None()"
+method `$`*(self: PY_Boolean): string = "Bool(" & self.toRepr & ")"
+method `$`*(self: PY_Int): string = "Int(" & self.toRepr & ")"
+method `$`*(self: PY_Float): string = "Float(" & self.toRepr & ")"
+method `$`*(self: PY_String): string = "String(" & self.toRepr & ")"
+method `$`*(self: PY_Date): string = "Date(" & self.toRepr & ")"
+method `$`*(self: PY_Time): string = "Time(" & self.toRepr & ")"
+method `$`*(self: PY_DateTime): string = "DateTime(" & self.toRepr & ")"
 
 proc calcShapeElements*(shape: var Shape): int {.inline.} =
     var elements = 1
@@ -150,6 +167,7 @@ proc newPY_Object*(v: bool): PY_ObjectND {.inline.} = PY_Boolean(value: v, kind:
 proc newPY_Object*(v: int): PY_ObjectND {.inline.} = PY_Int(value: v, kind: K_INT)
 proc newPY_Object*(v: float): PY_ObjectND {.inline.} = PY_Float(value: v, kind: K_FLOAT)
 proc newPY_Object*(v: string): PY_ObjectND {.inline.} = PY_String(value: v, kind: K_STRING)
+proc newPY_Object*(v: Duration): PY_ObjectND {.inline.} = PY_Time(value: v, kind: K_TIME)
 proc newPY_Object*(v: DateTime, k: KindObjectND): PY_ObjectND {.inline.} =
     case k:
     of K_DATE: return PY_Date(value: v, kind: k)

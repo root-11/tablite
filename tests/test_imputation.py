@@ -16,6 +16,15 @@ def test_replace_missing_values_00():
     result = t.imputation(sources=["a", "b"], targets=["c"], method="nearest neighbour")  # missing not declared.
     assert [r for r in result.rows] == expected
 
+def test_replace_missing_values_345():
+    t = Table({
+        "a": [0, 1, None, 3, 0],
+        "b": ["4", 5, 6, 7, 4]
+    })
+
+    result = t.imputation(sources=["a", "b"], targets=["a"], method="nearest neighbour", missing={None})
+    assert result["a"][2] == 3
+
 
 def test_nearest_neighbour_multiple_missing():
     sample = [[1, 2, 3], [1, 2, None], [5, 5, 5], [5, 5, "NULL"], [6, 6, 6], [6, -1, 6]]
@@ -104,7 +113,12 @@ def test_replace_missing_values_02_same_row_twice():
 
 
 def test_replace_missing_values_05():
-    sample = [[None, 1, 2, 3], [0, None, 2, 3], [0, 1, None, 3], [0, 1, 2, None]]
+    sample = [
+        [None, 1, 2, 3], 
+        [0, None, 2, 3], 
+        [0, 1, None, 3], 
+        [0, 1, 2, None]
+    ]
 
     cols = [str(i) for i, _ in enumerate(sample[0])]
     t = Table()
@@ -112,8 +126,8 @@ def test_replace_missing_values_05():
     for row in sample:
         t.add_rows(row)
 
-    result = t.imputation(targets=cols, method="nearest neighbour", sources=cols)
-    result = result.imputation(targets=cols, method="nearest neighbour", sources=cols)
+    result = t.imputation(targets=cols, missing=[None], method="nearest neighbour", sources=cols)
+    # result = result.imputation(targets=cols, method="nearest neighbour", sources=cols)
 
     expected = [
         [0, 1, 2, 3],
@@ -395,3 +409,12 @@ def test_imputation_dtypes_08():
 
     assert dtypes["d"] == {int: 10, float: 2}
     assert dtypes["e"] == {int: 11, float: 1}
+
+
+if __name__=="__main__":
+    test_replace_missing_values_00()
+    test_replace_missing_values_345()
+    test_nearest_neighbour_multiple_missing()
+    test_replace_missing_values_01()
+    test_replace_missing_values_02()
+    test_replace_missing_values_02b()

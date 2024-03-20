@@ -5,6 +5,7 @@ from tablite.utils import sub_cls_check, summary_statistics
 from tablite.config import Config
 from tablite import sort_utils
 
+from tablite.nimlite import nearest_neighbour
 from tqdm import tqdm as _tqdm
 
 
@@ -94,7 +95,7 @@ def imputation(T, targets, missing=None, method="carry forward", sources=None, t
     elif method in {"mean", "mode"}:
         return stats_method(T, targets, missing, method, tqdm=tqdm, pbar=pbar)
     elif method == "nearest neighbour":
-        return nearest_neighbour(T, sources, missing, targets, tqdm=tqdm, pbar=pbar)
+        return nearest_neighbour(T, sources, missing, targets, tqdm=tqdm)
     else:
         raise ValueError(f"method {method} not recognised amonst known methods: {list(methods)})")
 
