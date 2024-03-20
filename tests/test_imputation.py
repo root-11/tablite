@@ -127,7 +127,7 @@ def test_replace_missing_values_05():
         t.add_rows(row)
 
     result = t.imputation(targets=cols, missing=[None], method="nearest neighbour", sources=cols)
-    # result = result.imputation(targets=cols, method="nearest neighbour", sources=cols)
+    result = result.imputation(targets=cols, method="nearest neighbour", sources=cols)
 
     expected = [
         [0, 1, 2, 3],

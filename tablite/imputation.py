@@ -159,7 +159,7 @@ def stats_method(T, targets, missing, method, tqdm=_tqdm, pbar=None):
     return new
 
 
-def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm, pbar=None):
+def nearest_neighbour_py(T, sources, missing, targets, tqdm=_tqdm, pbar=None):
     assert isinstance(missing, set)
 
     new = T.copy()
@@ -194,6 +194,11 @@ def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm, pbar=None):
         total = total=sum(len(v) for v in missing_value_index.values())
         pbar = tqdm(total=total, desc=f"imputation.nearest_neighbour", disable=Config.TQDM_DISABLE)
 
+    sparse_map = {
+        t: {}
+        for t in targets
+    }
+
     for _, key in sorted(new_order.items(), reverse=True):  # Fewest None's are at the front of the list.
         for row_id in missing_value_index[key]:
             err_map = [0.0 for _ in range(len(T))]
@@ -211,22 +216,38 @@ def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm, pbar=None):
                 current_value = new[name][row_id]
                 if current_value not in missing:  # no need to replace anything.
                     continue
-                if new[name][ix] not in missing:  # can confidently impute.
-                    new[name][row_id] = new[name][ix]
+
+                if ix not in sparse_map[name]:
+                    sv = new[name][ix]
+                    sparse_map[name][ix] = sv
+                else:
+                    sv = sparse_map[name][ix]
+                    
+
+                if sv not in missing:  # can confidently impute.
+                    print(f"1: newTable[{name}][{row_id}] = sv: {new[name][row_id]} -> {sv}")
+                    new[name][row_id] = sv
+                    sparse_map[name][row_id] = sv
                 else:  # replacement is required, but ix points to another missing value.
                     # we therefore have to search after the next best match:
                     tmp_err_map = err_map[:]
                     for _ in range(len(err_map)):
                         tmp_min_err = min(tmp_err_map)
                         tmp_ix = tmp_err_map.index(tmp_min_err)
-                        if row_id == tmp_ix:
-                            tmp_err_map[tmp_ix] = math.inf
-                            continue
-                        elif new[name][tmp_ix] in missing:
+
+                        if tmp_ix not in sparse_map[name]:
+                            sv = new[name][tmp_ix]
+                            sparse_map[name][tmp_ix] = sv
+                        else:
+                            sv = sparse_map[name][tmp_ix]
+
+                        if row_id == tmp_ix or sv in missing:
                             tmp_err_map[tmp_ix] = math.inf
                             continue
                         else:
-                            new[name][row_id] = new[name][tmp_ix]
+                            print(f"2: newTable[{name}][{row_id}] = sv: {new[name][row_id]} -> {sv}")
+                            new[name][row_id] = sv
+                            sparse_map[name][row_id] = sv
                             break
 
             pbar.update(1)

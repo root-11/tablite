@@ -1,7 +1,6 @@
 import nimpy
+import std/[tables, sugar, options, times, algorithm, enumerate, hashes, sequtils, strformat, math]
 import ../[pytypes, numpy, pymodules, utils, dateutils, nimpyext]
-import std/[tables, sugar, options, times, algorithm, enumerate, hashes,
-        sequtils, strformat, math]
 
 const PARITY_TABLE = {
     K_NONETYPE: 0,
@@ -26,8 +25,7 @@ proc uniqueColumnValues(pagePaths: seq[string]): seq[PY_ObjectND] =
             uniqueVals.add(v)
     result = uniqueVals
 
-method toFloat(self: PY_ObjectND): float {.base, inline.} = implement(
-        "PY_ObjectND.`toFloat` must be implemented by inheriting class: " & $self.kind)
+method toFloat(self: PY_ObjectND): float {.base, inline.} = implement("PY_ObjectND.`toFloat` must be implemented by inheriting class: " & $self.kind)
 method toFloat(self: PY_NoneType): float = -Inf
 method toFloat(self: PY_Boolean): float = float(self.value)
 method toFloat(self: PY_Int): float = float(self.value)
@@ -37,14 +35,14 @@ method toFloat(self: PY_Time): float = self.value.duration2Seconds()
 method toFloat(self: PY_DateTime): float = self.value.toTime().toUnixFloat()
 
 proc cmpNonText(this, other: PY_ObjectND): int =
-    var r = system.cmp[int](PARITY_TABLE[this.kind], PARITY_TABLE[other.kind])
+    let r = system.cmp[int](PARITY_TABLE[this.kind], PARITY_TABLE[other.kind])
+
     if r == 0:
         return system.cmp[float](this.toFloat(), other.toFloat())
-    else:
-        return r
 
-proc cmpText(this, other: PY_String): int =
-    return system.cmp[string](this.value, other.value)
+    return r
+
+proc cmpText(this, other: PY_String): int = system.cmp[string](this.value, other.value)
 
 proc unixSort*(values: seq[PY_ObjectND]): OrderedTable[PY_ObjectND, int] =
     var text: seq[PY_String] = @[]
@@ -55,19 +53,21 @@ proc unixSort*(values: seq[PY_ObjectND]): OrderedTable[PY_ObjectND, int] =
             text.add(PY_String(v))
         else:
             nonText.add(v)
+
     nonText.sort(cmpNonText)
     text.sort(cmpText)
 
     var d = initOrderedTable[PY_ObjectND, int]()
     for ix, v in enumerate(nonText):
         d[v] = ix
+
     var l = len(nonText)
     for ix, v in enumerate(text):
         d[v] = ix + l
+
     return d
 
-proc cmpTuples(this, other: (int, PY_ObjectND)): int =
-    return system.cmp[int](this[0], other[0])
+proc cmpTuples(this, other: (int, PY_ObjectND)): int = system.cmp[int](this[0], other[0])
 
 proc cmpSeqs(this, other: (seq[int], seq[PY_ObjectND])): int =
     for (t, o) in zip(this[0], other[0]):
@@ -76,12 +76,11 @@ proc cmpSeqs(this, other: (seq[int], seq[PY_ObjectND])): int =
             return r
     return 0
 
-iterator getRowObjects(table: nimpy.PyObject, columns: seq[string],
-        indices: seq[int]): (int, int, seq[(string, PY_ObjectND)]) =
-    var columnsPages: seq[seq[string]] = collect:
-        for name in columns:
-            modules().tablite.modules.base.collectPages(table[name])
-    var pageCount = len(columnsPages[0])
+iterator getRowObjects(table: nimpy.PyObject, columns: seq[string], indices: seq[int]): (int, int, int, seq[(string, PY_ObjectND)]) =
+    let base = modules().tablite.modules.base
+    let columnsPages: seq[seq[string]] = collect: (for name in columns: base.collectPages(table[name]))
+    let pageCount = len(columnsPages[0])
+
     var ix = 0
     var cnt = 0
     for pageIndex in 0 ..< pageCount:
@@ -95,12 +94,11 @@ iterator getRowObjects(table: nimpy.PyObject, columns: seq[string],
                 pages = some(p)
             let row = collect: (for (i, p) in enumerate(pages.get()): (columns[
                     i], getItemAsObject(p, indices[ix] - cnt)))
-            yield (pageIndex, indices[ix] - cnt, row)
+            yield (pageIndex, indices[ix], indices[ix] - cnt, row)
             inc ix
         cnt = cnt + pageLength
 
-proc savePages(sliceData: seq[seq[PY_ObjectND]], columns: seq[nimpy.PyObject], lastPageIndex: int) =
-    echo "save data ", sliceData
+proc savePages(sliceData: seq[seq[PY_ObjectND]], columns: seq[nimpy.PyObject], pageIndex: int) =
     let m = modules()
     let tabliteConfig = m.tablite.modules.config.classes.Config
     let wpid = tabliteConfig.pid.to(string)
@@ -113,7 +111,7 @@ proc savePages(sliceData: seq[seq[PY_ObjectND]], columns: seq[nimpy.PyObject], l
         var arr = newNDArray(vals)
         arr.save(workdir, pid)
         var page = newPyPage(arr, workdir, pid)
-        col.pages[lastPageIndex] = page
+        col.pages[pageIndex] = page
 
 proc nearestNeighbourImputation*(T: nimpy.PyObject, sources: seq[string],
         missing: seq[PY_ObjectND], targets: seq[string],
@@ -125,7 +123,6 @@ proc nearestNeighbourImputation*(T: nimpy.PyObject, sources: seq[string],
         pid: string = tabliteConf.pid.to(string)
         workDir: string = m.toStr(tabliteConf.workdir)
         pidDir: string = &"{workDir}/{pid}"
-
 
     var normIndex = initOrderedTable[string, Table[PY_ObjectND, float]]()
     var normalisedValues = initOrderedTable[string, seq[float]]()
@@ -149,9 +146,7 @@ proc nearestNeighbourImputation*(T: nimpy.PyObject, sources: seq[string],
         var arr = collect: (for v in iterateColumn[PY_ObjectND](pagePaths): d[v])
         normalisedValues[name] = arr
         normIndex[name] = d
-    
-    echo "normIndex ", normIndex
-    echo "normalisedValues ", normalisedValues
+
     let missingValueIndexTablite: TableIndices = T.index(targets)
     let missingValueIndex = collect(initOrderedTable()): # strip out all that do not have missings.
         for (k, v) in missingValueIndexTablite.pairs():
@@ -164,22 +159,18 @@ proc nearestNeighbourImputation*(T: nimpy.PyObject, sources: seq[string],
         pbar = tqdm!(desc: &"imputation.nearest_neighbour", total: totalSteps)
         ranks: seq[PY_ObjectND] = @[]
         newOrder = initTable[seq[int], seq[PY_ObjectND]]()
-    
+
     for k in missingValueIndex.keys():
         for kk in k:
             if kk notin ranks:
                 ranks.add(kk)
 
-    echo "ranks ", ranks
     let itemOrder = unixSort(ranks)
-    echo "item Order ", itemOrder
-
     for k in missingValueIndex.keys():
         var arr = newSeq[int]()
         for i in k:
             arr.add(itemOrder[i])
         newOrder[arr] = k
-    echo "new order ", newOrder
 
     var sortedNewOrder = toSeq(newOrder.pairs())
     sortedNewOrder.sort(cmpSeqs, SortOrder.Descending) # Fewest None's are at the front of the list.
@@ -189,7 +180,6 @@ proc nearestNeighbourImputation*(T: nimpy.PyObject, sources: seq[string],
             tabliteBase.collectPages(T[name])
 
     var targetsPYColumns: seq[nimpy.PyObject]
-
     var newTable = m.tablite.classes.TableClass!()
     for columnName in T.columns:
         if m.toStr(columnName) in targets:
@@ -204,29 +194,21 @@ proc nearestNeighbourImputation*(T: nimpy.PyObject, sources: seq[string],
     var targetsPages: Option[seq[seq[PY_ObjectND]]] = none[seq[seq[
             PY_ObjectND]]]()
     var lastPageIndex = -1
-    var sparseMap: Table[string, Table[int, PY_ObjectND]] = collect(initTable()):
+    var sparseMap = collect(initOrderedTable()):
         for t in targets:
-            {t: initTable[int, PY_ObjectND]()}
+            {t: initOrderedTable[int, PY_ObjectND]()}
 
-    echo "sortedNewOrder ", sortedNewOrder
-    echo "missingValueIndex ", missingValueIndex 
     for (_, key) in sortedNewOrder:
-        for (pageIndex, rowId, row) in getRowObjects(T, sources, missingValueIndex[key]):
-            echo "sparsemap ", sparseMap
+        for (pageIndex, rowIdx, pageIdx, row) in getRowObjects(T, sources, missingValueIndex[key]):
             var errMap = newSeq[float](m.getLen(T))
-            echo "row ", row
             for (n, v) in row:
-                # echo "n , v ", n, " ", v
                 let normValue = normIndex[n][v]
-                echo "norm value", normValue, "n, v ", n, " ", v
                 if normValue != Inf:
                     for (ix, e) in enumerate(zip(errMap, normalisedValues[n])):
                         var (e1, e2) = e
-                        echo e1, " ", e2, " ", ix, " ", normValue
                         errMap[ix] = e1 + abs(normValue - e2)
             let minErr = min(errMap)
             let ix = errMap.find(minErr)
-            echo "errmap ", " ", ix, " ", errMap
             if lastPageIndex != pageIndex:
                 if lastPageIndex != -1:
                     savePages(targetsPages.get(), targetsPYColumns, lastPageIndex)
@@ -240,47 +222,42 @@ proc nearestNeighbourImputation*(T: nimpy.PyObject, sources: seq[string],
             var newTable = targetsPages.get().addr
 
             for (i, name) in enumerate(targets):
-
-                var currentValue = newTable[i][rowId]
+                var currentValue = newTable[i][pageIdx]
                 if currentValue notin missing: # no need to replace anything.
                     continue
 
                 var sv: PY_ObjectND
                 if ix notin sparseMap[name]:
                     sv = getItemAsObject(targetsColumnsPages[i], ix)
-                    echo "sv ", sv
                     sparseMap[name][ix] = sv
                 else:
                     sv = sparseMap[name][ix]
                 if sv notin missing: # can confidently impute.
-                    newTable[i][rowId] = sv
-                    sparseMap[name][ix] = sv
+                    newTable[i][pageIdx] = sv
+                    sparseMap[name][rowIdx] = sv
                 else: # replacement is required, but ix points to another missing value.
                 # we therefore have to search after the next best match:
-                    echo "WE COME HERE ", sv
                     var tmpErrMap = clone(addr errMap)
-                    echo "errmap HERE ", errMap
                     for _ in 0 ..< len(errMap):
-                        echo "temperrmap HERE ", tmpErrMap
                         let tmpMinErr = min(tmpErrMap)
                         let tmpIx = tmpErrMap.find(tmpMinErr)
-                        echo " madafaker ", tmpIx, " ", rowId
-                        var sv: PY_ObjectND
+
+                        var sv {.noinit.}: PY_ObjectND
+
                         if tmpIx notin sparseMap[name]:
                             sv = getItemAsObject(targetsColumnsPages[i], tmpIx)
                             sparseMap[name][tmpIx] = sv
                         else:
                             sv = sparseMap[name][tmpIx]
-                        echo "sv ", sv
-                        if rowId == tmpIx or sv in missing:
+
+                        if rowIdx == tmpIx or sv in missing:
                             tmpErrMap[tmpIx] = Inf
                             continue
                         else:
-                            newTable[i][rowId] = sv
-                            sparseMap[name][tmpIx] = sv
+                            newTable[i][pageIdx] = sv
+                            sparseMap[name][rowIdx] = sv
                             break
             discard pbar.update(1)
-    echo "sparsemap ", sparseMap
     if lastPageIndex != -1:
         savePages(targetsPages.get(), targetsPYColumns, lastPageIndex)
     return newTable
@@ -303,7 +280,7 @@ when appType != "lib":
     columns["b"] = @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(2), nimValueToPy(3)]
     columns["c"] = @[nimValueToPy(0), nimValueToPy(1), nimValueToPy(nil), nimValueToPy(3)]
     columns["d"] = @[nimValueToPy(0), nimValueToPy(1), nimValueToPy(2), nimValueToPy(nil)]
-    
+
     let table = modules().tablite.classes.TableClass!(columns = columns)
 
     discard table.show()
