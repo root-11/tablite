@@ -578,7 +578,7 @@ def test_page_refcount():
     assert all(Page.refcounts.get(p.path, 0) == 1 for p in table["A"].pages), "Refcount expected to be 1"
     assert all(Page.refcounts.get(p.path, 0) == 1 for p in table["B"].pages), "Refcount expected to be 1"
 
-    with TaskManager(1) as tm:
+    with TaskManager(1, error_mode="exception") as tm:
         """ this will cause deep table copy by copying table from main process -> child process -> main process """
         tasks = [Task(fn_foo_table, table)]
 

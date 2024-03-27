@@ -126,7 +126,7 @@ def _mp_lookup(T, other, index):
     cpus = 1  # max(psutil.cpu_count(logical=False), 1)
     step_size = math.ceil(len(T) / cpus)
 
-    with TaskManager(cpu_count=cpus) as tm:  # keeps the CPU pool alive during the whole join.
+    with TaskManager(cpu_count=cpus, error_mode="exception") as tm:  # keeps the CPU pool alive during the whole join.
         # for table, columns, side in ([T, left_columns, LEFT], [other, right_columns, RIGHT]):
 
         index, index_shm = share_mem(index, np.int64)  # <-- this is index
@@ -149,8 +149,6 @@ def _mp_lookup(T, other, index):
                 start, end = end, end + step_size
             # All CPUS now work on the same column and memory footprint is predetermined.
             results = tm.execute(tasks)
-            if any(i is not None for i in results):
-                raise Exception("\n".join(filter(lambda x: x is not None, results)))
 
             # As the data and index no longer is needed, then can be closed.
             data_shm.close()

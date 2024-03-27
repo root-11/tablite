@@ -9,7 +9,7 @@ pyexcel-xlsx==0.6.0
 pyexcel-xls==0.7.0
 pandas>=2.2.1
 pyuca>=1.2
-mplite>=1.2.5
+mplite>=1.3.0
 PyYAML==6.0
 openpyxl==3.0.10 # newest version breaks pyexcel
 h5py>=3.6.0
