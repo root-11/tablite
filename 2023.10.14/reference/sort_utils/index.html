@@ -1,0 +1,2336 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Tablite Documentation">
+      
+      
+      
+        <link rel="canonical" href="https://root-11.github.io/tablite/2023.10.14/reference/sort_utils/">
+      
+      
+        <link rel="prev" href="../reindex/">
+      
+      
+        <link rel="next" href="../sortation/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.15">
+    
+    
+      
+        <title>Sort utils - Tablite</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.7e359304.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="deep-purple">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#tablite.sort_utils" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Tablite" class="md-header__button md-logo" aria-label="Tablite" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Tablite
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Sort utils
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/root-11/tablite/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../.." class="md-tabs__link">
+          
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../base/" class="md-tabs__link">
+          
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Tablite" class="md-nav__button md-logo" aria-label="Tablite" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    Tablite
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/root-11/tablite/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1" >
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../.." class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_1" id="__nav_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            Home
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Changelog
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../benchmarks/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Benchmarks
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorial/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Tutorial
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Reference
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../base/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Base
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../config/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Config
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Core
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../datasets/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Datasets
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../datatypes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Datatypes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diff/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Diff
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../export_utils/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Export utils
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../file_reader_utils/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    File reader utils
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../groupby_utils/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Groupby utils
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../groupbys/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Groupbys
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../import_utils/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Import utils
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../imputation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Imputation
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../joins/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Joins
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lookup/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Lookup
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../match/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Match
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../merge/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Merge
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mp_utils/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Mp utils
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nimlite/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Nimlite
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pivots/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Pivots
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../redux/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Redux
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reindex/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Reindex
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Sort utils
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Sort utils
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#tablite.sort_utils" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;sort_utils
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" sort_utils">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Attributes
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Attributes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.uca_collator" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;uca_collator
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;modes
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Classes
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Classes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;HashDict
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" HashDict">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Functions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Functions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.items" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;items
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;keys
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.__iter__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__iter__
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.__getitem__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__getitem__
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.__setitem__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__setitem__
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.__contains__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__contains__
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.__delitem__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__delitem__
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.__repr__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__repr__
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.__str__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__str__
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Functions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Functions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.text_sort" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;text_sort
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.unix_sort" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;unix_sort
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.excel_sort" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;excel_sort
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.rank" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;rank
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sortation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Sortation
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Tools
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../utils/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Utils
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../version/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Version
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#tablite.sort_utils" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;sort_utils
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" sort_utils">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Attributes
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Attributes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.uca_collator" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;uca_collator
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;modes
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Classes
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Classes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;HashDict
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" HashDict">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Functions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Functions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.items" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;items
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;keys
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.__iter__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__iter__
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.__getitem__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__getitem__
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.__setitem__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__setitem__
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.__contains__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__contains__
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.__delitem__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__delitem__
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.__repr__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__repr__
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.HashDict.__str__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__str__
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Functions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Functions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.text_sort" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;text_sort
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.unix_sort" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;unix_sort
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.excel_sort" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;excel_sort
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tablite.sort_utils.rank" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;rank
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  <h1>Sort utils</h1>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="tablite.sort_utils" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>          <code>tablite.sort_utils</code>
+
+
+</h2>
+
+  <div class="doc doc-contents first">
+
+  
+
+  <div class="doc doc-children">
+
+
+
+
+
+<h3 id="tablite.sort_utils-attributes">Attributes</h3>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="tablite.sort_utils.uca_collator" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">sort_utils</span><span class="o">.</span><span class="n">uca_collator</span> <span class="o">=</span> <span class="n">Collator</span><span class="p">()</span></code>
+  
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h4>
+
+
+  <div class="doc doc-contents ">
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="tablite.sort_utils.modes" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">sort_utils</span><span class="o">.</span><span class="n">modes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;alphanumeric&#39;</span><span class="p">:</span> <span class="n">text_sort</span><span class="p">,</span> <span class="s1">&#39;unix&#39;</span><span class="p">:</span> <span class="n">unix_sort</span><span class="p">,</span> <span class="s1">&#39;excel&#39;</span><span class="p">:</span> <span class="n">excel_sort</span><span class="p">}</span></code>
+  
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h4>
+
+
+  <div class="doc doc-contents ">
+  </div>
+
+</div>
+<h3 id="tablite.sort_utils-classes">Classes</h3>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="tablite.sort_utils.HashDict" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>          <code>tablite.sort_utils.HashDict</code>
+
+
+</h4>
+
+
+  <div class="doc doc-contents ">
+          <p class="doc doc-class-bases">
+            Bases: <code>dict</code></p>
+
+  
+      <p>This class is just a nicity syntatic sugar for debugging.
+Function identically to regular dictionary, just uses tupled key.</p>
+
+
+  
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<h5 id="tablite.sort_utils.HashDict-functions">Functions</h5>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h6 id="tablite.sort_utils.HashDict.items" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">sort_utils</span><span class="o">.</span><span class="n">HashDict</span><span class="o">.</span><span class="n">items</span><span class="p">()</span></code>
+
+</h6>
+
+
+  <div class="doc doc-contents ">
+
+          <details class="quote">
+            <summary>Source code in <code>tablite/sort_utils.py</code></summary>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">277</span>
+<span class="normal">278</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">items</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">k</span><span class="p">),</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+</code></pre></div></td></tr></table></div>
+          </details>
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h6 id="tablite.sort_utils.HashDict.keys" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">sort_utils</span><span class="o">.</span><span class="n">HashDict</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span></code>
+
+</h6>
+
+
+  <div class="doc doc-contents ">
+
+          <details class="quote">
+            <summary>Source code in <code>tablite/sort_utils.py</code></summary>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">280</span>
+<span class="normal">281</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">keys</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span>
+</code></pre></div></td></tr></table></div>
+          </details>
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h6 id="tablite.sort_utils.HashDict.__iter__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">sort_utils</span><span class="o">.</span><span class="n">HashDict</span><span class="o">.</span><span class="fm">__iter__</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Iterator</span></code>
+
+</h6>
+
+
+  <div class="doc doc-contents ">
+
+          <details class="quote">
+            <summary>Source code in <code>tablite/sort_utils.py</code></summary>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">283</span>
+<span class="normal">284</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">:</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">k</span> <span class="k">for</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+</code></pre></div></td></tr></table></div>
+          </details>
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h6 id="tablite.sort_utils.HashDict.__getitem__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">sort_utils</span><span class="o">.</span><span class="n">HashDict</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span></code>
+
+</h6>
+
+
+  <div class="doc doc-contents ">
+
+          <details class="quote">
+            <summary>Source code in <code>tablite/sort_utils.py</code></summary>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">286</span>
+<span class="normal">287</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_hash</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+</code></pre></div></td></tr></table></div>
+          </details>
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h6 id="tablite.sort_utils.HashDict.__setitem__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">sort_utils</span><span class="o">.</span><span class="n">HashDict</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span></code>
+
+</h6>
+
+
+  <div class="doc doc-contents ">
+
+          <details class="quote">
+            <summary>Source code in <code>tablite/sort_utils.py</code></summary>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">289</span>
+<span class="normal">290</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="fm">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_hash</span><span class="p">(</span><span class="n">key</span><span class="p">),</span> <span class="n">value</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+          </details>
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h6 id="tablite.sort_utils.HashDict.__contains__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">sort_utils</span><span class="o">.</span><span class="n">HashDict</span><span class="o">.</span><span class="fm">__contains__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span></code>
+
+</h6>
+
+
+  <div class="doc doc-contents ">
+
+          <details class="quote">
+            <summary>Source code in <code>tablite/sort_utils.py</code></summary>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">292</span>
+<span class="normal">293</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="fm">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_hash</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+</code></pre></div></td></tr></table></div>
+          </details>
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h6 id="tablite.sort_utils.HashDict.__delitem__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">sort_utils</span><span class="o">.</span><span class="n">HashDict</span><span class="o">.</span><span class="fm">__delitem__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span></code>
+
+</h6>
+
+
+  <div class="doc doc-contents ">
+
+          <details class="quote">
+            <summary>Source code in <code>tablite/sort_utils.py</code></summary>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">295</span>
+<span class="normal">296</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="fm">__delitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__delitem__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_hash</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+</code></pre></div></td></tr></table></div>
+          </details>
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h6 id="tablite.sort_utils.HashDict.__repr__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">sort_utils</span><span class="o">.</span><span class="n">HashDict</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span></code>
+
+</h6>
+
+
+  <div class="doc doc-contents ">
+
+          <details class="quote">
+            <summary>Source code in <code>tablite/sort_utils.py</code></summary>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">298</span>
+<span class="normal">299</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="s1">&#39;{&#39;</span> <span class="o">+</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span> <span class="o">+</span> <span class="s1">&#39;}&#39;</span>
+</code></pre></div></td></tr></table></div>
+          </details>
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h6 id="tablite.sort_utils.HashDict.__str__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">sort_utils</span><span class="o">.</span><span class="n">HashDict</span><span class="o">.</span><span class="fm">__str__</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span></code>
+
+</h6>
+
+
+  <div class="doc doc-contents ">
+
+          <details class="quote">
+            <summary>Source code in <code>tablite/sort_utils.py</code></summary>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">301</span>
+<span class="normal">302</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">repr</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+          </details>
+  </div>
+
+</div>
+
+
+
+  </div>
+
+  </div>
+
+
+</div>
+<h3 id="tablite.sort_utils-functions">Functions</h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h4 id="tablite.sort_utils.text_sort" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">sort_utils</span><span class="o">.</span><span class="n">text_sort</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+</h4>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Sorts everything as text.</p>
+
+          <details class="quote">
+            <summary>Source code in <code>tablite/sort_utils.py</code></summary>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">135</span>
+<span class="normal">136</span>
+<span class="normal">137</span>
+<span class="normal">138</span>
+<span class="normal">139</span>
+<span class="normal">140</span>
+<span class="normal">141</span>
+<span class="normal">142</span>
+<span class="normal">143</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">text_sort</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Sorts everything as text.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">):</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">values</span><span class="p">}</span>
+    <span class="n">L</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">text</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="n">L</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">uca_collator</span><span class="o">.</span><span class="n">sort_key</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="n">reverse</span><span class="p">)</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="p">{</span><span class="n">text</span><span class="p">[</span><span class="n">value</span><span class="p">]:</span> <span class="n">ix</span> <span class="k">for</span> <span class="n">ix</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">L</span><span class="p">)}</span>
+    <span class="k">return</span> <span class="n">d</span>
+</code></pre></div></td></tr></table></div>
+          </details>
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h4 id="tablite.sort_utils.unix_sort" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">sort_utils</span><span class="o">.</span><span class="n">unix_sort</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+</h4>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Unix sortation sorts by the following order:</p>
+<p>| rank | type      | value                                      |
++------+-----------+--------------------------------------------+
+|   0  | None      | floating point -infinite                   |
+|   1  | bool      | 0 as False, 1 as True                      |
+|   2  | int       | as numeric value                           |
+|   2  | float     | as numeric value                           |
+|   3  | time      | τ * seconds into the day / (24 * 60 * 60)  |
+|   4  | date      | as integer days since 1970/1/1             |
+|   5  | datetime  | as float using date (int) + time (decimal) |
+|   6  | timedelta | as float using date (int) + time (decimal) |
+|   7  | str       | using unicode                              |
++------+-----------+--------------------------------------------+</p>
+<p>τ = 2 * π</p>
+
+          <details class="quote">
+            <summary>Source code in <code>tablite/sort_utils.py</code></summary>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">146</span>
+<span class="normal">147</span>
+<span class="normal">148</span>
+<span class="normal">149</span>
+<span class="normal">150</span>
+<span class="normal">151</span>
+<span class="normal">152</span>
+<span class="normal">153</span>
+<span class="normal">154</span>
+<span class="normal">155</span>
+<span class="normal">156</span>
+<span class="normal">157</span>
+<span class="normal">158</span>
+<span class="normal">159</span>
+<span class="normal">160</span>
+<span class="normal">161</span>
+<span class="normal">162</span>
+<span class="normal">163</span>
+<span class="normal">164</span>
+<span class="normal">165</span>
+<span class="normal">166</span>
+<span class="normal">167</span>
+<span class="normal">168</span>
+<span class="normal">169</span>
+<span class="normal">170</span>
+<span class="normal">171</span>
+<span class="normal">172</span>
+<span class="normal">173</span>
+<span class="normal">174</span>
+<span class="normal">175</span>
+<span class="normal">176</span>
+<span class="normal">177</span>
+<span class="normal">178</span>
+<span class="normal">179</span>
+<span class="normal">180</span>
+<span class="normal">181</span>
+<span class="normal">182</span>
+<span class="normal">183</span>
+<span class="normal">184</span>
+<span class="normal">185</span>
+<span class="normal">186</span>
+<span class="normal">187</span>
+<span class="normal">188</span>
+<span class="normal">189</span>
+<span class="normal">190</span>
+<span class="normal">191</span>
+<span class="normal">192</span>
+<span class="normal">193</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">unix_sort</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Unix sortation sorts by the following order:</span>
+
+<span class="sd">    | rank | type      | value                                      |</span>
+<span class="sd">    +------+-----------+--------------------------------------------+</span>
+<span class="sd">    |   0  | None      | floating point -infinite                   |</span>
+<span class="sd">    |   1  | bool      | 0 as False, 1 as True                      |</span>
+<span class="sd">    |   2  | int       | as numeric value                           |</span>
+<span class="sd">    |   2  | float     | as numeric value                           |</span>
+<span class="sd">    |   3  | time      | τ * seconds into the day / (24 * 60 * 60)  |</span>
+<span class="sd">    |   4  | date      | as integer days since 1970/1/1             |</span>
+<span class="sd">    |   5  | datetime  | as float using date (int) + time (decimal) |</span>
+<span class="sd">    |   6  | timedelta | as float using date (int) + time (decimal) |</span>
+<span class="sd">    |   7  | str       | using unicode                              |</span>
+<span class="sd">    +------+-----------+--------------------------------------------+</span>
+
+<span class="sd">    τ = 2 * π</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">text</span><span class="p">,</span> <span class="n">non_text</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+
+    <span class="c1"># L = []</span>
+    <span class="c1"># text = [i for i in values if isinstance(i, str)]</span>
+    <span class="c1"># text.sort(key=uca_collator.sort_key, reverse=reverse)</span>
+    <span class="c1"># text_code = _unix_typecodes[str]</span>
+    <span class="c1"># L = [(text_code, ix, v) for ix, v in enumerate(text)]</span>
+
+    <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">values</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">text</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="n">TC</span> <span class="o">=</span> <span class="n">_unix_typecodes</span><span class="p">[</span><span class="n">t</span><span class="p">]</span>
+            <span class="n">tf</span> <span class="o">=</span> <span class="n">_unix_value_function</span><span class="p">[</span><span class="n">t</span><span class="p">]</span>
+            <span class="n">VC</span> <span class="o">=</span> <span class="n">tf</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="n">non_text</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">TC</span><span class="p">,</span> <span class="n">VC</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+    <span class="n">non_text</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">reverse</span><span class="o">=</span><span class="n">reverse</span><span class="p">)</span>
+
+    <span class="n">text</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">uca_collator</span><span class="o">.</span><span class="n">sort_key</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="n">reverse</span><span class="p">)</span>
+    <span class="n">text_code</span> <span class="o">=</span> <span class="n">_unix_typecodes</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="p">[(</span><span class="n">text_code</span><span class="p">,</span> <span class="n">ix</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">ix</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">text</span><span class="p">)]</span>
+
+    <span class="n">d</span> <span class="o">=</span> <span class="n">HashDict</span><span class="p">()</span>
+    <span class="n">L</span> <span class="o">=</span> <span class="n">non_text</span> <span class="o">+</span> <span class="n">text</span>
+    <span class="k">for</span> <span class="n">ix</span><span class="p">,</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">L</span><span class="p">):</span>
+        <span class="n">d</span><span class="p">[</span><span class="n">value</span><span class="p">]</span> <span class="o">=</span> <span class="n">ix</span>
+    <span class="k">return</span> <span class="n">d</span>
+</code></pre></div></td></tr></table></div>
+          </details>
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h4 id="tablite.sort_utils.excel_sort" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">sort_utils</span><span class="o">.</span><span class="n">excel_sort</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+</h4>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Excel sortation sorts by the following order:</p>
+<p>| rank | type      | value                                      |
++------+-----------+--------------------------------------------+
+|   1  | int       | as numeric value                           |
+|   1  | float     | as numeric value                           |
+|   1  | time      | as seconds into the day / (24 * 60 * 60)   |
+|   1  | date      | as integer days since 1900/1/1             |
+|   1  | datetime  | as float using date (int) + time (decimal) |
+|  (1)*| timedelta | as float using date (int) + time (decimal) |
+|   2  | str       | using unicode                              |
+|   3  | bool      | 0 as False, 1 as True                      |
+|   4  | None      | floating point infinite.                   |
++------+-----------+--------------------------------------------+</p>
+<ul>
+<li>Excel doesn't have timedelta.</li>
+</ul>
+
+          <details class="quote">
+            <summary>Source code in <code>tablite/sort_utils.py</code></summary>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">196</span>
+<span class="normal">197</span>
+<span class="normal">198</span>
+<span class="normal">199</span>
+<span class="normal">200</span>
+<span class="normal">201</span>
+<span class="normal">202</span>
+<span class="normal">203</span>
+<span class="normal">204</span>
+<span class="normal">205</span>
+<span class="normal">206</span>
+<span class="normal">207</span>
+<span class="normal">208</span>
+<span class="normal">209</span>
+<span class="normal">210</span>
+<span class="normal">211</span>
+<span class="normal">212</span>
+<span class="normal">213</span>
+<span class="normal">214</span>
+<span class="normal">215</span>
+<span class="normal">216</span>
+<span class="normal">217</span>
+<span class="normal">218</span>
+<span class="normal">219</span>
+<span class="normal">220</span>
+<span class="normal">221</span>
+<span class="normal">222</span>
+<span class="normal">223</span>
+<span class="normal">224</span>
+<span class="normal">225</span>
+<span class="normal">226</span>
+<span class="normal">227</span>
+<span class="normal">228</span>
+<span class="normal">229</span>
+<span class="normal">230</span>
+<span class="normal">231</span>
+<span class="normal">232</span>
+<span class="normal">233</span>
+<span class="normal">234</span>
+<span class="normal">235</span>
+<span class="normal">236</span>
+<span class="normal">237</span>
+<span class="normal">238</span>
+<span class="normal">239</span>
+<span class="normal">240</span>
+<span class="normal">241</span>
+<span class="normal">242</span>
+<span class="normal">243</span>
+<span class="normal">244</span>
+<span class="normal">245</span>
+<span class="normal">246</span>
+<span class="normal">247</span>
+<span class="normal">248</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">excel_sort</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Excel sortation sorts by the following order:</span>
+
+<span class="sd">    | rank | type      | value                                      |</span>
+<span class="sd">    +------+-----------+--------------------------------------------+</span>
+<span class="sd">    |   1  | int       | as numeric value                           |</span>
+<span class="sd">    |   1  | float     | as numeric value                           |</span>
+<span class="sd">    |   1  | time      | as seconds into the day / (24 * 60 * 60)   |</span>
+<span class="sd">    |   1  | date      | as integer days since 1900/1/1             |</span>
+<span class="sd">    |   1  | datetime  | as float using date (int) + time (decimal) |</span>
+<span class="sd">    |  (1)*| timedelta | as float using date (int) + time (decimal) |</span>
+<span class="sd">    |   2  | str       | using unicode                              |</span>
+<span class="sd">    |   3  | bool      | 0 as False, 1 as True                      |</span>
+<span class="sd">    |   4  | None      | floating point infinite.                   |</span>
+<span class="sd">    +------+-----------+--------------------------------------------+</span>
+
+<span class="sd">    * Excel doesn&#39;t have timedelta.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">tup</span><span class="p">(</span><span class="n">TC</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">TC</span><span class="p">,</span> <span class="n">_excel_value_function</span><span class="p">[</span><span class="n">t</span><span class="p">](</span><span class="n">value</span><span class="p">),</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="n">text</span><span class="p">,</span> <span class="n">numeric</span><span class="p">,</span> <span class="n">booles</span><span class="p">,</span> <span class="n">nones</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">values</span><span class="p">:</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="n">TC</span> <span class="o">=</span> <span class="n">_excel_typecodes</span><span class="p">[</span><span class="n">t</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">TC</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">numeric</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tup</span><span class="p">(</span><span class="n">TC</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">TC</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">text</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>  <span class="c1"># text is processed later.</span>
+        <span class="k">elif</span> <span class="n">TC</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">booles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tup</span><span class="p">(</span><span class="n">TC</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">TC</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">booles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tup</span><span class="p">(</span><span class="n">TC</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;no typecode for </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">text</span><span class="p">:</span>
+        <span class="n">text</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">uca_collator</span><span class="o">.</span><span class="n">sort_key</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="n">reverse</span><span class="p">)</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">2</span><span class="p">,</span> <span class="n">ix</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">ix</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">text</span><span class="p">)]</span>
+
+    <span class="n">numeric</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">reverse</span><span class="o">=</span><span class="n">reverse</span><span class="p">)</span>
+    <span class="n">booles</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">reverse</span><span class="o">=</span><span class="n">reverse</span><span class="p">)</span>
+    <span class="n">nones</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">reverse</span><span class="o">=</span><span class="n">reverse</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">reverse</span><span class="p">:</span>
+        <span class="n">L</span> <span class="o">=</span> <span class="n">nones</span> <span class="o">+</span> <span class="n">booles</span> <span class="o">+</span> <span class="n">text</span> <span class="o">+</span> <span class="n">numeric</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">L</span> <span class="o">=</span> <span class="n">numeric</span> <span class="o">+</span> <span class="n">text</span> <span class="o">+</span> <span class="n">booles</span> <span class="o">+</span> <span class="n">nones</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="p">{</span><span class="n">value</span><span class="p">:</span> <span class="n">ix</span> <span class="k">for</span> <span class="n">ix</span><span class="p">,</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">L</span><span class="p">)}</span>
+    <span class="k">return</span> <span class="n">d</span>
+</code></pre></div></td></tr></table></div>
+          </details>
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h4 id="tablite.sort_utils.rank" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">sort_utils</span><span class="o">.</span><span class="n">rank</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">reverse</span><span class="p">,</span> <span class="n">mode</span><span class="p">)</span></code>
+
+</h4>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>values: list of values to sort.
+reverse: bool
+mode: as 'text', as 'numeric' or as 'excel'
+return: dict: d[value] = rank</p>
+
+          <details class="quote">
+            <summary>Source code in <code>tablite/sort_utils.py</code></summary>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">254</span>
+<span class="normal">255</span>
+<span class="normal">256</span>
+<span class="normal">257</span>
+<span class="normal">258</span>
+<span class="normal">259</span>
+<span class="normal">260</span>
+<span class="normal">261</span>
+<span class="normal">262</span>
+<span class="normal">263</span>
+<span class="normal">264</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">rank</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">reverse</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    values: list of values to sort.</span>
+<span class="sd">    reverse: bool</span>
+<span class="sd">    mode: as &#39;text&#39;, as &#39;numeric&#39; or as &#39;excel&#39;</span>
+<span class="sd">    return: dict: d[value] = rank</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">modes</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2"> not in list of modes: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">modes</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">modes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">mode</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">f</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">reverse</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+          </details>
+  </div>
+
+</div>
+
+
+
+  </div>
+
+  </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12Z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.expand", "navigation.indexes", "navigation.top", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.bd41221c.min.js"></script>
+      
+    
+  </body>
+</html>
