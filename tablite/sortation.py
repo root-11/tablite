@@ -120,10 +120,8 @@ def _mp_reindex(T, index, tqdm=_tqdm, pbar=None):
             tasks.append(t)
 
     cpus = min(len(tasks), psutil.cpu_count(logical=False))
-    with TaskManager(cpu_count=cpus) as tm:
+    with TaskManager(cpu_count=cpus, error_mode="exception") as tm:
         errs = tm.execute(tasks)
-        if any(errs):
-            raise Exception("\n".join(filter(lambda x: x is not None, errs)))
 
     shm.close()
     shm.unlink()

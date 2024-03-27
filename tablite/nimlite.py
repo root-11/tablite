@@ -137,16 +137,11 @@ def text_reader(
 
             for task in tasks:
                 page = task.execute()
-                if isinstance(page, str):
-                    raise Exception(page)
 
                 res.append(page)
         else:
-            with TaskManager(cpus) as tm:
+            with TaskManager(cpus, error_mode="exception") as tm:
                 res = tm.execute(tasks, pbar=wrapped_pbar)
-
-                if not all(isinstance(r, list) for r in res):
-                    raise Exception("failed")
 
         col_path = pid
         column_dict = {
@@ -266,11 +261,8 @@ def column_select(table: K, cols: list[ColumnSelectorDict], tqdm=_tqdm, TaskMana
                 def update(self, n):
                     pbar.update(n * step_size)
 
-            with TaskManager(min(cpu_count, page_count)) as tm:
+            with TaskManager(min(cpu_count, page_count), error_mode="exception") as tm:
                 res = tm.execute(list(tasks), pbar=WrapUpdate())
-
-                if any(isinstance(r, str) for r in res):
-                    raise Exception("tasks failed")
 
                 converted.extend(res)
         else:
