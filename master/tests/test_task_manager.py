@@ -5,7 +5,7 @@ import time
 def test_main():
     args = list(range(10)) * 5
     start = time.time()
-    with TaskManager() as tm:
+    with TaskManager(error_mode="exception") as tm:
         tasks = [Task(f, *(arg / 10,), **{"hello": arg}) for arg in args]
         results = tm.execute(tasks)
     end = time.time()

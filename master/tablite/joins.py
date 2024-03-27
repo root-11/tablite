@@ -508,12 +508,8 @@ def _join(
             tasks.append(task)
 
     if use_mp:
-        with TaskManager(cpu_count=_vpus(tasks)) as tm:
+        with TaskManager(cpu_count=_vpus(tasks), error_mode="exception") as tm:
             results = tm.execute(tasks, pbar=ProgressBar())
-            errors = [s for s in results if isinstance(s, str)]
-
-            if len(errors) > 0:
-                raise Exception(errors[0])
     else:
         results = [t.f(*t.args, **t.kwargs) for t in tasks]
 
@@ -551,12 +547,8 @@ def _join(
                     tasks.append(task)
 
             if use_mp:
-                with TaskManager(cpu_count=_vpus(tasks)) as tm:
+                with TaskManager(cpu_count=_vpus(tasks), error_mode="exception") as tm:
                     results = tm.execute(tasks, pbar=ProgressBar())
-                    errors = [s for s in results if isinstance(s, str)]
-
-                    if len(errors) > 0:
-                        raise Exception(errors[0])
             else:
                 results = [t.f(*t.args, **t.kwargs) for t in tasks]
 
