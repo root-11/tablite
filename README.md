@@ -13,6 +13,7 @@
 - [introduction](#introduction)
 - [installation](#installation)
 - [feature overview](#feature_overview)
+- [api](#api)
 - [tutorial](#tutorial)
 - [latest updates](#latest_updates)
 - [credits](#credits)
@@ -121,6 +122,9 @@ pytest ./tests
 | to json   | `json_str = my_table.to_json()`|
 | from json | `Table.from_json(json_str)`|
 
+## <a name="api"></a>API
+
+To view the detailed API see [api](https://root-11.github.io/tablite/latest/)
 
 ## <a name="tutorial"></a>Tutorial
 
@@ -134,8 +138,9 @@ See [changelog.md](https://github.com/root-11/tablite/blob/master/changelog.md)
 
 ## <a name="credits"></a>Credits
 
+- [Eugene Antonov](https://github.com/Jetman80) - the api documentation.
+- [Audrius Kulikajevas](https://github.com/realratchet) - Edge case testing / various bugs, Jupyter notebook integration.
+- [Ovidijus Grigas](https://github.com/omenSi) - various bugs, documentation.
 - Martynas Kaunas - GroupBy functionality.
-- Audrius Kulikajevas - Edge case testing / various bugs, Jupyter notebook integration.
 - Sergej Sinkarenko - various bugs.
-- Ovidijus Grigas - various bugs, documentation.
 - Lori Cooper - spell checking.
