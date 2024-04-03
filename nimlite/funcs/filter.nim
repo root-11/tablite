@@ -277,27 +277,24 @@ proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTyp
             inc firstPage
             currentOffset = currentOffset + len
 
-        # var leftOvers = bitNum
         var maskOffset = 0
+
+        let indiceOffset = offset - currentOffset
 
         while maskOffset < bitNum:
             let page = readNumpy(columns[firstPage])
 
-            echo page, " ", maskOffset
-
             let len = page.len
             let sliceMax = min((bitNum - maskOffset), len)
-            let sliceLen = min((bitNum - maskOffset), len) - maskOffset
+            let sliceLen = sliceMax - maskOffset
             let slice = maskOffset..<sliceMax
 
             var validIndices = newSeqOfCap[int](sliceLen - (sliceLen shr 2))
             var invalidIndices = newSeqOfCap[int](sliceLen shr 2)
 
-            echo sliceLen
-
             for (i, m) in enumerate(bitmask[slice]):
-                if m: validIndices.add(i)
-                else: invalidIndices.add(i)
+                if m: validIndices.add(i + indiceOffset)
+                else: invalidIndices.add(i + indiceOffset)
 
             let passPid = base.classes.SimplePageClass.next_id(string basedir).to(string)
             let failPid = base.classes.SimplePageClass.next_id(string basedir).to(string)
@@ -326,7 +323,7 @@ proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTyp
 
     for (i, row) in enumerate(exprCols.iterateRows(tablePages)):
         bitmask[bitNum] = row.checkExpressions(exprCols, expressions, filterType)
-        
+
         inc bitNum
 
         if bitNum >= pageSize:
@@ -362,8 +359,8 @@ let table = m.tablite.classes.TableClass!({
 }.toTable)
 let pyExpressions = @[
     m.builtins.classes.DictClass!(column1: "a", criteria: ">=", value2: 2),
-    m.builtins.classes.DictClass!(column1: "b", criteria: "==", value2: 20),
-    # m.builtins.classes.DictClass!(column1: "a", criteria: "==", column2: "c"),
+    # m.builtins.classes.DictClass!(column1: "b", criteria: "==", value2: 20),
+    m.builtins.classes.DictClass!(column1: "a", criteria: "==", column2: "c"),
 ]
 
 Config.PAGE_SIZE = 2
