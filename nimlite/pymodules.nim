@@ -177,4 +177,11 @@ proc `in`*[T](a: T, b: nimpy.PyObject): bool {.inline.} =
 
     return isIn.to(bool)
 
+proc contains*[T](a: T, b: nimpy.PyObject): bool {.inline.} =
+    let m = modules()
+    let fnIn = m.getAttr(b, "__contains__")
+    let isIn = fnIn!(a)
+
+    return isIn.to(bool)
+
 proc `notin`*[T](a: T, b: nimpy.PyObject): bool {.inline.} = return not (a in b)

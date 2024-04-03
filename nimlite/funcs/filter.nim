@@ -1,7 +1,6 @@
 import nimpy
-# from zipper import zipper
-import std/[sugar, enumerate, strutils, tables, sequtils, options]
-import ../[pymodules, utils, pytypes, numpy, dateutils]
+import std/[sugar, enumerate, strutils, tables, sequtils, options, times, macros]
+import ../[pymodules, utils, pytypes, numpy, dateutils, nimpyext]
 
 const FILTER_KEYS = ["column1", "column2", "criteria", "value1", "value2"]
 const FILTER_OPS = [">", ">=", "==", "<", "<=", "!=", "in"]
@@ -52,6 +51,33 @@ iterator pageZipper[T](iters: Table[string, seq[T]]): seq[T] =
             res.add(i())
             finished = finished or finished(i)
 
+iterator iterateRows(paths: Table[string, seq[string]]): seq[PY_ObjectND] =
+    var allIters = newSeq[iterator(): PY_ObjectND]()
+    var res: seq[PY_ObjectND] = @[]
+    var finished = false
+
+    proc makeIterable(column: seq[string]): auto =
+        return iterator(): auto =
+            for v in iterateColumn[PY_ObjectND](column):
+                yield v
+
+    for column in paths.values():
+        let i = makeIterable(column)
+
+        allIters.add(i)
+
+        res.add(i())
+        finished = finished or finished(i)
+
+    while not finished:
+        yield res
+
+        res = newSeqOfCap[PY_ObjectND](allIters.len)
+
+        for i in allIters:
+            res.add(i())
+            finished = finished or finished(i)
+
 iterator iteratePages(paths: seq[string]): seq[PY_ObjectND] =
     let pages = collect: (for p in paths: readNumpy(p))
 
@@ -88,87 +114,34 @@ proc extractValue(row: seq[PY_ObjectND], exprCols: seq[string], value: Expressio
         return val.get
 
     let idx = exprCols.find(col.get)
-    
+
     return row[idx]
-
-proc isEqual[T](a, b: T): bool {.inline.} = a == b
-proc castSame[T](a, b: T): (T(a), T(b))
-
-proc checkGT(row: seq[PY_ObjectND], exprCols: seq[string], left: PY_ObjectND, right: PY_ObjectND): bool {.inline.} =
-    implement("checkGT")
-
-proc checkGE(row: seq[PY_ObjectND], exprCols: seq[string], left: PY_ObjectND, right: PY_ObjectND): bool {.inline.} =
-    implement("checkGE")
-
-proc checkEQ(row: seq[PY_ObjectND], exprCols: seq[string], left: PY_ObjectND, right: PY_ObjectND): bool {.inline.} =
-    if left.kind != right.kind:
-        case left.kind:
-        of K_INT:
-            if right.kind == K_FLOAT:
-                # int and float are same-y, use equals oper
-                return float(PY_Int(left).value) == PY_Float(right).value
-        of K_FLOAT:
-            if right.kind == K_INT:
-                # int and float are same-y, use equals oper
-                return PY_Float(left).value == float (PY_Int(right).value)
-        of K_DATETIME:
-            if right.kind == K_DATE:
-                # date and datetime are same-y, use equals oper
-                return PY_DateTime(left).value == PY_Date(right).value
-        of K_DATE:
-            if right.kind == K_DATETIME:
-                # date and datetime are same-y, use equals oper
-                return PY_Date(left).value == PY_DateTime(right).value
-        else: discard
-
-        return false
-
-    return (
-        case left.kind:
-        of K_NONETYPE: true
-        of K_BOOLEAN: isEqual[PY_Boolean](left, right)
-        of K_INT: isEqual[PY_Int](left, right)
-        of K_FLOAT: isEqual[PY_Float](left, right)
-        of K_STRING: isEqual[PY_String](left, right)
-        of K_DATE: isEqual[PY_Date](left, right)
-        of K_TIME: isEqual[PY_Time](left, right)
-        of K_DATETIME: isEqual[PY_DateTime](left, right)
-    )
-
-proc checkLT(row: seq[PY_ObjectND], exprCols: seq[string], left: PY_ObjectND, right: PY_ObjectND): bool {.inline.} =
-    implement("checkLT")
-
-proc checkLE(row: seq[PY_ObjectND], exprCols: seq[string], left: PY_ObjectND, right: PY_ObjectND): bool {.inline.} =
-    implement("checkLE")
-
-proc checkNE(row: seq[PY_ObjectND], exprCols: seq[string], left: PY_ObjectND, right: PY_ObjectND): bool {.inline.} =
-    return not row.checkEQ(exprCols, left, right)
-
-proc checkIN(row: seq[PY_ObjectND], exprCols: seq[string], left: PY_ObjectND, right: PY_ObjectND): bool {.inline.} =
-    implement("checkIN")
 
 proc checkExpression(row: seq[PY_ObjectND], exprCols: seq[string], xpr: Expression): bool {.inline.} =
     let (leftXpr, criteria, rightXpr) = xpr
     let left = row.extractValue(exprCols, leftXpr)
     let right = row.extractValue(exprCols, rightXpr)
-
-    return (
+    let expressed = (
         case criteria:
-        of FM_GT: row.checkGT(exprCols, left, right)
-        of FM_GE: row.checkGE(exprCols, left, right)
-        of FM_EQ: row.checkEQ(exprCols, left, right)
-        of FM_LT: row.checkLT(exprCols, left, right)
-        of FM_LE: row.checkLE(exprCols, left, right)
-        of FM_NE: row.checkNE(exprCols, left, right)
-        of FM_IN: row.checkIN(exprCols, left, right)
+        of FM_EQ: left == right
+        of FM_NE: left != right
+        of FM_GT: left > right
+        of FM_GE: left >= right
+        of FM_LT: left < right
+        of FM_LE: left <= right
+        of FM_IN: left in right
     )
+
+    # echo left, " ", criteria, " ", right, " ? ", expressed
+
+    return expressed
 
 proc checkExpressions(row: seq[PY_ObjectND], exprCols: seq[string], expressions: seq[Expression], filterType: FilterType): bool {.inline.} =
     case filterType:
     of FT_ANY: any(expressions, xpr => row.checkExpression(exprCols, xpr))
     of FT_ALL: all(expressions, xpr => row.checkExpression(exprCols, xpr))
 
-proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTypeName: string): nimpy.PyObject =
+proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTypeName: string): (nimpy.PyObject, nimpy.PyObject) =
     let m = modules()
     let builtins = m.builtins
     let tablite = m.tablite
@@ -183,20 +156,20 @@ proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTyp
     )
 
     if pyExpressions.len == 0:
-        return table
+        return (table, tablite.classes.TableClass!())
 
     let columns = collect: (for c in table.columns.keys(): c.to(string))
 
     if columns.len == 0:
-        return table
+        return (table, tablite.classes.TableClass!())
 
     var expressionPages = initTable[string, seq[string]]()
-    
+
     template addParam(columnName: string, valueName: string, paramName: string): auto =
         var res {.noInit.}: ExpressionValue
 
-        if columnName in expression:
-            if valueName in expression:
+        if columnName.contains(expression):
+            if valueName.contains(expression):
                 raise newException(ValueError, "filter can only take 1 " & paramName & " expr element, got 2")
 
             let c = expression[columnName].to(string)
@@ -208,7 +181,7 @@ proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTyp
                 expressionPages[c] = base.collectPages(table[c])
 
             res = (some(c), none[PY_ObjectND]())
-        elif valueName notin expression:
+        elif not valueName.contains(expression):
             raise newException(ValueError, "no " & paramName & " parameter")
         else:
             let pyVal = expression[valueName]
@@ -241,7 +214,7 @@ proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTyp
             for pyKey in expression.keys():
                 let key = pyKey.to(string)
 
-                if key notin FILTER_KEYS:
+                if key in FILTER_KEYS:
                     continue
 
                 key
@@ -272,26 +245,41 @@ proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTyp
     let pageCount = base.collectPages(table[columns[0]]).len
 
     let exprCols = toSeq(expressionPages.keys)
-    for pagePaths in expressionPages.pageZipper():
-        var bitmask = newSeqOfCap[bool](pageSize)
-        var bitNum = 0
+    var bitmask = newSeq[bool](pageSize)
+    var bitNum = 0
 
-        for (i, row) in enumerate(pagePaths.iteratePages()):
+    for (i, row) in enumerate(expressionPages.iterateRows()):
+        bitmask[bitNum] = row.checkExpressions(exprCols, expressions, filterType)
+        
+        inc bitNum
 
-            bitmask[bitNum] = row.checkExpressions(exprCols, expressions, filterType)
+        if bitNum >= pageSize:
+            bitNum = 0
+            implement("dump")
 
-            inc bitNum
+    echo bitmask[0..<bitNum]
 
+    # for pagePaths in expressionPages.pageZipper():
 
+    #     for (i, row) in enumerate(pagePaths.iteratePages()):
 
-var table = {
-    "0": @[0, 1, 2],
-    "1": @[3, 4, 5],
-    "3": @[6, 7, 8],
-}.toTable
+    #         bitmask[bitNum] = row.checkExpressions(exprCols, expressions, filterType)
 
-# for a  in table.values:
-#     discard a
+    #         inc bitNum
 
-for a in pageZipper(table):
-    echo a
+    #     echo bitmask[0..<bitNum]
+
+let m = modules()
+let table = m.tablite.classes.TableClass!({
+    "a": @[1, 2, 3, 4],
+    "b": @[10, 20, 30, 40],
+    "c": @[4, 4, 4, 4]
+}.toTable)
+let pyExpressions = @[
+    m.builtins.classes.DictClass!(column1: "a", criteria: ">=", value2: 2),
+    m.builtins.classes.DictClass!(column1: "b", criteria: "==", value2: 20),
+    # m.builtins.classes.DictClass!(column1: "a", criteria: "==", column2: "c"),
+]
+
+let (tblPass, tblFail) = filter(table, pyExpressions, "all")
+
