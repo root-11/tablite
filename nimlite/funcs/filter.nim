@@ -1,5 +1,5 @@
 import nimpy
-import std/[sugar, enumerate, strutils, tables, sequtils, options, times, macros]
+import std/[os, sugar, enumerate, strutils, tables, sequtils, options, times, macros, paths]
 import ../[pymodules, utils, pytypes, numpy, dateutils, nimpyext]
 
 const FILTER_KEYS = ["column1", "column2", "criteria", "value1", "value2"]
@@ -51,7 +51,7 @@ iterator pageZipper[T](iters: Table[string, seq[T]]): seq[T] =
             res.add(i())
             finished = finished or finished(i)
 
-iterator iterateRows(paths: Table[string, seq[string]]): seq[PY_ObjectND] =
+iterator iterateRows(exprColumns: seq[string], tablePages: Table[string, seq[string]]): seq[PY_ObjectND] =
     var allIters = newSeq[iterator(): PY_ObjectND]()
     var res: seq[PY_ObjectND] = @[]
     var finished = false
@@ -61,8 +61,8 @@ iterator iterateRows(paths: Table[string, seq[string]]): seq[PY_ObjectND] =
             for v in iterateColumn[PY_ObjectND](column):
                 yield v
 
-    for column in paths.values():
-        let i = makeIterable(column)
+    for column in exprColumns:
+        let i = makeIterable(tablePages[column])
 
         allIters.add(i)
 
@@ -147,6 +147,7 @@ proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTyp
     let tablite = m.tablite
     let base = tablite.modules.base
     let Config = tablite.modules.config.classes.Config
+    let TableClass = builtins.getType(table)
 
     let filterType = (
         case filterTypeName.toLower():
@@ -156,14 +157,24 @@ proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTyp
     )
 
     if pyExpressions.len == 0:
-        return (table, tablite.classes.TableClass!())
+        return (table, TableClass!())
 
     let columns = collect: (for c in table.columns.keys(): c.to(string))
 
     if columns.len == 0:
-        return (table, tablite.classes.TableClass!())
+        return (table, TableClass!())
 
-    var expressionPages = initTable[string, seq[string]]()
+    var exprCols = newSeq[string]()
+
+    var tablePages = initTable[string, seq[string]]()
+    var passTablePages = initOrderedTable[string, nimpy.PyObject]()
+    var failTablePages = initOrderedTable[string, nimpy.PyObject]()
+
+    for c in columns:
+        let pyCol = table[c]
+        tablePages[c] = base.collectPages(pyCol)
+        passTablePages[c] = base.classes.ColumnClass!(pyCol.path)
+        failTablePages[c] = base.classes.ColumnClass!(pyCol.path)
 
     template addParam(columnName: string, valueName: string, paramName: string): auto =
         var res {.noInit.}: ExpressionValue
@@ -177,8 +188,8 @@ proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTyp
             if c notin columns:
                 raise newException(ValueError, "no such column '" & $c & "'in " & $columns)
 
-            if c notin expressionPages:
-                expressionPages[c] = base.collectPages(table[c])
+            if c notin exprCols:
+                exprCols.add(c)
 
             res = (some(c), none[PY_ObjectND]())
         elif not valueName.contains(expression):
@@ -242,34 +253,108 @@ proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTyp
         expressions.add((lOpt, crit, rOpt))
 
     let pageSize = Config.PAGE_SIZE.to(int)
-    let pageCount = base.collectPages(table[columns[0]]).len
+    let workdir = builtins.toStr(Config.workdir)
+    let pidir = Config.pid.to(string)
+    let basedir = Path(workdir) / Path(pidir)
+    let pagedir = basedir / Path("pages")
 
-    let exprCols = toSeq(expressionPages.keys)
+    createDir(string pagedir)
+
     var bitmask = newSeq[bool](pageSize)
     var bitNum = 0
+    var offset = 0
 
-    for (i, row) in enumerate(expressionPages.iterateRows()):
+    template dumpPage(columns: seq[string], passColumn: nimpy.PyObject, failColumn: nimpy.PyObject): void =
+        var firstPage = 0
+        var currentOffset = 0
+        
+        while true:
+            var len = getPageLen(columns[firstPage])
+
+            if offset < currentOffset + len:
+                break
+
+            inc firstPage
+            currentOffset = currentOffset + len
+
+        # var leftOvers = bitNum
+        var maskOffset = 0
+
+        while maskOffset < bitNum:
+            let page = readNumpy(columns[firstPage])
+
+            echo page, " ", maskOffset
+
+            let len = page.len
+            let sliceMax = min((bitNum - maskOffset), len)
+            let sliceLen = min((bitNum - maskOffset), len) - maskOffset
+            let slice = maskOffset..<sliceMax
+
+            var validIndices = newSeqOfCap[int](sliceLen - (sliceLen shr 2))
+            var invalidIndices = newSeqOfCap[int](sliceLen shr 2)
+
+            echo sliceLen
+
+            for (i, m) in enumerate(bitmask[slice]):
+                if m: validIndices.add(i)
+                else: invalidIndices.add(i)
+
+            let passPid = base.classes.SimplePageClass.next_id(string basedir).to(string)
+            let failPid = base.classes.SimplePageClass.next_id(string basedir).to(string)
+
+            let passPath = string(pagedir / Path(passPid & ".npy"))
+            let failPath = string(pagedir / Path(failPid & ".npy"))
+
+            let passPage = page[validIndices]
+            let failPage = page[invalidIndices]
+
+            passPage.save(passPath)
+            failPage.save(failPath)
+
+            let passPagePy = newPyPage(passPage, string basedir, passPid)
+            let failPagePy = newPyPage(failPage, string basedir, failPid)
+
+            discard passColumn.pages.append(passPagePy)
+            discard failColumn.pages.append(failPagePy)
+
+            maskOffset = maskOffset + sliceLen
+            inc firstPage
+
+    template dumpPages(tablePages: Table[string, seq[string]]): void =
+        for (key, col) in tablePages.pairs():
+            col.dumpPage(passTablePages[key], failTablePages[key])
+
+    for (i, row) in enumerate(exprCols.iterateRows(tablePages)):
         bitmask[bitNum] = row.checkExpressions(exprCols, expressions, filterType)
         
         inc bitNum
 
         if bitNum >= pageSize:
+            tablePages.dumpPages()
+            offset = offset + bitNum
             bitNum = 0
-            implement("dump")
 
-    echo bitmask[0..<bitNum]
+    if bitNum > 0:
+        tablePages.dumpPages()
 
-    # for pagePaths in expressionPages.pageZipper():
+    template makeTable(T: nimpy.PyObject, columns: OrderedTable[string, nimpy.PyObject]): nimpy.PyObject =
+        let tbl = T!()
 
-    #     for (i, row) in enumerate(pagePaths.iteratePages()):
+        for (k, v) in columns.pairs:
+            tbl[k] = v
 
-    #         bitmask[bitNum] = row.checkExpressions(exprCols, expressions, filterType)
+        tbl
 
-    #         inc bitNum
+    let passTable = makeTable(TableClass, passTablePages)
+    let failTable = makeTable(TableClass, failTablePages)
 
-    #     echo bitmask[0..<bitNum]
+    return (passTable, failTable)
 
 let m = modules()
+let Config = m.tablite.modules.config.classes.Config
+
+# Config.PAGE_SIZE = 2
+
 let table = m.tablite.classes.TableClass!({
     "a": @[1, 2, 3, 4],
     "b": @[10, 20, 30, 40],
@@ -281,5 +366,9 @@ let pyExpressions = @[
     # m.builtins.classes.DictClass!(column1: "a", criteria: "==", column2: "c"),
 ]
 
+Config.PAGE_SIZE = 2
+
 let (tblPass, tblFail) = filter(table, pyExpressions, "all")
 
+discard tblPass.show()
+discard tblFail.show()

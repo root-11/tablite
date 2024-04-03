@@ -180,7 +180,7 @@ proc nearestNeighbourImputation*(T: nimpy.PyObject, sources: seq[string],
             tabliteBase.collectPages(T[name])
 
     var targetsPYColumns: seq[nimpy.PyObject]
-    var newTable = m.tablite.classes.TableClass!()
+    var newTable = m.builtins.getType(table)!()
     for columnName in T.columns:
         if m.toStr(columnName) in targets:
             var c = tabliteBase.classes.ColumnClass!(pidDir)
