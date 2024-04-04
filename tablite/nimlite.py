@@ -23,17 +23,31 @@ if True:
 
 
 K = TypeVar("K", bound=BaseTable)
-ValidEncoders = Union[Literal["ENC_UTF8"], Literal["ENC_UTF16"], Literal["ENC_WIN1250"]]
-ValidQuoting = Union[Literal["QUOTE_MINIMAL"], Literal["QUOTE_ALL"], Literal["QUOTE_NONNUMERIC"], Literal["QUOTE_NONE"], Literal["QUOTE_STRINGS"], Literal["QUOTE_NOTNULL"]]
-ValidSkipEmpty = Union[Literal["NONE"], Literal["ANY"], Literal["ALL"]]
+ValidEncoders = Literal["ENC_UTF8", "ENC_UTF16", "ENC_WIN1250"]
+ValidQuoting = Literal["QUOTE_MINIMAL", "QUOTE_ALL", "QUOTE_NONNUMERIC", "QUOTE_NONE", "QUOTE_STRINGS", "QUOTE_NOTNULL"]
+ValidSkipEmpty = Literal["NONE", "ANY", "ALL"]
 ColumnSelectorDict = TypedDict(
     "ColumnSelectorDict", {
         "column": str,
-        "type": Union[Literal["int"], Literal["float"], Literal["bool"], Literal["str"], Literal["date"], Literal["time"], Literal["datetime"]],
+        "type": Literal["int", "float", "bool", "str", "date", "time", "datetime"],
         "allow_empty": Union[bool, None],
         "rename": Union[str, None]
     }
 )
+
+FilterCriteria = Literal[">", ">=", "==", "<", "<=", "!=", "in"]
+FilterType = Literal["all", "any"]
+FilterDict = TypedDict(
+    "FilterDict", {
+        "column1": str,
+        "value1": Union[str, None],
+        "criteria": FilterCriteria,
+        "column2": str,
+        "value2": Union[str, None],
+    }
+)
+
+
 
 def get_headers(
     path: Union[str, Path],
@@ -290,5 +304,8 @@ def read_page(path: Union[str, Path]) -> np.ndarray:
 def repaginate(column: Column):
     nl.repaginate(column)
 
-def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm):
+def nearest_neighbour(T: BaseTable, sources: list[str] | None, missing: list | None, targets: list[str] | None, tqdm=_tqdm):
     return nl.nearest_neighbour(T, sources, list(missing), targets, tqdm)
+
+def filter(table: BaseTable, expressions: list[FilterDict], type: FilterType, tqdm = _tqdm):
+    return nl.filter(table, expressions, type, tqdm)
