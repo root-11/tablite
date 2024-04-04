@@ -178,12 +178,12 @@ addCmpMethod(`>=`): false
 addCmpMethod(`<`): false
 addCmpMethod(`<=`): false
 
-method `in`*(self: PY_ObjectND, other: PY_ObjectND): bool {.base, inline.} = implement("PY_ObjectND.`in` must be implemented by inheriting class: " & $self.kind)
-method `in`*(self: PY_NoneType, other: PY_ObjectND): bool = self.isSameType(other) or self.toRepr() in other.toRepr()
-method `in`*(self: PY_Boolean, other: PY_ObjectND): bool = self.toRepr() in other.toRepr()
-method `in`*(self: PY_Int, other: PY_ObjectND): bool = self.toRepr() in other.toRepr()
-method `in`*(self: PY_Float, other: PY_ObjectND): bool = self.toRepr() in other.toRepr()
-method `in`*(self: PY_String, other: PY_ObjectND): bool = self.toRepr() in other.toRepr()
-method `in`*(self: PY_Date, other: PY_ObjectND): bool = self.toRepr() in other.toRepr()
-method `in`*(self: PY_Time, other: PY_ObjectND): bool = self.toRepr() in other.toRepr()
-method `in`*(self: PY_DateTime, other: PY_ObjectND): bool = self.toRepr() in other.toRepr()
+method contains*(self: PY_ObjectND, other: PY_ObjectND): bool {.base, inline.} = implement("PY_ObjectND.`in` must be implemented by inheriting class: " & $self.kind)
+method contains*(self: PY_NoneType, other: PY_ObjectND): bool = self.isSameType(other) or self.toRepr() in other.toRepr()
+method contains*(self: PY_Boolean, other: PY_ObjectND): bool = self.toRepr() in other.toRepr()
+method contains*(self: PY_Int, other: PY_ObjectND): bool = self.toRepr() in other.toRepr()
+method contains*(self: PY_Float, other: PY_ObjectND): bool = self.toRepr() in other.toRepr()
+method contains*(self: PY_String, other: PY_ObjectND): bool = self.toRepr() in other.toRepr()
+method contains*(self: PY_Date, other: PY_ObjectND): bool = self.toRepr() in other.toRepr()
+method contains*(self: PY_Time, other: PY_ObjectND): bool = self.toRepr() in other.toRepr()
+method contains*(self: PY_DateTime, other: PY_ObjectND): bool = self.toRepr() in other.toRepr()

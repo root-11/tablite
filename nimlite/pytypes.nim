@@ -1,7 +1,5 @@
-from std/tables import Table
-import std/[times, strutils]
+import std/[times]
 import dateutils
-from ./utils import implement
 import ./pytypes/[pyobjs, pycmp]
 
 export pyobjs
@@ -18,28 +16,6 @@ proc str2ObjKind*(val: string): KindObjectND =
     of $K_TIME: K_TIME
     of $K_DATETIME: K_DATETIME
     else: raise newException(ValueError, "invalid object kind: " & val)
-
-
-# method `>`*(self: PY_ObjectND, other: PY_ObjectND): bool {.base, inline.} = implement("PY_ObjectND.`>` must be implemented by inheriting class: " & $self.kind)
-# method `>`*(self: PY_NoneType, other: PY_ObjectND): bool = isSameType(self, other)
-# method `>`*(self: PY_Boolean, other: PY_ObjectND): bool = self.isSameType(other) and PY_Boolean(other).value > self.value
-# method `>`*(self: PY_Int, other: PY_ObjectND): bool = self.isSameType(other) and PY_Int(other).value > self.value or other.kind > K_FLOAT and PY_Float(other).value > float(self.value)
-# method `>`*(self: PY_Float, other: PY_ObjectND): bool = self.isSameType(other) and PY_Float(other).value > self.value or other.kind > K_INT and float(PY_Int(other).value) > self.value
-# method `>`*(self: PY_String, other: PY_ObjectND): bool = self.isSameType(other) and PY_String(other).value > self.value
-# method `>`*(self: PY_Date, other: PY_ObjectND): bool = self.isSameType(other) and PY_Date(other).value > self.value or other.kind > K_DATETIME and PY_DateTime(other).value > self.value
-# method `>`*(self: PY_Time, other: PY_ObjectND): bool = self.isSameType(other) and PY_Time(other).value > self.value
-# method `>`*(self: PY_DateTime, other: PY_ObjectND): bool = self.isSameType(other) and PY_DateTime(other).value > self.value or other.kind > K_DATE and PY_Date(other).value > self.value
-
-
-# method `==`*(self: PY_ObjectND, other: PY_ObjectND): bool {.base, inline.} = implement("PY_ObjectND.`==` must be implemented by inheriting class: " & $self.kind)
-# method `==`*(self: PY_NoneType, other: PY_ObjectND): bool = isSameType(self, other)
-# method `==`*(self: PY_Boolean, other: PY_ObjectND): bool = self.isSameType(other) and PY_Boolean(other).value == self.value
-# method `==`*(self: PY_Int, other: PY_ObjectND): bool = self.isSameType(other) and PY_Int(other).value == self.value or other.kind == K_FLOAT and PY_Float(other).value == float(self.value)
-# method `==`*(self: PY_Float, other: PY_ObjectND): bool = self.isSameType(other) and PY_Float(other).value == self.value or other.kind == K_INT and float(PY_Int(other).value) == self.value
-# method `==`*(self: PY_String, other: PY_ObjectND): bool = self.isSameType(other) and PY_String(other).value == self.value
-# method `==`*(self: PY_Date, other: PY_ObjectND): bool = self.isSameType(other) and PY_Date(other).value == self.value or other.kind == K_DATETIME and PY_DateTime(other).value == self.value
-# method `==`*(self: PY_Time, other: PY_ObjectND): bool = self.isSameType(other) and PY_Time(other).value == self.value
-# method `==`*(self: PY_DateTime, other: PY_ObjectND): bool = self.isSameType(other) and PY_DateTime(other).value == self.value or other.kind == K_DATE and PY_Date(other).value == self.value
 
 proc newPY_Date*(year: uint16, month, day: uint8): PY_Date {.inline.} = PY_Date(value: date2NimDatetime(int year, int month, int day), kind: K_DATE)
 

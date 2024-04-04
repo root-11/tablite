@@ -1,5 +1,5 @@
 import nimpy
-import std/[os, sugar, enumerate, strutils, tables, sequtils, options, times, macros, paths]
+import std/[os, sugar, enumerate, strutils, tables, sequtils, options, times, macros, paths, math]
 import ../[pymodules, utils, pytypes, numpy, dateutils, nimpyext]
 
 const FILTER_KEYS = ["column1", "column2", "criteria", "value1", "value2"]
@@ -22,35 +22,6 @@ type FilterType = enum
 type ExpressionValue = (Option[string], Option[PY_ObjectND])
 type Expression = (ExpressionValue, FilterMethods, ExpressionValue)
 
-
-iterator pageZipper[T](iters: Table[string, seq[T]]): seq[T] =
-    var allIters = newSeq[iterator(): T]()
-
-    proc makeIterable(iterable: seq[T]): auto =
-        return iterator(): auto =
-            for v in iterable:
-                yield v
-
-    var res: seq[T] = @[]
-    var finished = false
-
-    for it in iters.values:
-        let i = makeIterable(it)
-
-        allIters.add(i)
-
-        res.add(i())
-        finished = finished or finished(i)
-
-    while not finished:
-        yield res
-
-        res = newSeqOfCap[T](allIters.len)
-
-        for i in allIters:
-            res.add(i())
-            finished = finished or finished(i)
-
 iterator iterateRows(exprColumns: seq[string], tablePages: Table[string, seq[string]]): seq[PY_ObjectND] =
     var allIters = newSeq[iterator(): PY_ObjectND]()
     var res: seq[PY_ObjectND] = @[]
@@ -63,35 +34,6 @@ iterator iterateRows(exprColumns: seq[string], tablePages: Table[string, seq[str
 
     for column in exprColumns:
         let i = makeIterable(tablePages[column])
-
-        allIters.add(i)
-
-        res.add(i())
-        finished = finished or finished(i)
-
-    while not finished:
-        yield res
-
-        res = newSeqOfCap[PY_ObjectND](allIters.len)
-
-        for i in allIters:
-            res.add(i())
-            finished = finished or finished(i)
-
-iterator iteratePages(paths: seq[string]): seq[PY_ObjectND] =
-    let pages = collect: (for p in paths: readNumpy(p))
-
-    var allIters = newSeq[iterator(): PY_ObjectND]()
-    var res: seq[PY_ObjectND] = @[]
-    var finished = false
-
-    proc makeIterable(page: BaseNDArray): auto =
-        return iterator(): auto =
-            for v in page.iterateObjectPage:
-                yield v
-
-    for pg in pages:
-        let i = makeIterable(pg)
 
         allIters.add(i)
 
@@ -129,10 +71,8 @@ proc checkExpression(row: seq[PY_ObjectND], exprCols: seq[string], xpr: Expressi
         of FM_GE: left >= right
         of FM_LT: left < right
         of FM_LE: left <= right
-        of FM_IN: left in right
+        of FM_IN: left.contains(right)
     )
-
-    # echo left, " ", criteria, " ", right, " ? ", expressed
 
     return expressed
 
@@ -141,7 +81,7 @@ proc checkExpressions(row: seq[PY_ObjectND], exprCols: seq[string], expressions:
     of FT_ANY: any(expressions, xpr => row.checkExpression(exprCols, xpr))
     of FT_ALL: all(expressions, xpr => row.checkExpression(exprCols, xpr))
 
-proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTypeName: string): (nimpy.PyObject, nimpy.PyObject) =
+proc filter*(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTypeName: string, tqdm: nimpy.PyObject): (nimpy.PyObject, nimpy.PyObject) =
     let m = modules()
     let builtins = m.builtins
     let tablite = m.tablite
@@ -170,11 +110,19 @@ proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTyp
     var passTablePages = initOrderedTable[string, nimpy.PyObject]()
     var failTablePages = initOrderedTable[string, nimpy.PyObject]()
 
-    for c in columns:
+    var colLen = 0
+
+    for (i, c) in enumerate(columns):
         let pyCol = table[c]
-        tablePages[c] = base.collectPages(pyCol)
+        let colPages = base.collectPages(pyCol)
+        tablePages[c] = colPages
         passTablePages[c] = base.classes.ColumnClass!(pyCol.path)
         failTablePages[c] = base.classes.ColumnClass!(pyCol.path)
+
+        if i == 0:
+            colLen = getColumnLen(colPages)
+        elif colLen != getColumnLen(colPages):
+            raise newException(ValueError, "table must have equal number of columns")
 
     template addParam(columnName: string, valueName: string, paramName: string): auto =
         var res {.noInit.}: ExpressionValue
@@ -267,7 +215,7 @@ proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTyp
     template dumpPage(columns: seq[string], passColumn: nimpy.PyObject, failColumn: nimpy.PyObject): void =
         var firstPage = 0
         var currentOffset = 0
-        
+
         while true:
             var len = getPageLen(columns[firstPage])
 
@@ -321,6 +269,11 @@ proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTyp
         for (key, col) in tablePages.pairs():
             col.dumpPage(passTablePages[key], failTablePages[key])
 
+    let tableLen = builtins.getLen(table)
+    let tqdmLen = int ceil(float(tableLen) / float(pageSize))
+    let TqdmClass = (if isNone(tqdm): m.tqdm.classes.TqdmClass else: tqdm)
+    let pbar = TqdmClass!(total: tqdmLen, desc="filter")
+
     for (i, row) in enumerate(exprCols.iterateRows(tablePages)):
         bitmask[bitNum] = row.checkExpressions(exprCols, expressions, filterType)
 
@@ -330,9 +283,11 @@ proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTyp
             tablePages.dumpPages()
             offset = offset + bitNum
             bitNum = 0
+            discard pbar.update(1)
 
     if bitNum > 0:
         tablePages.dumpPages()
+        discard pbar.update(1)
 
     template makeTable(T: nimpy.PyObject, columns: OrderedTable[string, nimpy.PyObject]): nimpy.PyObject =
         let tbl = T!()
@@ -345,27 +300,31 @@ proc filter(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTyp
     let passTable = makeTable(TableClass, passTablePages)
     let failTable = makeTable(TableClass, failTablePages)
 
+    discard pbar.close()
+
     return (passTable, failTable)
 
-let m = modules()
-let Config = m.tablite.modules.config.classes.Config
 
-# Config.PAGE_SIZE = 2
+when appType != "lib":
+    let m = modules()
+    let Config = m.tablite.modules.config.classes.Config
 
-let table = m.tablite.classes.TableClass!({
-    "a": @[1, 2, 3, 4],
-    "b": @[10, 20, 30, 40],
-    "c": @[4, 4, 4, 4]
-}.toTable)
-let pyExpressions = @[
-    m.builtins.classes.DictClass!(column1: "a", criteria: ">=", value2: 2),
-    # m.builtins.classes.DictClass!(column1: "b", criteria: "==", value2: 20),
-    m.builtins.classes.DictClass!(column1: "a", criteria: "==", column2: "c"),
-]
+    # Config.PAGE_SIZE = 2
 
-Config.PAGE_SIZE = 2
+    let table = m.tablite.classes.TableClass!({
+        "a": @[1, 2, 3, 4],
+        "b": @[10, 20, 30, 40],
+        "c": @[4, 4, 4, 4]
+    }.toTable)
+    let pyExpressions = @[
+        m.builtins.classes.DictClass!(column1: "a", criteria: ">=", value2: 2),
+        # m.builtins.classes.DictClass!(column1: "b", criteria: "==", value2: 20),
+        m.builtins.classes.DictClass!(column1: "a", criteria: "==", column2: "c"),
+    ]
 
-let (tblPass, tblFail) = filter(table, pyExpressions, "all")
+    Config.PAGE_SIZE = 2
 
-discard tblPass.show()
-discard tblFail.show()
+    let (tblPass, tblFail) = filter(table, pyExpressions, "all", nil)
+
+    discard tblPass.show()
+    discard tblFail.show()

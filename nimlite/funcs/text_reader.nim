@@ -74,7 +74,6 @@ when isMainModule and appType != "lib":
 
             taskArgs.runTask(pageInfo)
             echo "Dumped " & $(i + 1) & "/" & $task.tasks.len
-            # echo taskArgs
 
         let d1 = getTime()
         echo $(d1 - d0)
@@ -110,7 +109,6 @@ when isMainModule and appType != "lib":
     var guess_dtypes = true
     var pid = string (workdir / Path("nim"))
     var taskname = "task"
-    var use_json = false
     var page_size = uint Config.PAGE_SIZE.to(int)
 
     var delimiter = ','
