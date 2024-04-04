@@ -1,6 +1,7 @@
 from std/os import getEnv
 from std/strutils import split
 from std/sugar import collect
+from nimpyext import `!`
 import nimpy
 import std/options
 
@@ -169,3 +170,18 @@ proc getLen*(self: PyModules, obj: PyObject): int {.inline.} = self.builtins.get
 
 
 proc isNone*(obj: PyObject): bool {.inline.} = modules().builtins.isinstance(obj, py.get.builtins.classes.NoneTypeClass)
+proc `in`*[T](a: T, b: nimpy.PyObject): bool {.inline.} =
+    let m = modules()
+    let fnIn = m.getAttr(b, "__in__")
+    let isIn = fnIn!(a)
+
+    return isIn.to(bool)
+
+proc contains*[T](a: T, b: nimpy.PyObject): bool {.inline.} =
+    let m = modules()
+    let fnIn = m.getAttr(b, "__contains__")
+    let isIn = fnIn!(a)
+
+    return isIn.to(bool)
+
+proc `notin`*[T](a: T, b: nimpy.PyObject): bool {.inline.} = return not (a in b)

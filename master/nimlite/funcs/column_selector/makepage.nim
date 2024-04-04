@@ -125,6 +125,14 @@ template makePage*[T: typed](dt: typedesc[T], page: BaseNDArray, mask: var seq[M
         # we know the maximum size of the sequence based on the page size as we cannot manifest new values
         var buf = newSeq[T.baseType](page.len)
 
+        when compileOption("assertions") and T is DateNDArray or T is DateTimeNDArray:
+            #[
+                when we are in debug mode (assertions enabled), we need to initialize DateTime objects,
+                because there are a bunch of assertions that we don't really care about in the standard library
+            ]#
+            for i in 0..<buf.len:
+                buf[i] = dateTime(1970, mJan, 1, zone=utc())
+
     when page is UnicodeNDArray or page is ObjectNDArray:
         template addEmpty(i: int): void =
             when T is UnicodeNDArray:
