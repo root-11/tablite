@@ -30,129 +30,6 @@ def _filter_using_expression(T, expression):
     req_columns = [i for i in T.columns if i in expression]
     return np.array([bool(_f(*r)) for r in T[req_columns].rows], dtype=bool)
 
-
-# def _filter_using_list_of_dicts(T, expressions, filter_type, pbar: _tqdm):
-#     """
-#     enables filtering across columns for multiple criteria.
-
-#     expressions:
-
-#         str: Expression that can be compiled and executed row by row.
-#             exampLe: "all((A==B and C!=4 and 200<D))"
-
-#         list of dicts: (example):
-
-#             L = [
-#                 {'column1':'A', 'criteria': "==", 'column2': 'B'},
-#                 {'column1':'C', 'criteria': "!=", "value2": '4'},
-#                 {'value1': 200, 'criteria': "<", column2: 'D' }
-#             ]
-
-#         accepted dictionary keys: 'column1', 'column2', 'criteria', 'value1', 'value2'
-
-#     filter_type: 'all' or 'any'
-#     """
-#     for expression in expressions:
-#         if not isinstance(expression, dict):
-#             raise TypeError(f"invalid expression: {expression}")
-#         if not len(expression) == 3:
-#             raise ValueError(f"expected 3 items, got {expression}")
-#         x = {"column1", "column2", "criteria", "value1", "value2"}
-#         if not set(expression.keys()).issubset(x):
-#             raise ValueError(f"got unknown key: {set(expression.keys()).difference(x)}")
-
-#         if expression["criteria"] not in filter_ops:
-#             raise ValueError(f"criteria missing from {expression}")
-
-#         c1 = expression.get("column1", None)
-#         if c1 is not None and c1 not in T.columns:
-#             raise ValueError(f"no such column: {c1}")
-
-#         v1 = expression.get("value1", None)
-#         if v1 is not None and c1 is not None:
-#             raise ValueError("filter can only take 1 left expr element. Got 2.")
-
-#         c2 = expression.get("column2", None)
-#         if c2 is not None and c2 not in T.columns:
-#             raise ValueError(f"no such column: {c2}")
-
-#         v2 = expression.get("value2", None)
-#         if v2 is not None and c2 is not None:
-#             raise ValueError("filter can only take 1 right expression element. Got 2.")
-
-#     if not isinstance(filter_type, str):
-#         raise TypeError()
-#     if filter_type not in {"all", "any"}:
-#         raise ValueError(f"filter_type: {filter_type} not in ['all', 'any']")
-
-#     # EVALUATION....
-#     # 1. setup a rectangular bitmap for evaluations
-#     bitmap = np.empty(shape=(len(expressions), len(T)), dtype=bool)
-#     pbar_div = (len(expressions) * len(list(Config.page_steps(len(T)))) - 1)
-#     pbar_step = (10 / pbar_div) if pbar_div != 0 else 0
-#     # 2. create tasks for evaluations
-#     for bit_index, expression in enumerate(expressions):
-#         assert isinstance(expression, dict)
-#         assert len(expression) == 3
-#         c1 = expression.get("column1", None)
-#         c2 = expression.get("column2", None)
-#         expr = expression.get("criteria", None)
-#         assert expr in filter_ops
-#         v1 = expression.get("value1", None)
-#         v2 = expression.get("value2", None)
-
-#         for start, end in Config.page_steps(len(T)):
-#             if c1 is not None:
-#                 dset_A = T[c1][start:end]
-#             else:  # v1 is active:
-#                 dset_A = np.array([v1] * (end - start))
-
-#             if c2 is not None:
-#                 dset_B = T[c2][start:end]
-#             else:  # v2 is active:
-#                 dset_B = np.array([v2] * (end - start))
-
-#             if len(dset_A) != len(dset_B):
-#                 raise ValueError(
-#                     f"Assymmetric dataset: {c1} has {len(dset_A)} values, whilst {c2} has {len(dset_B)} values."
-#                 )
-#             # Evaluate
-#             try:
-#                 if expr == ">":
-#                     result = dset_A > dset_B
-#                 elif expr == ">=":
-#                     result = dset_A >= dset_B
-#                 elif expr == "==":
-#                     result = dset_A == dset_B
-#                 elif expr == "<":
-#                     result = dset_A < dset_B
-#                 elif expr == "<=":
-#                     result = dset_A <= dset_B
-#                 elif expr == "!=":
-#                     result = dset_A != dset_B
-#                 else:  # it's a python evaluations (slow)
-#                     f = filter_ops.get(expr)
-#                     assert callable(f)
-#                     result = list_to_np_array([f(a, b) for a, b in zip(dset_A, dset_B)])
-#             except TypeError:
-#                 def safe_test(f, a, b):
-#                     try:
-#                         return f(a, b)
-#                     except TypeError:
-#                         return False
-#                 f = filter_ops.get(expr)
-#                 assert callable(f)
-#                 result = list_to_np_array([safe_test(f, a, b) for a, b in zip(dset_A, dset_B)])
-#             bitmap[bit_index, start:end] = result
-#             pbar.update(pbar_step)
-
-#     f = np.all if filter_type == "all" else np.any
-#     mask = f(bitmap, axis=0)
-#     # 4. The mask is now created and is no longer needed.
-#     pbar.update(10 - pbar.n)
-#     return mask
-
-
 def filter_all(T, **kwargs):
     """
     returns Table for rows where ALL kwargs match
@@ -264,7 +141,7 @@ def _compress_one(T, mask):
     return new
 
 
-def _compress_both(T, mask, pbar:_tqdm):
+def _compress_both(T, mask, pbar: _tqdm):
     # NOTE FOR DEVELOPERS:
     # np.compress is so fast that the overhead of multiprocessing doesn't pay off.
     cls = type(T)
@@ -326,10 +203,11 @@ def filter(T, expressions, filter_type="all", tqdm=_tqdm):
 
     if isinstance(expressions, str):
         with tqdm(desc="filter", total=20) as pbar:
+            # TODO: make parser for expressions and use the nim implement
             mask = _filter_using_expression(T, expressions)
             pbar.update(10)
-        res = _compress_both(T, mask, pbar=pbar)
-        pbar.update(pbar.total - pbar.n)
+            res = _compress_both(T, mask, pbar=pbar)
+            pbar.update(pbar.total - pbar.n)
     elif isinstance(expressions, list):
         return _filter_using_list_of_dicts(T, expressions, filter_type, tqdm)
     else:
