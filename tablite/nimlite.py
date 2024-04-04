@@ -304,7 +304,7 @@ def read_page(path: Union[str, Path]) -> np.ndarray:
 def repaginate(column: Column):
     nl.repaginate(column)
 
-def nearest_neighbour(T: BaseTable, sources: list[str] | None, missing: list | None, targets: list[str] | None, tqdm=_tqdm):
+def nearest_neighbour(T: BaseTable, sources: Union[list[str], None], missing: list | None, targets: Union[list[str], None], tqdm=_tqdm):
     return nl.nearest_neighbour(T, sources, list(missing), targets, tqdm)
 
 def filter(table: BaseTable, expressions: list[FilterDict], type: FilterType, tqdm = _tqdm):
