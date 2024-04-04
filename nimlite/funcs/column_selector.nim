@@ -117,10 +117,6 @@ when isMainModule and appType != "lib":
     # let columns = modules().builtins.classes.DictClass!({"A": @[nimValueToPy("0"), nimValueToPy(nil), nimValueToPy("2")], "B": @[nimValueToPy("3"), nimValueToPy(nil), nimValueToPy("4")]}.toTable)
     # let columns = modules().builtins.classes.DictClass!({"str": @["1", "0"]})
     # let columns = modules().builtins.classes.DictClass!({"float": @[1.0, 0.0]})
-    # let columns = modules().builtins.classes.DictClass!({"date": @[
-    #     datetime().date(2000, 1, 1),
-    #     datetime().date(2000, 1, 2),
-    # ]})
     let columns = modules().builtins.classes.DictClass!({"date": @[
         modules().datetime.classes.DateClass!(2000, 1, 1),
         modules().datetime.classes.DateClass!(2000, 1, 2),
