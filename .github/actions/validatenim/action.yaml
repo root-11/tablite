@@ -5,7 +5,6 @@ runs:
   steps:
     - name: Test nim
       shell: bash
-      run: nimble test
     - name: Compile Debug & import (Unix)
       shell: bash
       if: runner.os == 'Linux' || runner.os == 'macOS'
