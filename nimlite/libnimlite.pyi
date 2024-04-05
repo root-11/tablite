@@ -35,3 +35,6 @@ def nearest_neighbour(T, sources, missing, targets, tqdm):
 
 def groupby(T, keys, functions, tqdm):
     pass
+
+def filter(table, expressions, type, tqdm):
+    pass

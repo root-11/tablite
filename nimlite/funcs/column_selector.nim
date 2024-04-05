@@ -77,6 +77,7 @@ when isMainModule and appType != "lib":
             tblFail.extendTable(pg_fail)
 
         discard pbar.update(pbar.total.to(float) - pbar.n.to(float))
+        discard pbar.close()
 
         return (tblPass, tblFail)
 
@@ -107,18 +108,19 @@ when isMainModule and appType != "lib":
 
     # let columns = modules().builtins.classes.DictClass!({"A ": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(10), nimValueToPy(200)]}.toTable)
     # let columns = modules().builtins.classes.DictClass!({"A ": @[1, 22, 333]}.toTable)
+    # let columns = modules().builtins.classes.DictClass!({"A": @[0, 1]}.toTable)
     # let columns = modules().builtins.classes.DictClass!({"A ": @["1", "22", "333", "", "abc"]}.toTable)
-    let columns = modules().builtins.classes.DictClass!({"A": @["a", "1", "c"], "B": @["d", "e", "f"]}.toTable)
+    # let columns = modules().builtins.classes.DictClass!({"A": @["a", "1", "c"], "B": @["d", "e", "f"]}.toTable)
     # let columns = modules().builtins.classes.DictClass!({"A ": @[nimValueToPy("1"), nimValueToPy("222"), nimValueToPy("333"), nimValueToPy(nil), nimValueToPy("abc")]}.toTable)
     # let columns = modules().builtins.classes.DictClass!({"A ": @[nimValueToPy(1), nimValueToPy(2.0), nimValueToPy("333"), nimValueToPy("abc")]}.toTable)
     # let columns = modules().builtins.classes.DictClass!({"A": @[nimValueToPy(111111), nimValueToPy(222222), nimValueToPy(333333)], "B": @[nimValueToPy(0), nimValueToPy(nil), nimValueToPy(2)]}.toTable)
     # let columns = modules().builtins.classes.DictClass!({"A": @[nimValueToPy("0"), nimValueToPy(nil), nimValueToPy("2")], "B": @[nimValueToPy("3"), nimValueToPy(nil), nimValueToPy("4")]}.toTable)
     # let columns = modules().builtins.classes.DictClass!({"str": @["1", "0"]})
     # let columns = modules().builtins.classes.DictClass!({"float": @[1.0, 0.0]})
-    # let columns = modules().builtins.classes.DictClass!({"date": @[
-    #     datetime().date(2000, 1, 1),
-    #     datetime().date(2000, 1, 2),
-    # ]})
+    let columns = modules().builtins.classes.DictClass!({"date": @[
+        modules().datetime.classes.DateClass!(2000, 1, 1),
+        modules().datetime.classes.DateClass!(2000, 1, 2),
+    ]})
     # let columns = pymodules.builtins().dict({"str": @[nimValueToPy("abc"), nimValueToPy("efg"), nimValueToPy(nil)]}.toTable)
     let table = modules().tablite.classes.TableClass!(columns = columns)
     let dirdata = os.getEnv("DATA_DIR", ".")
@@ -165,7 +167,15 @@ when isMainModule and appType != "lib":
             # newColumnSelectorInfo("A",, "str", false, opt.none[string]()),
             # newColumnSelectorInfo("B",, "int", false, opt.none[string]()),
 
-            newColumnSelectorInfo("A", "int", false, opt.none[string]()),
+            # newColumnSelectorInfo("A", "int", false, opt.none[string]()),
+            
+            # newColumnSelectorInfo("date", "bool", false, opt.some("bool")),
+            # newColumnSelectorInfo("date", "int", false, opt.some("int")),
+            # newColumnSelectorInfo("date", "float", false, opt.some("float")),
+            # newColumnSelectorInfo("date", "str", false, opt.some("str")),
+            # newColumnSelectorInfo("date", "date", false, opt.some("date")),
+            newColumnSelectorInfo("date", "time", false, opt.some("time")),
+            newColumnSelectorInfo("date", "datetime", false, opt.some("datetime")),
 
             # newColumnSelectorInfo("sale_date", "datetime", false, opt.none[string]()),
             # newColumnSelectorInfo("cust_nbr", "str", false, opt.none[string]()),

@@ -180,7 +180,8 @@ proc nearestNeighbourImputation*(T: nimpy.PyObject, sources: seq[string],
             tabliteBase.collectPages(T[name])
 
     var targetsPYColumns: seq[nimpy.PyObject]
-    var newTable = m.tablite.classes.TableClass!()
+    var TableClass = m.builtins.getType(T)
+    var newTable = TableClass!()
     for columnName in T.columns:
         if m.toStr(columnName) in targets:
             var c = tabliteBase.classes.ColumnClass!(pidDir)
@@ -258,17 +259,19 @@ proc nearestNeighbourImputation*(T: nimpy.PyObject, sources: seq[string],
                             sparseMap[name][rowIdx] = sv
                             break
             discard pbar.update(1)
+
     if lastPageIndex != -1:
         savePages(targetsPages.get(), targetsPYColumns, lastPageIndex)
+
+    discard pbar.close()
     return newTable
 
-# when appType != "lib":
-    # echo unixSort(@[newPY_Object(true), newPY_Object(true), newPY_Object(true), newPY_Object(0), newPY_Object(1), newPY_Object(1.0), newPY_Object(false), newPY_Object(2)])
-    # modules().tablite.modules.config.classes.Config.PAGE_SIZE = 1
-    # let columns = modules().builtins.classes.DictClass!()
+when appType != "lib":
+    modules().tablite.modules.config.classes.Config.PAGE_SIZE = 1
+    let columns = modules().builtins.classes.DictClass!()
     # 1
-    # columns["A"] = @[nimValueToPy(0), nimValueToPy(1), nimValueToPy(nil), nimValueToPy(3), nimValueToPy(0)]
-    # columns["B"] = @[nimValueToPy("4"), nimValueToPy(5), nimValueToPy(6), nimValueToPy(7), nimValueToPy(4)]
+    columns["A"] = @[nimValueToPy(0), nimValueToPy(1), nimValueToPy(nil), nimValueToPy(3), nimValueToPy(0)]
+    columns["B"] = @[nimValueToPy("4"), nimValueToPy(5), nimValueToPy(6), nimValueToPy(7), nimValueToPy(4)]
 
     # 2
     # columns["a"] = @[1, 1, 5, 5, 6, 6]
@@ -281,16 +284,16 @@ proc nearestNeighbourImputation*(T: nimpy.PyObject, sources: seq[string],
     # columns["c"] = @[nimValueToPy(0), nimValueToPy(1), nimValueToPy(nil), nimValueToPy(3)]
     # columns["d"] = @[nimValueToPy(0), nimValueToPy(1), nimValueToPy(2), nimValueToPy(nil)]
 
-    # let table = modules().tablite.classes.TableClass!(columns = columns)
+    let table = modules().tablite.classes.TableClass!(columns = columns)
 
-    # discard table.show()
+    discard table.show()
 
     # echo index(table, @["A", "B"])
     # 1
-    # var r = nearestNeighbourImputation(table, @["A", "B"], @[PY_ObjectND(PY_None)], @["A"])
+    var r = nearestNeighbourImputation(table, @["A", "B"], @[PY_ObjectND(PY_None)], @["A"])
     # 2
     # var r = nearestNeighbourImputation(table, @["a", "b", "c"], @[PY_ObjectND(PY_None), newPY_Object("NULL"), newPY_Object(-1)], @["b", "c"])
     # 3
     # var r = nearestNeighbourImputation(table, @["a", "b", "c", "d"], @[PY_ObjectND(PY_None)], @["a", "b", "c", "d"])
 
-    # discard r.show()
+    discard r.show()

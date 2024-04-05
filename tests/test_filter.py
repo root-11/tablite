@@ -183,5 +183,7 @@ def test_filter():
             ]
         )
         assert False, "the compared datasets are assymmetric."
-    except ValueError:
-        assert True
+    except Exception as e:
+        assert type(e).__name__ == "ValueError"
+        assert type(e).__module__ == "nimpy"
+        assert "table must have equal number of columns" in str(e)
