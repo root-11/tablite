@@ -156,7 +156,8 @@ proc nearestNeighbourImputation*(T: nimpy.PyObject, sources: seq[string],
     var
         missingValsCounts = collect: (for v in missing_value_index.values(): len(v))
         totalSteps = sum(missingValsCounts)
-        pbar = tqdm!(desc: &"imputation.nearest_neighbour", total: totalSteps)
+        TqdmClass = if tqdm.isNone: m.tqdm.classes.TqdmClass else: tqdm
+        pbar = TqdmClass!(desc: &"imputation.nearest_neighbour", total: totalSteps)
         ranks: seq[PY_ObjectND] = @[]
         newOrder = initTable[seq[int], seq[PY_ObjectND]]()
 
