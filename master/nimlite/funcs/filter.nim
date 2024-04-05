@@ -215,6 +215,18 @@ proc filter*(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTy
     template dumpPage(columns: seq[string], passColumn: nimpy.PyObject, failColumn: nimpy.PyObject): void =
         var firstPage = 0
         var currentOffset = 0
+        var maskOffset = 0
+
+        template dumpSlice(slice: seq[int], originalPage: BaseNDArray, column: nimpy.PyObject): void =
+            if slice.len > 0:
+                let pgid = base.classes.SimplePageClass.next_id(string basedir).to(string)
+                let pgPath = string(pagedir / Path(pgid & ".npy"))
+                let page = originalPage[slice]
+                page.save(pgPath)
+
+                let pyPage = newPyPage(page, string basedir, pgid)
+
+                discard column.pages.append(pyPage)
 
         while true:
             var len = getPageLen(columns[firstPage])
@@ -225,17 +237,15 @@ proc filter*(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTy
             inc firstPage
             currentOffset = currentOffset + len
 
-        var maskOffset = 0
+        var indiceOffset = offset - currentOffset
+        var maskLeftOver = bitNum - maskOffset
 
-        let indiceOffset = offset - currentOffset
-
-        while maskOffset < bitNum:
+        while maskLeftOver > 0:
             let page = readNumpy(columns[firstPage])
 
-            let len = page.len
-            let sliceMax = min((bitNum - maskOffset), len)
-            let sliceLen = sliceMax - maskOffset
-            let slice = maskOffset..<sliceMax
+            let len = (page.len - indiceOffset)
+            let sliceLen = min(maskLeftOver, len)
+            let slice = maskOffset..<(sliceLen + maskOffset)
 
             var validIndices = newSeqOfCap[int](sliceLen - (sliceLen shr 2))
             var invalidIndices = newSeqOfCap[int](sliceLen shr 2)
@@ -244,25 +254,12 @@ proc filter*(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTy
                 if m: validIndices.add(i + indiceOffset)
                 else: invalidIndices.add(i + indiceOffset)
 
-            let passPid = base.classes.SimplePageClass.next_id(string basedir).to(string)
-            let failPid = base.classes.SimplePageClass.next_id(string basedir).to(string)
-
-            let passPath = string(pagedir / Path(passPid & ".npy"))
-            let failPath = string(pagedir / Path(failPid & ".npy"))
-
-            let passPage = page[validIndices]
-            let failPage = page[invalidIndices]
-
-            passPage.save(passPath)
-            failPage.save(failPath)
-
-            let passPagePy = newPyPage(passPage, string basedir, passPid)
-            let failPagePy = newPyPage(failPage, string basedir, failPid)
-
-            discard passColumn.pages.append(passPagePy)
-            discard failColumn.pages.append(failPagePy)
+            validIndices.dumpSlice(page, passColumn)
+            invalidIndices.dumpSlice(page, failColumn)
 
             maskOffset = maskOffset + sliceLen
+            maskLeftOver = maskLeftOver - sliceLen
+            indiceOffset = 0
             inc firstPage
 
     template dumpPages(tablePages: Table[string, seq[string]]): void =
@@ -272,7 +269,7 @@ proc filter*(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTy
     let tableLen = builtins.getLen(table)
     let tqdmLen = int ceil(float(tableLen) / float(pageSize))
     let TqdmClass = (if isNone(tqdm): m.tqdm.classes.TqdmClass else: tqdm)
-    let pbar = TqdmClass!(total: tqdmLen, desc="filter")
+    let pbar = TqdmClass!(total: tqdmLen, desc = "filter")
 
     for (i, row) in enumerate(exprCols.iterateRows(tablePages)):
         bitmask[bitNum] = row.checkExpressions(exprCols, expressions, filterType)
@@ -303,28 +300,3 @@ proc filter*(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTy
     discard pbar.close()
 
     return (passTable, failTable)
-
-
-when appType != "lib":
-    let m = modules()
-    let Config = m.tablite.modules.config.classes.Config
-
-    # Config.PAGE_SIZE = 2
-
-    let table = m.tablite.classes.TableClass!({
-        "a": @[1, 2, 3, 4],
-        "b": @[10, 20, 30, 40],
-        "c": @[4, 4, 4, 4]
-    }.toTable)
-    let pyExpressions = @[
-        m.builtins.classes.DictClass!(column1: "a", criteria: ">=", value2: 2),
-        # m.builtins.classes.DictClass!(column1: "b", criteria: "==", value2: 20),
-        m.builtins.classes.DictClass!(column1: "a", criteria: "==", column2: "c"),
-    ]
-
-    Config.PAGE_SIZE = 2
-
-    let (tblPass, tblFail) = filter(table, pyExpressions, "all", nil)
-
-    discard tblPass.show()
-    discard tblFail.show()

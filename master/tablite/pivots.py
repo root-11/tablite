@@ -8,21 +8,6 @@ from tablite.config import Config
 
 from tqdm import tqdm as _tqdm
 
-
-def acc2Name(acc: str) -> str:
-    arr = ["max", "min", "sum", "product", "first", "last", "count", "median", "mode"]
-    if acc in arr:
-        return acc.capitalize()
-    elif acc == "count_unique":
-        return "CountUnique"
-    elif acc == "avg":
-        return "Average"
-    elif acc == "stdev":
-        return "StandardDeviation"
-    else:
-        raise ValueError(f"unknown accumulator - {acc}")
-
-
 def pivot(T, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=None):
     """
     param: rows: column names to keep as rows
@@ -143,7 +128,7 @@ def pivot(T, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=Non
         cols = [[] for _ in range(n)]
         for row, ix in row_key_index.items():
             for col_name, f in functions:
-                cols[-1].append(f"{acc2Name(f)}({col_name})")
+                cols[-1].append(f"{f}({col_name})")
                 for col_ix, v in enumerate(row):
                     cols[col_ix].append(v)
 
@@ -182,7 +167,7 @@ def pivot(T, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=Non
             for f, v in zip(functions, func_key):
                 agg_col, func = f
                 terms = ",".join([agg_col] + [f"{col_name}={value}" for col_name, value in zip(columns, col_key)])
-                col_name = f"{acc2Name(func)}({terms})"
+                col_name = f"{func}({terms})"
                 col_name = unique_name(col_name, result.columns)
                 names.append(col_name)
                 cols.append([None for _ in range(col_length)])

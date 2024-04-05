@@ -945,15 +945,6 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#tablite.pivots.acc2Name" class="md-nav__link">
-    <span class="md-ellipsis">
-      &nbsp;acc2Name
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#tablite.pivots.pivot" class="md-nav__link">
     <span class="md-ellipsis">
       &nbsp;pivot
@@ -1207,15 +1198,6 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#tablite.pivots.acc2Name" class="md-nav__link">
-    <span class="md-ellipsis">
-      &nbsp;acc2Name
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#tablite.pivots.pivot" class="md-nav__link">
     <span class="md-ellipsis">
       &nbsp;pivot
@@ -1298,50 +1280,6 @@
 
 
 
-<h4 id="tablite.pivots.acc2Name" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">pivots</span><span class="o">.</span><span class="n">acc2Name</span><span class="p">(</span><span class="n">acc</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span></code>
-
-</h4>
-
-
-  <div class="doc doc-contents ">
-
-          <details class="quote">
-            <summary>Source code in <code>tablite/pivots.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">12</span>
-<span class="normal">13</span>
-<span class="normal">14</span>
-<span class="normal">15</span>
-<span class="normal">16</span>
-<span class="normal">17</span>
-<span class="normal">18</span>
-<span class="normal">19</span>
-<span class="normal">20</span>
-<span class="normal">21</span>
-<span class="normal">22</span>
-<span class="normal">23</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">acc2Name</span><span class="p">(</span><span class="n">acc</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-    <span class="n">arr</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;max&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">,</span> <span class="s2">&quot;sum&quot;</span><span class="p">,</span> <span class="s2">&quot;product&quot;</span><span class="p">,</span> <span class="s2">&quot;first&quot;</span><span class="p">,</span> <span class="s2">&quot;last&quot;</span><span class="p">,</span> <span class="s2">&quot;count&quot;</span><span class="p">,</span> <span class="s2">&quot;median&quot;</span><span class="p">,</span> <span class="s2">&quot;mode&quot;</span><span class="p">]</span>
-    <span class="k">if</span> <span class="n">acc</span> <span class="ow">in</span> <span class="n">arr</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">acc</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span>
-    <span class="k">elif</span> <span class="n">acc</span> <span class="o">==</span> <span class="s2">&quot;count_unique&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s2">&quot;CountUnique&quot;</span>
-    <span class="k">elif</span> <span class="n">acc</span> <span class="o">==</span> <span class="s2">&quot;avg&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s2">&quot;Average&quot;</span>
-    <span class="k">elif</span> <span class="n">acc</span> <span class="o">==</span> <span class="s2">&quot;stdev&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s2">&quot;StandardDeviation&quot;</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;unknown accumulator - </span><span class="si">{</span><span class="n">acc</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</code></pre></div></td></tr></table></div>
-          </details>
-  </div>
-
-</div>
-
-
-<div class="doc doc-object doc-function">
-
-
-
 <h4 id="tablite.pivots.pivot" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>          <code class="highlight language-python"><span class="n">tablite</span><span class="o">.</span><span class="n">pivots</span><span class="o">.</span><span class="n">pivot</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">functions</span><span class="p">,</span> <span class="n">values_as_rows</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
@@ -1390,7 +1328,22 @@ param: functions: aggregation functions from the Groupby class as</p>
 
           <details class="quote">
             <summary>Source code in <code>tablite/pivots.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 26</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 11</span>
+<span class="normal"> 12</span>
+<span class="normal"> 13</span>
+<span class="normal"> 14</span>
+<span class="normal"> 15</span>
+<span class="normal"> 16</span>
+<span class="normal"> 17</span>
+<span class="normal"> 18</span>
+<span class="normal"> 19</span>
+<span class="normal"> 20</span>
+<span class="normal"> 21</span>
+<span class="normal"> 22</span>
+<span class="normal"> 23</span>
+<span class="normal"> 24</span>
+<span class="normal"> 25</span>
+<span class="normal"> 26</span>
 <span class="normal"> 27</span>
 <span class="normal"> 28</span>
 <span class="normal"> 29</span>
@@ -1546,22 +1499,7 @@ param: functions: aggregation functions from the Groupby class as</p>
 <span class="normal">179</span>
 <span class="normal">180</span>
 <span class="normal">181</span>
-<span class="normal">182</span>
-<span class="normal">183</span>
-<span class="normal">184</span>
-<span class="normal">185</span>
-<span class="normal">186</span>
-<span class="normal">187</span>
-<span class="normal">188</span>
-<span class="normal">189</span>
-<span class="normal">190</span>
-<span class="normal">191</span>
-<span class="normal">192</span>
-<span class="normal">193</span>
-<span class="normal">194</span>
-<span class="normal">195</span>
-<span class="normal">196</span>
-<span class="normal">197</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">pivot</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">functions</span><span class="p">,</span> <span class="n">values_as_rows</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">182</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">pivot</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">functions</span><span class="p">,</span> <span class="n">values_as_rows</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    param: rows: column names to keep as rows</span>
 <span class="sd">    param: columns: column names to keep as columns</span>
@@ -1681,7 +1619,7 @@ param: functions: aggregation functions from the Groupby class as</p>
         <span class="n">cols</span> <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)]</span>
         <span class="k">for</span> <span class="n">row</span><span class="p">,</span> <span class="n">ix</span> <span class="ow">in</span> <span class="n">row_key_index</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="k">for</span> <span class="n">col_name</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">functions</span><span class="p">:</span>
-                <span class="n">cols</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">acc2Name</span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="n">col_name</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+                <span class="n">cols</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">f</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="n">col_name</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">col_ix</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
                     <span class="n">cols</span><span class="p">[</span><span class="n">col_ix</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
 
@@ -1720,7 +1658,7 @@ param: functions: aggregation functions from the Groupby class as</p>
             <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">functions</span><span class="p">,</span> <span class="n">func_key</span><span class="p">):</span>
                 <span class="n">agg_col</span><span class="p">,</span> <span class="n">func</span> <span class="o">=</span> <span class="n">f</span>
                 <span class="n">terms</span> <span class="o">=</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">agg_col</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">col_name</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">col_name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="n">col_key</span><span class="p">)])</span>
-                <span class="n">col_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">acc2Name</span><span class="p">(</span><span class="n">func</span><span class="p">)</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="n">terms</span><span class="si">}</span><span class="s2">)&quot;</span>
+                <span class="n">col_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">func</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="n">terms</span><span class="si">}</span><span class="s2">)&quot;</span>
                 <span class="n">col_name</span> <span class="o">=</span> <span class="n">unique_name</span><span class="p">(</span><span class="n">col_name</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
                 <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col_name</span><span class="p">)</span>
                 <span class="n">cols</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="kc">None</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">col_length</span><span class="p">)])</span>
@@ -1756,20 +1694,20 @@ param: functions: aggregation functions from the Groupby class as</p>
 
           <details class="quote">
             <summary>Source code in <code>tablite/pivots.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">200</span>
-<span class="normal">201</span>
-<span class="normal">202</span>
-<span class="normal">203</span>
-<span class="normal">204</span>
-<span class="normal">205</span>
-<span class="normal">206</span>
-<span class="normal">207</span>
-<span class="normal">208</span>
-<span class="normal">209</span>
-<span class="normal">210</span>
-<span class="normal">211</span>
-<span class="normal">212</span>
-<span class="normal">213</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">transpose</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">):</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">185</span>
+<span class="normal">186</span>
+<span class="normal">187</span>
+<span class="normal">188</span>
+<span class="normal">189</span>
+<span class="normal">190</span>
+<span class="normal">191</span>
+<span class="normal">192</span>
+<span class="normal">193</span>
+<span class="normal">194</span>
+<span class="normal">195</span>
+<span class="normal">196</span>
+<span class="normal">197</span>
+<span class="normal">198</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">transpose</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;performs a CCW matrix rotation of the table.&quot;&quot;&quot;</span>
     <span class="n">sub_cls_check</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">BaseTable</span><span class="p">)</span>
 
@@ -1894,7 +1832,22 @@ Output:
 
           <details class="quote">
             <summary>Source code in <code>tablite/pivots.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">216</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">201</span>
+<span class="normal">202</span>
+<span class="normal">203</span>
+<span class="normal">204</span>
+<span class="normal">205</span>
+<span class="normal">206</span>
+<span class="normal">207</span>
+<span class="normal">208</span>
+<span class="normal">209</span>
+<span class="normal">210</span>
+<span class="normal">211</span>
+<span class="normal">212</span>
+<span class="normal">213</span>
+<span class="normal">214</span>
+<span class="normal">215</span>
+<span class="normal">216</span>
 <span class="normal">217</span>
 <span class="normal">218</span>
 <span class="normal">219</span>
@@ -1966,22 +1919,7 @@ Output:
 <span class="normal">285</span>
 <span class="normal">286</span>
 <span class="normal">287</span>
-<span class="normal">288</span>
-<span class="normal">289</span>
-<span class="normal">290</span>
-<span class="normal">291</span>
-<span class="normal">292</span>
-<span class="normal">293</span>
-<span class="normal">294</span>
-<span class="normal">295</span>
-<span class="normal">296</span>
-<span class="normal">297</span>
-<span class="normal">298</span>
-<span class="normal">299</span>
-<span class="normal">300</span>
-<span class="normal">301</span>
-<span class="normal">302</span>
-<span class="normal">303</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">pivot_transpose</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">keep</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">column_name</span><span class="o">=</span><span class="s2">&quot;transpose&quot;</span><span class="p">,</span> <span class="n">value_name</span><span class="o">=</span><span class="s2">&quot;value&quot;</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">):</span>
+<span class="normal">288</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">pivot_transpose</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">keep</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">column_name</span><span class="o">=</span><span class="s2">&quot;transpose&quot;</span><span class="p">,</span> <span class="n">value_name</span><span class="o">=</span><span class="s2">&quot;value&quot;</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Transpose a selection of columns to rows.</span>
 
 <span class="sd">    Args:</span>
