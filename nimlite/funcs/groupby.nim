@@ -642,11 +642,7 @@ proc groupby*(T: nimpy.PyObject, keys: seq[string], functions: seq[(string, Accu
     var columnsPaths: OrderedTable[string, seq[string]] = collect(initOrderedTable()):
         for cn in columnNames:
             {cn: tabliteBase.collectPages(T[cn])}
-
-    for cn in columnNames:
-        var pages: seq[string] = tabliteBase.collectPages(T[cn])
-        columnsPaths[cn] = pages
-
+    var pbar = tqdm!(desc: &"groupby", total: len(columnsPaths[toSeq(columnsPaths.keys)[0]]))
     var aggregationFuncs = initOrderedTable[seq[PY_ObjectND], seq[(string, GroupByFunction)]]()
     for pagesZipped in pageZipper(columnsPaths):
         for row in iteratePages(pagesZipped):
@@ -666,6 +662,7 @@ proc groupby*(T: nimpy.PyObject, keys: seq[string], functions: seq[(string, Accu
                 aggFuncs = aggregationFuncs[key]
             for (cn, fun) in aggFuncs:
                 fun.update(some(d[cn]))
+        discard pbar.update(1)
     
     var keysFuncCols = keys
     for (cn, acc) in functions:
@@ -692,7 +689,7 @@ proc groupby*(T: nimpy.PyObject, keys: seq[string], functions: seq[(string, Accu
         for p in pages:
             discard column.pages.append(p)
         newTable[cn] = column
-
+    discard pbar.close()
     return newTable
 
 # when appType != "lib":
