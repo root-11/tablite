@@ -1,5 +1,5 @@
 import nimpy
-import std/[unittest, tables, sugar]
+import std/[unittest, sugar]
 import ../nimlite/funcs/imputation
 import ../nimlite/[pymodules, nimpyext, pytypes]
 
