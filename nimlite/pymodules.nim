@@ -1,8 +1,9 @@
 import dotenv
 import nimpy/py_lib
-from std/os import getEnv, existsEnv
+from std/os import getEnv, existsEnv, fileExists
 
-load()
+if fileExists("./.env"):
+    load()
 
 if existsEnv("LIB_PYTHON"):
     pyInitLibPath(getEnv("LIB_PYTHON"))
