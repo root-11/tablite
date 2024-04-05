@@ -292,3 +292,6 @@ def repaginate(column: Column):
 
 def nearest_neighbour(T, sources, missing, targets, tqdm=_tqdm):
     return nl.nearest_neighbour(T, sources, list(missing), targets, tqdm)
+
+def groupby(T, keys, functions, tqdm=_tqdm):
+    return nl.groupby(T, keys, functions, tqdm)

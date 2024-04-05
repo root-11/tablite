@@ -23,6 +23,7 @@ from tablite import imputation
 from tablite import diff
 from tablite.config import Config
 from tablite.nimlite import column_select as _column_select, ColumnSelectorDict, ValidSkipEmpty
+from tablite.nimlite import groupby as _groupby
 from mplite import TaskManager as _TaskManager
 
 logging.getLogger("lml").propagate = False
@@ -611,7 +612,7 @@ class Table(BaseTable):
             https://github.com/root-11/tablite/blob/master/tests/test_groupby.py
 
         """
-        return groupbys.groupby(self, keys, functions, tqdm=tqdm, pbar=pbar)
+        return _groupby(self, keys, functions, tqdm)
 
     def pivot(self, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=None):
         """

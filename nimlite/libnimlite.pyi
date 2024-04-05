@@ -32,3 +32,6 @@ def collect_text_reader_page_info_task(task_info, task):
 
 def nearest_neighbour(T, sources, missing, targets, tqdm):
     pass
+
+def groupby(T, keys, functions, tqdm):
+    pass

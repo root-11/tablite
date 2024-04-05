@@ -183,19 +183,15 @@ class Mode(Histogram):
 
 
 class GroupBy(object):
-    max = Max  # shortcuts to avoid having to type a long list of imports.
-    min = Min
-    sum = Sum
-    product = Product
-    first = First
-    last = Last
-    count = Count
-    count_unique = CountUnique
-    avg = Average
-    stdev = StandardDeviation
-    median = Median
-    mode = Mode
-
-    functions = [Max, Min, Sum, First, Last, Product, Count, CountUnique, Average, StandardDeviation, Median, Mode]
-
-    function_names = {f.__name__: f for f in functions}
+    max = "max"
+    min = "min"
+    sum = "sum"
+    product = "product"
+    first = "first"
+    last = "last"
+    count = "count"
+    count_unique = "count_unique"
+    avg = "avg"
+    stdev = "stdev"
+    median = "median"
+    mode = "mode"

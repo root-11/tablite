@@ -1,4 +1,4 @@
-import std/[os, unicode, strutils, sugar, times, tables, enumerate, sequtils, paths, hashes]
+import std/[os, unicode, strutils, sugar, times, tables, enumerate, sequtils, paths, hashes, strformat]
 from std/macros import bindSym
 from std/typetraits import name
 from std/math import ceil
@@ -1429,6 +1429,22 @@ method toHash(self: PY_String): Hash = hash((self.kind, self.value))
 proc hash*(self: PY_ObjectND): Hash = self.toHash()
 proc hash*(self: seq[PY_ObjectND]): Hash = hash(self, 0, self.high)
 
+proc slice*(table: nimpy.PyObject, columnNames: openArray[string]): nimpy.PyObject =
+    let
+        m = modules()
+        tabliteBase = m.tablite.modules.base
+        tabliteConf = m.tablite.modules.config.classes.Config
+        pid: string = tabliteConf.pid.to(string)
+        workDir: string = m.toStr(tabliteConf.workdir)
+        pidDir: string = &"{workDir}/{pid}"
+    
+    var t = m.tablite.classes.TableClass!()
+    for name in columnNames:
+        var c = tabliteBase.classes.ColumnClass!(pidDir)
+        for p in table[name].pages:
+            discard c.pages.append(p)
+        t[name] = c
+    return t
 
 proc index*(table: nimpy.PyObject, columnNames: openArray[string]): TableIndices =
     var d = initOrderedTable[seq[PY_ObjectND], seq[int]]()

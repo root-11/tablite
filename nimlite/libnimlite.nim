@@ -165,3 +165,11 @@ when isLib:
             else:
                 raise newException(ValueError, "unrecognized type.")
         return nearestNeighbourImputation(T, sources, miss, targets, tqdm)
+    
+    # --------   GROUPBY  -----------
+    import funcs/groupby as gb
+    proc groupby(T: nimpy.PyObject, keys: seq[string], functions: seq[(string, string)], tqdm: nimpy.PyObject): nimpy.PyObject {. exportpy .} =
+        var funcs = collect:
+            for (cn, fn) in functions:
+                (cn, str2Accumulator(fn))
+        return gb.groupby(T, keys, funcs, tqdm)

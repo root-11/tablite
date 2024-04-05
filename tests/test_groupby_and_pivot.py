@@ -89,8 +89,10 @@ def test_groupby_missing_args():
     t.add_column("B", data=[1, 2, 3, 4, 5, 6] * 2)
     try:
         _ = t.groupby(keys=[], functions=[])  # value error. DONE.
-        assert False, "the line above should raise ValueError"
-    except ValueError:
+        assert False
+    except Exception as e:
+        assert type(e).__name__ == "ValueError"
+        assert type(e).__module__ == "nimpy"
         assert True
 
     g0 = t.groupby(keys=[], functions=[("A", gb.sum)])
@@ -380,3 +382,74 @@ def test_reverse_pivot():
     # +===+=====+===================+================+================+================+
     assert len(t2) == 5 and len(t2.columns) == 5
     assert t2["Count(ahe,ahe=e)"][0] is None
+
+def test_groupby_funcs():
+    # ======== MEDIAN ==========
+
+    def createTable(valArr):
+        return Table({
+            'k': [1 for _ in valArr],
+            'v': valArr,
+        })
+    
+    t = createTable([1, 2, 3, 4, 5]).groupby(keys=['k'], functions=[('v', gb.median)])
+    assert t["Median(v)"] == [3]
+
+    t = createTable([1, 2, 3, 6, 7, 8]).groupby(keys=['k'], functions=[('v', gb.median)])
+    assert t["Median(v)"] == [4.5]
+
+    t = createTable([3]).groupby(keys=['k'], functions=[('v', gb.median)])
+    assert t["Median(v)"] == [3]
+
+    t = createTable([3, 3]).groupby(keys=['k'], functions=[('v', gb.median)])
+    assert t["Median(v)"] == [3]
+
+    t = createTable([3, 3, 3]).groupby(keys=['k'], functions=[('v', gb.median)])
+    assert t["Median(v)"] == [3]
+    
+    t = createTable([3, 3, 6, 6, 9, 9]).groupby(keys=['k'], functions=[('v', gb.median)])
+    assert t["Median(v)"] == [6]
+
+    t = createTable([3, 3, 3, 9, 9, 9]).groupby(keys=['k'], functions=[('v', gb.median)])
+    assert t["Median(v)"] == [6]
+
+    t = createTable([-1, -1, 0, 1, 1]).groupby(keys=['k'], functions=[('v', gb.median)])
+    assert t["Median(v)"] == [0]
+
+    t = createTable([-1, -1, 0, 0, 1, 1]).groupby(keys=['k'], functions=[('v', gb.median)])
+    assert t["Median(v)"] == [0]
+
+    t = createTable([5, 4, 6, 3, 7, 2, 8, 1, 9]).groupby(keys=['k'], functions=[('v', gb.median)])
+    assert t["Median(v)"] == [5]
+
+    t = createTable([i / 10 for i in range(10)]).groupby(keys=['k'], functions=[('v', gb.median)])
+    assert t["Median(v)"] == [0.45]
+
+    t = createTable([i / 10 for i in range(1, 10)]).groupby(keys=['k'], functions=[('v', gb.median)])
+    assert t["Median(v)"] == [0.5]
+    # ==========================
+
+    # ========== MAX ===========
+    t = createTable([-2, -1, 0, 1, 2, 3]).groupby(keys=['k'], functions=[('v', gb.max)])
+    assert t["Max(v)"] == [3]
+    # ==========================
+
+    # ========== MIN ===========
+    t = createTable([-2, -1, 0, 1, 2, 3]).groupby(keys=['k'], functions=[('v', gb.min)])
+    assert t["Min(v)"] == [-2]
+    # ==========================
+
+    # ========== SUM ===========
+    t = createTable([-2, -1, 0, 1, 2, 3]).groupby(keys=['k'], functions=[('v', gb.sum)])
+    assert t["Sum(v)"] == [3]
+    # ==========================
+
+    # ======== PRODUCT =========
+    L = [1, 2, 3, 4, 5]
+    x = 1
+    for i in L:
+        x *= i
+    t = createTable([1, 2, 3, 4, 5]).groupby(keys=['k'], functions=[('v', gb.product)])
+    assert t["Product(v)"] == [x]
+    # ==========================
+
