@@ -1,4 +1,13 @@
-from std/os import getEnv
+import dotenv
+import nimpy/py_lib
+from std/os import getEnv, existsEnv, fileExists
+
+if fileExists("./.env"):
+    load()
+
+if existsEnv("LIB_PYTHON"):
+    pyInitLibPath(getEnv("LIB_PYTHON"))
+
 from std/strutils import split
 from std/sugar import collect
 from nimpyext import `!`
@@ -151,7 +160,7 @@ proc getLen*(inst: PyModule[PyBuiltins], obj: PyObject): int {.inline.} = inst.m
 proc fromFile*(inst: PyModule[PyTablite], path: string): PyObject {.inline.} = inst.classes.TableClass.from_file(path)
 proc collectPages*(inst: PyModule[PyTabliteBase], column: PyObject): seq[string] {.inline.} =
     let builtins = modules().builtins
-    
+
     if not builtins.isinstance(column, inst.classes.ColumnClass):
         raise newException(ValueError, "not a column")
 
@@ -167,7 +176,6 @@ proc getTypeName*(self: PyModules, obj: PyObject): string {.inline.} = self.buil
 proc toStr*(self: PyModules, obj: PyObject): string {.inline.} = self.builtins.toStr(obj)
 proc toRepr*(self: PyModules, obj: PyObject): string {.inline.} = self.builtins.toRepr(obj)
 proc getLen*(self: PyModules, obj: PyObject): int {.inline.} = self.builtins.getLen(obj)
-
 
 proc isNone*(obj: PyObject): bool {.inline.} = modules().builtins.isinstance(obj, py.get.builtins.classes.NoneTypeClass)
 proc `in`*[T](a: T, b: nimpy.PyObject): bool {.inline.} =

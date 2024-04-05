@@ -10,7 +10,7 @@ runs:
       shell: bash
       run: |
         nimble -y refresh
-        nimble -y install nimpy
+        nimble -y install nimpy dotenv
     - name: Set Environment Variables
       uses: allenevans/set-env@v2.0.0
       with:

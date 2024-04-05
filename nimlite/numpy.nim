@@ -1463,35 +1463,3 @@ proc index*(table: nimpy.PyObject, columnNames: openArray[string]): TableIndices
             d[row].add(ix)
             inc ix
     return d
-
-when isMainModule and appType != "lib":
-    let tabliteConfig = modules().tablite.modules.config.classes.Config
-    # let workdir = Path(modules().toStr(tabliteConfig.workdir))
-    let pid = "nim"
-    # let pagedir = workdir / Path(pid) / Path("pages")
-
-    echo readNumpy("tests/data/pages/scalar.npy").len
-
-    # createDir(string pagedir)
-
-    tabliteConfig.pid = pid
-    tabliteConfig.PAGE_SIZE = 2
-
-    let columns = modules().builtins.classes.DictClass!({"A": @["1", "22", "333", "4444", "55555", "666666", "7777777"]}.toTable)
-    let table = modules().tablite.classes.TableClass!(columns = columns)
-    let pages = collect: (for p in table["A"].pages: modules().toStr(p.path))
-
-    let newPages = repaginate(pages)
-
-    echo newPages
-
-    for i in toSeq(iterateColumn[string](table["A"])):
-        echo i
-
-    echo newNDArray[DateNDArray](@[now().utc])
-    echo newNDArray[DateTimeNDArray](@[now().utc])
-    echo newNDArray(@[false, false, true])
-    echo newNDArray(@[1, 2, 3])
-    echo newNDArray(@[1.0, 2.0, 3.0])
-    echo newNDArray(@["a", "bb", "ccc"])
-    echo newNDArray(@[newPY_Object()])
