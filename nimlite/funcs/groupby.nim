@@ -3,27 +3,27 @@ import std/[math, tables, strutils, strformat, sequtils, enumerate, sugar, optio
 import ../[pytypes, numpy, pymodules, nimpyext]
 import ./imputation
 
-type Accumulator = enum
+type Accumulator* = enum
     Max, Min, Sum, First, Last, Product, Count,
     CountUnique, Average, StandardDeviation, Median, Mode
 
 proc str2Accumulator*(str: string): Accumulator =
-    let lower = str.toLower()
-    case lower:
-    of "max": result = Max
-    of "min": result = Min
-    of "sum": result = Sum
-    of "first": result = First
-    of "last": result = Last
-    of "product": result = Product
-    of "count": result = Count
-    of "count_unique": result = CountUnique
-    of "avg": result = Average
-    of "stdev": result = StandardDeviation
-    of "median": result = Median
-    of "mode": result = Mode
-    else:
-        raise newException(ValueError, &"Unrecognized groupby accumulator - {str}.")
+    return (
+        case str.toLower():
+        of "max": Max
+        of "min": Min
+        of "sum": Sum
+        of "first": First
+        of "last": Last
+        of "product": Product
+        of "count": Count
+        of "countunique", "count_unique": CountUnique
+        of "avg", "average": Average
+        of "stdev", "standarddeviation": StandardDeviation
+        of "median": Median
+        of "mode": Mode
+        else: raise newException(ValueError, &"Unrecognized groupby accumulator - {str}.")
+    )
 
 # =============================================================
 type GroupByFunction = ref object of RootObj
@@ -446,33 +446,21 @@ method value*(self: GroupByMode): Option[PY_ObjectND] =
 # =============================================================
 
 proc getGroupByFunction(acc: Accumulator): GroupByFunction =
-    case acc:
-    of Accumulator.Max:
-        return newGroupbyMax()
-    of Accumulator.Min:
-        return newGroupbyMin()
-    of Accumulator.Sum:
-        return newGroupBySum()
-    of Accumulator.Product:
-        return newGroupByProduct()
-    of Accumulator.First:
-        return newGroupByFirst()
-    of Accumulator.Last:
-        return newGroupByLast()
-    of Accumulator.Count:
-        return newGroupByCount()
-    of Accumulator.CountUnique:
-        return newGroupByCountUnique()
-    of Accumulator.Average:
-        return newGroupByAverage()
-    of Accumulator.StandardDeviation:
-        return newGroupByStandardDeviation()
-    of Accumulator.Median:
-        return newGroupByMedian()
-    of Accumulator.Mode:
-        return newGroupByMode()
-    else:
-        raise newException(ValueError, &"unknown accumulator - {acc}")
+    return (
+        case acc:
+        of Accumulator.Max: newGroupbyMax()
+        of Accumulator.Min: newGroupbyMin()
+        of Accumulator.Sum: newGroupBySum()
+        of Accumulator.Product: newGroupByProduct()
+        of Accumulator.First: newGroupByFirst()
+        of Accumulator.Last: newGroupByLast()
+        of Accumulator.Count: newGroupByCount()
+        of Accumulator.CountUnique: newGroupByCountUnique()
+        of Accumulator.Average: newGroupByAverage()
+        of Accumulator.StandardDeviation: newGroupByStandardDeviation()
+        of Accumulator.Median: newGroupByMedian()
+        of Accumulator.Mode: newGroupByMode()
+    )
 
 proc getPages(indices: seq[seq[PY_ObjectND]], columnIndex: int): seq[nimpy.PyObject] =
     let
@@ -642,7 +630,8 @@ proc groupby*(T: nimpy.PyObject, keys: seq[string], functions: seq[(string, Accu
     var columnsPaths: OrderedTable[string, seq[string]] = collect(initOrderedTable()):
         for cn in columnNames:
             {cn: tabliteBase.collectPages(T[cn])}
-    var pbar = tqdm!(desc: &"groupby", total: len(columnsPaths[toSeq(columnsPaths.keys)[0]]))
+    var TqdmClass = if tqdm.isNone: m.tqdm.classes.TqdmClass else: tqdm
+    var pbar = TqdmClass!(desc: &"groupby", total: len(columnsPaths[toSeq(columnsPaths.keys)[0]]))
     var aggregationFuncs = initOrderedTable[seq[PY_ObjectND], seq[(string, GroupByFunction)]]()
     for pagesZipped in pageZipper(columnsPaths):
         for row in iteratePages(pagesZipped):
@@ -691,61 +680,3 @@ proc groupby*(T: nimpy.PyObject, keys: seq[string], functions: seq[(string, Accu
         newTable[cn] = column
     discard pbar.close()
     return newTable
-
-# when appType != "lib":
-#     modules().tablite.modules.config.classes.Config.PAGE_SIZE = 1
-#     let columns = modules().builtins.classes.DictClass!()
-
-
-    # columns["A"] = @[nimValueToPy(nil), nimValueToPy(2), nimValueToPy(2), nimValueToPy(4), nimValueToPy(nil)]
-    # columns["B"] = @[nimValueToPy(2), nimValueToPy(3), nimValueToPy(4), nimValueToPy(7), nimValueToPy(6)]
-
-    # columns["a"] = @[0, 1, 2, 3, 4, 0, 1, 2, 3, 4]
-    # columns["b"] = @[0, 1, 2, 3, 4, 0, 1, 2, 3, 4]
-    # columns["c"] = @[0, 1, 2, 3, 4, 0, 1, 2, 3, 4]
-    # columns["d"] = @[0, 1, 2, 3, 4, 0, 1, 2, 3, 4]
-    # columns["e"] = @[0, 1, 2, 3, 4, 0, 1, 2, 3, 4]
-    # columns["f"] = @[1, 4, 5, 10, 13, 1, 4, 7, 10, 13]
-    # columns["g"] = @[0, 1, 8, 27, 64, 0, 1, 8, 27, 64]
-
-    # columns["a"] = @[1, 1, 1, 1, 1, 1]
-    # columns["b"] = @[-2, -1, 0, 1, 2, 3]
-
-    # let table = modules().tablite.classes.TableClass!(columns = columns)
-
-    # discard table.show()
-
-    # var r = table.groupby(keys = @["A"], functions = @[]) # None, 2, 4
-    # var r = table.groupby(keys = @["A", "B"], functions = @[]) # just like original
-    # var r = table.groupby(keys = @["A", "B"], functions = @[("A", Accumulator.Min)]) # Min(A) None, 2, 2, 4, None
-    # var r = table.groupby(keys = @["A", "B"], functions = @[("A", Accumulator.Max)]) # Max(A) None, 2, 2, 4, None
-    # var r = table.groupby(keys = @["A"], functions = @[("B", Accumulator.Sum)]) # 8, 7, 7
-    # var r = table.groupby(keys = @["A"], functions = @[("B", Accumulator.Product)]) # 12, 12, 7
-    # var r = table.groupby(keys = @["A"], functions = @[("B", Accumulator.First)]) # 2, 3, 7
-    # var r = table.groupby(keys = @["A"], functions = @[("B", Accumulator.Last)]) # 6, 4, 7
-    # var r = table.groupby(keys = @["A"], functions = @[("B", Accumulator.Count)]) # 2, 2, 1
-    # var r = table.groupby(keys = @["A"], functions = @[("B", Accumulator.CountUnique)]) # 2, 2, 1
-    # var r = table.groupby(keys = @["A"], functions = @[("B", Accumulator.Average)]) # 4, 3.5, 7
-    # var r = table.groupby(keys = @["A"], functions = @[("B", Accumulator.StandardDeviation)]) # 2.8284, 0.7071, 0.0
-    # var r = table.groupby(keys = @["A"], functions = @[("B", Accumulator.Median)]) # 4, 3.5, 7
-    # var r = table.groupby(keys = @["A"], functions = @[("B", Accumulator.Mode)]) # 6, 4, 7
-
-    # var r = table.groupby(keys = @["a", "b"], functions = @[
-    #     ("f", Accumulator.Max),
-    #     ("f", Accumulator.Min),
-    #     ("f", Accumulator.Sum),
-    #     ("f", Accumulator.Product),
-    #     ("f", Accumulator.First),
-    #     ("f", Accumulator.Last),
-    #     ("f", Accumulator.Count),
-    #     ("f", Accumulator.CountUnique),
-    #     ("f", Accumulator.Average),
-    #     ("f", Accumulator.StandardDeviation),
-    #     ("a", Accumulator.StandardDeviation),
-    #     ("f", Accumulator.Median),
-    #     ("f", Accumulator.Mode),
-    #     ("g", Accumulator.Median),
-    # ])
-
-    # var r = table.groupby(keys = @["a"], functions = @[("b", Accumulator.Max)])
-    # discard r.show()
