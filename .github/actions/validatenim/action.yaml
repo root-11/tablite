@@ -3,8 +3,6 @@ description: "Validates Nimlite build"
 runs:
   using: "composite"
   steps:
-    - name: Test nim
-      shell: bash
     - name: Compile Debug & import (Unix)
       shell: bash
       if: runner.os == 'Linux' || runner.os == 'macOS'
