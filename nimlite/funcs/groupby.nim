@@ -448,18 +448,18 @@ method value*(self: GroupByMode): Option[PY_ObjectND] =
 proc getGroupByFunction(acc: Accumulator): GroupByFunction =
     return (
         case acc:
-        of Accumulator.Max: newGroupbyMax()
-        of Accumulator.Min: newGroupbyMin()
-        of Accumulator.Sum: newGroupBySum()
-        of Accumulator.Product: newGroupByProduct()
-        of Accumulator.First: newGroupByFirst()
-        of Accumulator.Last: newGroupByLast()
-        of Accumulator.Count: newGroupByCount()
-        of Accumulator.CountUnique: newGroupByCountUnique()
-        of Accumulator.Average: newGroupByAverage()
-        of Accumulator.StandardDeviation: newGroupByStandardDeviation()
-        of Accumulator.Median: newGroupByMedian()
-        of Accumulator.Mode: newGroupByMode()
+        of Max: newGroupbyMax()
+        of Min: newGroupbyMin()
+        of Sum: newGroupBySum()
+        of Product: newGroupByProduct()
+        of First: newGroupByFirst()
+        of Last: newGroupByLast()
+        of Count: newGroupByCount()
+        of CountUnique: newGroupByCountUnique()
+        of Average: newGroupByAverage()
+        of StandardDeviation: newGroupByStandardDeviation()
+        of Median: newGroupByMedian()
+        of Mode: newGroupByMode()
     )
 
 proc getPages(indices: seq[seq[PY_ObjectND]], columnIndex: int): seq[nimpy.PyObject] =
