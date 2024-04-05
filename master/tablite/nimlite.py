@@ -307,5 +307,8 @@ def repaginate(column: Column):
 def nearest_neighbour(T: BaseTable, sources: Union[list[str], None], missing: Union[list, None], targets: Union[list[str], None], tqdm=_tqdm):
     return nl.nearest_neighbour(T, sources, list(missing), targets, tqdm)
 
+def groupby(T, keys, functions, tqdm=_tqdm):
+    return nl.groupby(T, keys, functions, tqdm)
+
 def filter(table: BaseTable, expressions: list[FilterDict], type: FilterType, tqdm = _tqdm):
     return nl.filter(table, expressions, type, tqdm)

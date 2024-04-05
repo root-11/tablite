@@ -25,14 +25,14 @@ proc uniqueColumnValues(pagePaths: seq[string]): seq[PY_ObjectND] =
             uniqueVals.add(v)
     result = uniqueVals
 
-method toFloat(self: PY_ObjectND): float {.base, inline.} = implement("PY_ObjectND.`toFloat` must be implemented by inheriting class: " & $self.kind)
-method toFloat(self: PY_NoneType): float = -Inf
-method toFloat(self: PY_Boolean): float = float(self.value)
-method toFloat(self: PY_Int): float = float(self.value)
-method toFloat(self: PY_Float): float = self.value
-method toFloat(self: PY_Date): float = self.value.toTime().toUnixFloat()
-method toFloat(self: PY_Time): float = self.value.duration2Seconds()
-method toFloat(self: PY_DateTime): float = self.value.toTime().toUnixFloat()
+method toFloat*(self: PY_ObjectND): float {.base, inline.} = implement("PY_ObjectND.`toFloat` must be implemented by inheriting class: " & $self.kind)
+method toFloat*(self: PY_NoneType): float = -Inf
+method toFloat*(self: PY_Boolean): float = float(self.value)
+method toFloat*(self: PY_Int): float = float(self.value)
+method toFloat*(self: PY_Float): float = self.value
+method toFloat*(self: PY_Date): float = self.value.toTime().toUnixFloat()
+method toFloat*(self: PY_Time): float = self.value.duration2Seconds()
+method toFloat*(self: PY_DateTime): float = self.value.toTime().toUnixFloat()
 
 proc cmpNonText(this, other: PY_ObjectND): int =
     let r = system.cmp[int](PARITY_TABLE[this.kind], PARITY_TABLE[other.kind])
