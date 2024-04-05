@@ -24,6 +24,7 @@ site/
 
 # personal notes
 *scratch*.py
+*scratch*.nim
 
 # local confidential data
 tests/ndata/*
