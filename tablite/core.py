@@ -17,7 +17,6 @@ from tablite import joins
 from tablite import lookup
 from tablite import match
 from tablite import sortation
-from tablite import groupbys
 from tablite import pivots
 from tablite import imputation
 from tablite import diff

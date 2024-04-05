@@ -78,7 +78,6 @@ method run(self: GroupbyMax, value: Option[PY_ObjectND]) =
     var v = self.value.get()
     var vv = value.get()
     if v.kind == vv.kind:
-        echo vv, " ", v, " ", vv > v
         if vv > v:
             self.value = some(vv)
     else:
@@ -678,7 +677,6 @@ proc groupby*(T: nimpy.PyObject, keys: seq[string], functions: seq[(string, Accu
         for (ix, keyVal) in enumerate(keyTup):
             cols[ix].add(keyVal)
         var start: int = len(keys)
-        echo start
         for (ix, p) in enumerate(start, funcs):
             var f: GroupByFunction = p[1]
             cols[ix].add(f.value.get())
@@ -697,9 +695,9 @@ proc groupby*(T: nimpy.PyObject, keys: seq[string], functions: seq[(string, Accu
 
     return newTable
 
-when appType != "lib":
-    modules().tablite.modules.config.classes.Config.PAGE_SIZE = 1
-    let columns = modules().builtins.classes.DictClass!()
+# when appType != "lib":
+#     modules().tablite.modules.config.classes.Config.PAGE_SIZE = 1
+#     let columns = modules().builtins.classes.DictClass!()
 
 
     # columns["A"] = @[nimValueToPy(nil), nimValueToPy(2), nimValueToPy(2), nimValueToPy(4), nimValueToPy(nil)]
@@ -713,12 +711,12 @@ when appType != "lib":
     # columns["f"] = @[1, 4, 5, 10, 13, 1, 4, 7, 10, 13]
     # columns["g"] = @[0, 1, 8, 27, 64, 0, 1, 8, 27, 64]
 
-    columns["a"] = @[1, 1, 1, 1, 1, 1]
-    columns["b"] = @[-2, -1, 0, 1, 2, 3]
+    # columns["a"] = @[1, 1, 1, 1, 1, 1]
+    # columns["b"] = @[-2, -1, 0, 1, 2, 3]
 
-    let table = modules().tablite.classes.TableClass!(columns = columns)
+    # let table = modules().tablite.classes.TableClass!(columns = columns)
 
-    discard table.show()
+    # discard table.show()
 
     # var r = table.groupby(keys = @["A"], functions = @[]) # None, 2, 4
     # var r = table.groupby(keys = @["A", "B"], functions = @[]) # just like original
@@ -752,5 +750,5 @@ when appType != "lib":
     #     ("g", Accumulator.Median),
     # ])
 
-    var r = table.groupby(keys = @["a"], functions = @[("b", Accumulator.Max)])
-    discard r.show()
+    # var r = table.groupby(keys = @["a"], functions = @[("b", Accumulator.Max)])
+    # discard r.show()

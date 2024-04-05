@@ -1,8 +1,9 @@
 from tablite.core import Table
-from tablite.groupbys import GroupBy as gb
+from tablite.groupby_utils import GroupBy as gb
 from random import seed, choice
 import numpy as np
 import pytest
+import statistics
 
 
 @pytest.fixture(autouse=True)  # this resets the HDF5 file for every test.
@@ -451,5 +452,59 @@ def test_groupby_funcs():
         x *= i
     t = createTable([1, 2, 3, 4, 5]).groupby(keys=['k'], functions=[('v', gb.product)])
     assert t["Product(v)"] == [x]
+    # ==========================
+
+    # ========= FIRST ==========
+    t = createTable([-2, -1, 0, 1, 2, 3]).groupby(keys=['k'], functions=[('v', gb.first)])
+    assert t["First(v)"] == [-2]
+    # ==========================
+
+    # ========== LAST ==========
+    t = createTable([-2, -1, 0, 1, 2, 3]).groupby(keys=['k'], functions=[('v', gb.last)])
+    assert t["Last(v)"] == [3]
+    # ==========================
+
+    # ========= COUNT ==========
+    t = createTable([1, 1, 2, 2]).groupby(keys=['k'], functions=[('v', gb.count)])
+    assert t["Count(v)"] == [4]
+    # ==========================
+
+    # ===== COUNT UNIQUE =======
+    t = createTable([1, 1, 2, 2]).groupby(keys=['k'], functions=[('v', gb.count_unique)])
+    assert t["CountUnique(v)"] == [2]
+    # ==========================
+
+    # ======== AVERAGE =========
+    L = [-2, -1, 0, 1, 2, 3]
+    t = createTable(L).groupby(keys=['k'], functions=[('v', gb.avg)])
+    assert t["Average(v)"] == [sum(L) / len(L)]
+
+    L = [0]
+    t = createTable([0]).groupby(keys=['k'], functions=[('v', gb.avg)])
+    assert t["Average(v)"] == [sum(L) / len(L)]
+    # ==========================
+
+    # ========= STDEV ==========
+    L = [1, 1]
+    t = createTable(L).groupby(keys=['k'], functions=[('v', gb.stdev)])
+    assert t["StandardDeviation(v)"] == [0]
+
+    L = [1, 1, 2, 2]
+    t = createTable(L).groupby(keys=['k'], functions=[('v', gb.stdev)])
+    assert t["StandardDeviation(v)"] == [statistics.stdev(L)]
+    # ==========================
+
+    # ========== MODE ==========
+    t = createTable([1]).groupby(keys=['k'], functions=[('v', gb.mode)])
+    assert t["Mode(v)"] == [1]
+    
+    t = createTable([1, 1, 2]).groupby(keys=['k'], functions=[('v', gb.mode)])
+    assert t["Mode(v)"] == [1]
+    
+    t = createTable([1, 1, 2, 3, 3]).groupby(keys=['k'], functions=[('v', gb.mode)])
+    assert t["Mode(v)"] == [3]
+
+    t = createTable([1, 1, 2, 2, 3, 3]).groupby(keys=['k'], functions=[('v', gb.mode)])
+    assert t["Mode(v)"] == [3]
     # ==========================
 
