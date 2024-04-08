@@ -1,0 +1,13 @@
+class GroupBy(object):
+    max = "Max"
+    min = "Min"
+    sum = "Sum"
+    product = "Product"
+    first = "First"
+    last = "Last"
+    count = "Count"
+    count_unique = "CountUnique"
+    avg = "Average"
+    stdev = "StandardDeviation"
+    median = "Median"
+    mode = "Mode"

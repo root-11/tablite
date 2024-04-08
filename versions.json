@@ -2,6 +2,11 @@
   {
     "version": "master",
     "title": "master",
+    "aliases": []
+  },
+  {
+    "version": "2023.11.1",
+    "title": "2023.11.1",
     "aliases": [
       "latest"
     ]
