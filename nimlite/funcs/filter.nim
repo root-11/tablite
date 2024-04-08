@@ -147,6 +147,7 @@ proc filter*(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTy
             let pyType = builtins.getTypeName(pyVal)
             let obj: PY_ObjectND = (
                 case pyType
+                of "NoneType": PY_None
                 of "int": newPY_Object(pyVal.to(int))
                 of "float": newPY_Object(pyVal.to(float))
                 of "bool": newPY_Object(pyVal.to(bool))

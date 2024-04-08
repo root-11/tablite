@@ -22,8 +22,10 @@ type NDArrayTypeDescriptor = enum
     D_BOOLEAN
     D_INT
     D_FLOAT
-    D_TIME
     D_DATE_DAYS
+    D_TIME_SECONDS
+    D_TIME_MILISECONDS
+    D_TIME_MICROSECONDS
     D_DATETIME_SECONDS
     D_DATETIME_MILISECONDS
     D_DATETIME_MICROSECONDS
@@ -523,16 +525,20 @@ proc consumeDescr(header: var string, header_len: int, offset: var int): NDArray
         descriptor = NDArrayTypeDescriptor.D_OBJECT
     of 'm':
         case dt_descriptor:
+        of "us": NDArrayTypeDescriptor.D_TIME_MICROSECONDS
+        of "ms": NDArrayTypeDescriptor.D_TIME_MILISECONDS
+        of "s": NDArrayTypeDescriptor.D_TIME_SECONDS
         else: implement(descr)
     of 'M':
-        case dt_descriptor:
-        of "D":
-            size = 8
-            descriptor = NDArrayTypeDescriptor.D_DATE_DAYS
-        of "us":
-            size = 8
-            descriptor = NDArrayTypeDescriptor.D_DATETIME_MICROSECONDS
-        else: implement(descr)
+        size = 8
+        descriptor = (
+            case dt_descriptor:
+            of "D": NDArrayTypeDescriptor.D_DATE_DAYS
+            of "us": NDArrayTypeDescriptor.D_DATETIME_MICROSECONDS
+            of "ms": NDArrayTypeDescriptor.D_DATETIME_MILISECONDS
+            of "s": NDArrayTypeDescriptor.D_DATETIME_SECONDS
+            else: implement(descr)
+        )
     else:
         size = parseInt(descr[type_offset+1..descr.len-1])
 
@@ -659,6 +665,33 @@ proc newDateTimeArray_Microseconds(fh: var File, endianness: Endianness, shape: 
 
     return DateTimeNDArray(buf: buf, shape: shape)
 
+proc newTimeArray_Seconds(fh: var File, endianness: Endianness, shape: var Shape): ObjectNDArray {.inline.} =
+    let data = readPrimitiveBuffer[int64](fh, shape)
+    let dtypes = {K_TIME: data.len}.toTable
+    let buf = collect:
+        for v in data:
+            newPY_Object(seconds2Duration(float v))
+
+    return ObjectNDArray(buf: buf, shape: shape, dtypes: dtypes)
+
+proc newTimeArray_Miliseconds(fh: var File, endianness: Endianness, shape: var Shape): ObjectNDArray {.inline.} =
+    let data = readPrimitiveBuffer[int64](fh, shape)
+    let dtypes = {K_TIME: data.len}.toTable
+    let buf = collect:
+        for v in data:
+            newPY_Object(seconds2Duration(float v * 1_000))
+
+    return ObjectNDArray(buf: buf, shape: shape, dtypes: dtypes)
+
+proc newTimeArray_Microseconds(fh: var File, endianness: Endianness, shape: var Shape): ObjectNDArray {.inline.} =
+    let data = readPrimitiveBuffer[int64](fh, shape)
+    let dtypes = {K_TIME: data.len}.toTable
+    let buf = collect:
+        for v in data:
+            newPY_Object(seconds2Duration(float v * 1_000_000))
+
+    return ObjectNDArray(buf: buf, shape: shape, dtypes: dtypes)
+
 template newFloatNDArray(fh: var File, endianness: Endianness, size: int, shape: var Shape) =
     case size:
     of 4: Float32NDArray(buf: readPrimitiveBuffer[float32](fh, shape), shape: shape)
@@ -711,20 +744,22 @@ proc readPageInfo(fh: var File): (NDArrayDescriptor, bool, Shape) =
 
 proc readNumpy(fh: var File): BaseNDArray =
     var ((descrEndianness, descrType, descrSize), _, shape) = readPageInfo(fh)
-    var page: BaseNDArray
 
-    case descrType:
-        of D_BOOLEAN: page = newBooleanNDArray(fh, shape)
-        of D_INT: page = newIntNDArray(fh, descrEndianness, descrSize, shape)
-        of D_FLOAT: page = newFloatNDArray(fh, descrEndianness, descrSize, shape)
-        of D_UNICODE: page = newUnicodeNDArray(fh, descrEndianness, descrSize, shape)
-        of D_OBJECT: page = newObjectNDArray(fh, descrEndianness, shape)
-        of D_DATE_DAYS: page = newDateArray_Days(fh, descrEndianness, shape)
-        of D_DATETIME_SECONDS: page = newDateTimeArray_Seconds(fh, descrEndianness, shape)
-        of D_DATETIME_MILISECONDS: page = newDateTimeArray_Miliseconds(fh, descrEndianness, shape)
-        of D_DATETIME_MICROSECONDS: page = newDateTimeArray_Microseconds(fh, descrEndianness, shape)
-        else: implement($descrType)
-
+    let page = (
+        case descrType:
+        of D_BOOLEAN: newBooleanNDArray(fh, shape)
+        of D_INT: newIntNDArray(fh, descrEndianness, descrSize, shape)
+        of D_FLOAT: newFloatNDArray(fh, descrEndianness, descrSize, shape)
+        of D_UNICODE: newUnicodeNDArray(fh, descrEndianness, descrSize, shape)
+        of D_OBJECT: newObjectNDArray(fh, descrEndianness, shape)
+        of D_DATE_DAYS: newDateArray_Days(fh, descrEndianness, shape)
+        of D_DATETIME_SECONDS: newDateTimeArray_Seconds(fh, descrEndianness, shape)
+        of D_DATETIME_MILISECONDS: newDateTimeArray_Miliseconds(fh, descrEndianness, shape)
+        of D_DATETIME_MICROSECONDS: newDateTimeArray_Microseconds(fh, descrEndianness, shape)
+        of D_TIME_SECONDS: newTimeArray_Seconds(fh, descrEndianness, shape)
+        of D_TIME_MILISECONDS: newTimeArray_Miliseconds(fh, descrEndianness, shape)
+        of D_TIME_MICROSECONDS: newTimeArray_Microseconds(fh, descrEndianness, shape)
+    )
     return page
 
 proc readNumpy*(path: string): BaseNDArray =
