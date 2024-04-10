@@ -1,6 +1,7 @@
 import nimpy as nimpy
 import std/[sugar, sequtils, unicode, enumerate, tables]
-import encfile, csvparse
+import encfile, csvparse, file_tracker
+from zipper import zipper
 import ../../[numpy, pickling, ranking, infertypes, pytypes, utils]
 
 type PageType = enum
@@ -91,17 +92,18 @@ proc isAnyFloat(dt: DataTypes): bool {.inline.} =
 proc dumpPageHeader*(
         destinations: var seq[string],
         nPages: int, nRows: uint, guessDtypes: bool,
-        longestStr: var seq[uint], ranks: var seq[Rank]
-    ): (seq[File], seq[PageType], uint32) =
-    let pageFileHandlers = collect(newSeqOfCap(nPages)):
-        for p in destinations:
-            open(p, fmWrite)
+        longestStr: seq[uint], ranks: var seq[Rank]
+    ): (FileTracker, seq[PageType], uint32) =
+    let pageFileHandlers = newFileTracker(destinations)
 
     var columnDtypes = newSeq[PageType](nPages)
     var binput: uint32 = 0
 
     if not guessDtypes:
-        for idx, (fh, i) in enumerate(zip(pageFileHandlers, longestStr)):
+        for idx in 0..<pageFileHandlers.len:
+            let fh = pageFileHandlers[idx]
+            let i = longestStr[idx]
+    
             columnDtypes[idx] = PageType.PG_UNICODE
             fh.writeNumpyHeader(endiannessMark & "U" & $i, nRows)
     else:
@@ -217,7 +219,7 @@ proc dumpPageBody*(
         obj: var ReaderObj, fh: var BaseEncodedFile,
         guessDtypes: bool, nPages: int, rowCount: int, skipEmpty: SkipEmpty,
         importFields: var seq[uint],
-        pageFileHandlers: var seq[File],
+        pageFileHandlers: var FileTracker,
         longestStr: var seq[uint], ranks: var seq[Rank], columnDtypes: var seq[PageType],
         binput: var uint32
     ): (seq[Table[KindObjectND, int]], seq[int]) =
@@ -352,7 +354,7 @@ proc dumpPageBody*(
 
 proc dumpPageFooter*(
     nPages: int, nRows: uint,
-    pageFileHandlers: var seq[File],
+    pageFileHandlers: var FileTracker,
     columnDtypes: var seq[PageType],
     binput: var uint32
 ): void =

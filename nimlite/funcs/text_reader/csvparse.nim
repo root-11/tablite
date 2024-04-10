@@ -81,8 +81,8 @@ proc parseSaveField(self: var ReaderObj, dia: Dialect): bool =
     if likely(self.fieldLen > 0):
         copyMem(field[0].addr, self.field[0].addr, self.fieldLen)
 
-    if unlikely(self.fieldCount + 1 >= (uint self.field.high)):
-        self.field.setLen(self.field.len() * 2)
+    if unlikely(self.fieldCount + 1 >= (uint self.fields.high)):
+        self.fields.setLen(self.fields.len() * 2)
 
     if dia.skiptrailingspace:
         field = field.strip(leading = false, trailing = true)
