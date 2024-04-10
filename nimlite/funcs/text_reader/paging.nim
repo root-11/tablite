@@ -1,7 +1,6 @@
 import nimpy as nimpy
-import std/[sugar, sequtils, unicode, enumerate, tables]
+import std/[sugar, unicode, tables]
 import encfile, csvparse, file_tracker
-from zipper import zipper
 import ../../[numpy, pickling, ranking, infertypes, pytypes, utils]
 
 type PageType = enum
