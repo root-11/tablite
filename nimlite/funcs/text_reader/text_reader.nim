@@ -1,6 +1,7 @@
 import nimpy as nimpy
-import std/[os, enumerate, sugar, tables, json, options, strutils, paths]
-import encfile, csvparse, table, ../../utils, paging, taskargs
+import std/[os, enumerate, sugar, tables, options, strutils, paths]
+import encfile, csvparse, table, paging, taskargs, file_tracker
+import ../../utils
 from ../../numpy import newPyPage
 from ../../ranking import Rank
 
@@ -106,8 +107,7 @@ proc textReaderTask*(task: TaskArgs, page_info: PageInfo): seq[nimpy.PyObject] =
 
             return elems
         finally:
-            for f in pageFileHandlers:
-                f.close()
+            pageFileHandlers.close()
 
     finally:
         fh.close()
