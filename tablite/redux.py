@@ -142,7 +142,7 @@ def _compress_one(T, mask):
     return new
 
 
-def _compress_both(T, mask, pbar: _tqdm):
+def compress_both(T, mask, pbar: _tqdm):
     # NOTE FOR DEVELOPERS:
     # np.compress is so fast that the overhead of multiprocessing doesn't pay off.
     cls = type(T)
@@ -161,30 +161,12 @@ def _compress_both(T, mask, pbar: _tqdm):
             data = T[name][start:end]
             true_col.extend(np.compress(mask[start:end], data))
             false_col.extend(np.compress(np.invert(mask)[start:end], data))
-            pbar.update(pbar_step)
+            if pbar is not None:
+                pbar.update(pbar_step)
     return true, false
 
-def _filter_using_list_of_dicts(T, expressions, filter_type, pbar: _tqdm):
-    """
-    enables filtering across columns for multiple criteria.
 
-    expressions:
-
-        str: Expression that can be compiled and executed row by row.
-            exampLe: "all((A==B and C!=4 and 200<D))"
-
-        list of dicts: (example):
-
-            L = [
-                {'column1':'A', 'criteria': "==", 'column2': 'B'},
-                {'column1':'C', 'criteria': "!=", "value2": '4'},
-                {'value1': 200, 'criteria': "<", column2: 'D' }
-            ]
-
-        accepted dictionary keys: 'column1', 'column2', 'criteria', 'value1', 'value2'
-
-    filter_type: 'all' or 'any'
-    """
+def get_filter_bitmap(T, expressions, pbar: _tqdm):
     for expression in expressions:
         if not isinstance(expression, dict):
             raise TypeError(f"invalid expression: {expression}")
@@ -212,11 +194,6 @@ def _filter_using_list_of_dicts(T, expressions, filter_type, pbar: _tqdm):
         v2 = expression.get("value2", None)
         if v2 is not None and c2 is not None:
             raise ValueError("filter can only take 1 right expression element. Got 2.")
-
-    if not isinstance(filter_type, str):
-        raise TypeError()
-    if filter_type not in {"all", "any"}:
-        raise ValueError(f"filter_type: {filter_type} not in ['all', 'any']")
 
     # EVALUATION....
     # 1. setup a rectangular bitmap for evaluations
@@ -277,7 +254,38 @@ def _filter_using_list_of_dicts(T, expressions, filter_type, pbar: _tqdm):
                 assert callable(f)
                 result = list_to_np_array([safe_test(f, a, b) for a, b in zip(dset_A, dset_B)])
             bitmap[bit_index, start:end] = result
-            pbar.update(pbar_step)
+            if pbar is not None:
+                pbar.update(pbar_step)
+
+    return bitmap
+
+def _filter_using_list_of_dicts(T, expressions, filter_type, pbar: _tqdm):
+    """
+    enables filtering across columns for multiple criteria.
+
+    expressions:
+
+        str: Expression that can be compiled and executed row by row.
+            exampLe: "all((A==B and C!=4 and 200<D))"
+
+        list of dicts: (example):
+
+            L = [
+                {'column1':'A', 'criteria': "==", 'column2': 'B'},
+                {'column1':'C', 'criteria': "!=", "value2": '4'},
+                {'value1': 200, 'criteria': "<", column2: 'D' }
+            ]
+
+        accepted dictionary keys: 'column1', 'column2', 'criteria', 'value1', 'value2'
+
+    filter_type: 'all' or 'any'
+    """
+    if not isinstance(filter_type, str):
+        raise TypeError()
+    if filter_type not in {"all", "any"}:
+        raise ValueError(f"filter_type: {filter_type} not in ['all', 'any']")
+
+    bitmap = get_filter_bitmap(T, expressions, pbar)
 
     f = np.all if filter_type == "all" else np.any
     mask = f(bitmap, axis=0)
@@ -334,7 +342,7 @@ def filter_non_primitive(T, expressions, filter_type="all", tqdm=_tqdm):
         else:
             raise TypeError
         # create new tables
-        res = _compress_both(T, mask, pbar=pbar)
+        res = compress_both(T, mask, pbar=pbar)
         pbar.update(pbar.total - pbar.n)
 
         return res
@@ -381,7 +389,7 @@ def filter(T, expressions, filter_type="all", tqdm=_tqdm):
             # TODO: make parser for expressions and use the nim implement
             mask = _filter_using_expression(T, expressions)
             pbar.update(10)
-            res = _compress_both(T, mask, pbar=pbar)
+            res = compress_both(T, mask, pbar=pbar)
             pbar.update(pbar.total - pbar.n)
     elif isinstance(expressions, list):
         return _filter_using_list_of_dicts_native(T, expressions, filter_type, tqdm)
