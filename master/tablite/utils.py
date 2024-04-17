@@ -348,7 +348,7 @@ def _time_statistics_summary(v, c):
             timestamp -= minutes * 60
             seconds = int(timestamp)
             microseconds = int(1e6 * (timestamp-seconds))
-            
+
             d[k] = time(hours, minutes, seconds, microseconds)
         elif k in {"stdev", "iqr", "sum"}:
             d[k] = f"{d[k]} seconds"
@@ -420,6 +420,7 @@ def dict_to_rows(d):
         rows.append(row)
     return rows
 
+
 def calc_col_count(letters: str):
     ord_nil = ord("A") - 1
     cols_per_letter = ord("Z") - ord_nil
@@ -430,12 +431,13 @@ def calc_col_count(letters: str):
 
     return col_count
 
+
 def calc_true_dims(sheet):
     src = sheet._get_source()
     max_col, max_row = 0, 0
 
     regex = re.compile("\d+")
-    
+
     def handleStartElement(name, attrs):
         nonlocal max_col, max_row
 
@@ -455,6 +457,7 @@ def calc_true_dims(sheet):
 
     return max_col, max_row
 
+
 def fixup_worksheet(worksheet):
     try:
         ws_cols, ws_rows = calc_true_dims(worksheet)
@@ -464,15 +467,18 @@ def fixup_worksheet(worksheet):
     except Exception as e:
         logging.error(f"Failed to fetch true dimensions: {e}")
 
+
 def update_access_time(path):
     path = Path(path)
     stat = path.stat()
     os.utime(path, (now(), stat.st_mtime))
 
+
 def load_numpy(path):
     update_access_time(path)
 
     return np.load(path, allow_pickle=True, fix_imports=False)
+
 
 def select_type_name(dtypes: dict):
     dtypes = [t for t in dtypes.items() if t[0] != NoneType]
@@ -496,6 +502,7 @@ def get_predominant_types(table, all_dtypes=None):
 
     return dtypes
 
+
 def py_to_nim_encoding(encoding: str) -> str:
     if encoding is None or encoding.lower() in ["ascii", "utf8", "utf-8", "utf-8-sig"]:
         return "ENC_UTF8"
@@ -503,5 +510,24 @@ def py_to_nim_encoding(encoding: str) -> str:
         return "ENC_UTF16"
     elif encoding in Config.NIM_SUPPORTED_CONV_TYPES:
         return f"ENC_CONV|{encoding}"
-    
+
     raise NotImplementedError(f"encoding not implemented: {encoding}")
+
+
+def strip_escape(str_: str) -> str:
+    if not isinstance(str_, str):
+        return str_
+
+    seqs = (
+        ("\t", ""),
+        ("\n", ""),
+        ("\r", ""),
+        ("\t", ""),
+        ("\n", ""),
+        ("\r", "")
+    )
+
+    for (i, o) in seqs:
+        str_ = str_.replace(i, o)
+
+    return str_
