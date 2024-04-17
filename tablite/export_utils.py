@@ -1,3 +1,4 @@
+import csv
 from tablite.utils import sub_cls_check, type_check
 from tablite.base import BaseTable
 from tablite.config import Config
@@ -180,9 +181,10 @@ def text_writer(table, path, tqdm=_tqdm):
     delimiter = delimiters.get(path.suffix)
 
     with path.open("w", encoding="utf-8") as fo:
-        fo.write(delimiter.join(c for c in table.columns) + "\n")
+        w = csv.writer(fo, delimiter=delimiter)
+        w.writerow(c for c in table.columns)
         for row in tqdm(table.rows, total=len(table), disable=Config.TQDM_DISABLE):
-            fo.write(delimiter.join(txt(c) for c in row) + "\n")
+            w.writerow(txt(c) for c in row)
 
 
 def sql_writer(table, path):

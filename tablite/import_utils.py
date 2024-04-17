@@ -27,7 +27,7 @@ import tablite.nimlite as nimlite
 from tablite.datatypes import DataTypes, list_to_np_array
 from tablite.config import Config
 from tablite.file_reader_utils import TextEscape, get_encoding, get_delimiter, ENCODING_GUESS_BYTES
-from tablite.utils import type_check, unique_name, fixup_worksheet
+from tablite.utils import type_check, unique_name, fixup_worksheet, strip_escape
 from tablite.base import BaseTable, Page, Column
 
 from tqdm import tqdm as _tqdm
@@ -215,7 +215,7 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
         it_header = worksheet.iter_rows(min_row=header_row_index + 1)
         while True:
             # get the first row to know our headers or the number of columns
-            row = [c.value for c in next(it_header)]
+            row = [strip_escape(c.value) for c in next(it_header)]
             break
         fields = [str(c) if c is not None else "" for c in row] # excel is offset by 1
     except StopIteration:
@@ -259,7 +259,7 @@ def excel_reader(T, path, first_row_has_headers=True, header_row_index=0, sheet=
     it_used_indices = list(field_dict.values())
 
     # filter columns that we're not going to use
-    it_rows_filtered = ([row[idx].value for idx in it_used_indices] for row in it_rows)
+    it_rows_filtered = ([strip_escape(row[idx].value) for idx in it_used_indices] for row in it_rows)
 
     # create page directory
     workdir = Path(Config.workdir) / Config.pid

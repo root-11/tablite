@@ -6,9 +6,8 @@ from pathlib import Path
 from tablite.datatypes import DataTypes
 import csv
 from io import StringIO
-from tablite.utils import fixup_worksheet
 from tablite.nimlite import get_headers as _get_headers
-from tablite.utils import py_to_nim_encoding
+from tablite.utils import fixup_worksheet, py_to_nim_encoding, strip_escape
 
 ENCODING_GUESS_BYTES = 10000
 
@@ -219,6 +218,8 @@ def excel_reader_headers(path, delimiter, header_row_index, text_qualifier, line
                 if i < 0:
                     # NOTE: for some reason `iter_rows` specifying a start row starts reading cells as binary, instead skip the rows that are before our first read row
                     continue
+
+                row_data = [strip_escape(r) for r in row_data]
                 
                 # NOTE: text readers do not cast types and give back strings, neither should xlsx reader, can't find documentation if it's possible to ignore this via `iter_rows` instead of casting back to string
                 container[i] = [DataTypes.to_json(v) for v in row_data]
