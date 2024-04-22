@@ -1375,7 +1375,14 @@ param: **kwargs: sort criteria. See Table.sort()</p>
 <span class="normal">59</span>
 <span class="normal">60</span>
 <span class="normal">61</span>
-<span class="normal">62</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">sort_index</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">mapping</span><span class="p">,</span> <span class="n">sort_mode</span><span class="o">=</span><span class="s2">&quot;excel&quot;</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">62</span>
+<span class="normal">63</span>
+<span class="normal">64</span>
+<span class="normal">65</span>
+<span class="normal">66</span>
+<span class="normal">67</span>
+<span class="normal">68</span>
+<span class="normal">69</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">sort_index</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">mapping</span><span class="p">,</span> <span class="n">sort_mode</span><span class="o">=</span><span class="s2">&quot;excel&quot;</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    helper for methods `sort` and `is_sorted`</span>
 
@@ -1399,7 +1406,11 @@ param: **kwargs: sort criteria. See Table.sort()</p>
 
     <span class="n">rank</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">T</span><span class="p">))}</span>  <span class="c1"># create index and empty tuple for sortation.</span>
 
-    <span class="n">_pbar</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">mapping</span><span class="o">.</span><span class="n">items</span><span class="p">()),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;creating sort index&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">pbar</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">pbar</span>
+    <span class="k">if</span> <span class="n">pbar</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">mapping</span><span class="o">.</span><span class="n">items</span><span class="p">()),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;creating sort index&quot;</span><span class="p">)</span>
+        <span class="n">pbar_close</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">pbar_close</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">reverse</span> <span class="ow">in</span> <span class="n">mapping</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="n">col</span> <span class="o">=</span> <span class="n">T</span><span class="p">[</span><span class="n">key</span><span class="p">][:]</span>
@@ -1409,7 +1420,10 @@ param: **kwargs: sort criteria. See Table.sort()</p>
             <span class="n">v2</span> <span class="o">=</span> <span class="n">numpy_to_python</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
             <span class="n">rank</span><span class="p">[</span><span class="n">ix</span><span class="p">]</span> <span class="o">+=</span> <span class="p">(</span><span class="n">ranks</span><span class="p">[</span><span class="n">v2</span><span class="p">],)</span>  <span class="c1"># add tuple for each sortation level.</span>
 
-        <span class="n">_pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">pbar_close</span><span class="p">:</span>
+        <span class="n">pbar</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 
     <span class="k">del</span> <span class="n">col</span>
     <span class="k">del</span> <span class="n">ranks</span>
@@ -1453,14 +1467,7 @@ result: ['a','c','e','g','b','d','f','h']
 
           <details class="quote">
             <summary>Source code in <code>tablite/sortation.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">65</span>
-<span class="normal">66</span>
-<span class="normal">67</span>
-<span class="normal">68</span>
-<span class="normal">69</span>
-<span class="normal">70</span>
-<span class="normal">71</span>
-<span class="normal">72</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">72</span>
 <span class="normal">73</span>
 <span class="normal">74</span>
 <span class="normal">75</span>
@@ -1479,7 +1486,14 @@ result: ['a','c','e','g','b','d','f','h']
 <span class="normal">88</span>
 <span class="normal">89</span>
 <span class="normal">90</span>
-<span class="normal">91</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">reindex</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+<span class="normal">91</span>
+<span class="normal">92</span>
+<span class="normal">93</span>
+<span class="normal">94</span>
+<span class="normal">95</span>
+<span class="normal">96</span>
+<span class="normal">97</span>
+<span class="normal">98</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">reindex</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    index: list of integers that declare sort order.</span>
 
@@ -1537,14 +1551,7 @@ sort B in ascending order.</p>
 
           <details class="quote">
             <summary>Source code in <code>tablite/sortation.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">139</span>
-<span class="normal">140</span>
-<span class="normal">141</span>
-<span class="normal">142</span>
-<span class="normal">143</span>
-<span class="normal">144</span>
-<span class="normal">145</span>
-<span class="normal">146</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">146</span>
 <span class="normal">147</span>
 <span class="normal">148</span>
 <span class="normal">149</span>
@@ -1553,7 +1560,14 @@ sort B in ascending order.</p>
 <span class="normal">152</span>
 <span class="normal">153</span>
 <span class="normal">154</span>
-<span class="normal">155</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">sort</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">mapping</span><span class="p">,</span> <span class="n">sort_mode</span><span class="o">=</span><span class="s2">&quot;excel&quot;</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="p">:</span> <span class="n">_tqdm</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="normal">155</span>
+<span class="normal">156</span>
+<span class="normal">157</span>
+<span class="normal">158</span>
+<span class="normal">159</span>
+<span class="normal">160</span>
+<span class="normal">161</span>
+<span class="normal">162</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">sort</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">mapping</span><span class="p">,</span> <span class="n">sort_mode</span><span class="o">=</span><span class="s2">&quot;excel&quot;</span><span class="p">,</span> <span class="n">tqdm</span><span class="o">=</span><span class="n">_tqdm</span><span class="p">,</span> <span class="n">pbar</span><span class="p">:</span> <span class="n">_tqdm</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Perform multi-pass sorting with precedence given order of column names.</span>
 <span class="sd">    sort_mode: str: &quot;alphanumeric&quot;, &quot;unix&quot;, or, &quot;excel&quot;</span>
 <span class="sd">    kwargs:</span>
@@ -1596,12 +1610,12 @@ sort B in ascending order.</p>
   <table>
     <thead>
       <tr>
-        <th><b>PARAMETER</b></th>
-        <th><b> DESCRIPTION</b></th>
+        <th><span class="doc-section-title">PARAMETER</span></th>
+        <th><span>DESCRIPTION</span></th>
       </tr>
     </thead>
     <tbody>
-        <tr>
+        <tr class="doc-section-item">
           <td><code>mapping</code></td>
           <td class="doc-param-details">
             <div class="doc-md-description">
@@ -1619,12 +1633,12 @@ sort B in ascending order.</p>
   <table>
     <thead>
       <tr>
-        <th><b>RETURNS</b></th>
-        <th><b>DESCRIPTION</b></th>
+        <th><span class="doc-section-title">RETURNS</span></th>
+        <th><span>DESCRIPTION</span></th>
       </tr>
     </thead>
     <tbody>
-        <tr>
+        <tr class="doc-section-item">
           <td>
           </td>
           <td class="doc-returns-details">
@@ -1638,19 +1652,19 @@ sort B in ascending order.</p>
 
           <details class="quote">
             <summary>Source code in <code>tablite/sortation.py</code></summary>
-            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">158</span>
-<span class="normal">159</span>
-<span class="normal">160</span>
-<span class="normal">161</span>
-<span class="normal">162</span>
-<span class="normal">163</span>
-<span class="normal">164</span>
-<span class="normal">165</span>
+            <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">165</span>
 <span class="normal">166</span>
 <span class="normal">167</span>
 <span class="normal">168</span>
 <span class="normal">169</span>
-<span class="normal">170</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">is_sorted</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">mapping</span><span class="p">,</span> <span class="n">sort_mode</span><span class="o">=</span><span class="s2">&quot;excel&quot;</span><span class="p">):</span>
+<span class="normal">170</span>
+<span class="normal">171</span>
+<span class="normal">172</span>
+<span class="normal">173</span>
+<span class="normal">174</span>
+<span class="normal">175</span>
+<span class="normal">176</span>
+<span class="normal">177</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">is_sorted</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">mapping</span><span class="p">,</span> <span class="n">sort_mode</span><span class="o">=</span><span class="s2">&quot;excel&quot;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Performs multi-pass sorting check with precedence given order of column names.</span>
 
 <span class="sd">    Args:</span>

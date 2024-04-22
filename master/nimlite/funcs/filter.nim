@@ -81,7 +81,7 @@ proc checkExpressions(row: seq[PY_ObjectND], exprCols: seq[string], expressions:
     of FT_ANY: any(expressions, xpr => row.checkExpression(exprCols, xpr))
     of FT_ALL: all(expressions, xpr => row.checkExpression(exprCols, xpr))
 
-proc filter*(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTypeName: string, tqdm: nimpy.PyObject): (nimpy.PyObject, nimpy.PyObject) =
+proc filter*(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTypeName: string, tqdm: nimpy.PyObject = nil, pbarInp: nimpy.PyObject = nil): (nimpy.PyObject, nimpy.PyObject) =
     let m = modules()
     let builtins = m.builtins
     let tablite = m.tablite
@@ -267,10 +267,15 @@ proc filter*(table: nimpy.PyObject, pyExpressions: seq[nimpy.PyObject], filterTy
         for (key, col) in tablePages.pairs():
             col.dumpPage(passTablePages[key], failTablePages[key])
 
-    let tableLen = builtins.getLen(table)
-    let tqdmLen = int ceil(float(tableLen) / float(pageSize))
-    let TqdmClass = (if isNone(tqdm): m.tqdm.classes.TqdmClass else: tqdm)
-    let pbar = TqdmClass!(total: tqdmLen, desc = "filter")
+    var pbar: nimpy.PyObject
+
+    if pbarInp.isNone:
+        let tableLen = builtins.getLen(table)
+        let tqdmLen = int ceil(float(tableLen) / float(pageSize))
+        let TqdmClass = (if isNone(tqdm): m.tqdm.classes.TqdmClass else: tqdm)
+        pbar = TqdmClass!(total: tqdmLen, desc = "filter")
+    else:
+        pbar = pbarInp
 
     for (i, row) in enumerate(exprCols.iterateRows(tablePages)):
         bitmask[bitNum] = row.checkExpressions(exprCols, expressions, filterType)

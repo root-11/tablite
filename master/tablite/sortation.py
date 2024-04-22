@@ -38,7 +38,11 @@ def sort_index(T, mapping, sort_mode="excel", tqdm=_tqdm, pbar=None):
 
     rank = {i: tuple() for i in range(len(T))}  # create index and empty tuple for sortation.
 
-    _pbar = tqdm(total=len(mapping.items()), desc="creating sort index") if pbar is None else pbar
+    if pbar is None:
+        pbar = tqdm(total=len(mapping.items()), desc="creating sort index")
+        pbar_close = True
+    else:
+        pbar_close = False
 
     for key, reverse in mapping.items():
         col = T[key][:]
@@ -48,7 +52,10 @@ def sort_index(T, mapping, sort_mode="excel", tqdm=_tqdm, pbar=None):
             v2 = numpy_to_python(v)
             rank[ix] += (ranks[v2],)  # add tuple for each sortation level.
 
-        _pbar.update(1)
+        pbar.update(1)
+
+    if pbar_close:
+        pbar.close()
 
     del col
     del ranks

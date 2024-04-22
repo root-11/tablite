@@ -79,11 +79,19 @@ def text_reader(
     guess_datatypes: bool =False,
     newline: str='\n', delimiter: str=',', text_qualifier: str='"',
     quoting: ValidQuoting, strip_leading_and_tailing_whitespace: bool=True, skip_empty: ValidSkipEmpty = "NONE",
-    tqdm=_tqdm
+    tqdm=_tqdm,
+    pbar:_tqdm = None
 ) -> K:
     assert isinstance(path, Path)
     assert isinstance(pid, Path)
-    with tqdm(total=10, desc=f"importing file") as pbar:
+
+    if pbar is None:
+        pbar = tqdm(total=10, desc=f"importing file")
+        pbar_close = True
+    else:
+        pbar_close = False
+
+    try:
         table = nl.text_reader(
             pid=str(pid),
             path=str(path),
@@ -183,8 +191,12 @@ def text_reader(
         pbar.update(pbar.total - pbar.n)
 
         table = T(columns=table_dict)
+    finally:
+        if pbar_close:
+            pbar.close()
 
     return table
+
 
 
 def wrap(str_: str) -> str:
@@ -203,8 +215,14 @@ def _collect_cs_info(i: int, columns: dict, res_cols_pass: list, res_cols_fail: 
     return el, col_pass, col_fail
 
 
-def column_select(table: K, cols: list[ColumnSelectorDict], tqdm=_tqdm, TaskManager=TaskManager) -> Tuple[K, K]:
-    with tqdm(total=100, desc="column select", bar_format='{desc}: {percentage:.1f}%|{bar}{r_bar}') as pbar:
+def column_select(table: K, cols: list[ColumnSelectorDict], tqdm=_tqdm, pbar:_tqdm = None, TaskManager=TaskManager) -> Tuple[K, K]:
+    if pbar is None:
+        pbar = tqdm(total=100, desc="column select", bar_format='{desc}: {percentage:.1f}%|{bar}{r_bar}')
+        pbar_close = True
+    else:
+        pbar_close = False
+
+    try:
         T = type(table)
         dir_pid = Config.workdir / Config.pid
 
@@ -297,6 +315,9 @@ def column_select(table: K, cols: list[ColumnSelectorDict], tqdm=_tqdm, TaskMana
         pbar.update(pbar.total - pbar.n)
 
         return tbl_pass, tbl_fail
+    finally:
+        if pbar_close:
+            pbar.close()
 
 def read_page(path: Union[str, Path]) -> np.ndarray:
     return nl.read_page(str(path))
@@ -304,11 +325,11 @@ def read_page(path: Union[str, Path]) -> np.ndarray:
 def repaginate(column: Column):
     nl.repaginate(column)
 
-def nearest_neighbour(T: BaseTable, sources: Union[list[str], None], missing: Union[list, None], targets: Union[list[str], None], tqdm=_tqdm):
-    return nl.nearest_neighbour(T, sources, list(missing), targets, tqdm)
+def nearest_neighbour(T: BaseTable, sources: Union[list[str], None], missing: Union[list, None], targets: Union[list[str], None], tqdm=_tqdm, pbar: _tqdm = None):
+    return nl.nearest_neighbour(T, sources, list(missing), targets, tqdm, pbar)
 
-def groupby(T, keys, functions, tqdm=_tqdm):
-    return nl.groupby(T, keys, functions, tqdm)
+def groupby(T, keys, functions, tqdm=_tqdm, pbar: _tqdm=None):
+    return nl.groupby(T, keys, functions, tqdm, pbar)
 
-def filter(table: BaseTable, expressions: list[FilterDict], type: FilterType, tqdm = _tqdm):
-    return nl.filter(table, expressions, type, tqdm)
+def filter(table: BaseTable, expressions: list[FilterDict], type: FilterType, tqdm = _tqdm, pbar: _tqdm = None):
+    return nl.filter(table, expressions, type, tqdm, pbar)
