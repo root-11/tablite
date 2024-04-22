@@ -115,7 +115,7 @@ proc savePages(sliceData: seq[seq[PY_ObjectND]], columns: seq[nimpy.PyObject], p
 
 proc nearestNeighbourImputation*(T: nimpy.PyObject, sources: seq[string],
         missing: seq[PY_ObjectND], targets: seq[string],
-        tqdm: nimpy.PyObject = modules().tqdm.classes.TqdmClass): nimpy.PyObject =
+        tqdm: nimpy.PyObject = nil, pbarInp: nimpy.PyObject = nil): nimpy.PyObject =
     let
         m = modules()
         tabliteBase = m.tablite.modules.base
@@ -153,13 +153,20 @@ proc nearestNeighbourImputation*(T: nimpy.PyObject, sources: seq[string],
             for m in missing:
                 if m in k:
                     {k: v}
-    var
-        missingValsCounts = collect: (for v in missing_value_index.values(): len(v))
-        totalSteps = sum(missingValsCounts)
-        TqdmClass = if tqdm.isNone: m.tqdm.classes.TqdmClass else: tqdm
+
+
+    var pbar: nimpy.PyObject
+    if pbarInp.isNone:
+        let missingValsCounts = collect: (for v in missing_value_index.values(): len(v))
+        let totalSteps = sum(missingValsCounts)
+        let TqdmClass = if tqdm.isNone: m.tqdm.classes.TqdmClass else: tqdm
+
         pbar = TqdmClass!(desc: &"imputation.nearest_neighbour", total: totalSteps)
-        ranks: seq[PY_ObjectND] = @[]
-        newOrder = initTable[seq[int], seq[PY_ObjectND]]()
+    else:
+        pbar = pbarInp
+
+    var ranks: seq[PY_ObjectND] = @[]
+    var newOrder = initTable[seq[int], seq[PY_ObjectND]]()
 
     for k in missingValueIndex.keys():
         for kk in k:

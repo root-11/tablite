@@ -585,7 +585,7 @@ iterator iteratePages(paths: seq[string]): seq[PY_ObjectND] =
             res.add(i())
             finished = finished or finished(i)
 
-proc groupby*(T: nimpy.PyObject, keys: seq[string], functions: seq[(string, Accumulator)], tqdm: nimpy.PyObject = modules().tqdm.classes.TqdmClass): nimpy.PyObject =
+proc groupby*(T: nimpy.PyObject, keys: seq[string], functions: seq[(string, Accumulator)], tqdm: nimpy.PyObject = nil, pbarInp: nimpy.PyObject = nil): nimpy.PyObject =
     let
         m = modules()
         tabliteBase = m.tablite.modules.base
@@ -626,12 +626,19 @@ proc groupby*(T: nimpy.PyObject, keys: seq[string], functions: seq[(string, Accu
         if cn notin columnNames:
             columnNames.add(cn)
 
-    # var relevantT = T.slice(columnNames)
-    var columnsPaths: OrderedTable[string, seq[string]] = collect(initOrderedTable()):
+    let columnsPaths: OrderedTable[string, seq[string]] = collect(initOrderedTable()):
         for cn in columnNames:
             {cn: tabliteBase.collectPages(T[cn])}
-    var TqdmClass = if tqdm.isNone: m.tqdm.classes.TqdmClass else: tqdm
-    var pbar = TqdmClass!(desc: &"groupby", total: len(columnsPaths[toSeq(columnsPaths.keys)[0]]))
+    
+
+    var pbar: nimpy.PyObject
+
+    if pbarInp.isNone:
+        let TqdmClass = if tqdm.isNone: m.tqdm.classes.TqdmClass else: tqdm
+        pbar = TqdmClass!(desc: &"groupby", total: len(columnsPaths[toSeq(columnsPaths.keys)[0]]))
+    else:
+        pbar = pbarInp
+    
     var aggregationFuncs = initOrderedTable[seq[PY_ObjectND], seq[(string, GroupByFunction)]]()
     for pagesZipped in pageZipper(columnsPaths):
         for row in iteratePages(pagesZipped):

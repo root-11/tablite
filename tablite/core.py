@@ -611,7 +611,7 @@ class Table(BaseTable):
             https://github.com/root-11/tablite/blob/master/tests/test_groupby.py
 
         """
-        return _groupby(self, keys, functions, tqdm)
+        return _groupby(self, keys, functions, tqdm, pbar)
 
     def pivot(self, rows, columns, functions, values_as_rows=True, tqdm=_tqdm, pbar=None):
         """
@@ -730,7 +730,7 @@ class Table(BaseTable):
             first table contains the rows that were successfully cast to desired types
             second table contains rows that failed to cast + rejection reason
         """
-        return _column_select(self, cols, tqdm, TaskManager)
+        return _column_select(self, cols, tqdm=tqdm, TaskManager=TaskManager)
 
     def join(self, other, left_keys, right_keys, left_columns=None, right_columns=None, kind="inner", merge_keys=False, tqdm=_tqdm, pbar=None):
         """
