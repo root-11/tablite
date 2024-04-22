@@ -121,14 +121,14 @@ when isLib:
 
     # --------    FILTER    -----------
     import funcs/filter as ff
-    proc filter(table: nimpy.PyObject, expressions: seq[nimpy.PyObject], `type`: string, tqdm: nimpy.PyObject): (nimpy.PyObject, nimpy.PyObject) {.exportpy.} =
-        return ff.filter(table, expressions, `type`, tqdm)
+    proc filter(table: nimpy.PyObject, expressions: seq[nimpy.PyObject], `type`: string, tqdm: nimpy.PyObject, pbar: nimpy.PyObject): (nimpy.PyObject, nimpy.PyObject) {.exportpy.} =
+        return ff.filter(table, expressions, `type`, tqdm, pbar)
 
     # --------    FILTER    -----------
 
     # --------  IMPUTATION  -----------
     import funcs/imputation
-    proc nearest_neighbour(T: nimpy.PyObject, sources: seq[string], missing: seq[nimpy.PyObject], targets: seq[string], tqdm: nimpy.PyObject): nimpy.PyObject {.exportpy.} =
+    proc nearest_neighbour(T: nimpy.PyObject, sources: seq[string], missing: seq[nimpy.PyObject], targets: seq[string], tqdm: nimpy.PyObject, pbar: nimpy.PyObject): nimpy.PyObject {.exportpy.} =
         var miss: seq[PY_ObjectND] = @[]
         for m in missing:
             case modules().builtins.getTypeName(m):
@@ -150,14 +150,14 @@ when isLib:
                 miss.add(newPY_Object(m.to(bool)))
             else:
                 raise newException(ValueError, "unrecognized type.")
-        return nearestNeighbourImputation(T, sources, miss, targets, tqdm)
+        return nearestNeighbourImputation(T, sources, miss, targets, tqdm, pbar)
     # --------  IMPUTATION  -----------
     
     # --------   GROUPBY  -----------
     import funcs/groupby as gb
-    proc groupby(T: nimpy.PyObject, keys: seq[string], functions: seq[(string, string)], tqdm: nimpy.PyObject): nimpy.PyObject {. exportpy .} =
+    proc groupby(T: nimpy.PyObject, keys: seq[string], functions: seq[(string, string)], tqdm: nimpy.PyObject, pbar: nimpy.PyObject): nimpy.PyObject {. exportpy .} =
         var funcs = collect:
             for (cn, fn) in functions:
                 (cn, str2Accumulator(fn))
-        return gb.groupby(T, keys, funcs, tqdm)
+        return gb.groupby(T, keys, funcs, tqdm, pbar)
     # --------   GROUPBY  -----------

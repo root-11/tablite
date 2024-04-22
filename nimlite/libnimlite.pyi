@@ -1,4 +1,4 @@
-def text_reader_task(path,  encoding,  dia_delimiter,  dia_quotechar,  dia_escapechar,  dia_doublequote,  dia_quoting,  dia_skipinitialspace,  dia_skiptrailingspace,  dia_lineterminator,  dia_strict,  guess_dtypes,  tsk_pages,  tsk_offset,  tsk_count, import_fields):
+def text_reader_task(path, encoding, dia_delimiter, dia_quotechar, dia_escapechar, dia_doublequote, dia_quoting, dia_skipinitialspace, dia_skiptrailingspace, dia_lineterminator, dia_strict, guess_dtypes, tsk_pages, tsk_offset, tsk_count, import_fields):
     pass
 
 
@@ -30,11 +30,13 @@ def collect_text_reader_page_info_task(task_info, task):
     pass
 
 
-def nearest_neighbour(T, sources, missing, targets, tqdm):
+def nearest_neighbour(T, sources, missing, targets, tqdm, pbar):
     pass
 
-def groupby(T, keys, functions, tqdm):
+
+def groupby(T, keys, functions, tqdm, pbar):
     pass
 
-def filter(table, expressions, type, tqdm):
+
+def filter(table, expressions, type, tqdm, pbar):
     pass
