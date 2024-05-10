@@ -36,7 +36,7 @@ class Config(object):
     multiprocessing is used.
     """
 
-    USE_NIMPORTER = os.environ.get("USE_NIMPORTER", "true").lower() in ["1","t","true","y","yes"]
+    USE_NIMPORTER = os.environ.get("USE_NIMPORTER", "false").lower() in ["1","t","true","y","yes"]
     ALLOW_CSV_READER_FALLTHROUGH = os.environ.get("ALLOW_CSV_READER_FALLTHROUGH", "true").lower() in ["1", "t", "true", "y", "yes"]
 
     NIM_SUPPORTED_CONV_TYPES = ["Windows-1252", "ISO-8859-1"]
