@@ -52,7 +52,7 @@ Tablite uses datatype mapping to native numpy types where possible and uses type
 
 ### Light weight
 
-Tablite is ~200 kB.
+Tablite is ~400 kB.
 
 ### Helpful
 
