@@ -40,13 +40,13 @@ jobs:
           NIMLITE_DIR:  'nimlite'
           NIM_PACKAGE_NAME: 'libnimlite'
       - name: Cache Restore Unix
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: nimlite-unix
           path: |
             ${{ env.NIMLITE_DIR }}
       - name: Cache Restore Windows
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: nimlite-windows
           path: |
